@@ -53,7 +53,7 @@ matches the block just closed:
 
 | Block | Marker |
 |---|---|
-| `if` / `elif` / `else` chain | `# end if` |
+| `if` / `else if` / `else` chain | `# end if` |
 | `while` | `# end while` |
 | `for` | `# end for` |
 | `repeat ... until` | not allowed (`until` already closes it) |
@@ -82,12 +82,12 @@ Naming is enforced (error `E0020`):
 
 ```
 and       assert    break     case      const     continue  defer
-div       do        downto    elif      else      ensures   export
+div       do        downto    else      ensures   export
 extern    false     for       function  if        in        let
 mod       not       of        or        procedure program   record
 ref       repeat    requires  return    test      then      this
 This      to        trait     true      try       type      unit
-unsafe    until     uses      var       while     _
+unsafe    until     uses      var       while     deref     _
 ```
 
 ### 2.7 Literals
@@ -315,8 +315,10 @@ type
 - `ref T` is a non-null, refcounted pointer to a heap-allocated `T`.
 - Create with `new(value)`: `let n := new(Node(value: 1, next: None))`.
 - Field access auto-dereferences: `n.value`.
-- Whole-value access uses `^`: `n^` (read), `n^ := other` (write).
-- `=` on two refs compares **identity**. Compare contents with `a^ = b^`.
+- Whole-value access uses the built-in `deref`: `deref(n)` reads (copies the pointee out),
+  `deref(n) := other` replaces the pointee. `deref` is a keyword, and the only call form
+  allowed on the left of `:=`.
+- `=` on two refs compares **identity**. Compare contents with `deref(a) = deref(b)`.
 - A `let` binding of a ref can't be rebound, but the pointee can still be mutated.
 - `Weak[T]` holds a non-owning reference: `weak(r)` creates it, `w.get(): Option[ref T]`.
   Use it to break cycles; strong reference cycles leak.
@@ -391,7 +393,7 @@ Available from the `C` unit:
 | `Ptr[T]` | `T*`, unmanaged, nullable |
 | `Pointer` | `void*` |
 
-`Ptr`/`Pointer` are unmanaged and can be dereferenced only inside functions marked `unsafe` (§10.4).
+`Ptr`/`Pointer` are unmanaged and can be dereferenced (`deref(p)`, same form as for `ref`) only inside functions marked `unsafe` (§10.4).
 
 ---
 
@@ -447,7 +449,9 @@ An argument passed to a `var` parameter must be marked `var` at the call site:
 swap(var a, var b)
 ```
 
-The receiver in UFCS method-call syntax is exempt: `p.shift(1.0)`.
+There are no exceptions to this rule. Because dot syntax can't carry a `var` marker,
+functions whose first parameter is `var` can't be called with dot syntax (§6.6).
+Every call that may mutate an argument shows `var` at that argument.
 
 ### 6.4 Named arguments
 - Any argument may be passed by name: `restock(item, amount: 5)`.
@@ -464,6 +468,14 @@ The receiver in UFCS method-call syntax is exempt: `p.shift(1.0)`.
 1. If `a` has a field named `f`, it is field access (calling it if `f` has a function type).
 2. Otherwise it is a call to function `f` with `a` as the first argument.
 
+Dot syntax is **read-only**: if `f`'s first parameter is `var`, `a.f(...)` is an error
+(`E0520`, with a fix rewriting it to `f(var a, ...)`). So `p.length()` never changes `p`,
+and mutation is always written `shift(var p, 1.0)`.
+
+Mutating through a `ref` doesn't need `var`: `n.relink(other)` with `relink(n: ref Node, ...)`
+is allowed, since the reference itself isn't changed. The type `ref` in the signature shows
+that the pointee is shared.
+
 ### 6.7 Overloading
 Functions may share a name if their parameter types differ. Calls resolve by
 **exact** type match only (there are no implicit conversions, so ranking is never needed).
@@ -478,7 +490,7 @@ Two candidates that match exactly is an error (`E0510`).
 x := expr
 p.x := expr
 list[i] := expr
-r^ := expr
+deref(r) := expr
 ```
 There are no compound operators (`+=`). Use `inc(x)`, `inc(x, n)`, `dec(x)`, `dec(x, n)` for counters.
 
@@ -486,12 +498,15 @@ There are no compound operators (`+=`). Use `inc(x)`, `inc(x, n)`, `dec(x)`, `de
 ```pascal
 if x > 0 then
     writeln("pos")
-elif x < 0 then
+else if x < 0 then
     writeln("neg")
 else
     writeln("zero")
 ```
-Bodies always start on a new line.
+- Bodies always start on a new line.
+- `else if` on one line continues the same chain. It does not open a nested `if` block,
+  so the chain stays flat and a single `# end if` closes it. Writing `else` followed by an
+  indented `if` on the next line is a nested `if`, and the formatter rewrites it to `else if`.
 
 ### 7.3 while
 ```pascal
@@ -542,6 +557,8 @@ case expr of
   ```
   The binding is optional: `None: return 0`.
 
+Expression forms of `if` and `case` are described in §9.3.
+
 ### 7.7 break / continue / return
 As usual. `break`/`continue` apply to the innermost loop.
 
@@ -576,6 +593,66 @@ and can also appear as a `case` binding: `Circle(_): ...`.
   explicitly: `parse[Integer](s)`.
 - Constant parameters may be used in type expressions and as values: `Array[T, N * 2]`, `for i := 0 to N - 1 do`.
 - Recursive instantiation depth is limited to 64 (`E0720`).
+- An unbounded `T` supports only copying, assignment, passing to parameters of type `T`,
+  and storing in generic containers. Everything else (`=`, `<`, `toString`, calls,
+  fields) needs a bound that provides it.
+
+### 8.1 Instances
+- An instance is identified by (generic declaration, list of type and constant arguments).
+  It is created once per program and shared by every unit that uses it.
+- Instances are created on demand from a work queue during the check and emit pass.
+  A cache lookup happens before every instantiation, so mutual and self recursion terminate.
+
+### 8.2 Name resolution inside generics
+A name used in a generic body is resolved in one of two ways:
+
+1. **Bound members are resolved at the instantiation site.** Fields and functions required
+   by the bounds of `T` (e.g. `area` from `T: Measurable`) are looked up where the trait is
+   checked, that is where `T` is substituted, with the visibility of that place. This lets a
+   generic in unit `Geometry` call `area` for a `Circle` whose `area` lives in the program
+   that uses `Geometry`.
+2. **Everything else is resolved at the definition site**, once, when the generic body is
+   checked against its bounds. That covers other functions, types, constants, and units
+   visible in the generic's own unit. Instantiation never changes their meaning.
+
+A name that matches a bound member, and also something visible at the definition site,
+always resolves to the bound member. There is no further lookup and no overload ranking
+between the two sources.
+
+```pascal
+unit Geometry
+
+type
+    export Measurable = trait
+        function area(this): Real
+
+export function totalArea[T: Measurable](xs: List[T]): Real
+    var sum := 0.0
+    for x in xs do
+        sum := sum + x.area()     # bound member: resolved where totalArea[T] is instantiated
+    return round2(sum)            # not a bound member: resolved here, in Geometry
+
+function round2(x: Real): Real
+    return toReal(round(x * 100.0)) / 100.0
+```
+
+```pascal
+program Shapes
+
+uses Geometry, Math
+
+type
+    Circle = record
+        r: Real
+
+function area(c: Circle): Real
+    return Pi * c.r * c.r         # visible here, so Circle satisfies Measurable here
+
+writeln("{totalArea([Circle(r: 1.0), Circle(r: 2.0)])}")
+```
+
+`round2` is not exported from `Geometry` and is not visible in `Shapes`, but the
+instance `totalArea[Circle]` still uses it, because it was resolved at the definition site.
 
 ```pascal
 function largest[T: Ordered](xs: List[T]): Option[T]
@@ -603,7 +680,7 @@ function largest[T: Ordered](xs: List[T]): Option[T]
 | 5 | `+` `-` | numeric only (strings: §2.8; lists: `add`, `concat`) |
 | 6 | `*` `/` `div` `mod` | |
 | 7 | unary `-`, `try` | |
-| 8 | postfix: call `()`, index `[]`, field `.`, deref `^` | |
+| 8 | postfix: call `()`, index `[]`, field `.` | |
 
 - `/` works on Real only. `div` and `mod` work on integers only.
 - `and`, `or`, `not` work on Boolean only (short-circuit). Bitwise ops are library functions in the `Bits` unit (§14).
@@ -617,6 +694,41 @@ function largest[T: Ordered](xs: List[T]): Option[T]
 - If `e: Option[T]`: on `Some(v)` the value is `v`. On `None` the function returns `None`, so it must return an `Option`.
 
 Deferred statements run before the early return.
+
+### 9.3 if and case expressions
+`if` and `case` also exist as **expressions**. The form is chosen by position: in
+statement position they are statements (§7.2, §7.6) and produce no value; where a value
+is expected they are expressions. There is no "last expression of a block is its value" rule.
+
+```pascal
+let sign := if x > 0 then 1 else if x < 0 then -1 else 0
+
+let label := case item.status of
+    Active:       "on"
+    Discontinued: "gone"
+    Backorder:    "wait"
+
+return if isOk(r) then "ok" else "failed"
+```
+
+Rules:
+- Each branch is a **single expression**, never a statement block.
+- `if` expressions require `else` (`E0801`). `case` expressions must be exhaustive, or
+  over non-enum, non-union types have `else` (`E0602`, as for statements).
+- All branches must have the same type (`E0802`). No implicit conversion, except union
+  injection when the expected type is a union.
+- Union arms bind values as in statements: `Circle(c): Pi * c.r * c.r`.
+- Only the chosen branch is evaluated.
+- **`if` expression layout:** a single line, or wrapped in parentheses (newlines inside
+  brackets are free, §2.2). It has the lowest precedence, so as an operand it must be
+  parenthesized: `1 + (if a then 2 else 3)` (`E0803` otherwise).
+- **`case` expression layout:** as the statement, with an expression after each arm's
+  colon. Because its arms form an indented block, a `case` expression may only appear as
+  the whole right-hand side of `:=` / `var` / `let`, or as the whole operand of `return`
+  (`E0804`).
+- **Prefer the expression.** A statement `if`/`case` whose every branch only assigns the
+  same variable gets warning `W0801` from `pst check`, with a fix that rewrites it to the
+  expression form.
 
 ---
 
@@ -719,6 +831,10 @@ test "largest of empty list is None"
 | `pst test [path]` | run `test` blocks |
 | `pst check [path] --json` | type-check only, emit diagnostics |
 | `pst fmt [path] [--check]` | canonical formatter |
+| `pst lsp` | language server over stdio, for human editors (§15.4) |
+| `pst mcp` | MCP server over stdio, for AI agents (§15.7) |
+| `pst query <request> --json` | one-shot semantic queries for scripts and AI agents (§15.5) |
+| `pst index [path] --json` | dump the whole project's symbol index (§15.5) |
 
 ### 15.1 Diagnostics
 Human format: `Main.pst:12:5: error E0502: result of 'restock' is ignored`.
@@ -739,12 +855,20 @@ JSON format (`--json`, one object per line):
 ```
 Error codes are stable forever. Each has a doc page (`pst explain E0502`).
 
+**Positions** in all `pst` JSON output: `line` and `col` are 1-based, and `col` counts
+Unicode code points. Ranges are half-open (`endCol` is one past the last character).
+Paths are relative to the project root. The language server converts to whatever
+encoding the client negotiates (§15.4).
+
 ### 15.2 Compilation model
 1. **Lex + parse** every file into an AST. Indentation becomes tokens.
 2. **Declaration pass**: collect all top-level names per unit (this is why `forward` isn't needed).
-3. **Check + emit pass**: type-check each function, instantiate generics on demand, and emit
-   x86-64 machine code directly with a simple stack-based expression scheme. No IR, no optimizer.
-4. **Link**: the compiler writes the ELF itself (`PT_INTERP` = `/lib64/ld-linux-x86-64.so.2`,
+3. **Check pass**: type-check each function and instantiate generics on demand. Produces a
+   typed AST and the **symbol index** (§15.6). This is where the front end ends, and
+   `check`, `lsp`, `query`, `index` stop here.
+4. **Emit pass**: walk the typed AST and emit x86-64 machine code directly with a simple
+   stack-based expression scheme. No IR, no optimizer.
+5. **Link**: the compiler writes the ELF itself (`PT_INTERP` = `/lib64/ld-linux-x86-64.so.2`,
    dynamic section, PLT/GOT for extern symbols, the runtime embedded as precompiled code).
 
 Checked build (default): bounds, overflow, subrange, contracts. `--unchecked` drops all of
@@ -755,6 +879,119 @@ them except `assert`.
 - Single spaces around binary operators and `:=`. No space before `:` in declarations, one after.
 - Long calls and literals break inside brackets, one item per line, with a trailing comma.
 - Existing end markers are preserved. The formatter never adds or removes them.
+
+### 15.4 Language server (`pst lsp`)
+Intended for human editors. (AI agents should use `pst mcp` (§15.7) or `pst query` (§15.5).)
+Built into the `pst` executable, so it is always the same version as the compiler and uses
+the same front end. JSON-RPC over stdio, LSP 3.17. It has no dependencies beyond the compiler.
+
+| LSP feature | Pasthon behavior |
+|---|---|
+| Diagnostics (push) | Same codes, messages, and fixes as `pst check` |
+| Code actions | Every diagnostic `fix` becomes a quick fix |
+| Hover | Declared or inferred type, `##` doc comment, contracts (`requires`/`ensures`); for generics, the instance at that position |
+| Go to definition | Variables, functions, types, fields, enum members, units; trait-bound calls in a generic jump to the trait member |
+| Go to type definition | From any expression to its type declaration |
+| Go to implementation | From a trait (or trait member) to every type and function that satisfies it in the workspace |
+| Find references | All uses, including UFCS calls (`p.length()` is a reference to `length`) |
+| Document / workspace symbols | Units, types, functions, constants, tests, with export status |
+| Completion | Locals, parameters, unit members, keywords, snippets for block headers. After `x.`: fields of `x`, plus every visible function whose first parameter accepts `x`'s type by value (UFCS), sorted fields first |
+| Signature help | Parameter names, types, `var` markers, defaults |
+| Rename | Safe across units, respects naming rules (`E0020`) and refuses on conflicts |
+| Formatting | `pst fmt` (whole document only, since the format is canonical) |
+| Inlay hints | Inferred types for `var x :=` / `let x :=`, and inferred generic arguments |
+| Semantic tokens | Distinguishes types, traits, enum members, functions, `var` parameters, constants |
+| Folding ranges | From indentation, and from end markers |
+| Call hierarchy | Incoming and outgoing calls |
+
+### 15.5 Query CLI for agents (`pst query`, `pst index`)
+AI agents and scripts often can't hold an LSP session open. The same data is available as
+one-shot commands with JSON output. Each command takes a position as `File.pst:line:col`
+(same convention as §15.1).
+
+| Request | Returns |
+|---|---|
+| `pst query def File.pst:12:5` | definition location(s) |
+| `pst query refs File.pst:12:5` | all reference locations |
+| `pst query type File.pst:12:5` | type of the expression, and its declaration location |
+| `pst query hover File.pst:12:5` | everything hover shows, structured |
+| `pst query complete File.pst:12:9` | completion items with kinds and signatures |
+| `pst query symbols [File.pst]` | symbols of one file, or the project |
+| `pst query impls Measurable` | types and functions satisfying a trait |
+| `pst query callers restock` / `callees restock` | call graph edges |
+| `pst query instances largest` | every generic instance and where each is created |
+| `pst query explain E0502` | error code documentation |
+
+`pst index --json` writes the complete symbol index (§15.6) in one document, so an agent
+can load the whole project's structure in one call instead of opening files.
+
+All query output has a stable, versioned schema (`"schema": "pst-query/1"`).
+
+### 15.6 Front-end requirements
+These follow from serving editors and agents, and constrain the compiler implementation:
+
+- **Error tolerance.** The parser recovers at line and block boundaries (indentation makes
+  this reliable) and always produces a full AST, with error nodes where needed. The checker
+  continues past errors, typing broken expressions as an error type that suppresses
+  follow-on diagnostics. Unlike classic Turbo Pascal, the compiler never stops at the
+  first error.
+- **Full source positions.** Every token and AST node keeps its range. Comments, including
+  doc comments and end markers, are retained for hover and formatting.
+- **Symbol index.** The check pass records, for every identifier occurrence: the symbol it
+  resolves to, its kind, its type, and whether it is a definition or a reference. The
+  index also records trait satisfaction and generic instances. LSP and query requests are
+  lookups into this index, not re-analysis.
+- **Incremental by unit.** On an edit, only the changed file is re-parsed. Its unit and the
+  units that `uses` it are re-checked, provided its exported signatures changed (otherwise
+  only the unit itself). The emit pass never runs in the server.
+- **Unsaved buffers.** The front end reads source from an overlay (editor buffers) before
+  the file system, so diagnostics reflect what is on screen.
+
+### 15.7 MCP server (`pst mcp`)
+The primary interface for AI agents. It is a Model Context Protocol server over stdio,
+built into the `pst` executable. Every tool is a thin wrapper over the same front end and
+symbol index as `pst query`, and returns the same JSON schemas (§15.1, §15.5).
+
+Configure it in an agent with the command `pst mcp --root <project-dir>`.
+
+**Tools**
+
+| Tool | Input | Returns |
+|---|---|---|
+| `pst_check` | `paths?` | diagnostics with fixes (§15.1) |
+| `pst_apply_fix` | `file`, `line`, `col`, `code` | applies a diagnostic's fix to disk; returns the edits made and new diagnostics |
+| `pst_test` | `paths?`, `filter?` | per-test pass/fail, with assertion messages and positions |
+| `pst_run` | `file`, `args?`, `stdin?`, `timeoutMs?` | exit code, stdout, stderr, panic code and position if any |
+| `pst_fmt` | `paths?`, `check?` | formatted files, or the list of files that differ |
+| `pst_index` | `paths?` | complete symbol index |
+| `pst_symbols` | `file?`, `query?` | matching declarations with signatures and doc comments |
+| `pst_def` | `file`, `line`, `col` or `symbol` | definition location(s) |
+| `pst_refs` | `file`, `line`, `col` or `symbol` | all references (UFCS calls included) |
+| `pst_type` | `file`, `line`, `col` | expression type and its declaration |
+| `pst_impls` | `trait` | types and functions satisfying it |
+| `pst_callers` / `pst_callees` | `symbol` | call graph edges |
+| `pst_instances` | `symbol` | generic instances and where they are created |
+| `pst_accepts` | `type` | visible functions whose first parameter accepts that type, i.e. what `x.` can call (§6.6) |
+| `pst_rename` | `symbol`, `newName`, `dryRun?` | edits across units, refused on conflicts |
+| `pst_explain` | `code` | documentation for an error code |
+
+**Rules**
+- Tools take either a position or a qualified symbol name (`Geometry.totalArea`), because
+  agents usually know names, not columns.
+- Results are compact JSON. Large results are paged with `cursor`.
+- Only `pst_apply_fix`, `pst_fmt` (without `check`), and `pst_rename` (without `dryRun`)
+  write files, and only inside the project root. `pst_run` executes the program and is
+  marked as such in its tool description, so agents can ask for approval.
+- The server watches the project directory, so files edited by the agent through other
+  tools are re-checked automatically before the next tool call.
+
+### 15.8 Implementation priority
+All tooling layers share one front end, so each layer after the first is small:
+
+1. `pst check --json`: diagnostics, the core of the agent feedback loop
+2. `pst index` / `pst query`: symbol index and one-shot queries
+3. `pst mcp`: the agent interface
+4. `pst lsp`: the human editor interface
 
 ---
 
@@ -797,11 +1034,11 @@ testBlk     = "test" STRING block ;
 
 stmt        = varDecl | assign | callStmt | ifStmt | whileStmt | repeatStmt
             | forStmt | caseStmt | deferStmt | "break" NEWLINE | "continue" NEWLINE
-            | "return" [expr] NEWLINE | "_" ":=" expr NEWLINE
+            | "return" (rhs | NEWLINE) | "_" ":=" expr NEWLINE
             | "assert" expr ["," expr] NEWLINE ;
-varDecl     = ("var" | "let") IDENT [":" typeExpr] ":=" expr NEWLINE ;
-assign      = lvalue ":=" expr NEWLINE ;
-ifStmt      = "if" expr "then" block { "elif" expr "then" block } ["else" block] ;
+varDecl     = ("var" | "let") IDENT [":" typeExpr] ":=" rhs ;
+assign      = lvalue ":=" rhs ;
+ifStmt      = "if" expr "then" block { "else" "if" expr "then" block } ["else" block] ;
 whileStmt   = "while" expr "do" block ;
 repeatStmt  = "repeat" block "until" expr NEWLINE ;
 forStmt     = "for" IDENT ":=" expr ("to" | "downto") expr "do" block
@@ -810,6 +1047,12 @@ caseStmt    = "case" expr "of" NEWLINE INDENT { caseArm } DEDENT ;
 caseArm     = (label { "," label } | "else") ":" (simpleStmt | block) ;
 label       = constExpr [".." constExpr] | IDENT ["(" IDENT ")"] ;
 deferStmt   = "defer" (simpleStmt | block) ;
+
+expr        = ifExpr | orExpr ;              (* orExpr: precedence levels of §9.1 *)
+ifExpr      = "if" expr "then" expr { "else" "if" expr "then" expr } "else" expr ;
+caseExpr    = "case" expr "of" NEWLINE INDENT { exprArm } DEDENT ;
+exprArm     = (label { "," label } | "else") ":" expr NEWLINE ;
+rhs         = caseExpr | expr NEWLINE ;      (* right side of := / var / let, and return operand *)
 ```
 
 The parser can't tell `name[...]` (index) from `name[...]` (explicit instantiation)
@@ -867,15 +1110,15 @@ function restock(var item: Item, amount: Integer): Result[Integer, String]
     return Ok(item.qty)
 
 function describe(item: Item): String
-    case item.status of
-        Active:       return "{item.name}: {item.qty}"
-        Discontinued: return "{item.name}: gone"
-        Backorder:    return "{item.name}: waiting"
+    return case item.status of
+        Active:       "{item.name}: {item.qty}"
+        Discontinued: "{item.name}: gone"
+        Backorder:    "{item.name}: waiting"
 
 function names[T: Named](xs: List[T]): String
     var parts: List[String] := []
     for x in xs do
-        parts.add(x.name)
+        add(var parts, x.name)
     return join(parts, sep: ", ")
 
 function restockAll(var items: List[Item], amount: Integer): Result[Integer, String]
