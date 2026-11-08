@@ -29,6 +29,7 @@ class TokenKind(Enum):
 
     # Keywords (SPEC §2.6)
     AND = "and"
+    AS = "as"
     ASSERT = "assert"
     BREAK = "break"
     CASE = "case"
@@ -75,7 +76,7 @@ class TokenKind(Enum):
     USES = "uses"
     VAR = "var"
     WHILE = "while"
-    UNDERSCORE = "_"
+    UNDERSCORE = "_"  # discard: `_` or any word starting with `_`
 
     # Operators and punctuation
     ASSIGN = ":="

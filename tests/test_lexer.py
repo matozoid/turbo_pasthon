@@ -28,10 +28,13 @@ class Basics(unittest.TestCase):
 
     def test_keywords_case_sensitive(self):
         self.assertEqual(kinds("this This If")[:3], [K.THIS, K.THIS_TYPE, K.IDENT])
+        self.assertEqual(kinds('f() as "_exit"')[3:5], [K.AS, K.STRING])
 
     def test_underscore(self):
         self.assertEqual(kinds("_ := f()")[:2], [K.UNDERSCORE, K.ASSIGN])
-        self.assertEqual(kinds("_x")[0], K.IDENT)
+        toks = lex("_status := close(fd)").tokens
+        self.assertEqual((toks[0].kind, toks[0].text), (K.UNDERSCORE, "_status"))
+        self.assertEqual(kinds("x_y")[0], K.IDENT)
 
     def test_operators_longest_match(self):
         self.assertEqual(

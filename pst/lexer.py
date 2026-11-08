@@ -266,8 +266,11 @@ class _Lexer:
         assert m is not None
         self.pos = m.end()
         text = m.group()
-        kind = KEYWORDS.get(text, K.IDENT)
-        self._emit(kind, start, self.pos)
+        if text.startswith("_"):
+            # `_` or `_name`: a discard (SPEC §7.9). The text keeps the name.
+            self._emit(K.UNDERSCORE, start, self.pos)
+            return
+        self._emit(KEYWORDS.get(text, K.IDENT), start, self.pos)
 
     # ---------------------------------------------------------------- numbers
 

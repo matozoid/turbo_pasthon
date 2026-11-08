@@ -69,14 +69,17 @@ matches the block just closed:
 A mismatch is error `E0010`. Markers are never required.
 
 ### 2.5 Identifiers and naming
-`[A-Za-z_][A-Za-z0-9_]*`. A lone `_` is not an identifier but the discard (§7.9).
+`[A-Za-z][A-Za-z0-9_]*`. An identifier starts with a letter.
 
-Underscores are allowed but not recommended: idiomatic Pasthon uses camelCase, and
-examples, the standard units and generated code never use `_` in names. They exist so
-that C names in `extern` blocks and names from other systems can be kept unchanged.
+Underscores inside names are allowed but not recommended: idiomatic Pasthon uses camelCase,
+and examples, the standard units and generated code never use `_` in names. They exist so
+that names from other systems can be kept unchanged. A C symbol that is not a valid
+Pasthon name (`_exit`, `SDL_Init`) is imported under a new name with `as` (§10.1).
 
-Casing is enforced (error `E0020`). It is decided by the first letter, after any
-leading underscores:
+A word starting with `_` is never an identifier. It is a **discard** (§7.9): `_` alone, or
+`_name` to document what is being dropped. Discards can't be read.
+
+Casing is enforced (error `E0020`), decided by the first letter:
 
 | Kind | Style | Example |
 |---|---|---|
@@ -87,8 +90,8 @@ leading underscores:
 ### 2.6 Keywords
 
 ```
-and       assert    break     case      const     continue  defer
-div       do        downto    else      ensures   export
+and       as        assert    break     case      const     continue
+defer     div       do        downto    else      ensures   export
 extern    false     for       function  if        in        let
 mod       not       of        or        procedure program   record
 ref       repeat    requires  return    test      then      this
@@ -125,7 +128,7 @@ let json := "\{\"name\": \"{name}\"}"     # \{ is a literal brace
 - An unterminated `{`, or an empty `{}`, is an error (`E0030`).
 - A string with no placeholders is a plain constant, with no runtime cost.
 - A string literal, including its placeholders, must fit on one line. Use `\n` for newlines.
-- Strings in `extern` library names and `test` names may not contain placeholders.
+- Strings in `extern` library names, `as` symbol names and `test` names may not contain placeholders.
 
 ### 2.9 Lexical errors
 
@@ -726,7 +729,13 @@ propagation (not on panic). Takes a single statement or an indented block.
 
 ### 7.9 Discarding results
 `_ := expr` evaluates and drops a value. Required for ignored function results.
-`_` can't be read, only assigned, and can also appear as a `case` binding: `Circle(_): ...`.
+
+Every word starting with `_` is a discard: `_` alone, or `_name` when a name helps the reader.
+A discard can't be read (`E0104`), only assigned. Discards appear in exactly three places:
+
+- left of `:=`: `_ := f()`, `_status := close(fd)`
+- as a `case` binding: `Circle(_): ...`, `Circle(_radius): ...`
+- as a `for` loop variable: `for _ in items do`
 
 ### 7.10 assert
 `assert cond` or `assert cond, "message"`. Panics with `P0020`. Always active (also in `--unchecked`).
@@ -898,6 +907,19 @@ extern "libm.so.6"
     function cos(x: CDouble): CDouble
 ```
 - Every library becomes a `DT_NEEDED` entry in the output ELF. Symbols are bound via PLT/GOT.
+- `as "symbol"` binds a declaration to a C symbol with a different name. Without `as`, the
+  Pasthon name is the symbol name. Use it for symbols that aren't valid Pasthon names
+  (leading `_`, or casing that breaks `E0020`):
+
+  ```pascal
+  extern "libc.so.6"
+      procedure exitNow(code: CInt) as "_exit"
+      function errnoLocation(): Ptr[CInt] as "__errno_location"
+
+  extern "libSDL2-2.0.so.0"
+      function sdlInit(flags: CUInt): CInt as "SDL_Init"
+  ```
+  The symbol string may not contain placeholders.
 - `...` (C varargs) is allowed only in extern declarations.
 - Calls use the System V AMD64 ABI.
 - Parameter and return types must be C-compatible: primitive numerics, `Boolean`, C types,
@@ -1231,7 +1253,8 @@ param       = ["var"] ( "this" | IDENT { "," IDENT } ":" typeExpr [":=" expr] ) 
 routineBody = NEWLINE INDENT { "requires" expr NEWLINE } { "ensures" expr NEWLINE }
               stmt { stmt } DEDENT ;
 
-externBlk   = "extern" STRING NEWLINE INDENT { signature NEWLINE } DEDENT ;
+externBlk   = "extern" STRING NEWLINE INDENT { externDecl NEWLINE } DEDENT ;
+externDecl  = signature ["as" STRING] ;
 testBlk     = "test" STRING block ;
 
 stmt        = varDecl | assign | callStmt | ifStmt | whileStmt | repeatStmt
