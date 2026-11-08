@@ -250,6 +250,32 @@ class Brackets(unittest.TestCase):
         self.assertEqual([t.kind for t in r.tokens][-4:], [K.NEWLINE, K.IDENT, K.NEWLINE, K.EOF])
 
 
+    def test_unclosed_recovers_at_next_statement(self):
+        r = lex("x := f(a, [1\ny := 2\n")
+        self.assertEqual([d.code for d in r.diagnostics], ["E0009", "E0009"])
+        fix = r.diagnostics[0].fixes[0].edits[0]
+        self.assertEqual((fix.text, fix.span.line, fix.span.col), ("])", 1, 13))
+        self.assertEqual([t.kind for t in r.tokens][-6:],
+                         [K.NEWLINE, K.IDENT, K.ASSIGN, K.INT, K.NEWLINE, K.EOF])  # fmt: skip
+
+    def test_unclosed_inside_block(self):
+        r = lex("if a then\n    f(x\n    return 1\n")
+        self.assertEqual([d.code for d in r.diagnostics], ["E0009"])
+        self.assertIn(K.RETURN, [t.kind for t in r.tokens])
+        self.assertEqual([t.kind for t in r.tokens].count(K.INDENT), 1)
+
+    def test_continuation_lines_kept(self):
+        # Deeper indentation, or a line that can't start a statement, continues.
+        for src in ("f(a,\n    x := 1)\n", "xs := [\n    1,\n]\n", "f(a,\nb)\n",
+                    "f(\n    if a then 1 else 2)\n"):
+            self.assertEqual(codes(src), [], src)
+
+    def test_unclosed_before_end_marker(self):
+        r = lex("while a do\n    f(x\n# end while\n")
+        self.assertEqual([d.code for d in r.diagnostics], ["E0009"])
+        self.assertIn(K.END_MARKER, [t.kind for t in r.tokens])
+
+
 class Errors(unittest.TestCase):
     def test_unexpected_char(self):
         r = lex("a ^ b; c\n")

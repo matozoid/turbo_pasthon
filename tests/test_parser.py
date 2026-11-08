@@ -348,6 +348,8 @@ class Errors(unittest.TestCase):
         self.assertEqual([d.code for d in r.diagnostics], ["E0007"])
         r = parse("program P\ny := (1 +\nz := 3\n")
         self.assertEqual([d.code for d in r.diagnostics], ["E0009"])
+        # The lexer closed the bracket before `z := 3`, so that line survives.
+        self.assertEqual(A.dump(r.file.items[-1]), "(Assign (Name z) (IntLit 3))")
 
     def test_never_crashes(self):
         # Every prefix of a real program yields a tree.

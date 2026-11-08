@@ -53,6 +53,15 @@ _ESCAPES = {
 }
 
 _CLOSER = {"(": ")", "[": "]", "{": "}"}
+
+# Inside open brackets, a line that starts like this, at or left of the indentation of
+# the line that opened them, can't be a continuation: the brackets were never closed.
+_STATEMENT_START_RE = re.compile(
+    r"(?:(?:var|let|if|while|for|repeat|case|defer|break|continue|return|assert|function"
+    r"|procedure|type|const|extern|test|export|unsafe|uses|program|unit)\b"
+    r"|[A-Za-z_][A-Za-z0-9_.]*\s*:=(?!=)"
+    r"|# end )"
+)
 _MAX_INT = 2**64 - 1
 
 
@@ -104,6 +113,8 @@ class _Lexer:
             if c == "\n":
                 if self.placeholders:
                     self._abort_placeholders()
+                if self.brackets and self._next_line_starts_statement(self.pos + 1):
+                    self._close_unclosed()
                 if not self.brackets:
                     if self.line_has_tokens:
                         self._emit(K.NEWLINE, self.pos, self.pos + 1)
@@ -146,9 +157,7 @@ class _Lexer:
     def _finish(self) -> LexResult:
         if self.placeholders:
             self._abort_placeholders()
-        for closer, offset in self.brackets:
-            self._error("E0009", offset, offset + 1, f"unclosed '{_OPENER[closer]}'")
-        self.brackets.clear()
+        self._close_unclosed()
         if self.line_has_tokens:
             self._emit(K.NEWLINE, self.n, self.n)
         while len(self.indents) > 1:
@@ -156,6 +165,38 @@ class _Lexer:
             self._emit(K.DEDENT, self.n, self.n)
         self._emit(K.EOF, self.n, self.n)
         return LexResult(self.tokens, self.comments, self.diags)
+
+    def _close_unclosed(self) -> None:
+        """Report every open bracket, offering to close them all after the last token."""
+        if not self.brackets:
+            return
+        closers = "".join(closer for closer, _ in reversed(self.brackets))
+        end = self.tokens[-1].span.end if self.tokens else self.pos
+        at = self.lines.span(end, end)
+        fix = Fix(f"insert '{closers}'", (Edit(at, closers),))
+        for closer, offset in self.brackets:
+            self._error("E0009", offset, offset + 1, f"unclosed '{_OPENER[closer]}'", (fix,))
+        self.brackets.clear()
+
+    def _next_line_starts_statement(self, pos: int) -> bool:
+        """Whether the next non-blank, non-comment line (from ``pos``) clearly starts a
+        new statement rather than continuing the bracketed expression."""
+        src = self.src
+        while pos < self.n:
+            width = 0
+            while pos < self.n and src[pos] in " \t":
+                width += INDENT_WIDTH if src[pos] == "\t" else 1
+                pos += 1
+            if pos >= self.n:
+                return False
+            if src[pos] == "\n" or (src[pos] == "#" and not src.startswith("# end ", pos)):
+                nl = src.find("\n", pos)
+                if nl < 0:
+                    return False
+                pos = nl + 1
+                continue
+            return width <= self.indents[-1] and _STATEMENT_START_RE.match(src, pos) is not None
+        return False
 
     # ------------------------------------------------------------- indentation
 

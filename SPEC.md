@@ -148,6 +148,12 @@ let json := "\{\"name\": \"{name}\"}"     # \{ is a literal brace
 
 The lexer reports every error and continues; it always produces a complete token stream.
 
+An unclosed bracket doesn't swallow the rest of the file. Inside open brackets, a line
+that is not indented deeper than the line that opened them, and that starts like a new
+statement (a statement or declaration keyword, `name :=`, or an end marker), closes them:
+`E0009` is reported for each, with a fix inserting the missing closers at the end of the
+previous line.
+
 ---
 
 ## 3. Program structure
