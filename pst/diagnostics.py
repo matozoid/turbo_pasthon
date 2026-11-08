@@ -144,6 +144,7 @@ ERROR_CODES: dict[str, str] = {
     "E0603": "Invalid case label for the subject's type.",
     "E0700": "Type argument doesn't satisfy its bound.",
     "E0710": "Operation not provided by the type parameter's bounds.",
+    "E0720": "Generic instances nest more than 64 deep: a generic keeps instantiating itself with a bigger type.",
     "E0801": "'if' expression without 'else'.",
     "E0802": "Branches of an 'if' or 'case' expression have different types.",
     "E0803": "'if' expression used as an operand must be parenthesized.",

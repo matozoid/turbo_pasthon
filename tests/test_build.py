@@ -19,9 +19,12 @@ def tearDownModule():
     _TMP.cleanup()
 
 
-def compile_program(body: str, checked: bool = True, uses: str = "IO"):
-    """Checks and builds a program; returns (BuildResult, temp dir)."""
+def compile_program(body: str, checked: bool = True, uses: str = "IO", units: dict | None = None):
+    """Checks and builds a program, with ``units`` (file name -> source) next to it;
+    returns (BuildResult, temp dir)."""
     tmp = tempfile.mkdtemp(dir=_TMP.name)
+    for name, text in (units or {}).items():
+        Path(tmp, name).write_text(textwrap.dedent(text).lstrip("\n"))
     path = Path(tmp, "Main.pst")
     path.write_text(f"program Main\n\nuses {uses}\n\n" + textwrap.dedent(body).lstrip("\n"))
     result = check(str(path))
@@ -30,10 +33,11 @@ def compile_program(body: str, checked: bool = True, uses: str = "IO"):
 
 
 def run_program(
-    body: str, *args: str, checked: bool = True, uses: str = "IO", under: tuple = ()
+    body: str, *args: str, checked: bool = True, uses: str = "IO", under: tuple = (),
+    units: dict | None = None,
 ) -> subprocess.CompletedProcess:
     """Builds and runs a program, optionally under a tool such as valgrind."""
-    built, tmp = compile_program(body, checked, uses)
+    built, tmp = compile_program(body, checked, uses, units)
     assert built.executable is not None, [d.human() for d in built.diagnostics]
     exe = os.path.join(tmp, "main")
     Path(exe).write_bytes(built.executable)
@@ -582,6 +586,143 @@ class Records(unittest.TestCase):
             out,
             "renamed t1 in1 in5\n1 7\nfalse\ntrue\nint 1\nstr x\ninner renamed t1\n6\nok 1\nbad: two\n0\n",
         )
+
+
+class Generics(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_instances(self):
+        """Generic routines over records, unions and strings; bound members are found
+        where the type argument became concrete (`area` lives in Main, not Geo)."""
+        p = run_program("""
+            type
+                Circle = record
+                    r: Integer
+                Square = record
+                    side: Integer
+                Pair[A, B] = record
+                    first: A
+                    second: B
+                Tree[T] = Leaf | Node[T]
+                Leaf = record
+                Node[T] = record
+                    left: Tree[T]
+                    value: T
+                    right: Tree[T]
+
+            function area(c: Circle): Integer
+                return 3 * c.r * c.r
+
+            function area(s: Square): Integer
+                return s.side * s.side
+
+            function biggest[T: Ordered](a, b: T): T
+                return if a > b then a else b
+
+            function swapped[A, B](p: Pair[A, B]): Pair[B, A]
+                return Pair(first: p.second, second: p.first)
+
+            function first[T](xs: Option[T], fallback: T): T
+                return case xs of
+                    Some(s): s.value
+                    None: fallback
+
+            function insert[T: Ordered](t: Tree[T], v: T): Tree[T]
+                case t of
+                    Leaf: return Node(left: Leaf, value: v, right: Leaf)
+                    Node(n):
+                        if v < n.value then
+                            return Node(left: insert(n.left, v), value: n.value, right: n.right)
+                        return Node(left: n.left, value: n.value, right: insert(n.right, v))
+
+            function show[T: Printable](t: Tree[T]): String
+                return case t of
+                    Leaf: ""
+                    Node(n): "{show(n.left)}{n.value} {show(n.right)}"
+
+            procedure swap[T](var a, b: T)
+                let t := a
+                a := b
+                b := t
+
+            writeln(biggest(3, 7))
+            writeln(biggest("pear", "apple"))
+            writeln(biggest('x', 'y'))
+            let p := swapped(Pair(first: 1, second: "one"))
+            writeln("{p.first} {p.second}")
+            writeln(first(Some(5), fallback: 0))
+            writeln(first(System.None, fallback: "none"))
+            var t: Tree[Integer] := Leaf
+            var k := 5
+            for i := 1 to 6 do
+                k := k * 7 mod 11
+                t := insert(t, k)
+            writeln(show(t))
+            var s: Tree[String] := Leaf
+            s := insert(s, "m")
+            s := insert(s, "c")
+            s := insert(s, "x")
+            writeln(show(s))
+            var x := "left"
+            var y := "right"
+            swap(var x, var y)
+            writeln("{x} {y}")
+            var pc := Pair(first: 1, second: 2)
+            swap(var pc.first, var pc.second)
+            writeln("{pc.first} {pc.second}")
+            writeln(total(Circle(r: 1), Circle(r: 2)))
+            writeln(total(Square(side: 3), Square(side: 4)))
+            writeln(describe(Square(side: 2)))
+            """, uses="IO, Geo", units={"Geo.pst": """
+                unit Geo
+
+                uses IO
+
+                type
+                    export Measurable = trait
+                        function area(this): Integer
+
+                export function total[T: Measurable](a, b: T): Integer
+                    return twice(a) + b.area()
+
+                export function describe[T: Measurable](x: T): String
+                    return "area {total(x, x) div 3}"
+
+                function twice[T: Measurable](x: T): Integer
+                    return double(x.area())
+
+                function double(n: Integer): Integer
+                    return n * 2
+                """}, under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))  # fmt: skip
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(
+            p.stdout.decode(),
+            "7\npear\ny\none 1\n5\nnone\n2 3 4 6 9 10 \nc m x \nright left\n2 1\n18\n34\narea 4\n",
+        )
+
+    def test_explicit_type_arguments(self):
+        p = run_program("""
+            function nothing[T](): Option[T]
+                return None
+
+            writeln(nothing[Integer]() = None)
+            """)
+        self.assertEqual(p.stdout, b"true\n")
+
+    def test_endless_instantiation(self):
+        built, _ = compile_program("""
+            type
+                Box[T] = record
+                    item: T
+
+            function deep[T](x: T, n: Integer): Integer
+                if n = 0 then
+                    return 0
+                return deep(Box(item: x), n - 1) + 1
+
+            writeln(deep(1, 3))
+            """)
+        self.assertIsNone(built.executable)
+        self.assertEqual([(d.code, d.span.line, d.span.col) for d in built.diagnostics], [("E0720", 12, 12)])
 
 
 class Unsupported(unittest.TestCase):

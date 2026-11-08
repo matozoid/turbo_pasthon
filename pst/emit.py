@@ -11,8 +11,9 @@ Supported so far:
   expressions, string interpolation;
 - statements: `var`/`let`, assignment (to fields too), `if`, `case`, `while`, `repeat`,
   `for ... to/downto`, `break`, `continue`, `return`, `assert`, `_ := e`, calls;
-- non-generic routines (up to 6 parameters), with defaults, named arguments, dot calls,
-  and contracts;
+- routines (up to 6 parameters), with defaults, named arguments, dot calls, and
+  contracts; a generic routine is compiled once per instance (SPEC §8), with calls to
+  bound members resolved where its type arguments became concrete;
 - built-ins: `write`/`writeln`, `toString`, `ord`, `halt`, `inc`, `dec`, and
   `byteLen`, `charCount`, `slice`, `startsWith` from `Strings`.
 
@@ -61,13 +62,15 @@ from .diagnostics import Diagnostic, Severity
 from .resolve import CheckResult
 from .symbols import Kind, Symbol
 from .types import (
-    BOOLEAN, CHAR, INTEGER, STRING, VOID, Named, Prim, TypeValue, has_error, show, subst,
+    BOOLEAN, CHAR, INTEGER, STRING, THIS, VOID, Named, Prim, TypeValue, has_error, params_in,
+    show, subst,
 )  # fmt: skip
 from .x86 import (
     R8, R9, R10, R11, R12, R13, R14, R15, RAX, RBP, RBX, RCX, RDI, RDX, RSI, RSP, Assembler,
 )  # fmt: skip
 
 _PANIC_STATUS = 70
+_MAX_DEPTH = 64  # nesting of generic instances (SPEC §8, E0720)
 _ARG_REGS = (RDI, RSI, RDX, RCX, R8, R9)
 _CALLER_SAVED = (RAX, RCX, RDX, RSI, RDI, R8, R9, R10, R11)
 _DECLS = (A.TypeSection, A.ConstSection, A.Routine, A.ExternBlock, A.TestBlock)
@@ -123,6 +126,11 @@ class _Frame:
     result_slot: int | None = None
     ensures: list = field(default_factory=list)
     old: dict = field(default_factory=dict)  # id(old call) -> slot
+    # A generic routine's instance: its type parameters' arguments, and per parameter
+    # the file whose visibility resolves bound members (SPEC §8.2).
+    s: dict = field(default_factory=dict)
+    sites: dict = field(default_factory=dict)
+    depth: int = 0  # instances that led to this one
 
     def alloc(self, key) -> int:
         self.size += 8
@@ -140,8 +148,8 @@ class Emitter:
         self.diagnostics: list[Diagnostic] = []
         self._runtime: dict[str, object] = {}  # runtime routines used: label -> emitter
         self._panics: list[tuple[str, bytes]] = []  # (stub label, message)
-        self._labels: dict[Symbol, str] = {}  # routines -> label
-        self._queue: list[Symbol] = []  # routines referenced but not emitted yet
+        self._labels: dict[tuple, str] = {}  # (routine, type arguments) -> label
+        self._queue: list[tuple] = []  # (routine, type arguments, sites, depth) to emit
         self._descs: dict[object, str] = {}  # record type, or (union, variant) -> label
         self.units = {u.path: u for u in [self.main, *result.units.values()]}
         # Expression types and resolved calls, from every unit's checker.
@@ -164,7 +172,11 @@ class Emitter:
         raise _Unsupported()
 
     def type(self, e):
-        return self.types.get(id(e))
+        return self.sub(self.types.get(id(e)))
+
+    def sub(self, t):
+        """``t`` in the instance being compiled: its type parameters replaced."""
+        return subst(t, self.f.s) if self.f is not None and t is not None else t
 
     def kind(self, t) -> str | None:
         """"record", "union", "enum", ... for a declared type."""
@@ -180,7 +192,7 @@ class Emitter:
         kind = self.kind(t)
         if kind == "enum":
             return True
-        if kind not in ("record", "union") or any(not self.supported(a) for a in t.args):
+        if kind not in ("record", "union"):
             return False
         parts = [ft for _, ft in self.fields(t)] if kind == "record" else self.env.variants(t)
         return all(self.supported(p, seen | {t}) for p in parts)
@@ -298,7 +310,7 @@ class Emitter:
         self.exit()
         a.patch32(size_at, elf.align(self.f.size, 16))
         while self._queue:
-            self.routine(self._queue.pop())
+            self.routine(*self._queue.pop())
         self.f = None
         for label, message in self._panics:
             a.label(label)
@@ -313,18 +325,31 @@ class Emitter:
         exe = elf.executable(code, bytes(a.rodata), a.labels["_start"], a.imports)
         return BuildResult(exe)
 
-    def label_of(self, sym: Symbol) -> str:
-        if sym not in self._labels:
-            self._labels[sym] = f"{sym.unit}.{sym.name}#{len(self._labels)}"
-            self._queue.append(sym)
-        return self._labels[sym]
+    def label_of(self, e, sym: Symbol, targs: tuple = (), sites: dict | None = None) -> str:
+        """The label of a routine, or of a generic routine's instance for ``targs``. An
+        instance is compiled once, however many places use it (SPEC §8.1)."""
+        key = (sym, targs)
+        if key not in self._labels:
+            depth = self.f.depth + 1 if targs else self.f.depth
+            if depth > _MAX_DEPTH:
+                self.diagnostics.append(Diagnostic(
+                    self.f.file, e.span, Severity.ERROR, "E0720",
+                    f"generic instances nest more than {_MAX_DEPTH} deep here: "
+                    f"'{sym.name}' keeps instantiating itself with a bigger type",
+                ))  # fmt: skip
+                raise _Unsupported()
+            name = f"{sym.name}[{', '.join(show(t) for t in targs)}]" if targs else sym.name
+            self._labels[key] = f"{sym.unit}.{name}#{len(self._labels)}"
+            self._queue.append((sym, targs, sites or {}, depth))
+        return self._labels[key]
 
-    def routine(self, sym: Symbol) -> None:
+    def routine(self, sym: Symbol, targs: tuple, sites: dict, depth: int) -> None:
         a = self.asm
         node: A.Routine = sym.node
         sig = self.env.sig(sym)
-        self.f = f = _Frame(sym.file, sym, a.new_label("ret"))
-        a.label(self._labels[sym])
+        s = dict(zip(sig.tparams, targs))
+        self.f = f = _Frame(sym.file, sym, a.new_label("ret"), s=s, sites=sites, depth=depth)
+        a.label(self._labels[(sym, targs)])
         a.push(RBP)
         a.mov(RBP, RSP)
         size_at = a.sub_imm32_fixed(RSP)
@@ -332,13 +357,13 @@ class Emitter:
             for i, p in enumerate(sig.params):
                 if p.sym is None:
                     self.unsupported(node.sig, "this kind of parameter")
-                self.value_type(p.type, node.sig.name, f"parameter '{p.name}'")
+                self.value_type(self.sub(p.type), node.sig.name, f"parameter '{p.name}'")
                 slot = f.alloc(p.sym)
                 a.store(RBP, slot, _ARG_REGS[i])
-                if self.managed(p.type) and not p.is_var:
+                if self.managed(self.sub(p.type)) and not p.is_var:
                     f.scopes[0].append(slot)
             if sig.is_function:
-                self.value_type(sig.result, node.sig.result, "a result")
+                self.value_type(self.sub(sig.result), node.sig.result, "a result")
             if self.checked:
                 for e in node.requires:
                     self.expr(e)
@@ -410,11 +435,12 @@ class Emitter:
         a = self.asm
         if isinstance(s, A.VarDecl):
             sym = self.ref(s.name.span)
-            self.value_type(sym.type if sym else None, s.name, f"variable '{s.name.name}'")
-            self.coerce(s.value, sym.type)
+            t = self.sub(sym.type) if sym else None
+            self.value_type(t, s.name, f"variable '{s.name.name}'")
+            self.coerce(s.value, t)
             slot = self.local(s.name.span)
             a.store(RBP, slot, RAX)
-            if self.managed(sym.type):
+            if self.managed(t):
                 self.f.scopes[-1].append(slot)
         elif isinstance(s, A.Assign):
             t = self.type(s.target)
@@ -468,7 +494,7 @@ class Emitter:
             a.jmp(loop.brk if isinstance(s, A.Break) else loop.cont)
         elif isinstance(s, A.Return):
             if s.value is not None:
-                self.coerce(s.value, self.env.sig(self.f.sym).result)
+                self.coerce(s.value, self.sub(self.env.sig(self.f.sym).result))
             self.release_scopes(1)  # the parameters are released after `ensures`
             a.jmp(self.f.exit)
         elif isinstance(s, A.Assert):
@@ -511,8 +537,9 @@ class Emitter:
     def for_range(self, s: A.ForRange) -> None:
         a = self.asm
         sym = self.ref(s.var.span)
-        if sym is not None and sym.type not in (INTEGER, CHAR) and self.kind(sym.type) != "enum":
-            self.unsupported(s.var, f"a loop over {show(sym.type)}")
+        t = self.sub(sym.type) if sym is not None else None
+        if t is not None and t not in (INTEGER, CHAR) and self.kind(t) != "enum":
+            self.unsupported(s.var, f"a loop over {show(t)}")
         var = self.local(s.var.span)
         stop = self.f.alloc(object())
         top, cont, end = a.new_label("for"), a.new_label("next"), a.new_label("rof")
@@ -563,12 +590,12 @@ class Emitter:
                     self.unsupported(bound[0], "a binding in an arm with several labels")
                 a.load(RAX, RBP, slot)
                 a.load(RAX, RAX, _FIELDS)
-                binding = self.ref(bound[0].binding.span)
-                if self.managed(binding.type):
+                bt = self.sub(self.ref(bound[0].binding.span).type)
+                if self.managed(bt):
                     self.retain()
                 b = self.local(bound[0].binding.span)
                 a.store(RBP, b, RAX)
-                if self.managed(binding.type):
+                if self.managed(bt):
                     self.f.scopes[-1].append(b)
             if result is not None:
                 self.coerce(arm.value, result)
@@ -899,10 +926,13 @@ class Emitter:
         sym = m.sig.sym
         if isinstance(sym.node, A.ExternDecl):
             return self.builtin(e, sym, m)
-        if sym.node is None or not isinstance(sym.node, A.Routine):
-            self.unsupported(e, f"calling {sym.describe()}")
-        if m.sig.tparams:
-            self.unsupported(e, f"calling generic '{sym.name}'")
+        if isinstance(sym.node, A.Signature):
+            target, targs, sites = self.bound_member(e, m)
+        else:
+            target = sym
+            targs, sites = self.instance(m.sig.tparams, m.s)
+        if not isinstance(target.node, A.Routine):
+            self.unsupported(e, f"calling {target.describe()}")
         if m.extra or len(m.params) > len(_ARG_REGS):
             self.unsupported(e, f"a call with more than {len(_ARG_REGS)} arguments")
         copies = []  # (place, temporary) of `var` arguments that aren't whole variables
@@ -921,7 +951,7 @@ class Emitter:
             a.push(RAX)
         for i in reversed(range(len(m.params))):
             a.pop(_ARG_REGS[i])
-        a.call(self.label_of(sym))
+        a.call(self.label_of(e, target, targs, sites))
         if copies:
             a.push(RAX)
             for place, tmp in copies:
@@ -933,10 +963,35 @@ class Emitter:
                 a.store(RAX, 0, RCX)
             a.pop(RAX)
 
+    def instance(self, tparams: list, s: dict) -> tuple[tuple, dict]:
+        """The type arguments of a call to a generic routine, and for each the file whose
+        visibility resolves its bound members: where it became concrete (SPEC §8.2)."""
+        targs, sites = [], {}
+        for tp in tparams:
+            outer = [p for p in params_in(s.get(tp)) if p in self.f.sites]
+            sites[tp] = self.f.sites[outer[0]] if outer else self.f.file
+            targs.append(self.sub(s.get(tp)))
+        return tuple(targs), sites
+
+    def bound_member(self, e, m) -> tuple:
+        """The routine called by `x.area()` for `x: T` with `T: Measurable`, in this
+        instance: found where `T` became concrete (SPEC §8.2). Returns it with its own
+        type arguments and sites."""
+        member = m.sig.sym
+        this = m.pre.get(THIS)
+        sub = {p: self.sub(t) for p, t in m.pre.items()}
+        site = self.f.sites.get(this.sym, self.f.file) if this is not None else self.f.file
+        found = self.env._checkers[site].provider(sub.get(THIS), member, sub, {})
+        if found is None:
+            self.unsupported(e, f"calling '{member.name}' here")
+        f, sf = found
+        tparams = self.env.sig(f).tparams
+        return f, tuple(sf[tp] for tp in tparams), {tp: site for tp in tparams}
+
     def argument(self, p, slot, m, file: str) -> None:
         """Computes an argument (or a record field) into rax: the one given, or the
         parameter's default, which belongs to the declaring unit."""
-        want = subst(p.type, m.s)
+        want = self.sub(subst(p.type, m.s))
         if slot is not None:
             return self.coerce(slot.expr, want)
         outer = self.f.file
@@ -949,7 +1004,7 @@ class Emitter:
     def construct(self, e, m) -> None:
         """`Point(x: 1, y: 2)`: the field values are pushed, then moved into a new block."""
         a = self.asm
-        t = subst(m.sig.result, m.s)
+        t = self.sub(subst(m.result, m.s))
         self.value_type(t, e)
         for p, slot in zip(m.params, m.slots):
             self.argument(p, slot, m, m.sig.sym.file)
@@ -978,7 +1033,7 @@ class Emitter:
             a.mov(RDI, RAX)
             self.exit()
         elif name in (("System", "inc"), ("System", "dec")):
-            t = m.s.get(m.sig.tparams[0]) if m.sig.tparams else None
+            t = self.sub(m.s.get(m.sig.tparams[0])) if m.sig.tparams else None
             if t != INTEGER:
                 self.unsupported(e, f"'{sym.name}' of {show(t)}")
             if len(args) > 1 and args[1] is not None:

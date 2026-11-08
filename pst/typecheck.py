@@ -183,6 +183,7 @@ class Match:
     tier: int  # 0 exact, 1 union injection, 2 literal of a non-default type
     slots: list
     extra: list
+    pre: dict = field(default_factory=dict)  # the candidate's `pre`
 
 
 @dataclass
@@ -1852,7 +1853,7 @@ class TypeChecker:
                     f"'{sig.name}[{', '.join(t.name for t in tparams)}](...)'",
                     True,
                 )  # fmt: skip
-        return Match(sig, params, result, s, tier, slots, extra)
+        return Match(sig, params, result, s, tier, slots, extra, pre)
 
     def inject(self, pattern, actual, s: dict, vars) -> bool:
         """Matches a variant against a union parameter (`Some[T]` against `Option[T]`)."""
@@ -2098,6 +2099,11 @@ class TypeChecker:
         return True
 
     def provides(self, t, m: Symbol, sub: dict, s: dict, vars, depth: int) -> bool:
+        return self.provider(t, m, sub, s, vars, depth) is not None
+
+    def provider(self, t, m: Symbol, sub: dict, s: dict, vars=frozenset(), depth: int = 0):
+        """The visible routine that provides trait routine ``m`` for type ``t``, with the
+        bindings of its own type parameters, or None."""
         msig = self.env.sig(m)
         need = [subst(p.type, sub) for p in msig.params]
         need_result = subst(msig.result, sub)
@@ -2126,8 +2132,8 @@ class TypeChecker:
             ok = ok and self.unify2(need_result, fs.result, s2, vars, sf, fv)
             if ok:
                 s.update(s2)
-                return True
-        return False
+                return f, sf
+        return None
 
     @staticmethod
     def unify2(need, have, s: dict, vars, sf: dict, fv) -> bool:

@@ -808,14 +808,16 @@ A discard can't be read (`E0104`), only assigned. Discards appear in exactly thr
 - Type parameters: `[T]`, bounded `[T: Trait]`, multiple bounds `[T: A + B]`, constants `[N: Integer]`.
 - **Instantiation is monomorphization by copying** (C++-template style): each distinct
   combination of type and constant arguments produces a full copy of the function or type,
-  with the arguments substituted, which is then type-checked and compiled like ordinary code.
+  with the arguments substituted, compiled like ordinary code. The copy isn't checked
+  again: checking the body once against its bounds makes every instance valid.
 - **Bounds are checked up front.** The body of a generic is type-checked once against its
   bounds, so it may only use operations the bounds guarantee (`E0710`). Errors therefore
   point at the generic's definition or the call site, never deep inside an instantiation.
 - Type arguments are inferred from value arguments where possible. Otherwise write them
   explicitly: `parse[Integer](s)`.
 - Constant parameters may be used in type expressions and as values: `Array[T, N * 2]`, `for i := 0 to N - 1 do`.
-- Recursive instantiation depth is limited to 64 (`E0720`).
+- Recursive instantiation depth is limited to 64 (`E0720`, reported when the program is
+  built): `function f[T](x: T)` calling `f(Box(item: x))` would never end.
 - Resource records can't be type arguments (use `ref R`, §11.1). An unbounded `T` supports only copying, assignment, passing to parameters of type `T`,
   and storing in generic containers. Everything else (`=`, `<`, `toString`, calls,
   fields) needs a bound that provides it.
@@ -1474,6 +1476,7 @@ already has a lexical error are not reported.
 | `E0603` | invalid `case` label for the subject's type |
 | `E0700` | type argument doesn't satisfy a bound |
 | `E0710` | operation on a type parameter that its bounds don't provide |
+| `E0720` | generic instances nest more than 64 deep (§8) |
 | `E0802` | `if` / `case` expression branches of different types |
 
 ### 16.4 Build errors
