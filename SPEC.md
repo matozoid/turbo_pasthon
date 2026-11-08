@@ -1100,6 +1100,7 @@ test "largest of empty list is None"
 | `OS` | `args(): List[String]`, `env(name): Option[String]`, `exit` |
 | `Threads` | reserved for §11.2; not in v0.1 |
 | `C` | C interop types, `toCString`, `fromCString` |
+| `DateTime` | planned, not in v0.1: dates and times modeled on Joda-Time. Immutable values `Instant`, `LocalDate`, `LocalTime`, `LocalDateTime`, `DateTime` (with a time zone), `Duration`, `Period`, `Interval`. Written in Pasthon on libc's time functions |
 
 ---
 
