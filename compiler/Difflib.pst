@@ -1,0 +1,82 @@
+unit Difflib
+
+## Close matches for "did you mean" suggestions, as Python's `difflib.get_close_matches`
+## finds them, so that the port suggests the same names.
+##
+## The similarity of `a` and `b` is `2 * M / T`: `M` counts the characters in matching
+## blocks, `T` is the total length. Blocks are found as `SequenceMatcher` finds them: the
+## longest common substring (the earliest in `a`, then in `b`), then the same on each
+## side of it. Without junk heuristics, which only apply to strings of 200 or more
+## characters. Ratios are compared as fractions, without floating point.
+
+type
+    Score = record
+        name: String
+        matched: Integer
+        total: Integer
+
+## The number of characters in the matching blocks of `a[alo..ahi)` and `b[blo..bhi)`.
+function matching(a, b: List[Char], alo, ahi, blo, bhi: Integer): Integer
+    var besti := alo
+    var bestj := blo
+    var best := 0
+    var prev: List[Integer] := []
+    for j := 0 to len(b) do
+        add(var prev, 0)
+    for i := alo to ahi - 1 do
+        var cur: List[Integer] := []
+        for j := 0 to len(b) do
+            add(var cur, 0)
+        for j := blo to bhi - 1 do
+            if a[i] = b[j] then
+                var k := 1
+                if j > blo then
+                    k := prev[j - 1] + 1
+                cur[j] := k
+                if k > best then
+                    besti := i - k + 1
+                    bestj := j - k + 1
+                    best := k
+        prev := cur
+    if best = 0 then
+        return 0
+    var m := best
+    if alo < besti and blo < bestj then
+        m := m + matching(a, b, alo, besti, blo, bestj)
+    if besti + best < ahi and bestj + best < bhi then
+        m := m + matching(a, b, besti + best, ahi, bestj + best, bhi)
+    return m
+
+function charsOf(s: String): List[Char]
+    var out: List[Char] := []
+    for c in s do
+        add(var out, c)
+    return out
+
+## Whether `x` ranks above `y`: a higher ratio, then the later name.
+function above(x, y: Score): Boolean
+    let l := x.matched * y.total
+    let r := y.matched * x.total
+    return l > r or (l = r and x.name > y.name)
+
+## Up to `n` of `candidates` whose ratio to `word` is at least `num / den`, best first.
+export function closeMatches(word: String, candidates: List[String], n: Integer, num, den: Integer): List[String]
+    let b := charsOf(word)
+    var scores: List[Score] := []
+    for c in candidates do
+        let a := charsOf(c)
+        let total := len(a) + len(b)
+        let m := matching(a, b, 0, ahi: len(a), blo: 0, bhi: len(b))
+        if total > 0 and 2 * m * den >= num * total then
+            let s := Score(name: c, matched: m, total: total)
+            add(var scores, s)
+            var j := len(scores) - 1
+            while j > 0 and above(s, y: scores[j - 1]) do
+                scores[j] := scores[j - 1]
+                j := j - 1
+            scores[j] := s
+    var out: List[String] := []
+    for s in scores do
+        if len(out) < n then
+            add(var out, s.name)
+    return out

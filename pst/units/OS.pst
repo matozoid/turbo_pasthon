@@ -2,10 +2,35 @@ unit OS
 
 ## The process environment, on libc.
 
-uses C
+uses C, Bits
 
 extern "libc.so.6"
     function getenv(name: CString): CString
+    function getcwd(buf: Pointer, size: CSize): CString
+    function cStat(path: CString, st: Ptr[Stat]): CInt as "stat"
+    procedure free(p: CString)
+    type
+        ## glibc's `struct stat` on x86-64: 144 bytes; `st_mode` is the low half of
+        ## `w3`.
+        Stat = record
+            w0: UInt64
+            w1: UInt64
+            w2: UInt64
+            w3: UInt64
+            w4: UInt64
+            w5: UInt64
+            w6: UInt64
+            w7: UInt64
+            w8: UInt64
+            w9: UInt64
+            w10: UInt64
+            w11: UInt64
+            w12: UInt64
+            w13: UInt64
+            w14: UInt64
+            w15: UInt64
+            w16: UInt64
+            w17: UInt64
 
 extern "pst"
     ## The program's `argv`: a pointer to C strings, the program name first, ending with a
@@ -31,3 +56,22 @@ export function env(name: String): Option[String]
 ## Exits with status `code`, like `halt`.
 export procedure exit(code: Integer)
     halt(code)
+
+## The current working directory.
+export unsafe function currentDir(): String
+    let p := getcwd(cast[Pointer](0), CSize(0))
+    if isNull(p) then
+        return "."
+    let dir := fromCString(p)
+    free(p)
+    return dir
+
+## Whether `path` names a regular file (following symbolic links).
+export unsafe function isFile(path: String): Boolean
+    var st := Stat(
+        w0: 0, w1: 0, w2: 0, w3: 0, w4: 0, w5: 0, w6: 0, w7: 0, w8: 0,
+        w9: 0, w10: 0, w11: 0, w12: 0, w13: 0, w14: 0, w15: 0, w16: 0, w17: 0,
+    )
+    if cStat(toCString(path), addr(var st)) <> 0 then
+        return false
+    return band(st.w3, 0o170000) = 0o100000

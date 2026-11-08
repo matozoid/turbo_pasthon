@@ -1,0 +1,1259 @@
+unit Resolve
+
+## Unit loading and name resolution: checker stage 1 (SPEC §3, §5.2, §15.2).
+##
+## `resolve(path)` parses a file and every unit it uses, collects the top-level
+## declarations of each unit (the declaration pass), then resolves every name and builds
+## the symbol index. The type checker runs after every unit is resolved.
+##
+## What is resolved here: plain names, type names, qualified names (`Strings.split`,
+## `Color.Red`), type parameters, `this`, and `result` / `old` in `ensures`. Names that need
+## types are left for the type checker without an error: field access and dot calls
+## (`p.x`, `xs.len()`), named arguments, and bare names in `case` labels.
+
+uses IO, OS, Strings, Source, Diagnostics, Ast, Parser, Symbols, Paths, Difflib
+
+type
+    export Unit = record
+        export id: Integer
+        export name: String
+        export path: String
+        export std: Boolean
+        export parsed: ParseResult
+        export symbol: ref Symbol
+        export top: Map[String, List[ref Symbol]]
+        ## Explicit `uses`, then System.
+        export used: List[ref Unit]
+        ## The normalized source, for fixes that rewrite code.
+        export text: String
+
+    export Checker = record
+        export stdDir: String
+        ## By unit name; programs are not entered.
+        export units: Map[String, ref Unit]
+        missing: Map[String, Boolean]
+        ## Found, but not units.
+        programs: Map[String, Boolean]
+        export index: ref SymbolIndex
+        export diagnostics: List[Diagnostic]
+        nextSymbol: Integer
+        nextUnit: Integer
+
+    export Resolved = record
+        export main: Option[ref Unit]
+        ## The main unit first, then every unit it uses, directly or not.
+        export units: List[ref Unit]
+        export checker: ref Checker
+
+    Lookup = record
+        symbols: List[ref Symbol]
+        ## Units that export clashing names.
+        ambiguous: List[ref Unit]
+
+    ## The state of resolving one unit. A context is a routine body, a test block, or the
+    ## program's main body; outside one, `hasCtx` is false.
+    Resolver = record
+        c: ref Checker
+        cur: ref Unit
+        file: String
+        hasCtx: Boolean
+        isMain: Boolean
+        scopes: List[Map[String, ref Symbol]]
+        locals: List[ref Symbol]
+        inEnsures: Boolean
+        ## Type parameters and bound members.
+        typeScopes: List[Map[String, ref Symbol]]
+        inTrait: Boolean
+        mainLocals: Map[String, ref Symbol]
+        unitNames: Map[String, ref Unit]
+
+# ------------------------------------------------------------------------- helpers
+
+function isDiscard(name: String): Boolean
+    return startsWith(name, prefix: "_")
+
+function contains(xs: List[ref Symbol], s: ref Symbol): Boolean
+    for x in xs do
+        if x = s then
+            return true
+    return false
+
+function containsUnit(xs: List[ref Unit], u: ref Unit): Boolean
+    for x in xs do
+        if x = u then
+            return true
+    return false
+
+## The strings in order.
+function sortedStrings(xs: List[String]): List[String]
+    var out: List[String] := []
+    for x in xs do
+        add(var out, x)
+        var j := len(out) - 1
+        while j > 0 and x < out[j - 1] do
+            out[j] := out[j - 1]
+            j := j - 1
+        out[j] := x
+    return out
+
+function isUpper(c: Char): Boolean
+    return c >= 'A' and c <= 'Z'
+
+function isAsciiLetter(c: Char): Boolean
+    return isUpper(c) or (c >= 'a' and c <= 'z')
+
+function isAsciiDigit(c: Char): Boolean
+    return c >= '0' and c <= '9'
+
+function firstChar(s: String): Option[Char]
+    for c in s do
+        return Some(c)
+    return None
+
+function spanOfType(t: TypeExpr): Span
+    case t of
+        TypeName(x):
+            return x.span
+        RefType(x):
+            return x.span
+        FuncType(x):
+            return x.span
+
+function isName(e: Expr): Boolean
+    case e of
+        Name(_):
+            return true
+        else:
+            return false
+
+export procedure error(c: ref Checker, file, code: String, span: Span, message: String, fixes: List[Fix] := [])
+    let d := Diagnostic(file: file, span: span, severity: Severity.Error, code: code, message: message, fixes: fixes)
+    for x in c.diagnostics do
+        if x = d then
+            return
+    add(var c.diagnostics, d)
+
+function replaceFix(span: Span, text: String): Fix
+    return Fix(description: "replace with '{text}'", edits: [Edit(span: span, text: text)])
+
+export function newSymbol(c: ref Checker, kind: Kind, name: String, span: Option[Span], file: String, unitName: String): ref Symbol
+    c.nextSymbol := c.nextSymbol + 1
+    return new(Symbol(
+        id: c.nextSymbol,
+        kind: kind,
+        name: name,
+        span: span,
+        file: file,
+        unitName: unitName,
+        exported: false,
+        node: NoNode(),
+        members: {},
+        isExtern: false,
+        reads: 0,
+        unusedFix: None,
+    ))
+
+## The symbols named `name` that `u` exports.
+export function exports(u: ref Unit, name: String): List[ref Symbol]
+    var out: List[ref Symbol] := []
+    for s in getOr(u.top, name, default: []) do
+        if s.exported then
+            add(var out, s)
+    return out
+
+# ------------------------------------------------------------------- reading files
+
+function hexByte(b: Byte): String
+    let digits := "0123456789ABCDEF"
+    let n := Integer(b)
+    return "{slice(digits, n div 16, n div 16 + 1)}{slice(digits, n mod 16, n mod 16 + 1)}"
+
+function isCont(b: List[Byte], i: Integer, low: Integer := 0x80, high: Integer := 0xBF): Boolean
+    return i < len(b) and Integer(b[i]) >= low and Integer(b[i]) <= high
+
+## The offset of the first byte that starts invalid UTF-8, as Python's strict decoder
+## finds it: no overlong forms, surrogates, or code points above U+10FFFF.
+function invalidUtf8(b: List[Byte]): Option[Integer]
+    var i := 0
+    while i < len(b) do
+        let x := Integer(b[i])
+        var n := 0
+        if x < 0x80 then
+            n := 1
+        else if x >= 0xC2 and x <= 0xDF then
+            if isCont(b, i + 1) then
+                n := 2
+        else if x >= 0xE0 and x <= 0xEF then
+            var low := 0x80
+            var high := 0xBF
+            if x = 0xE0 then
+                low := 0xA0
+            else if x = 0xED then
+                high := 0x9F
+            if isCont(b, i + 1, low: low, high: high) and isCont(b, i + 2) then
+                n := 3
+        else if x >= 0xF0 and x <= 0xF4 then
+            var low := 0x80
+            var high := 0xBF
+            if x = 0xF0 then
+                low := 0x90
+            else if x = 0xF4 then
+                high := 0x8F
+            if isCont(b, i + 1, low: low, high: high) and isCont(b, i + 2) and isCont(b, i + 3) then
+                n := 4
+        if n = 0 then
+            return Some(i)
+        i := i + n
+    return None
+
+## The text of the file at `path`, or why it can't be read.
+function readSource(path: String): Result[String, String]
+    case open(path) of
+        Ok(f):
+            case readBytes(f.value) of
+                Ok(b):
+                    case invalidUtf8(b.value) of
+                        Some(i):
+                            return Err("invalid UTF-8 byte 0x{hexByte(b.value[i.value])}")
+                        None:
+                            return Ok(fromBytes(b.value))
+                Err(e):
+                    return Err(e.error)
+        Err(e):
+            let prefix := "{path}: "
+            if startsWith(e.error, prefix: prefix) then
+                return Err(slice(e.error, byteLen(prefix), byteLen(e.error)))
+            return Err(e.error)
+
+# ------------------------------------------------------------------------- loading
+
+## Parses the file at `path` and every unit it uses, and resolves every name.
+export function resolve(path: String, stdDir: String): Resolved
+    let c := new(Checker(
+        stdDir: stdDir,
+        units: {},
+        missing: {},
+        programs: {},
+        index: newIndex(),
+        diagnostics: [],
+        nextSymbol: 0,
+        nextUnit: 0,
+    ))
+    let std := dirname(absolute(path)) = absolute(stdDir)
+    let main := load(c, path, std: std)
+    var order: List[ref Unit] := []
+    var mainFile := ""
+    case main of
+        Some(m):
+            mainFile := m.value.path
+            checkCycles(c, m.value)
+            add(var order, m.value)
+            for _, u in c.units do
+                if not (u = m.value) then
+                    add(var order, u)
+            for u in order do
+                runResolver(c, u)
+        None:
+            mainFile := ""
+    c.diagnostics := sortedDiagnostics(c.diagnostics, mainFile)
+    return Resolved(main: main, units: order, checker: c)
+
+## Whether `a` goes before `b`: the main file's diagnostics first, then by file and
+## position.
+function before(a, b: Diagnostic, mainFile: String): Boolean
+    let am := a.file = mainFile
+    let bm := b.file = mainFile
+    if am <> bm then
+        return am
+    if a.file <> b.file then
+        return a.file < b.file
+    return a.span.start < b.span.start
+
+function sortedDiagnostics(ds: List[Diagnostic], mainFile: String): List[Diagnostic]
+    var out: List[Diagnostic] := []
+    for d in ds do
+        add(var out, d)
+        var j := len(out) - 1
+        while j > 0 and before(d, b: out[j - 1], mainFile: mainFile) do
+            out[j] := out[j - 1]
+            j := j - 1
+        out[j] := d
+    return out
+
+## Whether `stem` can be a unit name: an ASCII letter, then ASCII letters, digits, `_`.
+function isPlainName(stem: String): Boolean
+    var first := true
+    for ch in stem do
+        if first and not isAsciiLetter(ch) then
+            return false
+        if not (isAsciiLetter(ch) or isAsciiDigit(ch) or ch = '_') then
+            return false
+        first := false
+    return not first
+
+function load(c: ref Checker, path: String, std: Boolean, expected: String := ""): Option[ref Unit]
+    var text := ""
+    case readSource(path) of
+        Ok(t):
+            text := t.value
+        Err(e):
+            let span := Span(start: 0, end: 0, line: 1, col: 1, endLine: 1, endCol: 1)
+            add(var c.diagnostics, Diagnostic(file: path, span: span, severity: Severity.Error, code: "E0000", message: e.error, fixes: []))
+            return None
+    let parsed := parse(text, file: path)
+    for d in parsed.diagnostics do
+        add(var c.diagnostics, d)
+    let tree := parsed.file
+    let stem := stripExt(basename(path))
+    var name := tree.name.name
+    var span: Option[Span] := None
+    if name = "" then
+        name := stem
+    else
+        span := Some(tree.name.span)
+    let symbol := newSymbol(c, Kind.UnitSym, name, span: span, file: path, unitName: name)
+    symbol.exported := true
+    symbol.node := tree
+    c.nextUnit := c.nextUnit + 1
+    let un := new(Unit(
+        id: c.nextUnit,
+        name: name,
+        path: path,
+        std: std,
+        parsed: parsed,
+        symbol: symbol,
+        top: {},
+        used: [],
+        text: Source.normalize(text),
+    ))
+    if tree.name.name <> "" and tree.name.name <> stem then
+        var fixes: List[Fix] := []
+        if isPlainName(stem) then
+            add(var fixes, Fix(description: "rename to '{stem}'", edits: [Edit(span: tree.name.span, text: stem)]))
+        error(
+            c, path, "E0105", tree.name.span,
+            message: "{tree.kind} '{tree.name.name}' must be in a file named '{tree.name.name}.pst', not '{basename(path)}'",
+            fixes: fixes,
+        )
+    if tree.name.name <> "" then
+        add(c.index, path, tree.name.span, targets: [symbol], isDef: true)
+    if tree.kind = "unit" then
+        if not (name in c.units) then
+            c.units[name] := un
+        if expected <> "" and not (expected in c.units) then
+            c.units[expected] := un
+    collect(c, un)
+
+    var seen: Map[String, Boolean] := {}
+    for ident in tree.units do
+        if ident.name in seen then
+            continue
+        seen[ident.name] := true
+        case findUnit(c, ident.name, user: un, span: Some(ident.span)) of
+            Some(used):
+                add(var un.used, used.value)
+                add(c.index, path, ident.span, targets: [used.value.symbol])
+            None:
+                continue
+    if name <> "System" or not std then
+        var system: Option[ref Unit] := get(c.units, "System")
+        if system.isNone() then
+            system := findUnit(c, "System", user: un, span: None)
+        case system of
+            Some(s):
+                if not containsUnit(un.used, s.value) then
+                    add(var un.used, s.value)
+            None:
+                return Some(un)
+    return Some(un)
+
+procedure report(c: ref Checker, user: ref Unit, span: Option[Span], code: String, message: String)
+    case span of
+        Some(s):
+            error(c, user.path, code, s.value, message: message)
+        None:
+            return
+
+function findUnit(c: ref Checker, name: String, user: ref Unit, span: Option[Span]): Option[ref Unit]
+    if name = user.name then
+        report(c, user, span, code: "E0107", message: "'{name}' can't use itself")
+        return None
+    case get(c.units, name) of
+        Some(u):
+            return Some(u.value)
+        None:
+            if name in c.programs then
+                report(c, user, span, code: "E0102", message: "'{name}' is a program, not a unit")
+                return None
+    if name in c.missing then
+        report(c, user, span, code: "E0102", message: "unit '{name}' not found")
+        return None
+    var candidates: List[String] := [join(c.stdDir, b: "{name}.pst")]
+    if not user.std then
+        add(var candidates, join(dirname(user.path), b: "{name}.pst"))
+    for i := 0 to len(candidates) - 1 do
+        let path := candidates[i]
+        if isFile(path) then
+            case load(c, path, std: i = 0, expected: name) of
+                Some(u):
+                    if u.value.parsed.file.kind <> "unit" then
+                        c.programs[name] := true
+                        report(c, user, span, code: "E0102", message: "'{name}' is a program, not a unit")
+                        return None
+                    return Some(u.value)
+                None:
+                    return None
+    c.missing[name] := true
+    var dir := dirname(user.path)
+    if dir = "" then
+        dir := "."
+    report(c, user, span, code: "E0102", message: "unit '{name}' not found: no '{name}.pst' in {dir} or the standard units")
+    return None
+
+procedure checkCycles(c: ref Checker, main: ref Unit)
+    ## Unit id -> 1 while visiting, 2 when done.
+    var state: Map[Integer, Integer] := {}
+    var stack: List[ref Unit] := []
+    visit(c, main, state: var state, stack: var stack)
+
+procedure visit(c: ref Checker, u: ref Unit, var state: Map[Integer, Integer], var stack: List[ref Unit])
+    state[u.id] := 1
+    add(var stack, u)
+    for ident in u.parsed.file.units do
+        case get(c.units, ident.name) of
+            Some(found):
+                let v := found.value
+                if getOr(state, v.id, default: 0) = 1 then
+                    var names: List[String] := []
+                    var on := false
+                    for w in stack do
+                        if w = v then
+                            on := true
+                        if on then
+                            add(var names, w.name)
+                    add(var names, v.name)
+                    error(c, u.path, "E0107", ident.span, message: "cyclic uses: {Strings.join(names, sep: " -> ")}")
+                else if not (v.id in state) then
+                    visit(c, v, state: var state, stack: var stack)
+            None:
+                continue
+    remove(var stack, len(stack) - 1)
+    state[u.id] := 2
+
+# --------------------------------------------------------------- declaration pass
+
+const
+    SystemTypes = ["Int8", "Int16", "Int32", "Int64", "UInt8", "UInt16", "UInt32", "UInt64", "Real32", "Real64", "Boolean", "Char", "String", "List", "Array", "Weak"]
+    CTypes = ["CString", "Ptr", "Pointer"]
+    SystemTraits = ["Equatable", "Ordered", "Hashable", "Sendable"]
+
+## Collects the top-level names of one unit (SPEC §15.2 step 2).
+procedure collect(c: ref Checker, u: ref Unit)
+    if u.std then
+        var types: List[String] := []
+        if u.name = "System" then
+            types := SystemTypes
+        else if u.name = "C" then
+            types := CTypes
+        for name in types do
+            let b := newSymbol(c, Kind.BuiltinType, name, span: None, file: "", unitName: u.name)
+            b.exported := true
+            u.top[name] := [b]
+        if u.name = "System" then
+            for name in SystemTraits do
+                let b := newSymbol(c, Kind.BuiltinTrait, name, span: None, file: "", unitName: u.name)
+                b.exported := true
+                u.top[name] := [b]
+    for item in u.parsed.file.items do
+        case item of
+            Decl(d):
+                declaration(c, u, d)
+            Stmt(_):
+                continue
+
+function routineKind(sig: Signature): Kind
+    if sig.isFunction then
+        return Kind.FunctionSym
+    return Kind.ProcedureSym
+
+procedure declaration(c: ref Checker, u: ref Unit, d: Decl)
+    case d of
+        TypeSection(ts):
+            for td in ts.decls do
+                typeDecl(c, u, td)
+        ConstSection(cs):
+            for cd in cs.decls do
+                addTop(c, u, declare(c, u, Kind.ConstSym, cd.name, exported: cd.exported, node: cd))
+        Routine(r):
+            addTop(c, u, declare(c, u, routineKind(r.sig), r.sig.name, exported: r.exported, node: r))
+        ExternBlock(b):
+            if b.library = "pst" and not u.std then
+                error(c, u.path, "E0106", b.span, message: "'extern \"pst\"' is reserved for the standard units")
+            for item in b.decls do
+                case item of
+                    TypeSection(ts):
+                        for td in ts.decls do
+                            typeDecl(c, u, td)
+                    ExternDecl(e):
+                        let sym := declare(c, u, routineKind(e.sig), e.sig.name, exported: e.exported, node: e)
+                        sym.isExtern := true
+                        addTop(c, u, sym)
+        TestBlock(_):
+            return
+
+## A new symbol for a declaration in `u`, entered in the index.
+function declare(c: ref Checker, u: ref Unit, kind: Kind, ident: Ident, exported: Boolean, node: DeclNode): ref Symbol
+    let sym := newSymbol(c, kind, ident.name, span: Some(ident.span), file: u.path, unitName: u.name)
+    sym.exported := exported
+    sym.node := node
+    add(c.index, u.path, ident.span, targets: [sym], isDef: true)
+    return sym
+
+procedure addTop(c: ref Checker, u: ref Unit, sym: ref Symbol)
+    var existing := getOr(u.top, sym.name, default: [])
+    for s in existing do
+        if not (isRoutine(s.kind) and isRoutine(sym.kind)) then
+            error(c, u.path, "E0108", sym.span.get(), message: "'{sym.name}' is already declared ({describe(s)}, {location(s)})")
+            return
+    add(var existing, sym)
+    u.top[sym.name] := existing
+
+## Enters `sym`, just declared, as a member of `owner`.
+procedure member(c: ref Checker, u: ref Unit, owner, sym: ref Symbol)
+    case get(owner.members, sym.name) of
+        Some(prev):
+            error(c, u.path, "E0108", sym.span.get(), message: "'{sym.name}' is already declared in '{owner.name}' ({location(prev.value)})")
+        None:
+            owner.members[sym.name] := sym
+
+procedure typeDecl(c: ref Checker, u: ref Unit, d: TypeDecl)
+    var kind := Kind.TypeSym
+    case d.body of
+        TraitType(_):
+            kind := Kind.TraitSym
+        else:
+            kind := Kind.TypeSym
+    let sym := declare(c, u, kind, d.name, exported: d.exported, node: d)
+    case d.body of
+        EnumType(e):
+            for m in e.members do
+                member(c, u, sym, declare(c, u, Kind.EnumMember, m, exported: d.exported, node: m))
+        RecordType(rt):
+            for f in rt.fields do
+                member(c, u, sym, declare(c, u, Kind.FieldSym, f.name, exported: d.exported and f.exported, node: f))
+        TraitType(tt):
+            for f in tt.fields do
+                member(c, u, sym, declare(c, u, Kind.FieldSym, f.name, exported: d.exported, node: f))
+            for sig in tt.routines do
+                member(c, u, sym, declare(c, u, routineKind(sig), sig.name, exported: d.exported, node: sig))
+        else:
+            kind := Kind.TypeSym
+    addTop(c, u, sym)
+
+# --------------------------------------------------------------------- resolution
+
+procedure runResolver(c: ref Checker, u: ref Unit)
+    var names: Map[String, ref Unit] := {}
+    for v in u.used do
+        names[v.name] := v
+    let r := new(Resolver(
+        c: c,
+        cur: u,
+        file: u.path,
+        hasCtx: false,
+        isMain: false,
+        scopes: [],
+        locals: [],
+        inEnsures: false,
+        typeScopes: [],
+        inTrait: false,
+        mainLocals: {},
+        unitNames: names,
+    ))
+    run(r)
+
+procedure fail(r: ref Resolver, code: String, span: Span, message: String, fixes: List[Fix] := [])
+    error(r.c, r.file, code, span, message: message, fixes: fixes)
+
+procedure note(r: ref Resolver, span: Span, targets: List[ref Symbol], isDef: Boolean := false)
+    add(r.c.index, r.file, span, targets: targets, isDef: isDef)
+
+procedure startCtx(r: ref Resolver, isMain: Boolean)
+    r.hasCtx := true
+    r.isMain := isMain
+    r.scopes := [{}]
+    r.locals := []
+    r.inEnsures := false
+
+procedure endCtx(r: ref Resolver)
+    finishCtx(r)
+    r.hasCtx := false
+    r.scopes := []
+    r.locals := []
+
+procedure run(r: ref Resolver)
+    let items := r.cur.parsed.file.items
+    # Main first, so E0103 knows every top-level local.
+    startCtx(r, isMain: true)
+    for item in items do
+        case item of
+            Stmt(s):
+                stmt(r, s)
+            Decl(_):
+                continue
+    finishCtx(r)
+    var mainLocals: Map[String, ref Symbol] := {}
+    for s in r.locals do
+        mainLocals[s.name] := s
+    r.mainLocals := mainLocals
+    r.hasCtx := false
+    r.scopes := []
+    r.locals := []
+    for item in items do
+        case item of
+            Decl(d):
+                resolveDecl(r, d)
+            Stmt(_):
+                continue
+    checkCasing(r)
+
+procedure resolveDecl(r: ref Resolver, d: Decl)
+    case d of
+        TypeSection(ts):
+            for td in ts.decls do
+                typeDecl(r, td)
+        ConstSection(cs):
+            for cd in cs.decls do
+                expr(r, cd.value)
+        Routine(rt):
+            routine(r, rt)
+        ExternBlock(b):
+            for item in b.decls do
+                case item of
+                    TypeSection(ts):
+                        for td in ts.decls do
+                            typeDecl(r, td)
+                    ExternDecl(e):
+                        signature(r, e.sig)
+        TestBlock(t):
+            startCtx(r, isMain: false)
+            stmts(r, t.body.stmts)
+            endCtx(r)
+
+# ------------------------------------------------------------------------- lookup
+
+function lookup(r: ref Resolver, name: String): Lookup
+    if r.hasCtx then
+        for i := len(r.scopes) - 1 downto 0 do
+            case get(r.scopes[i], name) of
+                Some(s):
+                    return Lookup(symbols: [s.value], ambiguous: [])
+                None:
+                    continue
+    for i := len(r.typeScopes) - 1 downto 0 do
+        case get(r.typeScopes[i], name) of
+            Some(s):
+                return Lookup(symbols: [s.value], ambiguous: [])
+            None:
+                continue
+    let own := getOr(r.cur.top, name, default: [])
+    if len(own) > 0 and not isRoutine(own[0].kind) then
+        return Lookup(symbols: own, ambiguous: [])
+    if len(own) = 0 then
+        case get(r.unitNames, name) of
+            Some(u):
+                return Lookup(symbols: [u.value.symbol], ambiguous: [])
+            None:
+                pass()
+    var routines := own
+    var others: List[ref Symbol] := []
+    var otherUnits: List[ref Unit] := []
+    for u in r.cur.used do
+        for s in exports(u, name) do
+            if isRoutine(s.kind) then
+                if not contains(routines, s) then
+                    add(var routines, s)
+            else if not contains(others, s) then
+                add(var others, s)
+                add(var otherUnits, u)
+    if len(own) > 0 or len(others) = 0 then
+        return Lookup(symbols: routines, ambiguous: [])
+    if len(others) = 1 and len(routines) = 0 then
+        return Lookup(symbols: others, ambiguous: [])
+    var units := otherUnits
+    for u in r.cur.used do
+        for s in exports(u, name) do
+            if contains(routines, s) then
+                add(var units, u)
+                break
+    return Lookup(symbols: [], ambiguous: units)
+
+## Does nothing.
+procedure pass()
+    return
+
+## Every name visible here, in order.
+function visibleNames(r: ref Resolver): List[String]
+    var names: Map[String, Boolean] := {}
+    for n, _ in r.cur.top do
+        names[n] := true
+    for n, _ in r.unitNames do
+        names[n] := true
+    if r.hasCtx then
+        for scope in r.scopes do
+            for n, _ in scope do
+                names[n] := true
+    for scope in r.typeScopes do
+        for n, _ in scope do
+            names[n] := true
+    for u in r.cur.used do
+        for n, syms in u.top do
+            for s in syms do
+                if s.exported then
+                    names[n] := true
+                    break
+    var out: List[String] := []
+    for n, _ in names do
+        add(var out, n)
+    return sortedStrings(out)
+
+procedure unknown(r: ref Resolver, name: String, span: Span)
+    if r.hasCtx and not r.isMain and name in r.mainLocals then
+        fail(r, "E0103", span, message: "'{name}' is a top-level variable of the program, which functions can't see; pass it as a parameter ('var' to change it)")
+        return
+    if not r.hasCtx and name in r.mainLocals then
+        fail(r, "E0103", span, message: "'{name}' is a top-level variable and isn't visible here")
+        return
+    let matches := closeMatches(name, visibleNames(r), 3, num: 3, den: 4)
+    var fixes: List[Fix] := []
+    if len(matches) > 0 then
+        # Probably a typo for this: don't also call the intended variable unused.
+        for sym in lookup(r, matches[0]).symbols do
+            sym.reads := sym.reads + 1
+    for m in matches do
+        add(var fixes, replaceFix(span, text: m))
+    fail(r, "E0100", span, message: "unknown name '{name}'", fixes: fixes)
+
+function resolveName(r: ref Resolver, name: String, span: Span, read: Boolean := true): List[ref Symbol]
+    let found := lookup(r, name)
+    if len(found.ambiguous) > 0 then
+        var fixes: List[Fix] := []
+        var units: List[String] := []
+        for u in found.ambiguous do
+            add(var fixes, Fix(description: "qualify as '{u.name}.{name}'", edits: [Edit(span: span, text: "{u.name}.{name}")]))
+            add(var units, u.name)
+        fail(r, "E0110", span, message: "'{name}' is ambiguous: declared in units {Strings.join(units, sep: ", ")}; qualify it", fixes: fixes)
+        return []
+    if len(found.symbols) = 0 then
+        unknown(r, name, span)
+        return []
+    if read and len(found.symbols) = 1 then
+        let s := found.symbols[0]
+        s.reads := s.reads + 1
+    note(r, span, targets: found.symbols)
+    return found.symbols
+
+function unitMember(r: ref Resolver, unitSym: ref Symbol, ident: Ident): List[ref Symbol]
+    case get(r.unitNames, unitSym.name) of
+        Some(found):
+            let u := found.value
+            let syms := exports(u, ident.name)
+            if len(syms) = 0 then
+                if ident.name in u.top then
+                    fail(r, "E0109", ident.span, message: "'{ident.name}' is not exported by unit {u.name}")
+                else
+                    fail(r, "E0100", ident.span, message: "unit {u.name} has no '{ident.name}'")
+                return []
+            note(r, ident.span, targets: syms)
+            return syms
+        None:
+            return []
+
+procedure enumMember(r: ref Resolver, enum: ref Symbol, ident: Ident)
+    case get(enum.members, ident.name) of
+        Some(found):
+            let m := found.value
+            if enum.unitName <> r.cur.name and not m.exported then
+                fail(r, "E0109", ident.span, message: "'{enum.name}' is not exported by unit {enum.unitName}")
+            note(r, ident.span, targets: [m])
+        None:
+            var names: List[String] := []
+            for n, _ in enum.members do
+                add(var names, n)
+            var fixes: List[Fix] := []
+            for m in closeMatches(ident.name, sortedStrings(names), 3, num: 3, den: 5) do
+                add(var fixes, replaceFix(ident.span, text: m))
+            fail(r, "E0100", ident.span, message: "enum '{enum.name}' has no member '{ident.name}'", fixes: fixes)
+
+function isEnum(s: ref Symbol): Boolean
+    if s.kind <> Kind.TypeSym then
+        return false
+    case s.node of
+        TypeDecl(d):
+            case d.body of
+                EnumType(_):
+                    return true
+                else:
+                    return false
+        else:
+            return false
+
+function isStatic(s: ref Symbol): Boolean
+    return s.kind = Kind.UnitSym or isEnum(s)
+
+## Resolves `e` as the left side of a dot. Returns the unit or enum it names, if it names
+## one; otherwise resolves it as an ordinary expression and returns None.
+function staticTarget(r: ref Resolver, e: Expr): Option[ref Symbol]
+    case e of
+        Name(n):
+            if n.name <> "this" and n.name <> "This" then
+                let found := lookup(r, n.name)
+                if len(found.symbols) = 1 and isStatic(found.symbols[0]) then
+                    note(r, n.span, targets: found.symbols)
+                    return Some(found.symbols[0])
+        FieldAccess(f):
+            case staticTarget(r, f.target) of
+                Some(o):
+                    let owner := o.value
+                    if owner.kind = Kind.UnitSym then
+                        let syms := unitMember(r, owner, f.name)
+                        if len(syms) = 1 and isStatic(syms[0]) then
+                            return Some(syms[0])
+                        return None
+                    enumMember(r, owner, f.name)
+                    return None
+                None:
+                    return None
+        else:
+            pass()
+    expr(r, e)
+    return None
+
+# ------------------------------------------------------------------------- scopes
+
+procedure push(r: ref Resolver)
+    add(var r.scopes, {})
+
+procedure pop(r: ref Resolver)
+    remove(var r.scopes, len(r.scopes) - 1)
+
+procedure define(r: ref Resolver, kind: Kind, ident: Ident, node: DeclNode, unusedFix: Option[Span] := None)
+    if isDiscard(ident.name) or not r.hasCtx then
+        return
+    let sym := newSymbol(r.c, kind, ident.name, span: Some(ident.span), file: r.file, unitName: r.cur.name)
+    sym.node := node
+    sym.unusedFix := unusedFix
+    for scope in r.scopes do
+        case get(scope, ident.name) of
+            Some(found):
+                let prev := found.value
+                if prev.kind <> Kind.ResultSym then
+                    var where := "routine"
+                    if r.isMain then
+                        where := "program body"
+                    fail(r, "E0205", ident.span, message: "'{ident.name}' is already declared in this {where} ({name(prev.kind)}, line {prev.span.get().line}); choose another name")
+                    break
+            None:
+                continue
+    r.scopes[len(r.scopes) - 1][ident.name] := sym
+    add(var r.locals, sym)
+    note(r, ident.span, targets: [sym], isDef: true)
+
+procedure finishCtx(r: ref Resolver)
+    for sym in r.locals do
+        if sym.reads > 0 then
+            continue
+        case sym.unusedFix of
+            Some(fix):
+                let f := Fix(description: "discard: replace with '_'", edits: [Edit(span: fix.value, text: "_")])
+                fail(r, "E0206", sym.span.get(), message: "{name(sym.kind)} '{sym.name}' is never used", fixes: [f])
+            None:
+                continue
+
+procedure pushTypeParams(r: ref Resolver, params: List[TypeParam])
+    var scope: Map[String, ref Symbol] := {}
+    for p in params do
+        let sym := newSymbol(r.c, Kind.TypeParamSym, p.name.name, span: Some(p.name.span), file: r.file, unitName: r.cur.name)
+        sym.node := p
+        if p.name.name in scope then
+            fail(r, "E0108", p.name.span, message: "type parameter '{p.name.name}' is declared twice")
+        else
+            scope[p.name.name] := sym
+        note(r, p.name.span, targets: [sym], isDef: true)
+    add(var r.typeScopes, scope)
+    # Bound members (SPEC §8.2): routines required by a bound resolve to the trait.
+    var members: Map[String, ref Symbol] := {}
+    for p in params do
+        for b in p.bounds do
+            for sym in typeExpr(r, b) do
+                if sym.kind = Kind.TraitSym then
+                    for n, m in sym.members do
+                        if isRoutine(m.kind) and not (n in members) then
+                            members[n] := m
+    for n, m in members do
+        if not (n in scope) then
+            scope[n] := m
+    r.typeScopes[len(r.typeScopes) - 1] := scope
+
+procedure popTypeParams(r: ref Resolver)
+    remove(var r.typeScopes, len(r.typeScopes) - 1)
+
+# -------------------------------------------------------------------------- types
+
+function typeExpr(r: ref Resolver, t: TypeExpr): List[ref Symbol]
+    case t of
+        TypeName(n):
+            return typeName(r, n)
+        RefType(x):
+            _ := typeExpr(r, x.target)
+        FuncType(f):
+            for p in f.params do
+                _ := typeExpr(r, p)
+            case f.result of
+                Some(res):
+                    _ := typeExpr(r, res.value)
+                None:
+                    pass()
+    return []
+
+procedure typeOrExpr(r: ref Resolver, x: TypeOrExpr)
+    case x of
+        TypeExpr(t):
+            _ := typeExpr(r, t)
+        Expr(e):
+            expr(r, e)
+
+function typeName(r: ref Resolver, t: TypeName): List[ref Symbol]
+    for a in t.args do
+        typeOrExpr(r, a)
+    var spans := t.partSpans
+    if len(spans) = 0 then
+        spans := [t.span]
+    if len(t.parts) = 1 and t.parts[0] = "This" then
+        if not r.inTrait then
+            fail(r, "E0111", t.span, message: "'This' is only valid inside a trait")
+        return []
+    var syms := resolveName(r, t.parts[0], spans[0])
+    var i := 1
+    while i < len(t.parts) and i < len(spans) do
+        if len(syms) <> 1 or syms[0].kind <> Kind.UnitSym then
+            return []  # `Enum.Member` and the like: the type checker reports it
+        syms := unitMember(r, syms[0], Ident(span: spans[i], name: t.parts[i]))
+        i := i + 1
+    return syms
+
+procedure fields(r: ref Resolver, fs: List[FieldDecl])
+    for f in fs do
+        _ := typeExpr(r, f.declType)
+        case f.default of
+            Some(d):
+                expr(r, d.value)
+            None:
+                continue
+
+procedure typeDecl(r: ref Resolver, d: TypeDecl)
+    pushTypeParams(r, d.params)
+    case d.body of
+        TypeExpr(t):
+            _ := typeExpr(r, t)
+        SubrangeType(s):
+            expr(r, s.low)
+            expr(r, s.high)
+        UnionType(u):
+            for v in u.variants do
+                _ := typeExpr(r, v)
+        RecordType(rt):
+            r.inTrait := false
+            fields(r, rt.fields)
+        TraitType(tt):
+            r.inTrait := true
+            fields(r, tt.fields)
+            for sig in tt.routines do
+                signature(r, sig)
+            r.inTrait := false
+        EnumType(_):
+            pass()
+    popTypeParams(r)
+
+# ----------------------------------------------------------------------- routines
+
+procedure paramTypes(r: ref Resolver, p: Param)
+    case p.declType of
+        Some(t):
+            _ := typeExpr(r, t.value)
+        None:
+            pass()
+    case p.default of
+        Some(d):
+            expr(r, d.value)
+        None:
+            pass()
+
+procedure resultType(r: ref Resolver, sig: Signature)
+    case sig.result of
+        Some(t):
+            _ := typeExpr(r, t.value)
+        None:
+            pass()
+
+## Resolves a signature without a body (extern, trait member).
+procedure signature(r: ref Resolver, sig: Signature)
+    pushTypeParams(r, sig.typeParams)
+    for p in sig.params do
+        paramTypes(r, p)
+    resultType(r, sig)
+    popTypeParams(r)
+
+procedure routine(r: ref Resolver, rt: Routine)
+    let sig := rt.sig
+    pushTypeParams(r, sig.typeParams)
+    startCtx(r, isMain: false)
+    for p in sig.params do
+        paramTypes(r, p)
+        for ident in p.names do
+            define(r, Kind.ParamSym, ident, node: p)
+    resultType(r, sig)
+    for e in rt.pre do
+        expr(r, e)
+    if len(rt.post) > 0 then
+        push(r)
+        if sig.isFunction then
+            let res := newSymbol(r.c, Kind.ResultSym, "result", span: Some(sig.name.span), file: r.file, unitName: r.cur.name)
+            res.node := rt
+            r.scopes[len(r.scopes) - 1]["result"] := res
+        r.inEnsures := true
+        for e in rt.post do
+            expr(r, e)
+        r.inEnsures := false
+        pop(r)
+    push(r)
+    stmts(r, rt.body.stmts)
+    pop(r)
+    endCtx(r)
+    popTypeParams(r)
+
+# --------------------------------------------------------------------- statements
+
+procedure stmts(r: ref Resolver, ss: List[Stmt])
+    for s in ss do
+        stmt(r, s)
+
+procedure block(r: ref Resolver, b: Block)
+    push(r)
+    stmts(r, b.stmts)
+    pop(r)
+
+procedure armBody(r: ref Resolver, body: ArmBody)
+    push(r)
+    case body of
+        Block(b):
+            stmts(r, b.stmts)
+        Stmt(s):
+            stmt(r, s)
+    pop(r)
+
+procedure optExpr(r: ref Resolver, e: Option[Expr])
+    case e of
+        Some(x):
+            expr(r, x.value)
+        None:
+            pass()
+
+procedure stmt(r: ref Resolver, s: Stmt)
+    case s of
+        VarDecl(v):
+            var last := v.name.span
+            case v.declType of
+                Some(t):
+                    _ := typeExpr(r, t.value)
+                    last := spanOfType(t.value)
+                None:
+                    pass()
+            expr(r, v.value)
+            var kind := Kind.LetSym
+            if v.mutable then
+                kind := Kind.VarSym
+            define(r, kind, v.name, node: v, unusedFix: Some(join(v.span, b: last)))
+        Assign(a):
+            case a.target of
+                Name(n):
+                    name(r, n, read: false)
+                else:
+                    expr(r, a.target)
+            expr(r, a.value)
+        Discard(d):
+            expr(r, d.value)
+        ExprStmt(x):
+            expr(r, x.expr)
+        If(i):
+            for b in i.branches do
+                expr(r, b.cond)
+                block(r, b.body)
+            case i.elseBody of
+                Some(b):
+                    block(r, b.value)
+                None:
+                    pass()
+        While(w):
+            expr(r, w.cond)
+            block(r, w.body)
+        Repeat(rp):
+            push(r)  # the condition sees the body's variables
+            stmts(r, rp.body.stmts)
+            expr(r, rp.cond)
+            pop(r)
+        ForRange(f):
+            expr(r, f.start)
+            expr(r, f.stop)
+            push(r)
+            define(r, Kind.LoopVar, f.variable, node: f)
+            stmts(r, f.body.stmts)
+            pop(r)
+        ForIn(f):
+            expr(r, f.iterable)
+            push(r)
+            for v in f.vars do
+                define(r, Kind.LoopVar, v, node: f, unusedFix: Some(v.span))
+            stmts(r, f.body.stmts)
+            pop(r)
+        Case(cs):
+            expr(r, cs.subject)
+            for arm in cs.arms do
+                push(r)
+                labels(r, arm.labels)
+                armBody(r, arm.body)
+                pop(r)
+        Defer(d):
+            armBody(r, d.body)
+        Return(rt):
+            optExpr(r, rt.value)
+        Assert(a):
+            expr(r, a.cond)
+            optExpr(r, a.message)
+        else:
+            pass()
+
+procedure labels(r: ref Resolver, ls: List[Label])
+    for label in ls do
+        case label of
+            ValueLabel(v):
+                if not isName(v.value) then  # bare names need the subject's type
+                    expr(r, v.value)
+            RangeLabel(rl):
+                if not isName(rl.low) then
+                    expr(r, rl.low)
+                if not isName(rl.high) then
+                    expr(r, rl.high)
+            VariantLabel(vl):
+                _ := typeName(r, vl.variant)
+                define(r, Kind.Binding, vl.binding, node: vl, unusedFix: Some(vl.binding.span))
+
+# -------------------------------------------------------------------- expressions
+
+procedure name(r: ref Resolver, e: Name, read: Boolean := true)
+    if e.name = "This" then
+        if not r.inTrait then
+            fail(r, "E0111", e.span, message: "'This' is only valid inside a trait")
+        return
+    if e.name = "this" and len(lookup(r, "this").symbols) = 0 then
+        fail(r, "E0100", e.span, message: "'this' is only valid in a trait's routine signatures")
+        return
+    _ := resolveName(r, e.name, e.span, read: read)
+
+function isOld(e: Expr): Boolean
+    case e of
+        Name(n):
+            return n.name = "old"
+        else:
+            return false
+
+procedure expr(r: ref Resolver, e: Expr)
+    case e of
+        Name(n):
+            name(r, n)
+        InterpString(s):
+            for p in s.parts do
+                case p of
+                    Expr(x):
+                        expr(r, x)
+                    TextPart(_):
+                        continue
+        ListLit(l):
+            for x in l.items do
+                expr(r, x)
+        SetLit(l):
+            for x in l.items do
+                expr(r, x)
+        MapLit(m):
+            for entry in m.entries do
+                expr(r, entry.key)
+                expr(r, entry.value)
+        Paren(p):
+            expr(r, p.inner)
+        Unary(u):
+            expr(r, u.operand)
+        Binary(b):
+            expr(r, b.left)
+            expr(r, b.right)
+        Call(c):
+            if not (r.hasCtx and r.inEnsures and isOld(c.callee)) then
+                expr(r, c.callee)
+            for a in c.args do
+                expr(r, a.value)
+        Index(i):
+            expr(r, i.target)
+            for x in i.items do
+                typeOrExpr(r, x)
+        FieldAccess(_):
+            _ := staticTarget(r, e)
+        Deref(d):
+            expr(r, d.target)
+        IfExpr(i):
+            for b in i.branches do
+                expr(r, b.cond)
+                expr(r, b.value)
+            expr(r, i.elseValue)
+        CaseExpr(ce):
+            expr(r, ce.subject)
+            for arm in ce.arms do
+                if r.hasCtx then
+                    push(r)
+                labels(r, arm.labels)
+                expr(r, arm.value)
+                if r.hasCtx then
+                    pop(r)
+        else:
+            pass()
+
+# ------------------------------------------------------------------------- naming
+
+## E0020 (SPEC §2.5), with a fix that renames the definition and its uses here.
+procedure checkCasing(r: ref Resolver)
+    var defs: List[Ref] := []
+    for d in r.c.index.refs do
+        if d.isDef and d.file = r.file then
+            add(var defs, d)
+    for d in defs do
+        let sym := d.targets[0]
+        if sym.kind = Kind.ResultSym or sym.name = "this" then
+            continue
+        let first := firstChar(sym.name)
+        if first.isNone() or not isAsciiLetter(first.get()) then
+            continue
+        let c := first.get()
+        let rest := slice(sym.name, 1, byteLen(sym.name))
+        var want := ""
+        var style := ""
+        if isUpperCamel(sym.kind) and not isUpper(c) then
+            want := "{Char(ord(c) - 32)}{rest}"
+            style := "UpperCamel"
+        else if isLowerCamel(sym.kind) and isUpper(c) then
+            want := "{Char(ord(c) + 32)}{rest}"
+            style := "lowerCamel"
+        else
+            continue
+        var edits: List[Edit] := []
+        for x in references(r.c.index, sym) do
+            if x.file = r.file and len(x.targets) = 1 then
+                add(var edits, Edit(span: x.span, text: want))
+        fail(r, "E0020", d.span, message: "{name(sym.kind)} names are {style}: '{want}', not '{sym.name}'", fixes: [Fix(description: "rename to '{want}'", edits: edits)])

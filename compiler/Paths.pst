@@ -1,0 +1,96 @@
+unit Paths
+
+## POSIX path operations, as Python's `posixpath` does them, so that the port names files
+## exactly as the Python compiler does.
+
+uses OS, Strings
+
+const
+    Slash = Byte(47)
+    Dot = Byte(46)
+
+## The byte offset of the last `/` in `s`, or -1.
+function lastSlash(b: List[Byte]): Integer
+    var i := len(b) - 1
+    while i >= 0 and b[i] <> Slash do
+        i := i - 1
+    return i
+
+## Whether `s` is all slashes.
+function allSlashes(s: String): Boolean
+    for c in s do
+        if c <> '/' then
+            return false
+    return true
+
+## Everything up to the last `/`, without trailing slashes (unless it is only slashes).
+export function dirname(p: String): String
+    let i := lastSlash(bytes(p)) + 1
+    var head := slice(p, 0, i)
+    if byteLen(head) > 0 and not allSlashes(head) then
+        while endsWith(head, suffix: "/") do
+            head := slice(head, 0, byteLen(head) - 1)
+    return head
+
+## Everything after the last `/`.
+export function basename(p: String): String
+    let i := lastSlash(bytes(p)) + 1
+    return slice(p, i, byteLen(p))
+
+## `p` without its extension: the last `.` after the last `/`, unless the name before it
+## is only dots.
+export function stripExt(p: String): String
+    let b := bytes(p)
+    let sep := lastSlash(b)
+    var dot := len(b) - 1
+    while dot > sep and b[dot] <> Dot do
+        dot := dot - 1
+    if dot > sep then
+        var i := sep + 1
+        while i < dot do
+            if b[i] <> Dot then
+                return slice(p, 0, dot)
+            i := i + 1
+    return p
+
+## `b` relative to `a`, or `b` if it is absolute.
+export function join(a: String, b: String): String
+    if startsWith(b, prefix: "/") then
+        return b
+    if byteLen(a) = 0 or endsWith(a, suffix: "/") then
+        return "{a}{b}"
+    return "{a}/{b}"
+
+## `p` without `.`, `..` and repeated slashes, as far as that can be done without the
+## file system.
+export function normalize(p: String): String
+    if byteLen(p) = 0 then
+        return "."
+    var initial := 0
+    if startsWith(p, prefix: "/") then
+        initial := 1
+        if startsWith(p, prefix: "//") and not startsWith(p, prefix: "///") then
+            initial := 2
+    var parts: List[String] := []
+    for comp in split(p, sep: "/") do
+        if comp = "" or comp = "." then
+            continue
+        let n := len(parts)
+        if comp <> ".." or (initial = 0 and n = 0) or (n > 0 and parts[n - 1] = "..") then
+            add(var parts, comp)
+        else if n > 0 then
+            remove(var parts, n - 1)
+    var out := Strings.join(parts, sep: "/")
+    if initial = 1 then
+        out := "/{out}"
+    else if initial = 2 then
+        out := "//{out}"
+    if byteLen(out) = 0 then
+        return "."
+    return out
+
+## The absolute, normalized form of `p`.
+export function absolute(p: String): String
+    if startsWith(p, prefix: "/") then
+        return normalize(p)
+    return normalize(join(currentDir(), b: p))

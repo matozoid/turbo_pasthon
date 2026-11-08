@@ -19,7 +19,7 @@ from pst import ast
 from pst.lexer import lex
 from pst.parser import parse
 from pst.source import Span
-from pst.resolve import check
+from pst.resolve import Checker, Resolver as PyResolver, STD_DIR, check
 from pst.tokens import TokenKind
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -199,6 +199,32 @@ SNIPPETS = {
 }
 
 
+def resolve_dump(path: str, std_dir: str = STD_DIR) -> str:
+    """Resolution without type checking, as ``compiler/ResolveDump.pst`` prints it: the
+    symbol index, then the diagnostics of every file."""
+    c = Checker(std_dir)
+    std = os.path.dirname(os.path.abspath(path)) == os.path.abspath(std_dir)
+    main = c.load(path, std=std)
+    if main is not None:
+        c.check_cycles(main)
+        others = [u for u in c.units.values() if u is not main]
+        for unit in [main] + others:
+            PyResolver(c, unit).run()
+    c.diagnostics.sort(key=lambda d: (d.file != (main.file if main else ""), d.file, d.span.start))
+    lines = []
+    for r in c.index.refs:
+        lines.append(f"{'def' if r.is_def else 'use'} {r.file} {where(r.span)}")
+        for t in r.targets:
+            lines.append(f"  {t.describe()} @ {t.location()}")
+    for d in c.diagnostics:
+        lines.append(f"{d.file} {d.severity.value} {d.code} {where(d.span)} {quote(d.message)}")
+        for f in d.fixes:
+            lines.append(f"  fix {quote(f.description)}")
+            for e in f.edits:
+                lines.append(f"    edit {where(e.span)} {quote(e.text)}")
+    return "".join(line + "\n" for line in lines)
+
+
 def source_files() -> list[Path]:
     return sorted(
         p
@@ -221,10 +247,16 @@ class _Differential(unittest.TestCase):
     def setUpClass(cls):
         cls.exe = build_tool(cls.tool)
 
-    def compare(self, path: Path, under: tuple = ()):
+    def args(self, path: Path) -> list[str]:
+        return [str(path)]
+
+    def expected_for(self, path: Path) -> str:
         text = path.read_bytes().decode("utf-8", errors="replace")
-        expected = type(self).expected(text, str(path))
-        r = subprocess.run([*under, self.exe, str(path)], capture_output=True, timeout=120)
+        return type(self).expected(text, str(path))
+
+    def compare(self, path: Path, under: tuple = ()):
+        expected = self.expected_for(path)
+        r = subprocess.run([*under, self.exe, *self.args(path)], capture_output=True, timeout=120)
         self.assertEqual(r.returncode, 0, r.stderr.decode())
         actual = r.stdout.decode()
         if actual != expected:
@@ -420,6 +452,143 @@ class Parser(_Differential):
     tool = "AstDump"
     snippets = PARSER_SNIPPETS
     expected = staticmethod(ast_dump)
+
+
+# Programs, each a set of files (the first is checked), that exercise the resolver's errors
+# and corners.
+RESOLVE_SNIPPETS = {
+    "names": {
+        "Main.pst": (
+            "program Main\nuses IO\n"
+            "let count := 1\nvar total := 2\nlet unused := 3\n"
+            "writeln(cuont)\nwriteln(totl + count)\nwriteln(nothingLikeIt)\n"
+            "function f(x: Integer): Integer\n    return x + total\n"
+            "type\n    R = record\n        a: Integer := count\n"
+            "procedure p(a: Integer, b: Integer)\n    let a := 2\n    var b2 := a\n    writeln(b)\n"
+            "for i := 1 to 3 do\n    let unusedToo := i\nfor x in [1] do\n    writeln(1)\n"
+            "for _ in [1] do\n    writeln(1)\n"
+        ),
+    },
+    "declarations": {
+        "Main.pst": (
+            "program Main\n"
+            "type\n    E = (A, B, A)\n    R = record\n        x: Integer\n        x: String\n"
+            "    E = Integer\n    T[X, X] = List[X]\n"
+            "    Tr = trait\n        f: Integer\n        procedure go(this)\n        function me(): This\n"
+            "    Bad = This\n"
+            "const\n    C = 1\n    C = 2\n"
+            "function C(): Integer\n    return 1\n"
+            "function g(): Integer\n    return 1\nfunction g(x: Integer): Integer\n    return x\n"
+            'extern "pst"\n    function h(): Integer\n'
+            "let e := E.C\nlet e2 := E.B\nlet e3 := E.Aa\nwriteln(e, e2, e3)\n"
+            "procedure use[T: Tr](t: T)\n    go(t)\n    writeln(this)\n    let q: This := t\n"
+        ),
+    },
+    "casing": {
+        "Main.pst": (
+            "program Main\ntype\n    point = record\n        X: Integer\n    Color = (red, Green)\n"
+            "const\n    max = 3\n"
+            "function Area(p: point): Integer\n    let Big := p.X\n    return Big + max\n"
+            "let q := Area(point(X: 1))\nwriteln(q)\n"
+            "procedure _hidden()\n    writeln(1)\n"
+        ),
+    },
+    "contracts": {
+        "Main.pst": (
+            "program Main\n"
+            "function f(x: Integer): Integer\n    requires x > 0\n    ensures result > old(x)\n    return x + 1\n"
+            "procedure p(var x: Integer)\n    ensures x = old(x) + result\n    x := x + 1\n"
+            "function old(): Integer\n    return 1\n"
+            "test \"t\"\n    let y := f(1)\n    assert y > 0, \"positive\"\n"
+        ),
+    },
+    "statements": {
+        "Main.pst": (
+            "program Main\nuses IO\n"
+            "type\n    Shape = Circle | Square\n    Circle = record\n        r: Integer\n    Square = record\n        s: Integer\n"
+            "let s: Shape := Circle(r: 1)\n"
+            "case s of\n    Circle(c):\n        writeln(c.r)\n    Square(sq):\n        writeln(1)\n    Missing(m): writeln(m)\n"
+            "let n := case 3 of\n    1, 2: 10\n    3..5: 20\n    else: 0\n"
+            "repeat\n    let k := n\nuntil k > 0\n"
+            "var z := 0\nz := z + 1\nzz := 2\n"
+            "defer writeln(z)\n"
+            "while z < 3 do\n    z := z + 1\n"
+            "if z > 1 then\n    writeln(1)\nelse if z < 0 then\n    writeln(2)\nelse\n    writeln(3)\n"
+            "let w := if z > 1 then 1 else 2\nwriteln(\"{w} {undefinedHere}\")\n"
+            "let m := {1: [2], 3: [4]}\nlet st := {1, 2}\nwriteln(m[1], st, -z, not true, IO.writeln, IO.nope, Strings.x)\n"
+            "_ := deref(new(1))\nlet xs: List[Integer] := []\nwriteln(xs[0], len[Integer](xs))\n"
+        ),
+    },
+    "units": {
+        "Main.pst": (
+            "program Main\nuses IO, A, B, A, Main, Missing, Prog, Missing, Alias, Bad, Raw\n"
+            "writeln(shared, Shared)\nwriteln(onlyA)\nwriteln(A.hidden)\nwriteln(A.Kind.One)\nwriteln(A.Kind.Three)\n"
+            "writeln(fromB(), common())\nlet k: A.Kind := A.Kind.Two\nlet j: A.Nope := k\nwriteln(j)\n"
+        ),
+        "A.pst": (
+            "unit A\nuses B\n"
+            "type\n    export Kind = (One, Two)\n"
+            "const\n    export Shared = 1\n"
+            "export function shared(): Integer\n    return 1\n"
+            "export function onlyA(): Integer\n    return 2\n"
+            "function hidden(): Integer\n    return 3\n"
+            "export function common(): Integer\n    return 1\n"
+        ),
+        "B.pst": (
+            "unit B\nuses A\n"
+            "const\n    export Shared = 2\n"
+            "export function shared(): Integer\n    return 1\n"
+            "export function fromB(): Integer\n    return 1\n"
+            "export function common(x: Integer := 0): Integer\n    return x\n"
+            "const\n    export S = Shared\n"
+        ),
+        "Prog.pst": "program Prog\n",
+        "Alias.pst": "unit Other\nexport function aliased(): Integer\n    return 1\n",
+        "Bad.pst": "unit Bad\nuses Bad\nconst\n    export X = 1\n",
+    },
+    "raw": {
+        "Main.pst": "program Main\nuses Raw, Cut\n",
+        "Raw.pst": b"unit Raw\n# caf\xc3\xa9 \xed\xa0\x80\n",
+        "Cut.pst": b"unit Cut\n\xe2\x82",
+    },
+    "wrong-name": {
+        "main-1.pst": "program Main\nlet x := 1\nwriteln(x)\n",
+    },
+    "wrong-name-fixable": {
+        "Prog_2.pst": "unit Main\n",
+    },
+    "invalid-main": {
+        "Main.pst": b"program Main\n\xf5\n",
+    },
+    "unit-no-header": {
+        "Main.pst": "uses IO\nwriteln(1)\n",
+    },
+}
+
+
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class Resolve(_Differential):
+    tool = "ResolveDump"
+
+    def args(self, path: Path) -> list[str]:
+        return [STD_DIR, str(path)]
+
+    def expected_for(self, path: Path) -> str:
+        return resolve_dump(str(path))
+
+    def test_snippets(self):
+        for name, files in RESOLVE_SNIPPETS.items():
+            with self.subTest(name):
+                d = Path(tempfile.mkdtemp(dir=_TMP.name))
+                for f, text in files.items():
+                    Path(d, f).write_bytes(text if isinstance(text, bytes) else text.encode())
+                self.compare(d / next(iter(files)))
+
+    def test_missing_file(self):
+        self.compare(Path(_TMP.name, "does-not-exist.pst"))
+
+    def test_std_unit(self):
+        self.compare(Path(STD_DIR, "Strings.pst"))
 
 
 del _Differential

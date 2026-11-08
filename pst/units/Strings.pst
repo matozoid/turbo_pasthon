@@ -31,6 +31,17 @@ export unsafe function bytes(s: String): List[Byte]
         i := i + 1
     return r
 
+## The string with UTF-8 encoding `b`. Invalid UTF-8 is replaced with U+FFFD.
+export unsafe function fromBytes(b: List[Byte]): String
+    let buf := cast[Ptr[Byte]](malloc(CSize(len(b) + 1)))
+    var i := 0
+    while i < len(b) do
+        deref(buf + i) := b[i]
+        i := i + 1
+    let r := fromCBytes(cast[Pointer](buf), len(b))
+    free(cast[Pointer](buf))
+    return r
+
 ## Byte offset of the first occurrence of `sub` at or after byte offset `start`.
 export unsafe function find(s: String, sub: String, start: Integer := 0): Option[Integer]
     requires start >= 0 and start <= byteLen(s)

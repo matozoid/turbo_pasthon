@@ -34,7 +34,7 @@ def compile_program(body: str, checked: bool = True, uses: str = "IO", units: di
 
 def run_program(
     body: str, *args: str, checked: bool = True, uses: str = "IO", under: tuple = (),
-    units: dict | None = None, env: dict | None = None, stdin: bytes = b"",
+    units: dict | None = None, env: dict | None = None, stdin: bytes = b"", cwd: str | None = None,
 ) -> subprocess.CompletedProcess:
     """Builds and runs a program, optionally under a tool such as valgrind."""
     built, tmp = compile_program(body, checked, uses, units)
@@ -45,6 +45,7 @@ def run_program(
     environ = {**os.environb, **{k.encode(): v for k, v in (env or {}).items()}}
     return subprocess.run(
         [*under, exe, *args], input=stdin, capture_output=True, timeout=60, env=environ,
+        cwd=cwd,
     )  # fmt: skip
 
 
@@ -1492,6 +1493,18 @@ class OsAndFiles(unittest.TestCase):
             """, uses="IO, Strings", under=self.under())  # fmt: skip
         self.assertEqual(p.stdout, "a\0b\ufffdc\ufffd6\n".encode())
 
+    def test_current_dir_and_is_file(self):
+        tmp = tempfile.mkdtemp(dir=_TMP.name)
+        Path(tmp, "f").write_text("x")
+        p = run_program(f"""
+            writeln(currentDir())
+            writeln(isFile("{tmp}/f"))
+            writeln(isFile("{tmp}"))
+            writeln(isFile("{tmp}/missing"))
+            """, uses="IO, OS", cwd=tmp, under=self.under())  # fmt: skip
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(p.stdout.decode(), f"{os.path.realpath(tmp)}\ntrue\nfalse\nfalse\n")
+
     def test_readln(self):
         p = run_program("""
             while true do
@@ -1543,12 +1556,14 @@ class StringsUnit(unittest.TestCase):
             show(parseInt("+7"))
             show(parseInt("-"))
             show(parseInt("12a"))
+            writeln(fromBytes([Byte(104), Byte(195), Byte(169), Byte(255), Byte(33)]))
+            writeln("[{fromBytes([])}]")
             """, uses="IO, Strings", under=under)  # fmt: skip
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(p.stdout.decode(), (
             "3\n169\n7\n5\ntrue\ntrue\nfalse\n[a][b][][c]\nx, yé, z\n[]\n[hi there]\n[]\n"
             "a+=b+=c\n123\n-9223372036854775808\n'9223372036854775808' doesn't fit in an Integer\n"
-            "7\n'-' is not an integer\n'12a' is not an integer\n"
+            "7\n'-' is not an integer\n'12a' is not an integer\nhé\ufffd!\n[]\n"
         ))  # fmt: skip
 
     def test_split_needs_a_separator(self):

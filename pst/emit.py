@@ -205,6 +205,7 @@ class Emitter:
         self._labels: dict[tuple, str] = {}  # (routine, type arguments) -> label
         self._queue: list[tuple] = []  # (routine, type arguments, sites, depth) to emit
         self._descs: dict[object, str] = {}  # record type, or (union, variant) -> label
+        self._supported: dict[object, bool] = {}
         self._thunks: list[tuple] = []  # (label, routine label, parameter types) of callbacks
         self._drops: list[tuple] = []  # (label, destroy hook label or None) of box types
         self.needed: list[bytes] = [elf.LIBC]  # shared libraries, in DT_NEEDED order
@@ -284,22 +285,42 @@ class Emitter:
             or isinstance(t, RefT) or _is_weak(t)
         )  # fmt: skip
 
-    def supported(self, t, seen: frozenset = frozenset()) -> bool:
-        if t in _VALUES or has_error(t) or t in seen or self.ints(t) or _is_pointer(t):
+    def supported(self, t) -> bool:
+        """Whether the code generator handles values of type ``t``: every type reachable
+        from it is."""
+        if t not in self._supported:
+            done: set = set()
+            ok = self._supported_in(t, set(), done)
+            # Without a failure, everything visited is supported; after one, only `t` is
+            # known to be unsupported (a type visited inside a cycle may reach it too).
+            for u in done if ok else ():
+                self._supported[u] = True
+            self._supported[t] = ok
+        return self._supported[t]
+
+    def _supported_in(self, t, seen: set, done: set) -> bool:
+        """``seen``: the records and unions being visited; ``done``: those visited."""
+        if t in _VALUES or has_error(t) or t in seen or t in done or self.ints(t) or _is_pointer(t):
             return True
+        if t in self._supported:
+            return self._supported[t]
         if _is_list(t) or _is_weak(t):
-            return self.supported(t.args[0], seen)
+            return self._supported_in(t.args[0], seen, done)
         if isinstance(t, RefT):
-            return self.supported(t.target, seen)
+            return self._supported_in(t.target, seen, done)
         if isinstance(t, FuncT):  # a named top-level routine: its address
-            return all(self.supported(p, seen) for p in (*t.params, t.result) if p != VOID)
+            return all(self._supported_in(p, seen, done) for p in (*t.params, t.result) if p != VOID)
         kind = self.kind(t)
         if kind == "enum":
             return True
         if kind not in ("record", "union"):
             return False
         parts = [ft for _, ft in self.fields(t)] if kind == "record" else self.env.variants(t)
-        return all(self.supported(p, seen | {t}) for p in parts)
+        seen.add(t)
+        ok = all(self._supported_in(p, seen, done) for p in parts)
+        seen.discard(t)
+        done.add(t)
+        return ok
 
     def value_type(self, t, node, what: str = "a value"):
         """Checks that the code generator handles values of type ``t``."""
