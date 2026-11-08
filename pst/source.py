@@ -19,6 +19,10 @@ class Span:
     end_line: int
     end_col: int
 
+    def join(self, other: "Span") -> "Span":
+        """The span from the start of ``self`` to the end of ``other``."""
+        return Span(self.start, other.end, self.line, self.col, other.end_line, other.end_col)
+
     def to_json(self) -> dict:
         return {
             "line": self.line,

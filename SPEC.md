@@ -1221,6 +1221,7 @@ All tooling layers share one front end, so each layer after the first is small:
 ## 16. Grammar (EBNF sketch)
 
 `NEWLINE`, `INDENT`, `DEDENT` come from the lexer. `block = NEWLINE INDENT stmt+ DEDENT`.
+`DISCARD` is `_` or any word starting with `_` (§7.9).
 
 ```ebnf
 file        = header [uses] { topDecl | stmt } ;   (* stmt: program only *)
@@ -1236,8 +1237,8 @@ typeBody    = typeExpr NEWLINE
             | typeExpr "|" typeExpr { "|" typeExpr } NEWLINE           (* union *)
             | "record" NEWLINE [INDENT { field } DEDENT]
             | "trait" NEWLINE INDENT { field | signature NEWLINE } DEDENT ;
-field       = IDENT ":" typeExpr [":=" constExpr] NEWLINE ;
-typeExpr    = IDENT [typeArgs] | "ref" typeExpr
+field       = ["export"] IDENT ":" typeExpr [":=" constExpr] NEWLINE ;  (* no export in traits *)
+typeExpr    = IDENT { "." IDENT } [typeArgs] | "This" | "ref" typeExpr
             | ("function" | "procedure") "(" [typeExpr {"," typeExpr}] ")" [":" typeExpr] ;
 typeParams  = "[" typeParam { "," typeParam } "]" ;
 typeParam   = IDENT [":" bound { "+" bound }] ;
@@ -1259,18 +1260,19 @@ testBlk     = "test" STRING block ;
 
 stmt        = varDecl | assign | callStmt | ifStmt | whileStmt | repeatStmt
             | forStmt | caseStmt | deferStmt | "break" NEWLINE | "continue" NEWLINE
-            | "return" (rhs | NEWLINE) | "_" ":=" expr NEWLINE
+            | "return" (rhs | NEWLINE) | DISCARD ":=" rhs
             | "assert" expr ["," expr] NEWLINE ;
 varDecl     = ("var" | "let") IDENT [":" typeExpr] ":=" rhs ;
-assign      = lvalue ":=" rhs ;
+assign      = lvalue ":=" rhs ;               (* lvalue: name, field, index, deref(r) *)
+callStmt    = ["try"] call NEWLINE ;
 ifStmt      = "if" expr "then" block { "else" "if" expr "then" block } ["else" block] ;
 whileStmt   = "while" expr "do" block ;
 repeatStmt  = "repeat" block "until" expr NEWLINE ;
 forStmt     = "for" IDENT ":=" expr ("to" | "downto") expr "do" block
-            | "for" IDENT ["," IDENT] "in" expr "do" block ;
+            | "for" (IDENT | DISCARD) ["," (IDENT | DISCARD)] "in" expr "do" block ;
 caseStmt    = "case" expr "of" NEWLINE INDENT { caseArm } DEDENT ;
 caseArm     = (label { "," label } | "else") ":" (simpleStmt | block) ;
-label       = constExpr [".." constExpr] | IDENT ["(" IDENT ")"] ;
+label       = constExpr [".." constExpr] | IDENT ["(" (IDENT | DISCARD) ")"] ;
 deferStmt   = "defer" (simpleStmt | block) ;
 
 expr        = ifExpr | orExpr ;              (* orExpr: precedence levels of §9.1 *)
@@ -1281,7 +1283,33 @@ rhs         = caseExpr | expr NEWLINE ;      (* right side of := / var / let, an
 ```
 
 The parser can't tell `name[...]` (index) from `name[...]` (explicit instantiation)
-syntactically. It produces one `IndexOrInstantiate` node, resolved in the check pass.
+syntactically. It produces one `Index` node, resolved in the check pass.
+
+A block may end with an end marker (§2.2) on its own line; the parser checks it against
+the block it closes.
+
+### 16.1 Syntax errors
+
+| Code | Meaning |
+|---|---|
+| `E0010` | end marker doesn't match its block, or follows no block it can close (fix: correct marker) |
+| `E0040` | syntax error: expected X, found Y |
+| `E0041` | unexpected indentation |
+| `E0042` | expected an indented block; bodies can't be empty |
+| `E0043` | chained comparison (`a < b < c`) |
+| `E0044` | `uses` not directly after the header, or repeated |
+| `E0045` | missing or repeated `program` / `unit` header |
+| `E0046` | invalid assignment target |
+| `E0047` | expression is not a statement (fix for `x = 1`: `:=`) |
+| `E0048` | declaration not allowed here (types, routines, externs, tests are top level only) |
+| `E0049` | block doesn't start on a new line (`if a then f()`) |
+
+The parser also reports `E0101`, `E0104`, `E0201`, `E0202`, `E0801`, `E0803`, and `E0804`
+where they are purely syntactic.
+
+Recovery: an error skips the rest of its line and any block indented under it, leaving an
+error node, so one mistake gives one diagnostic. Syntax errors on a logical line that
+already has a lexical error are not reported.
 
 ---
 

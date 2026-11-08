@@ -1,6 +1,6 @@
 """Command line entry point: ``python -m pst <command> ...``.
 
-Only the lexer exists so far, so the only command is ``tokens`` (a debugging aid).
+``tokens`` and ``ast`` are debugging aids for the lexer and parser.
 """
 
 from __future__ import annotations
@@ -10,7 +10,9 @@ import json
 import sys
 
 from .diagnostics import Diagnostic, Severity
+from . import ast
 from .lexer import lex
+from .parser import parse
 from .source import Span
 
 
@@ -56,6 +58,32 @@ def cmd_tokens(args: argparse.Namespace) -> int:
     return 1 if any(d.severity is Severity.ERROR for d in diags) else 0
 
 
+def cmd_ast(args: argparse.Namespace) -> int:
+    text, err = _read(args.file)
+    if err is not None:
+        diags, tree = [err], None
+    else:
+        result = parse(text, args.file)
+        diags, tree = result.diagnostics, result.file
+
+    if args.json:
+        json.dump(
+            {
+                "ast": None if tree is None else ast.to_json(tree),
+                "diagnostics": [d.to_json() for d in diags],
+            },
+            sys.stdout,
+            indent=1,
+        )
+        print()
+    else:
+        if tree is not None:
+            print(ast.dump(tree))
+        for d in diags:
+            print(d.human(), file=sys.stderr)
+    return 1 if any(d.severity is Severity.ERROR for d in diags) else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pst")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -63,6 +91,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("file")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_tokens)
+    p = sub.add_parser("ast", help="print the syntax tree of a file")
+    p.add_argument("file")
+    p.add_argument("--json", action="store_true")
+    p.set_defaults(func=cmd_ast)
     args = parser.parse_args(argv)
     return args.func(args)
 
