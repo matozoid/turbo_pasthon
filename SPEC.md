@@ -69,10 +69,14 @@ matches the block just closed:
 A mismatch is error `E0010`. Markers are never required.
 
 ### 2.5 Identifiers and naming
-`[A-Za-z][A-Za-z0-9]*`. Underscores are not allowed in Pasthon identifiers
-(exception: names declared in `extern` blocks may contain `_`).
+`[A-Za-z_][A-Za-z0-9_]*`. A lone `_` is not an identifier but the discard (§7.9).
 
-Naming is enforced (error `E0020`):
+Underscores are allowed but not recommended: idiomatic Pasthon uses camelCase, and
+examples, the standard units and generated code never use `_` in names. They exist so
+that C names in `extern` blocks and names from other systems can be kept unchanged.
+
+Casing is enforced (error `E0020`). It is decided by the first letter, after any
+leading underscores:
 
 | Kind | Style | Example |
 |---|---|---|
@@ -722,8 +726,7 @@ propagation (not on panic). Takes a single statement or an indented block.
 
 ### 7.9 Discarding results
 `_ := expr` evaluates and drops a value. Required for ignored function results.
-`_` is the only identifier containing an underscore. It can't be read, only assigned,
-and can also appear as a `case` binding: `Circle(_): ...`.
+`_` can't be read, only assigned, and can also appear as a `case` binding: `Circle(_): ...`.
 
 ### 7.10 assert
 `assert cond` or `assert cond, "message"`. Panics with `P0020`. Always active (also in `--unchecked`).
