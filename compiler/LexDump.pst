@@ -1,0 +1,81 @@
+program LexDump
+
+## Prints the tokens, comments and diagnostics of a source file in a canonical form,
+## to compare the lexer with the Python one (tests/test_port.py).
+
+uses IO, OS, Strings, Source, Tokens, Diagnostics, Lexer
+
+## `n` in hexadecimal, upper case.
+function hex(n: Integer): String
+    let digits := "0123456789ABCDEF"
+    var out := slice(digits, n mod 16, n mod 16 + 1)
+    var v := n div 16
+    while v > 0 do
+        out := "{slice(digits, v mod 16, v mod 16 + 1)}{out}"
+        v := v div 16
+    return out
+
+## `s` in double quotes, with `\`, `"` and control characters escaped.
+function quote(s: String): String
+    var parts: List[String] := ["\""]
+    for c in s do
+        if c = '\\' then
+            add(var parts, "\\\\")
+        else if c = '"' then
+            add(var parts, "\\\"")
+        else if c = '\n' then
+            add(var parts, "\\n")
+        else if ord(c) < 32 or ord(c) = 127 then
+            add(var parts, "\\u\{{hex(ord(c))}}")
+        else
+            add(var parts, toString(c))
+    add(var parts, "\"")
+    return join(parts)
+
+function where(s: Span): String
+    return "{s.line}:{s.col}-{s.endLine}:{s.endCol}"
+
+function valueOf(v: TokenValue): String
+    case v of
+        NoValue(_):
+            return "-"
+        IntValue(i):
+            return "int {i.value}"
+        RealValue(r):
+            return "real {r.digits}"
+        TextValue(t):
+            return "text {quote(t.text)}"
+        CharValue(c):
+            return "char {ord(c.value)}"
+        MarkerValue(m):
+            case m.name of
+                Some(n):
+                    return "marker {m.keyword} {n.value}"
+                None:
+                    return "marker {m.keyword} -"
+
+procedure dump(text: String, file: String)
+    let r := lex(text, file: file)
+    for t in r.tokens do
+        writeln("{t.kind} {where(t.span)} {quote(t.text)} {valueOf(t.value)}")
+    for c in r.comments do
+        writeln("comment {where(c.span)} {quote(c.text)} {c.isDoc}")
+    for d in r.diagnostics do
+        writeln("{name(d.severity)} {d.code} {where(d.span)} {quote(d.message)}")
+        for f in d.fixes do
+            writeln("  fix {quote(f.description)}")
+            for e in f.edits do
+                writeln("    edit {where(e.span)} {quote(e.text)}")
+
+for path in args() do
+    case open(path) of
+        Ok(f):
+            case readAll(f.value) of
+                Ok(t):
+                    dump(t.value, file: path)
+                Err(e):
+                    writelnErr(e.error)
+                    exit(1)
+        Err(e):
+            writelnErr(e.error)
+            exit(1)

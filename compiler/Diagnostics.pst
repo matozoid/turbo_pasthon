@@ -1,0 +1,37 @@
+unit Diagnostics
+
+## Diagnostics with stable error codes and machine-applicable fixes (SPEC §15.1).
+
+uses Source
+
+type
+    export Severity = (Error, Warning)
+
+    ## Replaces the text at `span` with `text`.
+    export Edit = record
+        export span: Span
+        export text: String
+
+    export Fix = record
+        export description: String
+        export edits: List[Edit]
+
+    export Diagnostic = record
+        export file: String
+        export span: Span
+        export severity: Severity
+        export code: String
+        export message: String
+        export fixes: List[Fix]
+
+## `error` or `warning`.
+export function name(s: Severity): String
+    case s of
+        Severity.Error:
+            return "error"
+        Severity.Warning:
+            return "warning"
+
+## The human form: `Main.pst:12:5: error E0502: result of 'restock' is ignored`.
+export function human(d: Diagnostic): String
+    return "{d.file}:{d.span.line}:{d.span.col}: {name(d.severity)} {d.code}: {d.message}"

@@ -1,0 +1,95 @@
+unit Source
+
+## Source text and positions (SPEC §15.1).
+##
+## Lines and columns are 1-based; columns count code points. Ranges are half-open:
+## `endCol` is one past the last character. Offsets count code points into the
+## normalized source.
+
+uses Strings
+
+type
+    export Span = record
+        export start: Integer
+        export end: Integer
+        export line: Integer
+        export col: Integer
+        export endLine: Integer
+        export endCol: Integer
+
+    ## Normalized source text, indexable by code point.
+    export Text = record
+        export str: String
+        ## The code points.
+        export chars: List[Char]
+        ## The byte offset in `str` of each code point, and of the end.
+        export offsets: List[Integer]
+        ## The offset of the first code point of each line.
+        export lineStarts: List[Integer]
+
+## The span from the start of `a` to the end of `b`.
+export function join(a: Span, b: Span): Span
+    return Span(start: a.start, end: b.end, line: a.line, col: a.col, endLine: b.endLine, endCol: b.endCol)
+
+## Strips a UTF-8 byte order mark and converts CRLF and CR line endings to LF.
+export function normalize(text: String): String
+    var s := text
+    if startsWith(s, prefix: "\u{FEFF}") then
+        s := slice(s, 3, byteLen(s))
+    return replace(replace(s, target: "\r\n", replacement: "\n"), target: "\r", replacement: "\n")
+
+## The number of bytes `c` takes in UTF-8.
+export function utf8Size(c: Char): Integer
+    let n := ord(c)
+    if n < 0x80 then
+        return 1
+    if n < 0x800 then
+        return 2
+    if n < 0x10000 then
+        return 3
+    return 4
+
+## The normalized form of `text`.
+export function textOf(text: String): Text
+    let s := normalize(text)
+    var chars: List[Char] := []
+    var offsets: List[Integer] := []
+    var starts: List[Integer] := [0]
+    var at := 0
+    for c in s do
+        add(var offsets, at)
+        add(var chars, c)
+        if c = '\n' then
+            add(var starts, len(chars))
+        at := at + utf8Size(c)
+    add(var offsets, at)
+    return Text(str: s, chars: chars, offsets: offsets, lineStarts: starts)
+
+## The text from code point `start` up to (not including) `end`.
+export function sub(t: Text, start: Integer, end: Integer): String
+    return slice(t.str, t.offsets[start], t.offsets[end])
+
+## The 0-based line that `offset` is on.
+function lineIndex(t: Text, offset: Integer): Integer
+    var low := 0
+    var high := len(t.lineStarts)  # the line is in [low, high)
+    while high - low > 1 do
+        let mid := (low + high) div 2
+        if t.lineStarts[mid] <= offset then
+            low := mid
+        else
+            high := mid
+    return low
+
+## The span from code point `start` to `end`.
+export function span(t: Text, start: Integer, end: Integer): Span
+    let line := lineIndex(t, start)
+    let endLine := lineIndex(t, end)
+    return Span(
+        start: start,
+        end: end,
+        line: line + 1,
+        col: start - t.lineStarts[line] + 1,
+        endLine: endLine + 1,
+        endCol: end - t.lineStarts[endLine] + 1,
+    )

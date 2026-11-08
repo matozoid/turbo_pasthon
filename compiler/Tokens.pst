@@ -1,0 +1,218 @@
+unit Tokens
+
+## Token kinds (SPEC §2).
+
+uses Source
+
+type
+    ## Keywords are `Kw` and the keyword; `KwThisType` is `This`.
+    export TokenKind = (
+        Ident,
+        IntLit,
+        RealLit,
+        CharLit,
+        StringLit,
+        StringBegin,
+        StringMid,
+        StringEnd,
+        Newline,
+        Indent,
+        Dedent,
+        EndMarker,
+        Eof,
+        KwAnd,
+        KwAs,
+        KwAssert,
+        KwBreak,
+        KwCase,
+        KwConst,
+        KwContinue,
+        KwDefer,
+        KwDeref,
+        KwDiv,
+        KwDo,
+        KwDownto,
+        KwElse,
+        KwEnsures,
+        KwExport,
+        KwExtern,
+        KwFalse,
+        KwFor,
+        KwFunction,
+        KwIf,
+        KwIn,
+        KwLet,
+        KwMod,
+        KwNot,
+        KwOf,
+        KwOr,
+        KwProcedure,
+        KwProgram,
+        KwRecord,
+        KwRef,
+        KwRepeat,
+        KwRequires,
+        KwReturn,
+        KwTest,
+        KwThen,
+        KwThis,
+        KwThisType,
+        KwTo,
+        KwTrait,
+        KwTrue,
+        KwTry,
+        KwType,
+        KwUnit,
+        KwUnsafe,
+        KwUntil,
+        KwUses,
+        KwVar,
+        KwWhile,
+        Underscore,
+        Assign,
+        Eq,
+        Ne,
+        Lt,
+        Le,
+        Gt,
+        Ge,
+        Plus,
+        Minus,
+        Star,
+        Slash,
+        Lparen,
+        Rparen,
+        Lbracket,
+        Rbracket,
+        Lbrace,
+        Rbrace,
+        Comma,
+        Colon,
+        Dot,
+        Dotdot,
+        Ellipsis,
+        Pipe,
+        Arrow,
+    )
+
+    ## The decoded value of a literal, or the keyword and name of an end marker.
+    export NoValue = record
+    export IntValue = record
+        export value: UInt64
+    ## A real literal, as its digits without `_`. (Reals aren't compiled yet.)
+    export RealValue = record
+        export digits: String
+    export TextValue = record
+        export text: String
+    export CharValue = record
+        export value: Char
+    ## `# end <keyword> [<name>]`.
+    export MarkerValue = record
+        export keyword: String
+        export name: Option[String]
+    export TokenValue = NoValue | IntValue | RealValue | TextValue | CharValue | MarkerValue
+
+    export Token = record
+        export kind: TokenKind
+        ## The exact source text.
+        export text: String
+        export span: Span
+        export value: TokenValue
+
+    export Comment = record
+        ## Including the leading `#`.
+        export text: String
+        export span: Span
+        ## Starts with `##`.
+        export isDoc: Boolean
+
+    ## An operator's text and kind.
+    export Operator = record
+        export text: String
+        export kind: TokenKind
+
+## The keywords, by their text.
+export function keywords(): Map[String, TokenKind]
+    return {
+        "and": TokenKind.KwAnd,
+        "as": TokenKind.KwAs,
+        "assert": TokenKind.KwAssert,
+        "break": TokenKind.KwBreak,
+        "case": TokenKind.KwCase,
+        "const": TokenKind.KwConst,
+        "continue": TokenKind.KwContinue,
+        "defer": TokenKind.KwDefer,
+        "deref": TokenKind.KwDeref,
+        "div": TokenKind.KwDiv,
+        "do": TokenKind.KwDo,
+        "downto": TokenKind.KwDownto,
+        "else": TokenKind.KwElse,
+        "ensures": TokenKind.KwEnsures,
+        "export": TokenKind.KwExport,
+        "extern": TokenKind.KwExtern,
+        "false": TokenKind.KwFalse,
+        "for": TokenKind.KwFor,
+        "function": TokenKind.KwFunction,
+        "if": TokenKind.KwIf,
+        "in": TokenKind.KwIn,
+        "let": TokenKind.KwLet,
+        "mod": TokenKind.KwMod,
+        "not": TokenKind.KwNot,
+        "of": TokenKind.KwOf,
+        "or": TokenKind.KwOr,
+        "procedure": TokenKind.KwProcedure,
+        "program": TokenKind.KwProgram,
+        "record": TokenKind.KwRecord,
+        "ref": TokenKind.KwRef,
+        "repeat": TokenKind.KwRepeat,
+        "requires": TokenKind.KwRequires,
+        "return": TokenKind.KwReturn,
+        "test": TokenKind.KwTest,
+        "then": TokenKind.KwThen,
+        "this": TokenKind.KwThis,
+        "This": TokenKind.KwThisType,
+        "to": TokenKind.KwTo,
+        "trait": TokenKind.KwTrait,
+        "true": TokenKind.KwTrue,
+        "try": TokenKind.KwTry,
+        "type": TokenKind.KwType,
+        "unit": TokenKind.KwUnit,
+        "unsafe": TokenKind.KwUnsafe,
+        "until": TokenKind.KwUntil,
+        "uses": TokenKind.KwUses,
+        "var": TokenKind.KwVar,
+        "while": TokenKind.KwWhile,
+    }
+
+## The operators, longest first, so that `...` wins over `..` over `.`.
+export function operators(): List[Operator]
+    return [
+        Operator(text: "...", kind: TokenKind.Ellipsis),
+        Operator(text: ":=", kind: TokenKind.Assign),
+        Operator(text: "<>", kind: TokenKind.Ne),
+        Operator(text: "<=", kind: TokenKind.Le),
+        Operator(text: ">=", kind: TokenKind.Ge),
+        Operator(text: "..", kind: TokenKind.Dotdot),
+        Operator(text: "=>", kind: TokenKind.Arrow),
+        Operator(text: "=", kind: TokenKind.Eq),
+        Operator(text: "<", kind: TokenKind.Lt),
+        Operator(text: ">", kind: TokenKind.Gt),
+        Operator(text: "+", kind: TokenKind.Plus),
+        Operator(text: "-", kind: TokenKind.Minus),
+        Operator(text: "*", kind: TokenKind.Star),
+        Operator(text: "/", kind: TokenKind.Slash),
+        Operator(text: "(", kind: TokenKind.Lparen),
+        Operator(text: ")", kind: TokenKind.Rparen),
+        Operator(text: "[", kind: TokenKind.Lbracket),
+        Operator(text: "]", kind: TokenKind.Rbracket),
+        Operator(text: "\{", kind: TokenKind.Lbrace),
+        Operator(text: "}", kind: TokenKind.Rbrace),
+        Operator(text: ",", kind: TokenKind.Comma),
+        Operator(text: ":", kind: TokenKind.Colon),
+        Operator(text: ".", kind: TokenKind.Dot),
+        Operator(text: "|", kind: TokenKind.Pipe),
+    ]
+
+## Whether `k` is NEWLINE, INDENT, DEDENT or EOF.
+export function isLayout(k: TokenKind): Boolean
+    return k = TokenKind.Newline or k = TokenKind.Indent or k = TokenKind.Dedent or k = TokenKind.Eof

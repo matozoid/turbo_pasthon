@@ -1,0 +1,704 @@
+unit Lexer
+
+## The lexer (SPEC §2): source text to tokens, including the layout tokens NEWLINE, INDENT
+## and DEDENT.
+##
+## It never stops at the first error: every problem becomes a diagnostic and lexing
+## continues, so later stages always receive a complete token stream (SPEC §15.6).
+##
+## String literals always interpolate (SPEC §2.8). A string with placeholders becomes
+##
+##     STRING_BEGIN  <expression tokens>  STRING_MID  <expression tokens>  ...  STRING_END
+##
+## and a string without placeholders a single STRING token.
+
+uses Source, Tokens, Diagnostics, Strings
+
+const
+    IndentWidth = 4
+
+type
+    export LexResult = record
+        export tokens: List[Token]
+        export comments: List[Comment]
+        export diagnostics: List[Diagnostic]
+
+    ## An open bracket: the closer it expects, and where it is.
+    Bracket = record
+        closer: Char
+        offset: Integer
+
+    State = record
+        src: Text
+        chars: List[Char]
+        n: Integer
+        file: String
+        pos: Integer
+        tokens: List[Token]
+        comments: List[Comment]
+        diags: List[Diagnostic]
+        indents: List[Integer]
+        brackets: List[Bracket]
+        ## One entry per open string placeholder: the bracket depth when it was opened.
+        placeholders: List[Integer]
+        lineHasTokens: Boolean
+        keywords: Map[String, TokenKind]
+        operators: List[Operator]
+
+## Lexes `text`, the contents of `file`.
+export function lex(text: String, file: String := "<input>"): LexResult
+    let src := textOf(text)
+    var lx := State(
+        src: src,
+        chars: src.chars,
+        n: len(src.chars),
+        file: file,
+        pos: 0,
+        tokens: [],
+        comments: [],
+        diags: [],
+        indents: [0],
+        brackets: [],
+        placeholders: [],
+        lineHasTokens: false,
+        keywords: keywords(),
+        operators: operators(),
+    )
+    run(var lx)
+    return LexResult(tokens: lx.tokens, comments: lx.comments, diagnostics: lx.diags)
+
+# ---------------------------------------------------------------------- characters
+
+function isDigit(c: Char): Boolean
+    return c >= '0' and c <= '9'
+
+function isLetter(c: Char): Boolean
+    return (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z')
+
+function isWordChar(c: Char): Boolean
+    return isLetter(c) or isDigit(c) or c = '_'
+
+function isHexDigit(c: Char): Boolean
+    return isDigit(c) or (c >= 'a' and c <= 'f') or (c >= 'A' and c <= 'F')
+
+function hexValue(c: Char): Integer
+    if isDigit(c) then
+        return ord(c) - ord('0')
+    if c >= 'a' and c <= 'f' then
+        return ord(c) - ord('a') + 10
+    return ord(c) - ord('A') + 10
+
+## Whether `c` is a digit in base `base` (2, 8, 10 or 16).
+function isDigitIn(c: Char, base: Integer): Boolean
+    if base = 16 then
+        return isHexDigit(c)
+    return isDigit(c) and ord(c) - ord('0') < base
+
+## `n` in hexadecimal, at least four digits, upper case.
+function hex4(n: Integer): String
+    let digits := "0123456789ABCDEF"
+    var out := ""
+    var v := n
+    while v > 0 or byteLen(out) < 4 do
+        out := "{slice(digits, v mod 16, v mod 16 + 1)}{out}"
+        v := v div 16
+    return out
+
+# ------------------------------------------------------------------------- helpers
+
+function at(lx: State, i: Integer): Char
+    return lx.chars[i]
+
+## Whether the source has `s` at offset `i`.
+function hasAt(lx: State, s: String, i: Integer): Boolean
+    var j := i
+    for c in s do
+        if j >= lx.n or lx.chars[j] <> c then
+            return false
+        j := j + 1
+    return true
+
+## The offset of the next newline at or after `from`, or -1.
+function findNewline(lx: State, from: Integer): Integer
+    var i := from
+    while i < lx.n do
+        if lx.chars[i] = '\n' then
+            return i
+        i := i + 1
+    return -1
+
+function lineEnd(lx: State): Integer
+    let end := findNewline(lx, lx.pos)
+    return if end < 0 then lx.n else end
+
+function text(lx: State, start: Integer, end: Integer): String
+    return sub(lx.src, start, end: end)
+
+procedure emit(var lx: State, kind: TokenKind, start: Integer, end: Integer, value: TokenValue)
+    add(var lx.tokens, Token(kind: kind, text: text(lx, start, end: end), span: span(lx.src, start, end: end), value: value))
+    if not isLayout(kind) then
+        lx.lineHasTokens := true
+
+procedure emitPlain(var lx: State, kind: TokenKind, start: Integer, end: Integer)
+    emit(var lx, kind, start, end: end, value: NoValue())
+
+procedure errorWith(var lx: State, code: String, start: Integer, end: Integer, message: String, fixes: List[Fix])
+    add(var lx.diags, Diagnostic(
+        file: lx.file,
+        span: span(lx.src, start, end: end),
+        severity: Severity.Error,
+        code: code,
+        message: message,
+        fixes: fixes,
+    ))
+
+procedure error(var lx: State, code: String, start: Integer, end: Integer, message: String)
+    errorWith(var lx, code, start, end: end, message: message, fixes: [])
+
+## Removes the entries of `xs` from index `n` on.
+procedure truncate[T](var xs: List[T], n: Integer)
+    while len(xs) > n do
+        remove(var xs, len(xs) - 1)
+
+# -------------------------------------------------------------------------- driver
+
+procedure run(var lx: State)
+    var atLineStart := true
+    while true do
+        if atLineStart then
+            atLineStart := false
+            if not lineStart(var lx) then
+                break
+        if lx.pos >= lx.n then
+            break
+        let c := at(lx, lx.pos)
+        if c = '\n' then
+            if len(lx.placeholders) > 0 then
+                abortPlaceholders(var lx)
+            if len(lx.brackets) > 0 and nextLineStartsStatement(lx, lx.pos + 1) then
+                closeUnclosed(var lx)
+            if len(lx.brackets) = 0 then
+                if lx.lineHasTokens then
+                    emitPlain(var lx, TokenKind.Newline, lx.pos, end: lx.pos + 1)
+                lx.lineHasTokens := false
+                atLineStart := true
+            lx.pos := lx.pos + 1
+        else if c = ' ' then
+            lx.pos := lx.pos + 1
+        else if c = '\t' then
+            tab(var lx, lx.pos)
+            lx.pos := lx.pos + 1
+        else if c = '#' then
+            comment(var lx)
+        else if c = '"' then
+            let start := lx.pos
+            lx.pos := lx.pos + 1
+            stringBody(var lx, start, first: true)
+        else if c = '\'' then
+            charLiteral(var lx)
+        else if isDigit(c) then
+            number(var lx)
+        else if c = '_' or isLetter(c) then
+            word(var lx)
+        else if c = '(' or c = '[' or c = '{' then
+            let closer := if c = '(' then ')' else if c = '[' then ']' else '}'
+            add(var lx.brackets, Bracket(closer: closer, offset: lx.pos))
+            emitSingle(var lx, c)
+        else if c = ')' or c = ']' or c = '}' then
+            let depth := len(lx.placeholders)
+            if c = '}' and depth > 0 and len(lx.brackets) = lx.placeholders[depth - 1] then
+                remove(var lx.placeholders, depth - 1)
+                let start := lx.pos
+                lx.pos := lx.pos + 1
+                stringBody(var lx, start, first: false)
+            else
+                closeBracket(var lx, c)
+        else
+            operatorOrError(var lx)
+    finish(var lx)
+
+procedure finish(var lx: State)
+    if len(lx.placeholders) > 0 then
+        abortPlaceholders(var lx)
+    closeUnclosed(var lx)
+    if lx.lineHasTokens then
+        emitPlain(var lx, TokenKind.Newline, lx.n, end: lx.n)
+    while len(lx.indents) > 1 do
+        remove(var lx.indents, len(lx.indents) - 1)
+        emitPlain(var lx, TokenKind.Dedent, lx.n, end: lx.n)
+    emitPlain(var lx, TokenKind.Eof, lx.n, end: lx.n)
+
+function openerOf(closer: Char): Char
+    return if closer = ')' then '(' else if closer = ']' then '[' else '{'
+
+## Reports every open bracket, offering to close them all after the last token.
+procedure closeUnclosed(var lx: State)
+    let count := len(lx.brackets)
+    if count = 0 then
+        return
+    var closers := ""
+    var i := count - 1
+    while i >= 0 do
+        closers := "{closers}{lx.brackets[i].closer}"
+        i := i - 1
+    let end := if len(lx.tokens) > 0 then lx.tokens[len(lx.tokens) - 1].span.end else lx.pos
+    let fix := Fix(description: "insert '{closers}'", edits: [Edit(span: span(lx.src, end, end: end), text: closers)])
+    for b in lx.brackets do
+        errorWith(var lx, "E0009", b.offset, end: b.offset + 1, message: "unclosed '{openerOf(b.closer)}'", fixes: [fix])
+    truncate(var lx.brackets, 0)
+
+## Whether the source at `i` starts with keyword `w`, not followed by a word character.
+function hasWord(lx: State, w: String, i: Integer): Boolean
+    let end := i + charCount(w)
+    return hasAt(lx, w, i) and (end >= lx.n or not isWordCharOrOther(at(lx, end)))
+
+## A character that counts as part of a word for `\b`: ASCII word characters, and
+## (approximately) any non-ASCII character.
+function isWordCharOrOther(c: Char): Boolean
+    return isWordChar(c) or ord(c) >= 0x80
+
+## Whether the line at `i` clearly starts a statement: a statement keyword, an assignment
+## `name :=`, or an end marker.
+function startsStatement(lx: State, i: Integer): Boolean
+    let words := [
+        "var", "let", "if", "while", "for", "repeat", "case", "defer", "break", "continue",
+        "return", "assert", "function", "procedure", "type", "const", "extern", "test",
+        "export", "unsafe", "uses", "program", "unit",
+    ]
+    for w in words do
+        if hasWord(lx, w, i) then
+            return true
+    if hasAt(lx, "# end ", i) then
+        return true
+    if i >= lx.n or not (isLetter(at(lx, i)) or at(lx, i) = '_') then
+        return false
+    var j := i + 1
+    while j < lx.n and (isWordChar(at(lx, j)) or at(lx, j) = '.') do
+        j := j + 1
+    while j < lx.n and isSpace(at(lx, j)) do
+        j := j + 1
+    return hasAt(lx, ":=", j) and not hasAt(lx, ":==", j)
+
+function isSpace(c: Char): Boolean
+    return c = ' ' or c = '\t' or c = '\n' or c = '\r' or ord(c) = 11 or ord(c) = 12
+
+## Whether the next non-blank, non-comment line (from `pos`) clearly starts a new
+## statement rather than continuing the bracketed expression.
+function nextLineStartsStatement(lx: State, pos: Integer): Boolean
+    var p := pos
+    while p < lx.n do
+        var width := 0
+        while p < lx.n and (at(lx, p) = ' ' or at(lx, p) = '\t') do
+            width := width + (if at(lx, p) = '\t' then IndentWidth else 1)
+            p := p + 1
+        if p >= lx.n then
+            return false
+        if at(lx, p) = '\n' or (at(lx, p) = '#' and not hasAt(lx, "# end ", p)) then
+            let nl := findNewline(lx, p)
+            if nl < 0 then
+                return false
+            p := nl + 1
+            continue
+        return width <= lx.indents[len(lx.indents) - 1] and startsStatement(lx, p)
+    return false
+
+# --------------------------------------------------------------------- indentation
+
+## Handles indentation at the start of a logical line.
+##
+## Skips blank and comment-only lines. End-marker lines count as content lines, because a
+## marker sits at the indentation of the block it closes. Returns false at end of input.
+function lineStart(var lx: State): Boolean
+    while true do
+        let lineBegin := lx.pos
+        var width := 0
+        while lx.pos < lx.n and (at(lx, lx.pos) = ' ' or at(lx, lx.pos) = '\t') do
+            if at(lx, lx.pos) = '\t' then
+                tab(var lx, lx.pos)
+                width := width + IndentWidth
+            else
+                width := width + 1
+            lx.pos := lx.pos + 1
+        if lx.pos >= lx.n then
+            return false
+        let c := at(lx, lx.pos)
+        if c = '\n' then
+            lx.pos := lx.pos + 1
+            continue
+        if c = '#' then
+            case matchMarker(lx) of
+                Some(m):
+                    indent(var lx, width, lineBegin: lineBegin)
+                    marker(var lx, m.value)
+                    return true
+                None:
+                    comment(var lx)
+                    if lx.pos < lx.n then
+                        lx.pos := lx.pos + 1  # the newline
+                    continue
+        indent(var lx, width, lineBegin: lineBegin)
+        return true
+    return false
+
+procedure indent(var lx: State, width: Integer, lineBegin: Integer)
+    if width mod IndentWidth <> 0 then
+        error(var lx, "E0002", lineBegin, end: lx.pos, message: "indentation of {width} spaces is not a multiple of {IndentWidth}")
+    let top := lx.indents[len(lx.indents) - 1]
+    if width > top then
+        if width - top > IndentWidth then
+            error(var lx, "E0003", lineBegin, end: lx.pos, message: "indentation increases by {width - top} spaces; one level is {IndentWidth}")
+        add(var lx.indents, width)
+        emitPlain(var lx, TokenKind.Indent, lx.pos, end: lx.pos)
+    else if width < top then
+        while len(lx.indents) > 1 and lx.indents[len(lx.indents) - 1] > width do
+            remove(var lx.indents, len(lx.indents) - 1)
+            emitPlain(var lx, TokenKind.Dedent, lx.pos, end: lx.pos)
+        # A width between two levels was already reported as E0002; continue at the
+        # enclosing level.
+
+# ------------------------------------------------------------------------ comments
+
+procedure comment(var lx: State)
+    let start := lx.pos
+    lx.pos := lineEnd(lx)
+    let t := text(lx, start, end: lx.pos)
+    add(var lx.comments, Comment(text: t, span: span(lx.src, start, end: lx.pos), isDoc: startsWith(t, prefix: "##")))
+
+## The value and end of an end marker at `lx.pos`: `# end <keyword> [<name>]` (SPEC §2.4).
+## Names only follow keywords that declare one.
+function matchMarker(lx: State): Option[Indexed[MarkerValue]]
+    let stop := lineEnd(lx)
+    if not hasAt(lx, "# end ", lx.pos) then
+        return None
+    let start := lx.pos + 6
+    let plain := ["if", "while", "for", "case", "test", "defer", "extern"]
+    let named := ["function", "procedure", "record", "trait"]
+    for k in plain do
+        if hasAt(lx, k, start) and onlySpaces(lx, start + byteLen(k), stop: stop) then
+            return Some(Indexed(index: stop, value: MarkerValue(keyword: k, name: None)))
+    for k in named do
+        if hasAt(lx, k, start) then
+            var i := start + byteLen(k)
+            if i + 1 < stop and at(lx, i) = ' ' and isLetter(at(lx, i + 1)) then
+                let nameStart := i + 1
+                i := i + 2
+                while i < stop and isWordChar(at(lx, i)) do
+                    i := i + 1
+                if onlySpaces(lx, i, stop: stop) then
+                    return Some(Indexed(index: stop, value: MarkerValue(keyword: k, name: Some(text(lx, nameStart, end: i)))))
+                return None
+            if onlySpaces(lx, i, stop: stop) then
+                return Some(Indexed(index: stop, value: MarkerValue(keyword: k, name: None)))
+    return None
+
+## Whether the source from `start` to `stop` is all spaces.
+function onlySpaces(lx: State, start: Integer, stop: Integer): Boolean
+    var i := start
+    while i < stop do
+        if at(lx, i) <> ' ' then
+            return false
+        i := i + 1
+    return true
+
+procedure marker(var lx: State, m: Indexed[MarkerValue])
+    let start := lx.pos
+    lx.pos := m.index
+    emit(var lx, TokenKind.EndMarker, start, end: lx.pos, value: m.value)
+
+# ---------------------------------------------------------------------- whitespace
+
+procedure tab(var lx: State, offset: Integer)
+    let s := span(lx.src, offset, end: offset + 1)
+    add(var lx.diags, Diagnostic(
+        file: lx.file,
+        span: s,
+        severity: Severity.Error,
+        code: "E0001",
+        message: "tab character; indent with 4 spaces",
+        fixes: [Fix(description: "replace tab with 4 spaces", edits: [Edit(span: s, text: "    ")])],
+    ))
+
+# --------------------------------------------------------------------------- words
+
+procedure word(var lx: State)
+    let start := lx.pos
+    lx.pos := lx.pos + 1
+    while lx.pos < lx.n and isWordChar(at(lx, lx.pos)) do
+        lx.pos := lx.pos + 1
+    if at(lx, start) = '_' then
+        # `_` or `_name`: a discard (SPEC §7.9). The text keeps the name.
+        emitPlain(var lx, TokenKind.Underscore, start, end: lx.pos)
+        return
+    emitPlain(var lx, getOr(lx.keywords, text(lx, start, end: lx.pos), default: TokenKind.Ident), start, end: lx.pos)
+
+# ------------------------------------------------------------------------- numbers
+
+## The end of `digit (_? digit)*` in base `base` at `i`, or `i` if there is no digit.
+function digitsEnd(lx: State, i: Integer, base: Integer): Integer
+    if i >= lx.n or not isDigitIn(at(lx, i), base) then
+        return i
+    var j := i + 1
+    while true do
+        if j < lx.n and isDigitIn(at(lx, j), base) then
+            j := j + 1
+        else if j + 1 < lx.n and at(lx, j) = '_' and isDigitIn(at(lx, j + 1), base) then
+            j := j + 2
+        else
+            return j
+    return j
+
+## The end of a real literal's exponent at `i` (`[eE][+-]?digits`), or `i` if there is none.
+function exponentEnd(lx: State, i: Integer): Integer
+    if i >= lx.n or not (at(lx, i) = 'e' or at(lx, i) = 'E') then
+        return i
+    var j := i + 1
+    if j < lx.n and (at(lx, j) = '+' or at(lx, j) = '-') then
+        j := j + 1
+    let end := digitsEnd(lx, j, base: 10)
+    return if end > j then end else i
+
+procedure number(var lx: State)
+    let start := lx.pos
+    var base := 10
+    var real := false
+    var end := digitsEnd(lx, start, base: 10)
+    var prefixed := false
+    if at(lx, start) = '0' and start + 1 < lx.n then
+        let p := at(lx, start + 1)
+        let b := if p = 'x' or p = 'X' then 16 else if p = 'b' or p = 'B' then 2 else if p = 'o' or p = 'O' then 8 else 0
+        if b > 0 and digitsEnd(lx, start + 2, base: b) > start + 2 then
+            base := b
+            end := digitsEnd(lx, start + 2, base: b)
+            prefixed := true
+    if not prefixed and end < lx.n and at(lx, end) = '.' then
+        let fraction := digitsEnd(lx, end + 1, base: 10)
+        if fraction > end + 1 then
+            real := true
+            end := exponentEnd(lx, fraction)
+    lx.pos := end
+
+    var tail := lx.pos
+    while tail < lx.n and isWordChar(at(lx, tail)) do
+        tail := tail + 1
+    if tail > lx.pos then
+        lx.pos := tail
+        let t := text(lx, start, end: lx.pos)
+        var hint := ""
+        if not prefixed and not real and looksLikeExponent(t) then
+            hint := "; a real literal must contain '.', e.g. 1.0e5"
+        else if find(t, sub: "__").isSome() or endsWith(t, suffix: "_") then
+            hint := "; '_' may only appear between two digits"
+        error(var lx, "E0007", start, end: lx.pos, message: "malformed number literal '{t}'{hint}")
+        emit(var lx, TokenKind.IntLit, start, end: lx.pos, value: IntValue(value: 0))
+        return
+
+    let t := text(lx, start, end: lx.pos)
+    let digits := replace(t, target: "_", replacement: "")
+    if real then
+        emit(var lx, TokenKind.RealLit, start, end: lx.pos, value: RealValue(digits: digits))
+        return
+    var value: UInt64 := 0
+    let big: UInt64 := 18446744073709551615
+    let b := UInt64(base)
+    var tooBig := false
+    var i := if prefixed then 2 else 0
+    let ds := chars(digits).collect()
+    while i < len(ds) do
+        let d := UInt64(hexValue(ds[i]))
+        if value > (big - d) div b then
+            tooBig := true
+        else
+            value := value * b + d
+        i := i + 1
+    if tooBig then
+        error(var lx, "E0007", start, end: lx.pos, message: "integer literal '{t}' does not fit in 64 bits")
+        value := 0
+    emit(var lx, TokenKind.IntLit, start, end: lx.pos, value: IntValue(value: value))
+
+## Whether `t` is `[0-9_]+[eE][+-]?[0-9_]*`.
+function looksLikeExponent(t: String): Boolean
+    var seenE := false
+    var count := 0
+    for c in t do
+        if isDigit(c) or c = '_' then
+            count := count + 1
+        else if (c = 'e' or c = 'E') and not seenE and count > 0 then
+            seenE := true
+        else
+            return false
+    return seenE
+
+# ------------------------------------------------------------------------- strings
+
+## Scans string text up to the closing quote or the next placeholder.
+##
+## `start` is the offset of the opening `"` (first segment) or of the `}` that closed
+## the previous placeholder. `lx.pos` is just past it.
+procedure stringBody(var lx: State, start: Integer, first: Boolean)
+    var buf: List[String] := []
+    let whole := if first then TokenKind.StringLit else TokenKind.StringEnd
+    while true do
+        if lx.pos >= lx.n or at(lx, lx.pos) = '\n' then
+            error(var lx, "E0004", start, end: lx.pos, message: "unterminated string literal")
+            emit(var lx, whole, start, end: lx.pos, value: TextValue(text: join(buf)))
+            return
+        let c := at(lx, lx.pos)
+        if c = '"' then
+            lx.pos := lx.pos + 1
+            emit(var lx, whole, start, end: lx.pos, value: TextValue(text: join(buf)))
+            return
+        if c = '\\' then
+            add(var buf, escape(var lx))
+            continue
+        if c = '{' then
+            var j := lx.pos + 1
+            while j < lx.n and at(lx, j) = ' ' do
+                j := j + 1
+            if j < lx.n and at(lx, j) = '}' then
+                let brace := span(lx.src, lx.pos, end: lx.pos + 1)
+                errorWith(
+                    var lx, "E0030", lx.pos, end: j + 1,
+                    message: "empty placeholder '\{}'; write '\\\{' for a literal brace",
+                    fixes: [Fix(description: "escape the brace", edits: [Edit(span: brace, text: "\\\{")])],
+                )
+                add(var buf, text(lx, lx.pos, end: j + 1))
+                lx.pos := j + 1
+                continue
+            lx.pos := lx.pos + 1
+            emit(var lx, if first then TokenKind.StringBegin else TokenKind.StringMid, start, end: lx.pos, value: TextValue(text: join(buf)))
+            add(var lx.placeholders, len(lx.brackets))
+            return
+        add(var buf, toString(c))
+        lx.pos := lx.pos + 1
+
+## A line ended inside a placeholder: closes every open string on this line.
+procedure abortPlaceholders(var lx: State)
+    error(var lx, "E0030", lx.pos, end: lx.pos, message: "string placeholder '\{' is not closed on this line; write '\\\{' for a literal brace")
+    truncate(var lx.brackets, lx.placeholders[0])
+    for _ in lx.placeholders do
+        emit(var lx, TokenKind.StringEnd, lx.pos, end: lx.pos, value: TextValue(text: ""))
+    truncate(var lx.placeholders, 0)
+
+procedure charLiteral(var lx: State)
+    let start := lx.pos
+    lx.pos := lx.pos + 1
+    var chars: List[String] := []
+    while lx.pos < lx.n and at(lx, lx.pos) <> '\'' and at(lx, lx.pos) <> '\n' do
+        if at(lx, lx.pos) = '\\' then
+            add(var chars, escape(var lx))
+        else
+            add(var chars, toString(at(lx, lx.pos)))
+            lx.pos := lx.pos + 1
+    if lx.pos < lx.n and at(lx, lx.pos) = '\'' then
+        lx.pos := lx.pos + 1
+    else
+        error(var lx, "E0008", start, end: lx.pos, message: "unterminated char literal")
+    if len(chars) <> 1 then
+        error(var lx, "E0008", start, end: lx.pos, message: "char literal must contain exactly one character, found {len(chars)}")
+    # An escape may decode to no character: `'\` at the end of a line.
+    var value := '\0'
+    if len(chars) = 1 then
+        for c in chars[0] do
+            value := c
+    emit(var lx, TokenKind.CharLit, start, end: lx.pos, value: CharValue(value: value))
+
+## Decodes the escape at `lx.pos` (a backslash) and moves past it.
+function escape(var lx: State): String
+    let start := lx.pos
+    lx.pos := lx.pos + 1
+    if lx.pos >= lx.n or at(lx, lx.pos) = '\n' then
+        error(var lx, "E0005", start, end: lx.pos, message: "incomplete escape sequence")
+        return ""
+    let c := at(lx, lx.pos)
+    let simple := if c = 'n' then "\n" else if c = 't' then "\t" else if c = 'r' then "\r" else if c = '0' then "\0" else if c = '\\' then "\\" else if c = '"' then "\"" else if c = '\'' then "'" else if c = '{' then "\{" else ""
+    if byteLen(simple) > 0 then
+        lx.pos := lx.pos + 1
+        return simple
+    if c = 'u' then
+        # `u{X}` with 1 to 6 hex digits
+        if lx.pos + 1 < lx.n and at(lx, lx.pos + 1) = '{' then
+            var j := lx.pos + 2
+            var cp := 0
+            while j < lx.n and j - (lx.pos + 2) < 6 and isHexDigit(at(lx, j)) do
+                cp := cp * 16 + hexValue(at(lx, j))
+                j := j + 1
+            if j > lx.pos + 2 and j < lx.n and at(lx, j) = '}' then
+                let digits := text(lx, lx.pos + 2, end: j)
+                lx.pos := j + 1
+                if cp <= 0x10FFFF and not (cp >= 0xD800 and cp <= 0xDFFF) then
+                    return toString(Char(cp))
+                error(var lx, "E0005", start, end: lx.pos, message: "'\\u\{{digits}}' is not a Unicode scalar value")
+                return "\u{FFFD}"
+        lx.pos := lx.pos + 1
+        # Swallow a malformed `{...}` so it is not mistaken for a placeholder.
+        if lx.pos < lx.n and at(lx, lx.pos) = '{' then
+            let stop := lineEnd(lx)
+            var k := lx.pos
+            while k < stop and at(lx, k) <> '}' do
+                k := k + 1
+            if k < stop then
+                lx.pos := k + 1
+        error(var lx, "E0005", start, end: lx.pos, message: "expected '\\u\{XXXX}' with 1 to 6 hex digits")
+        return "\u{FFFD}"
+    lx.pos := lx.pos + 1
+    error(var lx, "E0005", start, end: lx.pos, message: "invalid escape sequence '\\{c}'")
+    return toString(c)
+
+# ------------------------------------------------------------ operators, brackets
+
+function bracketKind(c: Char): TokenKind
+    return if c = '(' then TokenKind.Lparen else if c = ')' then TokenKind.Rparen else if c = '[' then TokenKind.Lbracket else if c = ']' then TokenKind.Rbracket else if c = '{' then TokenKind.Lbrace else TokenKind.Rbrace
+
+procedure emitSingle(var lx: State, c: Char)
+    let start := lx.pos
+    lx.pos := lx.pos + 1
+    emitPlain(var lx, bracketKind(c), start, end: lx.pos)
+
+procedure closeBracket(var lx: State, c: Char)
+    let start := lx.pos
+    lx.pos := lx.pos + 1
+    emitPlain(var lx, bracketKind(c), start, end: lx.pos)
+    let depth := len(lx.placeholders)
+    let floor := if depth > 0 then lx.placeholders[depth - 1] else 0
+    let count := len(lx.brackets)
+    if count > floor and lx.brackets[count - 1].closer = c then
+        remove(var lx.brackets, count - 1)
+        return
+    var message := "unmatched '{c}'"
+    if count > floor then
+        message := "{message}; expected '{lx.brackets[count - 1].closer}'"
+    error(var lx, "E0009", start, end: lx.pos, message: message)
+    # Recover: if this closer matches an outer opener, close everything up to it.
+    var i := count - 1
+    while i >= floor do
+        if lx.brackets[i].closer = c then
+            truncate(var lx.brackets, i)
+            break
+        i := i - 1
+
+procedure operatorOrError(var lx: State)
+    for op in lx.operators do
+        if hasAt(lx, op.text, lx.pos) then
+            let start := lx.pos
+            lx.pos := lx.pos + charCount(op.text)
+            emitPlain(var lx, op.kind, start, end: lx.pos)
+            return
+    let c := at(lx, lx.pos)
+    let start := lx.pos
+    lx.pos := lx.pos + 1
+    var hint := ""
+    if c = '\u{201C}' or c = '\u{201D}' then
+        hint := "; use a plain '\"'"
+    else if c = '\u{2018}' or c = '\u{2019}' then
+        hint := "; use a plain \"'\""
+    else if c = '^' then
+        hint := "; dereference with deref(r)"
+    else if c = '&' then
+        hint := "; use 'and'"
+    else if c = '!' then
+        hint := "; use 'not'"
+    else if c = '%' then
+        hint := "; use 'mod'"
+    else if c = ';' then
+        hint := "; statements end at the end of the line"
+    error(var lx, "E0006", start, end: lx.pos, message: "unexpected character '{c}' (U+{hex4(ord(c))}){hint}")
