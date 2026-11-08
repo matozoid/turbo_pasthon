@@ -911,6 +911,87 @@ class CInterop(unittest.TestCase):
         self.assertEqual((p.returncode, p.stdout.decode()), (0, "v\ufffd\n3\n"), p.stderr)
 
 
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class Lists(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_operations(self):
+        """Literals, indexing, `add`/`remove`/`concat` (written in Pasthon), `in`, `=`,
+        loops, copy-on-write and nested lists; every block is freed once."""
+        p = run_program("""
+            type
+                Item = record
+                    name: String
+                    tags: List[String]
+
+            procedure bump(var x: Integer)
+                x := x + 1
+
+            var xs: List[Integer] := [1, 2, 3]
+            add(var xs, 4)
+            writeln("{len(xs)} {xs[0]} {xs[3]}")
+            var ys := xs
+            ys[0] := 10
+            bump(var ys[1])
+            writeln("{xs[0]} {xs[1]} {ys[0]} {ys[1]}")
+            remove(var ys, 1)
+            for y in ys do
+                write("{y} ")
+            writeln()
+            let zs := concat(xs, b: ys)
+            writeln("{len(zs)} {3 in zs} {7 in zs} {xs = [1, 2, 3, 4]} {xs = ys}")
+            var names: List[String] := []
+            for i := 1 to 20 do
+                add(var names, "n{i}")
+            writeln("{names[19]} {"n7" in names} {"b" in names}")
+            var it := Item(name: "a", tags: [])
+            add(var it.tags, "x")
+            let copy := it
+            add(var it.tags, "y")
+            writeln("{len(it.tags)} {len(copy.tags)}")
+            var grid: List[List[Integer]] := [[1, 2], [3]]
+            add(var grid[1], 4)
+            grid[0][1] := 9
+            for row in grid do
+                for x in row do
+                    write("{x} ")
+            writeln()
+            var os: List[Option[String]] := [Some("a"), None]
+            add(var os, Some("c"))
+            writeln("{os = [Some("a"), None, Some("c")]} {os = [Some("a"), None, Some("d")]}")
+            """, under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))  # fmt: skip
+        self.assertEqual((p.returncode, p.stderr), (0, b""))
+        self.assertEqual(
+            p.stdout.decode(),
+            "4 1 4\n1 2 10 3\n10 3 4 \n7 true false true false\nn20 true false\n2 1\n1 9 3 4 \n"
+            "true false\n",
+        )
+
+    def test_bounds(self):
+        for body in ["let xs := [1]\nwriteln(xs[1])", "var xs := [1]\nxs[-1] := 2",
+                     "var xs: List[Integer] := []\nremove(var xs, 0)"]:
+            with self.subTest(body):
+                p = run_program(body)
+                self.assertEqual(p.returncode, 70, p.stdout)
+                self.assertIn(b"P0001", p.stderr)
+
+    def test_growing_a_field(self):
+        """`add(var b.items, x)` moves the list out of the field for the call, so it isn't
+        copied each time."""
+        p = run_program("""
+            type
+                Bag = record
+                    items: List[Integer]
+            procedure addLen(var xs: List[Integer], b: Bag)
+                add(var xs, len(b.items))
+            var b := Bag(items: [])
+            for i := 1 to 100000 do
+                add(var b.items, i)
+            addLen(var b.items, b)  # `b` is used again, so `b.items` is copied, not moved
+            writeln("{b.items[99999]} {b.items[100000]}")
+            """)
+        self.assertEqual(p.stdout, b"100000 100000\n")
+
+
 class Unsupported(unittest.TestCase):
     def test_reported_at_the_construct(self):
         built, _ = compile_program("""

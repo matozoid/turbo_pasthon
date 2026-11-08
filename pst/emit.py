@@ -96,8 +96,12 @@ _UINT64 = Prim("UInt64")
 _RC, _DESC = 0, 8
 _LEN, _CHARS, _BYTES = 16, 24, 32
 _FIELDS = 16
-# Descriptor layout: then one word per field, 1 if it holds a reference.
+# A list block: the header, the element count, the capacity, then the elements.
+_COUNT, _CAP, _ELEMS = 16, 24, 32
+# Descriptor layout: then one word per field, 1 if it holds a reference. A list's
+# descriptor has count _LIST and one kind word, for all its elements.
 _D_COUNT, _D_SIZE, _D_ID, _D_KINDS = 0, 8, 16, 24
+_LIST = -1
 
 
 @dataclass
@@ -240,11 +244,13 @@ class Emitter:
 
     def managed(self, t) -> bool:
         """Whether values of type ``t`` are reference counted."""
-        return t == STRING or self.kind(t) in ("record", "union")
+        return t == STRING or self.kind(t) in ("record", "union") or _is_list(t)
 
     def supported(self, t, seen: frozenset = frozenset()) -> bool:
         if t in _VALUES or has_error(t) or t in seen or self.ints(t) or _is_pointer(t):
             return True
+        if _is_list(t):
+            return self.supported(t.args[0], seen)
         kind = self.kind(t)
         if kind == "enum":
             return True
@@ -270,6 +276,14 @@ class Emitter:
             words = [len(parts), _FIELDS + 8 * len(parts), len(self._descs)]
             words += [int(self.managed(p)) for p in parts]
             self._descs[key] = self.asm.data(struct.pack(f"<{len(words)}q", *words), align=8)
+        return self._descs[key]
+
+    def list_desc(self, t) -> str:
+        """The descriptor of lists of type ``t``."""
+        key = ("list", t.args[0])
+        if key not in self._descs:
+            words = [_LIST, _ELEMS, len(self._descs), int(self.managed(t.args[0]))]
+            self._descs[key] = self.asm.data(struct.pack("<4q", *words), align=8)
         return self._descs[key]
 
     def new_block(self, desc: str) -> None:
@@ -562,6 +576,8 @@ class Emitter:
             self.repeat(s)
         elif isinstance(s, A.ForRange):
             self.for_range(s)
+        elif isinstance(s, A.ForIn):
+            self.for_in(s)
         elif isinstance(s, A.Case):
             self.case(s.subject, s.arms, None)
         elif isinstance(s, (A.Break, A.Continue)):
@@ -639,6 +655,49 @@ class Emitter:
         a.store(RBP, var, RAX)
         a.jmp(top)
         a.label(end)
+
+    def for_in(self, s: A.ForIn) -> None:
+        """`for x in xs` over a list: the loop runs over the list as it was when the
+        loop started (a copy, SPEC §4.6), kept in a slot of its own block."""
+        a = self.asm
+        t = self.type(s.iterable)
+        if not _is_list(t) or len(s.vars) != 1:
+            self.unsupported(s.iterable, f"a loop over {show(t)}")
+        managed = self.managed(t.args[0])
+        depth = len(self.f.scopes)
+        self.f.scopes.append([])
+        self.expr(s.iterable)
+        items, pos = self.f.alloc(object()), self.f.alloc(object())
+        a.store(RBP, items, RAX)
+        self.f.scopes[-1].append(items)
+        var = self.local(s.vars[0].span)
+        a.store_imm(RBP, var, 0)
+        if managed:
+            self.f.scopes[-1].append(var)
+        a.store_imm(RBP, pos, 0)
+        top, cont, end = a.new_label("for"), a.new_label("next"), a.new_label("rof")
+        a.label(top)
+        a.load(RCX, RBP, pos)
+        a.load(RAX, RBP, items)
+        a.cmp_mem(RCX, RAX, _COUNT)
+        a.jcc("ge", end)
+        a.shl_imm(RCX, 3)
+        a.add(RCX, RAX)
+        a.load(RAX, RCX, _ELEMS)
+        if managed:
+            self.retain()
+            a.load(RDI, RBP, var)
+            self.release(RDI)  # the previous element
+        a.store(RBP, var, RAX)
+        self.loop(s.body, end, cont)
+        a.label(cont)
+        a.load(RAX, RBP, pos)
+        a.inc(RAX)
+        a.store(RBP, pos, RAX)
+        a.jmp(top)
+        a.label(end)
+        self.release_scopes(depth)
+        self.f.scopes.pop()
 
     def case(self, subject, arms: list, result) -> None:
         """A `case` statement, or a `case` expression of type ``result`` (each arm's value
@@ -748,6 +807,15 @@ class Emitter:
             self.asm.mov(RDI, RAX)
             self.asm.call(self.runtime("rt_unique"))
             self.asm.add_imm(RAX, _FIELDS + 8 * names.index(e.name.name))
+            return
+        if isinstance(e, A.Index) and _is_list(self.type(e.target)):
+            self.expr(e.items[0])
+            self.asm.push(RAX)
+            self.address(e.target)
+            self.asm.mov(RDI, RAX)
+            self.asm.call(self.runtime("rt_unique"))
+            self.asm.pop(RCX)
+            self.element(RAX, RCX, e)
             return
         if isinstance(e, A.Name):
             sym = self.ref(e.span)
@@ -950,6 +1018,48 @@ class Emitter:
             self.retain()
         self.drop(1)
 
+    def e_ListLit(self, e) -> None:
+        a = self.asm
+        t = self.type(e)
+        if not _is_list(t):
+            self.unsupported(e, f"a literal of {show(t)}")
+        for x in e.items:
+            self.coerce(x, t.args[0])
+            a.push(RAX)
+        a.lea_data(RDI, self.list_desc(t))
+        a.mov_imm(RSI, len(e.items))
+        a.call(self.runtime("rt_list_new"))
+        for i in reversed(range(len(e.items))):
+            a.pop(RCX)
+            a.store(RAX, _ELEMS + 8 * i, RCX)
+
+    def e_Index(self, e) -> None:
+        a = self.asm
+        t = self.type(e.target)
+        if not _is_list(t):
+            self.unsupported(e, f"indexing {show(t)}")
+        self.expr(e.target)
+        a.push(RAX)
+        self.expr(e.items[0])
+        a.mov(RCX, RAX)
+        a.load(RAX, RSP)
+        self.element(RAX, RCX, e)
+        a.load(RAX, RAX)
+        if self.managed(t.args[0]):
+            self.retain()
+        self.drop(1)
+
+    def element(self, block: int, index: int, e) -> None:
+        """rax := the address of element ``index`` of the list ``block``. A checked build
+        panics (P0001) if there is no such element."""
+        a = self.asm
+        if self.checked:
+            a.cmp_mem(index, block, _COUNT)
+            a.jcc("ae", self.panic("P0001", "index out of bounds", e.span))  # also < 0
+        a.shl_imm(index, 3)
+        a.add(index, block)
+        a.lea(RAX, index, _ELEMS)
+
     def load_sym(self, sym: Symbol, e) -> None:
         a = self.asm
         if sym.kind is Kind.CONST:
@@ -1019,7 +1129,10 @@ class Emitter:
             a.label(end)
             return
         if op == "in":
-            self.unsupported(e, "'in'")
+            t = self.type(e.right)
+            if not _is_list(t):
+                self.unsupported(e, f"'in' on {show(t)}")
+            return self.sys_call(e, "contains", [(e.left, t.args[0]), (e.right, t)], (t.args[0],))
         if _is_ptr(self.type(e.left)) and op in ("+", "-"):
             return self.pointer_arith(e)
         t = self.type(e.left)
@@ -1211,7 +1324,13 @@ class Emitter:
             if isinstance(place, A.Name):
                 self.address(place)
             elif place is not None:
-                self.expr(place)
+                if self.movable(place, [x.expr for x in m.slots if x is not None and x is not slot]):
+                    self.address(place)  # moved out, so the callee's copy isn't shared
+                    a.mov(RCX, RAX)
+                    a.load(RAX, RCX)
+                    a.store_imm(RCX, 0, 0)
+                else:
+                    self.expr(place)
                 tmp = self.f.alloc(object())
                 a.store(RBP, tmp, RAX)
                 a.lea(RAX, RBP, tmp)
@@ -1229,6 +1348,27 @@ class Emitter:
                 a.load(RCX, RBP, tmp)
                 self.store_at(place, self.type(place))
             a.pop(RAX)
+
+    def movable(self, place, others: list) -> bool:
+        """Whether a `var` argument that isn't a whole variable can be moved out of its
+        place for the call, instead of copied: when it is managed, so a copy would be
+        shared and the callee's changes would copy it again, and its variable isn't used
+        anywhere else in the call (SPEC §6.3), so nothing sees the place empty."""
+        if not self.managed(self.type(place)) or self.is_cplace(place):
+            return False
+        root = place
+        while isinstance(root, (A.Paren, A.FieldAccess, A.Index)):
+            root = root.inner if isinstance(root, A.Paren) else root.target
+        sym = self.ref(root.span) if isinstance(root, A.Name) else None
+        if sym is None:
+            return False
+        uses = 0
+        todo = [place, *others]
+        while todo:
+            n = todo.pop()
+            uses += isinstance(n, A.Name) and self.ref(n.span) is sym
+            todo.extend(_children(n))
+        return uses == 1
 
     def convert(self, e) -> None:
         """`Int32(x)`: converts between integer types, panicking (in checked builds) if
@@ -1369,6 +1509,18 @@ class Emitter:
         finally:
             self.f.file = outer
 
+    def sys_call(self, e, name: str, args: list, targs: tuple) -> None:
+        """Calls the System routine ``name`` (not overloaded), instantiated for ``targs``,
+        with ``args``: (expression, parameter type) in parameter order."""
+        sym = self.env.sys(name)
+        for x, t in args:
+            self.coerce(x, t)
+            self.asm.push(RAX)
+        for i in reversed(range(len(args))):
+            self.asm.pop(_ARG_REGS[i])
+        sites = {tp: self.f.file for tp in self.env.sig(sym).tparams}
+        self.asm.call(self.label_of(e, sym, targs, sites))
+
     def construct(self, e, m) -> None:
         """`Point(x: 1, y: 2)`: the field values are pushed, then moved into a new block."""
         a = self.asm
@@ -1428,6 +1580,18 @@ class Emitter:
             a.mov(RCX, RAX)
             a.pop(RAX)
             self.store_at(args[0], t)
+        elif name == ("System", "len") and _is_list(self.type(args[0])):
+            self.expr(args[0])
+            a.push(RAX)
+            a.load(RAX, RAX, _COUNT)
+            self.drop(1)
+        elif name == ("System", "resize"):
+            self.expr(args[1])
+            a.push(RAX)
+            self.address(args[0])
+            a.mov(RDI, RAX)
+            a.pop(RSI)
+            a.call(self.runtime("rt_list_resize"))
         elif name == ("C", "toCString"):
             if id(e) not in self.f.keep:
                 self.unsupported(e, "'toCString' here")
@@ -1601,12 +1765,29 @@ class Emitter:
         a.label(done)
         a.ret()
 
+    def walk(self, block: int, desc: int, count: int, vals: int, step: int) -> None:
+        """Sets up a loop over the slots of ``block``, whose descriptor is in ``desc``:
+        ``count`` := how many, ``vals`` := the first, ``desc`` := its kind word (the next
+        is ``step`` bytes on: 8 for a record's fields, 0 for a list's elements)."""
+        a = self.asm
+        go = a.new_label("k")
+        a.load(count, desc, _D_COUNT)
+        a.add_imm(desc, _D_KINDS)
+        a.lea(vals, block, _FIELDS)
+        a.mov_imm(step, 8)
+        a.cmp_imm(count, _LIST)
+        a.jcc("ne", go)
+        a.load(count, block, _COUNT)
+        a.lea(vals, block, _ELEMS)
+        a.xor32(step, step)
+        a.label(go)
+
     def rt_release(self) -> None:
         """Drops a reference to the block rdi (if not 0). With the last one, releases the
-        references its fields hold and frees it. Preserves registers."""
+        references its fields (or elements) hold and frees it. Preserves registers."""
         a = self.asm
         loop, skip, free, done = (a.new_label("r") for _ in range(4))
-        a.test(RDI, RDI)  # an empty slot (toCString's)
+        a.test(RDI, RDI)  # an empty slot (toCString's, or a moved-out value)
         a.jcc("e", done)
         a.cmp_mem_imm(RDI, _RC, 0)
         a.jcc("l", done)
@@ -1618,10 +1799,8 @@ class Emitter:
         a.load(RDX, RSI, _DESC)
         a.test(RDX, RDX)
         a.jcc("e", free)  # a string
-        a.load(RCX, RDX, _D_COUNT)
-        a.add_imm(RDX, _D_KINDS)
-        a.lea(R8, RSI, _FIELDS)
-        a.label(loop)  # rcx fields left; rdx their kinds, r8 their values
+        self.walk(RSI, RDX, RCX, R8, R9)
+        a.label(loop)  # rcx slots left; rdx their kinds, r8 their values
         a.test(RCX, RCX)
         a.jcc("e", free)
         a.load(RAX, RDX)
@@ -1630,7 +1809,7 @@ class Emitter:
         a.load(RDI, R8)
         a.call(self.runtime("rt_release"))
         a.label(skip)
-        a.add_imm(RDX, 8)
+        a.add(RDX, R9)
         a.add_imm(R8, 8)
         a.dec(RCX)
         a.jmp(loop)
@@ -1654,11 +1833,97 @@ class Emitter:
         a.store(RAX, _DESC, RCX)
         a.ret()
 
-    def rt_unique(self) -> None:
-        """rdi is the address of a variable holding a record. If the record is shared,
-        the variable gets a copy of its own. rax := the record, now unshared."""
+    def rt_list_new(self) -> None:
+        """rax := a new list block with descriptor rdi and room for rsi elements, which
+        it holds: the caller fills them in."""
         a = self.asm
-        copy, loop, skip, done = (a.new_label("u") for _ in range(4))
+        a.push(RDI)
+        a.push(RSI)
+        a.mov(RDI, RSI)
+        a.shl_imm(RDI, 3)
+        a.add_imm(RDI, _ELEMS)
+        a.call(self.runtime("rt_alloc"))
+        a.pop(RSI)
+        a.pop(RCX)
+        a.store_imm(RAX, _RC, 1)
+        a.store(RAX, _DESC, RCX)
+        a.store(RAX, _COUNT, RSI)
+        a.store(RAX, _CAP, RSI)
+        a.ret()
+
+    def rt_list_resize(self) -> None:
+        """rdi is the address of a variable holding a list; rsi a length (not negative).
+        Makes the list unique and gives it rsi elements: dropped ones are released, new
+        ones are 0, for the caller to fill in. Growing at least doubles the capacity."""
+        a = self.asm
+        big, fits, shrink, loop, done = (a.new_label("z") for _ in range(5))
+        saved = (RBX, R12, R13, R14)
+        for r in saved:
+            a.push(r)
+        a.mov(RBX, RDI)  # the variable
+        a.mov(R12, RSI)  # the new length
+        a.call(self.runtime("rt_unique"))
+        a.mov(R13, RAX)  # the list
+        a.load(RCX, R13, _CAP)
+        a.cmp(R12, RCX)
+        a.jcc("le", fits)
+        a.mov(R14, RCX)
+        a.add(R14, RCX)
+        a.cmp(R14, R12)
+        a.jcc("ge", big)
+        a.mov(R14, R12)
+        a.label(big)  # r14 := max(2 * cap, length)
+        a.mov(RDI, R13)
+        a.mov(RSI, R14)
+        a.shl_imm(RSI, 3)
+        a.add_imm(RSI, _ELEMS)
+        self.ccall("realloc")
+        a.test(RAX, RAX)
+        a.jcc("e", self.runtime("rt_oom"))
+        a.mov(R13, RAX)
+        a.store(R13, _CAP, R14)
+        a.store(RBX, 0, R13)
+        a.label(fits)
+        a.load(RCX, R13, _COUNT)
+        a.cmp(R12, RCX)
+        a.jcc("l", shrink)
+        a.mov(RDI, RCX)  # zero the new elements
+        a.shl_imm(RDI, 3)
+        a.add(RDI, R13)
+        a.add_imm(RDI, _ELEMS)
+        a.mov(RDX, R12)
+        a.sub(RDX, RCX)
+        a.shl_imm(RDX, 3)
+        a.xor32(RSI, RSI)
+        self.ccall("memset")
+        a.jmp(done)
+        a.label(shrink)
+        a.load(RDX, R13, _DESC)
+        a.load(RDX, RDX, _D_KINDS)
+        a.test(RDX, RDX)
+        a.jcc("e", done)
+        a.mov(R14, R12)
+        a.label(loop)  # release elements r14 up to the old count
+        a.cmp(R14, RCX)
+        a.jcc("ge", done)
+        a.mov(RAX, R14)
+        a.shl_imm(RAX, 3)
+        a.add(RAX, R13)
+        a.load(RDI, RAX, _ELEMS)
+        self.release(RDI)
+        a.inc(R14)
+        a.jmp(loop)
+        a.label(done)
+        a.store(R13, _COUNT, R12)
+        for r in reversed(saved):
+            a.pop(r)
+        a.ret()
+
+    def rt_unique(self) -> None:
+        """rdi is the address of a variable holding a record or list. If it is shared,
+        the variable gets a copy of its own. rax := the block, now unshared."""
+        a = self.asm
+        copy, lst, copied, loop, skip, done = (a.new_label("u") for _ in range(6))
         a.load(RAX, RDI)
         a.cmp_mem_imm(RAX, _RC, 1)
         a.jcc("ne", copy)
@@ -1667,8 +1932,10 @@ class Emitter:
         for r in (RBX, R12, R13):
             a.push(r)
         a.mov(RBX, RDI)  # the variable
-        a.mov(R12, RAX)  # the shared record
+        a.mov(R12, RAX)  # the shared block
         a.load(RDI, RAX, _DESC)
+        a.cmp_mem_imm(RDI, _D_COUNT, _LIST)
+        a.jcc("e", lst)
         a.call(self.runtime("rt_new"))
         a.mov(R13, RAX)  # the copy
         a.lea(RDI, R13, _FIELDS)
@@ -1677,11 +1944,21 @@ class Emitter:
         a.load(RDX, RDX, _D_SIZE)
         a.sub_imm(RDX, _FIELDS)
         self.ccall("memcpy")
+        a.jmp(copied)
+        a.label(lst)  # the same capacity; the count and the elements
+        a.load(RSI, R12, _CAP)
+        a.call(self.runtime("rt_list_new"))
+        a.mov(R13, RAX)
+        a.lea(RDI, R13, _COUNT)
+        a.lea(RSI, R12, _COUNT)
+        a.load(RDX, R12, _COUNT)
+        a.shl_imm(RDX, 3)
+        a.add_imm(RDX, _ELEMS - _COUNT)
+        self.ccall("memcpy")
+        a.label(copied)
         a.load(RDX, R13, _DESC)
-        a.load(RCX, RDX, _D_COUNT)
-        a.add_imm(RDX, _D_KINDS)
-        a.lea(R8, R13, _FIELDS)
-        a.label(loop)  # the copy holds new references to what the fields refer to
+        self.walk(R13, RDX, RCX, R8, R9)
+        a.label(loop)  # the copy holds new references to what the slots refer to
         a.test(RCX, RCX)
         a.jcc("e", done)
         a.load(RAX, RDX)
@@ -1690,12 +1967,12 @@ class Emitter:
         a.load(RAX, R8)
         self.retain()
         a.label(skip)
-        a.add_imm(RDX, 8)
+        a.add(RDX, R9)
         a.add_imm(R8, 8)
         a.dec(RCX)
         a.jmp(loop)
         a.label(done)
-        self.release(R12)  # not the last reference: the record was shared
+        self.release(R12)  # not the last reference: the block was shared
         a.store(RBX, 0, R13)
         a.mov(RAX, R13)
         for r in (R13, R12, RBX):
@@ -1704,10 +1981,10 @@ class Emitter:
 
     def rt_eq(self) -> None:
         """rax := whether the blocks rdi and rsi hold equal values: the same string, or
-        records (or union values) of the same descriptor whose fields are equal."""
+        records (union values, lists) of the same descriptor whose slots are equal."""
         a = self.asm
-        record, loop, plain, nxt, yes, no, done = (a.new_label("q") for _ in range(7))
-        saved = (RBX, R12, R13, R14)
+        record, same, loop, plain, nxt, yes, no, done = (a.new_label("q") for _ in range(8))
+        saved = (RBX, R12, R13, R14, R15)
         for r in saved:
             a.push(r)
         a.load(RAX, RDI, _DESC)
@@ -1721,11 +1998,19 @@ class Emitter:
         a.jcc("ne", no)
         a.jmp(yes)
         a.label(record)
-        a.load(R14, RAX, _D_COUNT)
-        a.lea(R13, RAX, _D_KINDS)
-        a.lea(RBX, RDI, _FIELDS)
-        a.lea(R12, RSI, _FIELDS)
-        a.label(loop)  # r14 fields left; r13 their kinds; rbx, r12 the two values
+        a.mov(R13, RAX)
+        self.walk(RDI, R13, R14, RBX, R15)
+        a.load(RCX, RAX, _D_COUNT)
+        a.cmp_imm(RCX, _LIST)
+        a.jcc("ne", same)
+        a.load(RCX, RSI, _COUNT)  # lists: the same length
+        a.cmp(R14, RCX)
+        a.jcc("ne", no)
+        a.label(same)
+        a.mov(R12, RBX)  # the same slot of the other block
+        a.sub(R12, RDI)
+        a.add(R12, RSI)
+        a.label(loop)  # r14 slots left; r13 their kinds; rbx, r12 the two values
         a.test(R14, R14)
         a.jcc("e", yes)
         a.load(RDI, RBX)
@@ -1743,7 +2028,7 @@ class Emitter:
         a.label(nxt)
         a.add_imm(RBX, 8)
         a.add_imm(R12, 8)
-        a.add_imm(R13, 8)
+        a.add(R13, R15)
         a.dec(R14)
         a.jmp(loop)
         a.label(yes)
@@ -1784,12 +2069,13 @@ class Emitter:
     def rt_alloc(self) -> None:
         """rax := malloc(rdi). Running out of memory is fatal."""
         a = self.asm
-        oom = a.new_label("oom")
         self.ccall("malloc")
         a.test(RAX, RAX)
-        a.jcc("e", oom)
+        a.jcc("e", self.runtime("rt_oom"))
         a.ret()
-        a.label(oom)
+
+    def rt_oom(self) -> None:
+        a = self.asm
         message = b"panic: out of memory\n"
         a.lea_data(RSI, a.data(message))
         a.mov_imm(RDX, len(message))
@@ -2154,6 +2440,10 @@ class Emitter:
 def _is_pointer(t) -> bool:
     """`Ptr[T]`, `Pointer` or `CString`: an unmanaged address (SPEC §4.13)."""
     return t in (Prim("Pointer"), Prim("CString")) or (isinstance(t, Builtin) and t.name == "Ptr")
+
+
+def _is_list(t) -> bool:
+    return isinstance(t, Builtin) and t.name == "List"
 
 
 def _is_ptr(t) -> bool:

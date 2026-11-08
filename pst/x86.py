@@ -225,6 +225,10 @@ class Assembler:
     def cmp(self, a: int, b: int) -> None:
         self._rr(0x39, a, b)
 
+    def cmp_mem(self, a: int, base: int, disp: int) -> None:
+        """`cmp a, [base + disp]`."""
+        self._mem(b"\x3b", a, base, disp)
+
     def test(self, a: int, b: int) -> None:
         self._rr(0x85, a, b)
 
@@ -298,6 +302,9 @@ class Assembler:
 
     def shr_imm(self, dst: int, n: int) -> None:
         self.emit(_rex(True, 0, dst), 0xC1, 0xE8 | (dst & 7), n)
+
+    def shl_imm(self, dst: int, n: int) -> None:
+        self.emit(_rex(True, 0, dst), 0xC1, 0xE0 | (dst & 7), n)
 
     def sub_imm32_fixed(self, dst: int) -> int:
         """`sub dst, imm32` with the immediate patched later; returns its position."""

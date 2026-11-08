@@ -96,14 +96,8 @@ extern "pst"
     export function len[T](s: Set[T]): Integer
     export function len[T, N: Integer](a: Array[T, N]): Integer
 
-    ## Appends `x` to the end of `xs`.
-    export procedure add[T](var xs: List[T], x: T)
     ## Adds `x` to the set.
     export procedure add[T](var s: Set[T], x: T)
-    ## A new list: `a` followed by `b`.
-    export function concat[T](a, b: List[T]): List[T]
-    ## Removes the element at `index`.
-    export procedure remove[T](var xs: List[T], index: Integer)
     ## Removes `key` from the map, if present.
     export procedure remove[K, V](var m: Map[K, V], key: K)
     ## Removes `x` from the set, if present.
@@ -148,6 +142,41 @@ extern "pst"
     function byteLen(s: String): Integer
     function decodeUtf8At(s: String, pos: Integer): Char
     function utf8Width(c: Char): Integer
+    ## Makes `xs` unshared and `n` long (`n >= 0`). New elements are empty, not values
+    ## of `T`: the caller must fill them in before anything reads them.
+    procedure resize[T](var xs: List[T], n: Integer)
+
+# ------------------------------------------------------------------------ lists
+
+## Appends `x` to the end of `xs`.
+export procedure add[T](var xs: List[T], x: T)
+    let n := len(xs)
+    resize(var xs, n + 1)
+    xs[n] := x
+
+## Removes the element at `index`, moving the ones after it down.
+export procedure remove[T](var xs: List[T], index: Integer)
+    _ := xs[index]  # P0001 if there is no such element
+    let n := len(xs)
+    for i := index to n - 2 do
+        xs[i] := xs[i + 1]
+    resize(var xs, n - 1)
+
+## A new list: `a` followed by `b`.
+export function concat[T](a, b: List[T]): List[T]
+    var out := a
+    let n := len(a)
+    resize(var out, n + len(b))
+    for i := 0 to len(b) - 1 do
+        out[n + i] := b[i]
+    return out
+
+## `x in xs`.
+function contains[T: Equatable](x: T, xs: List[T]): Boolean
+    for y in xs do
+        if y = x then
+            return true
+    return false
 
 # ------------------------------------------------------------ Option and Result
 
