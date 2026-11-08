@@ -321,7 +321,8 @@ procedure reportWith(p: ref State, code: String, span: Span, message: String, fi
     if key in p.reported then
         return
     p.reported[key] := true
-    add(var p.diags, Diagnostic(file: p.file, span: span, severity: Severity.Error, code: code, message: message, fixes: fixes))
+    let item := Diagnostic(file: p.file, span: span, severity: Severity.Error, code: code, message: message, fixes: fixes)
+    add(var p.diags, item)
 
 procedure report(p: ref State, code: String, span: Span, message: String)
     reportWith(p, code, span, message: message, fixes: [])

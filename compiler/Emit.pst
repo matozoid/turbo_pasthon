@@ -401,7 +401,8 @@ procedure unsupported(g: ref Em, span: Span, what: String)
     let k := "{g.f.file}|{span.start}|{span.end}|{message}"
     if not (k in g.reported) then
         g.reported[k] := true
-        add(var g.diagnostics, Diagnostic(file: g.f.file, span: span, severity: Severity.Error, code: "E0990", message: message, fixes: []))
+        let item := Diagnostic(file: g.f.file, span: span, severity: Severity.Error, code: "E0990", message: message, fixes: [])
+        add(var g.diagnostics, item)
     g.bad := true
 
 function rawType(g: ref Em, id: Integer): Type
@@ -880,10 +881,11 @@ function run(g: ref Em): Built
     let a := g.a
     let file := g.main.parsed.file
     if file.kind <> "program" then
-        add(var g.diagnostics, Diagnostic(
+        let item := Diagnostic(
             file: g.main.path, span: file.name.span, severity: Severity.Error, code: "E0990",
             message: "only a program can be built; a unit is compiled with the program that uses it", fixes: [],
-        ))
+        )
+        add(var g.diagnostics, item)
         return Built(executable: None, diagnostics: g.diagnostics)
     g.f := newFrame(g.main.path, None, exit: newLabel(a, "exit"))
     label(a, "_start")
@@ -908,7 +910,8 @@ function run(g: ref Em): Built
     patch32(a, sizeAt, value: align(g.f.size, 16))
     while len(g.queue) > 0 do
         let inst := g.queue[len(g.queue) - 1]
-        remove(var g.queue, len(g.queue) - 1)
+        let at := len(g.queue) - 1
+        remove(var g.queue, at)
         routine(g, inst)
     a.tracked := false
     var i := 0
@@ -941,11 +944,12 @@ function labelOf(g: ref Em, span: Span, sym: ref Symbol, targs: List[Type], site
         if len(targs) > 0 then
             depth := depth + 1
         if depth > MaxDepth then
-            add(var g.diagnostics, Diagnostic(
+            let item := Diagnostic(
                 file: g.f.file, span: span, severity: Severity.Error, code: "E0720",
                 message: "generic instances nest more than {MaxDepth} deep here: '{sym.name}' keeps instantiating itself with a bigger type",
                 fixes: [],
-            ))
+            )
+            add(var g.diagnostics, item)
             g.bad := true
             return "?"
         var name := sym.name
@@ -1254,7 +1258,8 @@ procedure stmts(g: ref Em, ss: List[Stmt])
         stmt(g, s)
         if g.bad then
             while len(g.a.stack) > depth do
-                remove(var g.a.stack, len(g.a.stack) - 1)
+                let at := len(g.a.stack) - 1
+                remove(var g.a.stack, at)
             g.bad := false
         else
             assert len(g.a.stack) = depth, "unbalanced pushes"
@@ -1270,7 +1275,8 @@ procedure block(g: ref Em, body: ArmBody)
     releaseScopes(g, len(g.f.scopes) - 1)
     if g.bad then
         return
-    remove(var g.f.scopes, len(g.f.scopes) - 1)
+    let at := len(g.f.scopes) - 1
+    remove(var g.f.scopes, at)
 
 procedure stmt(g: ref Em, s: Stmt)
     let a := g.a
@@ -1417,11 +1423,13 @@ procedure stmt(g: ref Em, s: Stmt)
             unsupported(g, x.span, "the 'ErrorStmt' statement")
 
 procedure loop(g: ref Em, body: Block, brk, cont: String)
-    add(var g.f.loops, LoopT(brk: brk, cont: cont, depth: len(g.f.scopes)))
+    let item := LoopT(brk: brk, cont: cont, depth: len(g.f.scopes))
+    add(var g.f.loops, item)
     block(g, body)
     if g.bad then
         return
-    remove(var g.f.loops, len(g.f.loops) - 1)
+    let at := len(g.f.loops) - 1
+    remove(var g.f.loops, at)
 
 ## The `until` condition sees the body's variables, so the body's block is released
 ## after it. (`continue` isn't allowed in `repeat`, SPEC §7.4.)
@@ -1434,14 +1442,15 @@ procedure repeatStmt(g: ref Em, s: Repeat)
     add(var g.f.scopes, [])
     add(var g.f.loops, LoopT(brk: fin, cont: fin, depth: depth))
     stmts(g, s.body.stmts)
-    remove(var g.f.loops, len(g.f.loops) - 1)
+    let at := len(g.f.loops) - 1
+    remove(var g.f.loops, at)
     expr(g, s.cond)
     let was := g.bad
     g.bad := false
     releaseScopes(g, depth)  # keeps rax
     if g.bad then
         return
-    remove(var g.f.scopes, len(g.f.scopes) - 1)
+    remove(var g.f.scopes, depth)  # the scope added above
     g.bad := was
     if g.bad then
         return
@@ -1563,7 +1572,8 @@ procedure forIn(g: ref Em, s: ForIn)
     releaseScopes(g, depth)
     if g.bad then
         return
-    remove(var g.f.scopes, len(g.f.scopes) - 1)
+    let at := len(g.f.scopes) - 1
+    remove(var g.f.scopes, at)
 
 ## `for c in Color`: every member, in order.
 procedure forEnum(g: ref Em, s: ForIn, t: Type)
@@ -1736,7 +1746,8 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
     releaseScopes(g, depth)
     if g.bad then
         return
-    remove(var g.f.scopes, len(g.f.scopes) - 1)
+    let at := len(g.f.scopes) - 1
+    remove(var g.f.scopes, at)
 
 ## A `case` statement (`stmtArms`), or a `case` expression (`exprArms`) of type `result`,
 ## each arm's value then ending up in rax. The subject is kept in a slot of its own block.
@@ -1804,14 +1815,16 @@ procedure caseOf(g: ref Em, subject: Expr, stmtArms: List[CaseArm], exprArms: Li
         releaseScopes(g, len(g.f.scopes) - 1)  # keeps rax
         if g.bad then
             return
-        remove(var g.f.scopes, len(g.f.scopes) - 1)
+        let at := len(g.f.scopes) - 1
+        remove(var g.f.scopes, at)
         jmp(a, fin)
         label(a, nxt)
     label(a, fin)
     releaseScopes(g, depth)
     if g.bad then
         return
-    remove(var g.f.scopes, len(g.f.scopes) - 1)
+    let at := len(g.f.scopes) - 1
+    remove(var g.f.scopes, at)
 
 function labelSpan(lb: Label): Span
     case lb of
@@ -3768,7 +3781,8 @@ procedure ccall(g: ref Em, name: String)
     callImport(a, name)
     leave(a)
     if a.tracked then  # `leave` popped rbp
-        remove(var a.stack, len(a.stack) - 1)
+        let at := len(a.stack) - 1
+        remove(var a.stack, at)
 
 ## Ends the program with status rdi. `exit`, not `_exit`: C code may have output waiting
 ## in stdio buffers.
