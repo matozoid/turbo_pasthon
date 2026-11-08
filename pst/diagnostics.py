@@ -145,4 +145,5 @@ ERROR_CODES: dict[str, str] = {
     "E0802": "Branches of an 'if' or 'case' expression have different types.",
     "E0803": "'if' expression used as an operand must be parenthesized.",
     "E0804": "'case' expression must be the whole right side of ':=', 'var', 'let', or 'return'.",
+    "E0990": "Not supported by the code generator yet (the program checks, but can't be built).",
 }

@@ -1416,6 +1416,12 @@ already has a lexical error are not reported.
 | `E0710` | operation on a type parameter that its bounds don't provide |
 | `E0802` | `if` / `case` expression branches of different types |
 
+### 16.4 Build errors
+
+| Code | Meaning |
+|---|---|
+| `E0990` | the program checks, but uses a construct the code generator doesn't support yet |
+
 ---
 
 ## 17. Deliberately excluded

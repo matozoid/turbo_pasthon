@@ -74,6 +74,7 @@ class CheckResult:
     units: dict[str, Unit]
     index: Index
     diagnostics: list[Diagnostic]
+    env: object = None  # the type checker's Env: expression types, signatures
 
     @property
     def has_errors(self) -> bool:
@@ -115,6 +116,7 @@ class Checker:
     def run(self, path: str) -> CheckResult:
         std = os.path.dirname(os.path.abspath(path)) == os.path.abspath(self.std_dir)
         main = self.load(path, std=std)
+        env = None
         if main is not None:
             self.check_cycles(main)
             others = [u for u in self.units.values() if u is not main]
@@ -126,7 +128,7 @@ class Checker:
             for unit in [main] + others:
                 env.checker(unit).run()
         self.diagnostics.sort(key=lambda d: (d.file != (main.file if main else ""), d.file, d.span.start))
-        return CheckResult(main, self.units, self.index, self.diagnostics)
+        return CheckResult(main, self.units, self.index, self.diagnostics, env)
 
     def load(self, path: str, std: bool, expected: str | None = None) -> Unit | None:
         text, err = _read(path)
