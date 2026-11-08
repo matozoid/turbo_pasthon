@@ -91,17 +91,27 @@ procedure fatal(message: String)
     writelnErr("pst: error: {message}")
     exit(1)
 
+## Drops the type checkers that `typecheck(..., keep: true)` kept: they refer to the
+## environment, a cycle.
+procedure forget(result: Checked)
+    case result.env of
+        Some(env):
+            env.value.checkers := {}
+            env.value.constCheckers := {}
+        None:
+            return
+
 ## Checks and compiles `path` into the executable `out`, and prints the diagnostics.
 ## Whether it succeeded.
 function buildTo(path: String, stdDir: String, out: String, asJson: Boolean, checked: Boolean): Boolean
     let result := typecheck(path, stdDir: stdDir, keep: true)
     let ds := result.resolved.checker.diagnostics
     if hasErrors(ds) then
+        forget(result)
         report(ds, asJson: asJson)
         return false
     let built := build(result, checked: checked)
-    let env := result.env.get()
-    env.checkers := {}  # they refer to the environment: a cycle
+    forget(result)
     report(ds, asJson: asJson)
     report(built.diagnostics, asJson: asJson)
     case built.executable of

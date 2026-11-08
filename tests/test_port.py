@@ -46,6 +46,25 @@ def build_tool(name: str) -> str:
     return exe
 
 
+def install(exe: str, where: Path) -> str:
+    """Moves the executable ``exe`` of the port's command line tool to ``where/pst``, next
+    to a ``units`` link to the standard units, where it looks for them."""
+    os.makedirs(where)
+    os.symlink(STD_DIR, where / "units")
+    shutil.move(exe, where / "pst")
+    return str(where / "pst")
+
+
+_PST: list[str] = []
+
+
+def pst_tool() -> str:
+    """The port's command line tool (compiler/Pst.pst), built once."""
+    if not _PST:
+        _PST.append(install(build_tool("Pst"), Path(_TMP.name, "bin")))
+    return _PST[0]
+
+
 def quote(s: str) -> str:
     out = ['"']
     for c in s:
@@ -840,7 +859,7 @@ class Build(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.exe = build_tool("Build")
+        cls.exe = pst_tool()
 
     def compare(self, path: Path, checked: bool = True, under: tuple = ()):
         result = check(str(path))
@@ -852,7 +871,7 @@ class Build(unittest.TestCase):
             want = built.executable
         out = Path(_TMP.name, "built")
         out.unlink(missing_ok=True)
-        args = [self.exe, STD_DIR, str(path), str(out)] + ([] if checked else ["--unchecked"])
+        args = [self.exe, "build", str(path), "-o", str(out)] + ([] if checked else ["--unchecked"])
         r = subprocess.run([*under, *args], capture_output=True, timeout=600)
         self.assertEqual(r.stderr.decode(), "".join(d.human() + "\n" for d in diagnostics))
         self.assertEqual(r.returncode, 0 if want is not None else 1)
@@ -912,14 +931,8 @@ class Cli(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        tool = build_tool("Pst")
-        cls.dir = Path(tempfile.mkdtemp(dir=_TMP.name))
-        cls.exe = str(cls.dir / "bin" / "pst")
-        os.makedirs(cls.dir / "bin")
-        shutil.move(tool, cls.exe)
-        os.symlink(STD_DIR, cls.dir / "bin" / "units")
-        cls.work = cls.dir / "work"
-        os.makedirs(cls.work)
+        cls.exe = pst_tool()
+        cls.work = Path(tempfile.mkdtemp(dir=_TMP.name))
         for name, text in cls.PROGRAMS.items():
             (cls.work / name).write_text(text)
 
@@ -975,17 +988,18 @@ class Bootstrap(unittest.TestCase):
     are the same executable, byte for byte."""
 
     def test_fixpoint(self):
-        stage0 = build_tool("Build")
-        source = str(COMPILER / "Build.pst")
-        previous = Path(stage0).read_bytes()
-        compiler = stage0
+        compiler = pst_tool()
+        source = str(COMPILER / "Pst.pst")
+        previous = Path(compiler).read_bytes()
         for stage in (1, 2):
-            out = os.path.join(_TMP.name, f"Build{stage}")
-            r = subprocess.run([compiler, STD_DIR, source, out], capture_output=True, timeout=600)
+            where = Path(_TMP.name, f"stage{stage}")
+            out = os.path.join(_TMP.name, f"pst{stage}")
+            r = subprocess.run([compiler, "build", source, "-o", out], capture_output=True,
+                               timeout=600)
             self.assertEqual((r.returncode, r.stderr.decode()), (0, ""))
             got = Path(out).read_bytes()
             self.assertTrue(got == previous, f"stage {stage} differs from stage {stage - 1}")
-            previous, compiler = got, out
+            previous, compiler = got, install(out, where)
 
 
 del _Differential
