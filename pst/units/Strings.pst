@@ -5,7 +5,7 @@ unit Strings
 extern "pst"
     ## The UTF-8 bytes of a string.
     export function bytes(s: String): List[Byte]
-    ## Number of characters (code points). O(n).
+    ## Number of characters (code points). O(1).
     export function charCount(s: String): Integer
     ## Number of bytes. O(1).
     export function byteLen(s: String): Integer

@@ -723,7 +723,8 @@ repeat
 until line = "quit"
 ```
 `until` sits at the same indentation as `repeat` and closes the block. The condition can
-use variables declared in the body.
+use variables declared in the body. So `continue` isn't allowed in a `repeat` body
+(`E0506`): it would reach the condition past declarations that didn't run.
 
 ### 7.5 for
 ```pascal
@@ -764,7 +765,7 @@ case expr of
 Expression forms of `if` and `case` are described in §9.3.
 
 ### 7.7 break / continue / return
-As usual. `break`/`continue` apply to the innermost loop.
+As usual. `break`/`continue` apply to the innermost loop (`continue` not in `repeat`, §7.4).
 
 ### 7.8 defer
 ```pascal
@@ -956,7 +957,7 @@ extern "libc.so.6"
 extern "libm.so.6"
     function cos(x: CDouble): CDouble
 ```
-- Every library becomes a `DT_NEEDED` entry in the output ELF. Symbols are bound via PLT/GOT.
+- Every library becomes a `DT_NEEDED` entry in the output ELF. Symbols are bound at load time through the GOT (no PLT, no lazy binding).
 - `as "symbol"` binds a declaration to a C symbol with a different name. Without `as`, the
   Pasthon name is the symbol name. Use it for symbols that aren't valid Pasthon names
   (leading `_`, or casing that breaks `E0020`):
@@ -997,7 +998,8 @@ function requires no marker. Unsafe code is greppable, not contagious.
 - Increments and decrements are inserted by the compiler. Destruction is deterministic: memory is freed as soon as the last owner goes away.
 - **No cycle collector.** Strong cycles leak, so use `Weak[T]`.
 - Records, arrays, enums, unions, and primitives live inline (stack or embedded).
-- Heap allocation goes through libc `malloc`/`free`.
+- Heap allocation goes through libc `malloc`/`free`. If `malloc` fails, the program prints
+  `panic: out of memory` to stderr and exits with status 70.
 - Refcounts are **not atomic**. Every heap object belongs to exactly one thread (§11.2).
 
 ### 11.1 Destroy hooks and resource records
@@ -1148,7 +1150,7 @@ encoding the client negotiates (§15.4).
 4. **Emit pass**: walk the typed AST and emit x86-64 machine code directly with a simple
    stack-based expression scheme. No IR, no optimizer.
 5. **Link**: the compiler writes the ELF itself (`PT_INTERP` = `/lib64/ld-linux-x86-64.so.2`,
-   dynamic section, PLT/GOT for extern symbols, the runtime embedded as precompiled code).
+   dynamic section, a GOT for extern symbols, the runtime emitted along with the program).
 
 Checked build (default): bounds, overflow, subrange, contracts. `--unchecked` drops all of
 them except `assert`.
@@ -1412,6 +1414,7 @@ already has a lexical error are not reported.
 | `E0503` | `return` without a value in a function, or with one elsewhere |
 | `E0504` | `break` / `continue` outside a loop |
 | `E0505` | `try` on a non-Option/Result, or in a function not returning a matching Option/Result |
+| `E0506` | `continue` in a `repeat` loop (§7.4) |
 | `E0510` | ambiguous overloaded call |
 | `E0511` | no overload matches (argument count, names, or types) |
 | `E0520` | dot call of a routine whose first parameter is `var` (fix: `f(var a, ...)`) |

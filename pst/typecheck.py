@@ -695,7 +695,7 @@ class TypeChecker:
             info = self.loop(s.body)
             return isinstance(s.cond, A.BoolLit) and s.cond.value and not info["broke"]
         elif isinstance(s, A.Repeat):
-            self.loops.append({"broke": False})
+            self.loops.append({"broke": False, "repeat": True})
             ends = self.stmts(s.body.stmts)
             info = self.loops.pop()
             self.check(s.cond, BOOLEAN)
@@ -715,6 +715,8 @@ class TypeChecker:
                 self.error("E0504", s.span, f"'{word}' outside a loop")
             elif isinstance(s, A.Break):
                 self.loops[-1]["broke"] = True
+            elif self.loops[-1].get("repeat"):
+                self.error("E0506", s.span, "'continue' isn't allowed in a 'repeat' loop")
         elif isinstance(s, A.Return):
             self.return_stmt(s)
             return True

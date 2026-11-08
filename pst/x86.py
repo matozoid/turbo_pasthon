@@ -35,8 +35,9 @@ class Assembler:
         self.rodata = bytearray()
         self.labels: dict[str, int] = {}  # code labels -> offset in code
         self.data_labels: dict[str, int] = {}  # -> offset in rodata
-        self._fixups: list[tuple[int, str, bool]] = []  # (position of rel32, label, is_data)
+        self._fixups: list[tuple[int, str, str]] = []  # (position of rel32, label, kind)
         self._strings: dict[bytes, str] = {}
+        self.imports: list[str] = []  # libc functions, in GOT order
         self._n = 0
 
     # ------------------------------------------------------------------ labels
@@ -62,16 +63,18 @@ class Assembler:
         self._strings[value] = name
         return name
 
-    def _rel32(self, label: str, is_data: bool = False) -> None:
-        self._fixups.append((len(self.code), label, is_data))
+    def _rel32(self, label: str, kind: str = "code") -> None:
+        self._fixups.append((len(self.code), label, kind))
         self.code += b"\0\0\0\0"
 
-    def finish(self, rodata_offset: int) -> bytes:
-        """Resolves labels. ``rodata_offset`` is where the data starts, counted from the
-        start of the code."""
-        for pos, label, is_data in self._fixups:
-            if is_data:
+    def finish(self, rodata_offset: int, got_offset: int = 0) -> bytes:
+        """Resolves labels. ``rodata_offset`` and ``got_offset`` are where the data and
+        the GOT start, counted from the start of the code."""
+        for pos, label, kind in self._fixups:
+            if kind == "data":
                 target = rodata_offset + self.data_labels[label]
+            elif kind == "got":
+                target = got_offset + 8 * self.imports.index(label)
             else:
                 if label not in self.labels:
                     raise ValueError(f"undefined label {label}")
@@ -141,13 +144,33 @@ class Assembler:
         self._mem(b"\xc6", 0, base, disp, w=False)
         self.emit(value & 0xFF)
 
+    def store_imm(self, base: int, disp: int, value: int) -> None:
+        """`mov qword [base + disp], imm32` (sign-extended)."""
+        self._mem(b"\xc7", 0, base, disp)
+        self.code += _i32(value)
+
+    def load8(self, dst: int, base: int, disp: int = 0) -> None:
+        """`movzx dst32, byte [base + disp]`."""
+        self._mem(b"\x0f\xb6", dst, base, disp, w=False)
+
+    def inc_mem(self, base: int, disp: int = 0) -> None:
+        self._mem(b"\xff", 0, base, disp)
+
+    def dec_mem(self, base: int, disp: int = 0) -> None:
+        self._mem(b"\xff", 1, base, disp)
+
+    def cmp_mem_imm(self, base: int, disp: int, value: int) -> None:
+        """`cmp qword [base + disp], imm8`."""
+        self._mem(b"\x83", 7, base, disp)
+        self.emit(value & 0xFF)
+
     def lea(self, dst: int, base: int, disp: int) -> None:
         self._mem(b"\x8d", dst, base, disp)
 
     def lea_data(self, dst: int, label: str) -> None:
         """`lea dst, [rip + label]` for a rodata label."""
         self.emit(_rex(True, dst, 0), 0x8D, 0x05 | (dst & 7) << 3)
-        self._rel32(label, is_data=True)
+        self._rel32(label, "data")
 
     def add(self, dst: int, src: int) -> None:
         self._rr(0x01, dst, src)
@@ -160,6 +183,10 @@ class Assembler:
 
     def test(self, a: int, b: int) -> None:
         self._rr(0x85, a, b)
+
+    def test32(self, a: int, b: int) -> None:
+        """`test` of the low 32 bits (for C `int` results)."""
+        self._rr(0x85, a, b, w=False)
 
     def imul(self, dst: int, src: int) -> None:
         """`imul dst, src` (signed; sets OF on overflow)."""
@@ -174,10 +201,6 @@ class Assembler:
     def idiv(self, r: int) -> None:
         """Signed rdx:rax / r: quotient in rax, remainder in rdx."""
         self._unary(7, r)
-
-    def div(self, r: int) -> None:
-        """Unsigned rdx:rax / r."""
-        self._unary(6, r)
 
     def cqo(self) -> None:
         """Sign-extends rax into rdx."""
@@ -207,6 +230,22 @@ class Assembler:
         if dst >= 8:
             self.emit(0x41)
         self.emit(0x83, 0xF0 | (dst & 7), value & 0xFF)
+
+    def _alu32_imm(self, ext: int, dst: int, value: int) -> None:
+        """A 32-bit ALU op with an imm32 (no sign extension into the upper half)."""
+        if dst >= 8:
+            self.emit(0x41)
+        self.emit(0x81, 0xC0 | ext << 3 | (dst & 7))
+        self.code += _i32(value)
+
+    def or32_imm(self, dst: int, value: int) -> None:
+        self._alu32_imm(1, dst, value)
+
+    def and32_imm(self, dst: int, value: int) -> None:
+        self._alu32_imm(4, dst, value)
+
+    def shr_imm(self, dst: int, n: int) -> None:
+        self.emit(_rex(True, 0, dst), 0xC1, 0xE8 | (dst & 7), n)
 
     def sub_imm32_fixed(self, dst: int) -> int:
         """`sub dst, imm32` with the immediate patched later; returns its position."""
@@ -244,6 +283,9 @@ class Assembler:
     def cmp_imm(self, dst: int, value: int) -> None:
         self._alu_imm(7, dst, value)
 
+    def and_imm(self, dst: int, value: int) -> None:
+        self._alu_imm(4, dst, value)
+
     def push(self, r: int) -> None:
         if r >= 8:
             self.emit(0x41)
@@ -258,6 +300,13 @@ class Assembler:
         self.emit(0xE8)
         self._rel32(label)
 
+    def call_import(self, name: str) -> None:
+        """`call [rip + GOT slot]` for a libc function."""
+        if name not in self.imports:
+            self.imports.append(name)
+        self.emit(0xFF, 0x15)
+        self._rel32(name, "got")
+
     def jmp(self, label: str) -> None:
         self.emit(0xE9)
         self._rel32(label)
@@ -268,6 +317,3 @@ class Assembler:
 
     def ret(self) -> None:
         self.emit(0xC3)
-
-    def syscall(self) -> None:
-        self.emit(0x0F, 0x05)

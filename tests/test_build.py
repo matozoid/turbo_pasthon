@@ -1,5 +1,6 @@
 import os
 import platform
+import shutil
 import subprocess
 import tempfile
 import textwrap
@@ -18,23 +19,26 @@ def tearDownModule():
     _TMP.cleanup()
 
 
-def compile_program(body: str, checked: bool = True):
+def compile_program(body: str, checked: bool = True, uses: str = "IO"):
     """Checks and builds a program; returns (BuildResult, temp dir)."""
     tmp = tempfile.mkdtemp(dir=_TMP.name)
     path = Path(tmp, "Main.pst")
-    path.write_text("program Main\n\nuses IO\n\n" + textwrap.dedent(body).lstrip("\n"))
+    path.write_text(f"program Main\n\nuses {uses}\n\n" + textwrap.dedent(body).lstrip("\n"))
     result = check(str(path))
     assert not result.has_errors, [d.human() for d in result.diagnostics]
     return build(result, checked), tmp
 
 
-def run_program(body: str, *args: str, checked: bool = True) -> subprocess.CompletedProcess:
-    built, tmp = compile_program(body, checked)
+def run_program(
+    body: str, *args: str, checked: bool = True, uses: str = "IO", under: tuple = ()
+) -> subprocess.CompletedProcess:
+    """Builds and runs a program, optionally under a tool such as valgrind."""
+    built, tmp = compile_program(body, checked, uses)
     assert built.executable is not None, [d.human() for d in built.diagnostics]
     exe = os.path.join(tmp, "main")
     Path(exe).write_bytes(built.executable)
     os.chmod(exe, 0o755)
-    return subprocess.run([exe, *args], capture_output=True, timeout=10)
+    return subprocess.run([*under, exe, *args], capture_output=True, timeout=60)
 
 
 class Encoding(unittest.TestCase):
@@ -57,12 +61,12 @@ class Encoding(unittest.TestCase):
         a.jcc("ne", "l")
         a.jmp("l")
         a.call("l")
-        a.syscall()
+        a.test32(RAX, R8)
         a.ret()
         expected = (  # checked with objdump
             "b801000000 49b90000000000010000 48c7c1ffffffff 4989c0 4154 5b 4883c408"
             " 4981efe8030000 4883f8fc 4829d0 4d85d2 4531db 488d35c5000000"
-            " 0f85faffffff e9f5ffffff e8f0ffffff 0f05 c3"
+            " 0f85faffffff e9f5ffffff e8f0ffffff 4485c0 c3"
         )
         self.assertEqual(a.finish(0x100).hex(), expected.replace(" ", ""))
 
@@ -248,17 +252,145 @@ class Panics(unittest.TestCase):
             """, checked=False)  # fmt: skip
         self.assertEqual((p.returncode, p.stdout), (0, b"0\n"))
 
+    def test_slice_offsets(self):
+        for args, code in [("0, 2", "P0006"), ("2, 9", "P0001"), ("3, 1", "P0001"), ("-1, 1", "P0001")]:
+            with self.subTest(args):
+                err = self.panic(f'writeln(slice("h\u00e9llo", {args}))', uses="IO, Strings")
+                self.assertTrue(err.startswith(f"panic {code}: "), err)
+                self.assertTrue(err.endswith("at Main.pst:5:9\n"), err)
+        err = self.panic('writeln(slice("h\u00e9llo", 2, 3))', checked=False, uses="IO, Strings")
+        self.assertIn("P0006: slice offset is not on a character boundary", err)
+
     def test_assert_stays_in_unchecked_builds(self):
         err = self.panic('assert 1 + 1 = 3, "math"', checked=False)
         self.assertEqual(err, "panic P0020: assertion failed: 1 + 1 = 3: math\n    at Main.pst:5:1\n")
 
 
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class Strings(unittest.TestCase):
+    def output(self, body: str, **kw) -> str:
+        p = run_program(body, uses="IO, Strings", **kw)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return p.stdout.decode()
+
+    def test_values(self):
+        out = self.output("""
+            function greet(name: String, punct: Char := '!'): String
+                let g := "Hello, {name}{punct}"
+                return g
+
+            procedure append(var s: String, tail: String)
+                s := "{s}{tail}"
+
+            var s := "ab"
+            let t := s
+            s := "{s}c"
+            writeln("{s} {t}")
+            writeln(greet("w\u00f6rld"))
+            writeln(greet("x", punct: '\u00e9'))
+            var acc := ""
+            for i := 1 to 4 do
+                append(var acc, tail: toString(i))
+            writeln(acc)
+            writeln("{toString(-12)} {toString(true)} {toString('\u20ac')} {'\U0001F600'} {ord('A')}")
+            writeln(if acc = "1234" then "same" else acc)
+            """)
+        self.assertEqual(
+            out, "abc ab\nHello, w\u00f6rld!\nHello, x\u00e9\n1234\n-12 true \u20ac \U0001F600 65\nsame\n"
+        )
+
+    def test_comparisons(self):
+        out = self.output("""
+            let e := ""
+            writeln("{'a' < 'b'} {"abc" < "abd"} {"ab" < "abc"} {"b" > "abc"} {"x" = "x"}")
+            writeln("{e = ""} {"a" <> "a"} {"\u00e9" > "z"} {e < "a"} {"b" >= "b"}")
+            """)
+        self.assertEqual(out, "true true true true true\ntrue false true true true\n")
+
+    def test_strings_unit(self):
+        out = self.output("""
+            let s := "h\u00e9llo"
+            writeln("{s.byteLen()} {s.charCount()} {slice(s, 0, 3)}|{slice(s, 3, 6)}|{slice(s, 6, 6)}|")
+            writeln("{slice(s, 1, 3).charCount()} {startsWith(s, prefix: "h\u00e9")}")
+            writeln("{startsWith("he", prefix: "hello")} {startsWith("x", prefix: "")}")
+            """)
+        self.assertEqual(out, "6 5 h\u00e9|llo||\n1 true\nfalse true\n")
+
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_reference_counting(self):
+        """Every string is freed exactly once, however its block is left."""
+        out = self.output("""
+            const
+                Name = "pst"
+                Banner = "<{Name}>"
+
+            function find(s: String): Integer
+                for i := 0 to s.byteLen() - 1 do
+                    let rest := slice(s, i, s.byteLen())
+                    var j := 0
+                    while true do
+                        let tmp := "{rest}{j}"
+                        if startsWith(tmp, prefix: "x") then
+                            return i
+                        j := j + 1
+                        if j > 2 then
+                            break
+                return -1
+
+            procedure shout(var s: String)
+                ensures s.byteLen() = old(s).byteLen() + 1
+                ensures startsWith(s, prefix: old(s))
+                s := "{s}!"
+
+            function pick(b: Boolean): String
+                return if b then "yes {Banner}" else Name
+
+            writeln("{find("abxd")} {find("ab")}")
+            var s := "hey"
+            shout(var s)
+            shout(var s)
+            s := s
+            writeln(s)
+            writeln("{pick(true)} {pick(false)} {Banner}")
+            var k := 0
+            repeat
+                let a := "a{k}"
+                k := k + 1
+                for i := 1 to 3 do
+                    let w := "{a}{i}"
+                    if w = "a12" then
+                        break
+                    if i = 1 then
+                        continue
+                    _ := w
+                let b := "{a}b"
+                if b = "a3b" then
+                    break
+            until a = "a5"
+            writeln(k)
+            _ := pick(true)
+            """, under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))  # fmt: skip
+        self.assertEqual(out, "2 -1\nhey!!\nyes <pst> pst <pst>\n4\n")
+
+    def test_many_strings(self):
+        out = self.output("""
+            var n := 0
+            var y := ""
+            while n < 1000000 do
+                let x := "n = {n}"
+                y := "{x}!"
+                n := n + 1
+            writeln(y)
+            """)
+        self.assertEqual(out, "n = 999999!\n")
+
+
 class Unsupported(unittest.TestCase):
     def test_reported_at_the_construct(self):
         built, _ = compile_program("""
-            let s := "text"
-            writeln(s)
-            _ := 1.5
+            let r := 1.5
+            writeln(r)
+            _ := 2.5
             """)
         self.assertIsNone(built.executable)
         self.assertEqual(

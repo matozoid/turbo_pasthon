@@ -232,6 +232,20 @@ class Errors(unittest.TestCase):
                 return try half(x)
             """), [("E0505", 5, 12)])
 
+    def test_no_continue_in_repeat(self):
+        self.assertEqual(errs("""
+            var n := 0
+            repeat
+                n := n + 1
+                while n < 3 do
+                    n := n + 1
+                    continue
+                if n = 5 then
+                    continue
+                let done := n > 7
+            until done
+            """), [("E0506", 8, 9)])
+
     def test_assign_immutable_and_branches(self):
         self.assertEqual(errs("""
             let a := 1

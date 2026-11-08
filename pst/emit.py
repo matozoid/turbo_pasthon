@@ -4,19 +4,30 @@ The code generator grows construct by construct. Anything it can't compile yet i
 reported as `E0990` at the construct, so a program either builds correctly or not at all.
 
 Supported so far:
-- values of type Integer and Boolean: literals, constants, locals, parameters (`var` ones
-  too), arithmetic with overflow checks, comparisons, `and`/`or`/`not`, `if` expressions;
+- values of type Integer, Boolean, Char and String: literals, constants, locals,
+  parameters (`var` ones too), arithmetic with overflow checks, comparisons,
+  `and`/`or`/`not`, `if` expressions, string interpolation;
 - statements: `var`/`let`, assignment, `if`, `while`, `repeat`, `for ... to/downto`,
   `break`, `continue`, `return`, `assert`, `_ := e`, calls;
 - non-generic routines (up to 6 parameters), with defaults, named arguments, dot calls,
   and contracts;
-- built-ins: `write`/`writeln` (string literals, interpolation, Integer, Boolean),
-  `halt`, `inc`, `dec`.
+- built-ins: `write`/`writeln`, `toString`, `ord` of a Char, `halt`, `inc`, `dec`, and
+  `byteLen`, `charCount`, `slice`, `startsWith` from `Strings`.
 
 Scheme (SPEC §15.2: no IR, no optimizer): every expression leaves its value in rax;
 binary operators push the left operand while the right one is computed. Each routine has
 an rbp frame with one 8-byte slot per local. Calls follow System V: arguments in rdi, rsi,
 rdx, rcx, r8, r9, result in rax. A `var` argument is passed as the address of its place.
+
+Strings (SPEC §4.6, §11) are pointers to reference-counted heap blocks:
+
+    refcount (8) | byte length (8) | char count (8) | UTF-8 bytes | NUL
+
+Literals live in read-only data with refcount -1, which retain and release ignore.
+Reference counting follows one rule: every expression produces an *owned* reference.
+Reading a variable retains; whoever consumes a value releases it or stores it. Callees
+own their arguments and release them on exit. Locals are released when their block ends
+(or a `return`, `break` or `continue` leaves it).
 
 Panics (SPEC §12) print `panic P0002: integer overflow` and the source position to
 stderr, then exit with status 70. Each panic site has its own out-of-line stub.
@@ -25,6 +36,7 @@ stderr, then exit with status 70. Each panic site has its own out-of-line stub.
 from __future__ import annotations
 
 import os
+import struct
 from dataclasses import dataclass, field
 
 from . import ast as A
@@ -32,18 +44,25 @@ from . import elf
 from .diagnostics import Diagnostic, Severity
 from .resolve import CheckResult
 from .symbols import Kind, Symbol
-from .types import BOOLEAN, INTEGER, VOID, has_error, show
-from .x86 import R8, R9, RAX, RBP, RCX, RDI, RDX, RSI, RSP, Assembler
+from .types import BOOLEAN, CHAR, INTEGER, STRING, VOID, has_error, show
+from .x86 import (
+    R8, R9, R10, R11, R12, R13, R14, R15, RAX, RBP, RBX, RCX, RDI, RDX, RSI, RSP, Assembler,
+)  # fmt: skip
 
-_SYS_WRITE = 1
-_SYS_EXIT_GROUP = 231
-_EINTR = 4
 _PANIC_STATUS = 70
 _ARG_REGS = (RDI, RSI, RDX, RCX, R8, R9)
+_CALLER_SAVED = (RAX, RCX, RDX, RSI, RDI, R8, R9, R10, R11)
 _DECLS = (A.TypeSection, A.ConstSection, A.Routine, A.ExternBlock, A.TestBlock)
-_VALUES = (INTEGER, BOOLEAN)  # the types the code generator handles so far
+_VALUES = (INTEGER, BOOLEAN, CHAR, STRING)  # the types the code generator handles so far
+_TO_STRING = {INTEGER: "rt_int_to_str", BOOLEAN: "rt_bool_to_str", CHAR: "rt_char_to_str"}
 _COMPARE = {"=": "e", "<>": "ne", "<": "l", "<=": "le", ">": "g", ">=": "ge"}
-_SWAPPED = {"l": "g", "le": "ge", "g": "l", "ge": "le", "e": "e", "ne": "ne"}
+# String block layout.
+_RC, _LEN, _CHARS, _BYTES = 0, 8, 16, 24
+
+
+def managed(t) -> bool:
+    """Whether values of type ``t`` are reference counted."""
+    return t == STRING
 
 
 @dataclass
@@ -54,7 +73,7 @@ class BuildResult:
 
 def build(result: CheckResult, checked: bool = True) -> BuildResult:
     """Compiles a checked program. ``result`` must have no errors. ``checked`` keeps the
-    runtime checks that `--unchecked` drops (overflow, contracts)."""
+    runtime checks that `--unchecked` drops (overflow, bounds, contracts)."""
     if result.main is None or result.has_errors:
         raise ValueError("build needs a program that checked without errors")
     return Emitter(result, checked).run()
@@ -62,6 +81,13 @@ def build(result: CheckResult, checked: bool = True) -> BuildResult:
 
 class _Unsupported(Exception):
     """Raised to abandon the construct being compiled after reporting E0990."""
+
+
+@dataclass
+class _Loop:
+    brk: str
+    cont: str
+    depth: int  # scopes outside the loop's body
 
 
 @dataclass
@@ -73,7 +99,10 @@ class _Frame:
     exit: str  # label of the epilogue
     slots: dict = field(default_factory=dict)  # Symbol or key -> rbp offset
     size: int = 0
-    loops: list = field(default_factory=list)  # (break label, continue label)
+    # Reference-counted slots per open block, innermost last. The first holds the
+    # parameters and `old` values, released in the epilogue.
+    scopes: list = field(default_factory=lambda: [[]])
+    loops: list = field(default_factory=list)
     result_slot: int | None = None
     ensures: list = field(default_factory=list)
     old: dict = field(default_factory=dict)  # id(old call) -> slot
@@ -147,6 +176,35 @@ class Emitter:
         self._panics.append((label, text.encode("utf-8")))
         return label
 
+    def literal(self, text: str) -> str:
+        """The data label of an immortal string block holding ``text``."""
+        data = text.encode("utf-8")
+        block = struct.pack("<qQQ", -1, len(data), len(text)) + data + b"\0"
+        return self.asm.data(block, align=8)
+
+    def retain(self) -> None:
+        """Adds a reference to the string in rax."""
+        self.asm.call(self.runtime("rt_retain"))
+
+    def release(self, reg: int = RAX) -> None:
+        """Drops a reference to the string in ``reg``. Preserves every register."""
+        if reg != RDI:
+            self.asm.mov(RDI, reg)
+        self.asm.call(self.runtime("rt_release"))
+
+    def drop(self, n: int) -> None:
+        """Pops ``n`` owned references off the stack and releases them; keeps rax."""
+        for _ in range(n):
+            self.asm.pop(RDI)
+            self.release(RDI)
+
+    def release_scopes(self, depth: int) -> None:
+        """Releases the variables of the blocks above ``depth``, innermost first."""
+        for scope in reversed(self.f.scopes[depth:]):
+            for slot in reversed(scope):
+                self.asm.load(RDI, RBP, slot)
+                self.release(RDI)
+
     # --------------------------------------------------------------------- driver
 
     def run(self) -> BuildResult:
@@ -161,7 +219,9 @@ class Emitter:
         a.label("_start")
         a.mov(RBP, RSP)
         size_at = a.sub_imm32_fixed(RSP)
-        self.stmts([i for i in self.main.tree.items if not isinstance(i, _DECLS)])
+        self.block(A.Block(self.main.tree.span, [
+            i for i in self.main.tree.items if not isinstance(i, _DECLS)
+        ]))  # fmt: skip
         a.label(self.f.exit)
         a.xor32(RDI, RDI)
         self.exit()
@@ -173,12 +233,14 @@ class Emitter:
             a.label(label)
             a.lea_data(RSI, a.data(message))
             a.mov_imm(RDX, len(message))
-            a.jmp(self.runtime("rt_panic", self.rt_panic))
+            a.jmp(self.runtime("rt_panic"))
         self.emit_runtime()
         if self.diagnostics:
             return BuildResult(None, self.diagnostics)
-        code = a.finish(elf.rodata_offset(len(a.code)))
-        return BuildResult(elf.executable(code, bytes(a.rodata), a.labels["_start"]))
+        got = elf.got_offset(len(a.code), len(a.rodata), a.imports)
+        code = a.finish(elf.rodata_offset(len(a.code)), got)
+        exe = elf.executable(code, bytes(a.rodata), a.labels["_start"], a.imports)
+        return BuildResult(exe)
 
     def label_of(self, sym: Symbol) -> str:
         if sym not in self._labels:
@@ -200,7 +262,10 @@ class Emitter:
                 if p.sym is None:
                     self.unsupported(node.sig, "this kind of parameter")
                 self.value_type(p.type, node.sig.name, f"parameter '{p.name}'")
-                a.store(RBP, f.alloc(p.sym), _ARG_REGS[i])
+                slot = f.alloc(p.sym)
+                a.store(RBP, slot, _ARG_REGS[i])
+                if managed(p.type) and not p.is_var:
+                    f.scopes[0].append(slot)
             if sig.is_function:
                 self.value_type(sig.result, node.sig.result, "a result")
             if self.checked:
@@ -213,7 +278,7 @@ class Emitter:
                     f.result_slot = f.alloc("result")
                     for e in node.ensures:
                         self.save_old(e)
-            self.stmts(node.body.stmts)
+            self.block(node.body)
             a.label(f.exit)
             if f.ensures:
                 a.store(RBP, f.result_slot, RAX)
@@ -222,6 +287,7 @@ class Emitter:
                     a.test(RAX, RAX)
                     a.jcc("e", self.panic("P0011", f"ensures violated: {self.text(e)}", e.span))
                 a.load(RAX, RBP, f.result_slot)
+            self.release_scopes(0)
         except _Unsupported:
             if f.exit not in a.labels:
                 a.label(f.exit)
@@ -232,10 +298,12 @@ class Emitter:
     def save_old(self, e) -> None:
         """Evaluates the `old(x)` calls of an `ensures` on entry."""
         if isinstance(e, A.Call) and self.is_old(e):
-            arg = e.args[0].value
-            self.expr(arg)
-            self.asm.store(RBP, self.f.alloc(("old", id(e))), RAX)
-            self.f.old[id(e)] = self.f.slots[("old", id(e))]
+            self.expr(e.args[0].value)
+            slot = self.f.alloc(("old", id(e)))
+            self.asm.store(RBP, slot, RAX)
+            self.f.old[id(e)] = slot
+            if managed(self.type(e)):
+                self.f.scopes[0].append(slot)
             return
         for child in _children(e):
             self.save_old(child)
@@ -257,7 +325,11 @@ class Emitter:
                 pass
 
     def block(self, body) -> None:
+        """Compiles a block; its variables are released at its end."""
+        self.f.scopes.append([])
         self.stmts(body.stmts if isinstance(body, A.Block) else [body])
+        self.release_scopes(len(self.f.scopes) - 1)
+        self.f.scopes.pop()
 
     def local(self, span) -> int:
         sym = self.ref(span)
@@ -269,15 +341,23 @@ class Emitter:
             sym = self.ref(s.name.span)
             self.value_type(sym.type if sym else None, s.name, f"variable '{s.name.name}'")
             self.expr(s.value)
-            a.store(RBP, self.local(s.name.span), RAX)
+            slot = self.local(s.name.span)
+            a.store(RBP, slot, RAX)
+            if managed(sym.type):
+                self.f.scopes[-1].append(slot)
         elif isinstance(s, A.Assign):
             self.expr(s.value)
             a.push(RAX)
             self.address(s.target)
             a.pop(RCX)
+            if managed(self.type(s.value)):
+                a.load(RDI, RAX)
+                self.release(RDI)
             a.store(RAX, 0, RCX)
         elif isinstance(s, A.Discard):
             self.expr(s.value)
+            if managed(self.type(s.value)):
+                self.release()
         elif isinstance(s, A.ExprStmt):
             if not isinstance(s.expr, A.Call):
                 self.unsupported(s, "this statement")
@@ -305,22 +385,17 @@ class Emitter:
             a.jmp(top)
             a.label(end)
         elif isinstance(s, A.Repeat):
-            top, cond, end = a.new_label("repeat"), a.new_label("until"), a.new_label("rend")
-            a.label(top)
-            self.loop(s.body, end, cond)
-            a.label(cond)
-            self.expr(s.cond)
-            a.test(RAX, RAX)
-            a.jcc("e", top)
-            a.label(end)
+            self.repeat(s)
         elif isinstance(s, A.ForRange):
             self.for_range(s)
         elif isinstance(s, (A.Break, A.Continue)):
-            brk, cont = self.f.loops[-1]
-            a.jmp(brk if isinstance(s, A.Break) else cont)
+            loop = self.f.loops[-1]
+            self.release_scopes(loop.depth)
+            a.jmp(loop.brk if isinstance(s, A.Break) else loop.cont)
         elif isinstance(s, A.Return):
             if s.value is not None:
                 self.expr(s.value)
+            self.release_scopes(1)  # the parameters are released after `ensures`
             a.jmp(self.f.exit)
         elif isinstance(s, A.Assert):
             message = f"assertion failed: {self.text(s.cond)}"
@@ -335,14 +410,33 @@ class Emitter:
             self.unsupported(s, f"the '{type(s).__name__}' statement")
 
     def loop(self, body, brk: str, cont: str) -> None:
-        self.f.loops.append((brk, cont))
+        self.f.loops.append(_Loop(brk, cont, len(self.f.scopes)))
         self.block(body)
         self.f.loops.pop()
+
+    def repeat(self, s: A.Repeat) -> None:
+        """The `until` condition sees the body's variables, so the body's block is
+        released after it. (`continue` isn't allowed in `repeat`, SPEC §7.4.)"""
+        a = self.asm
+        top, end = a.new_label("repeat"), a.new_label("rend")
+        depth = len(self.f.scopes)
+        a.label(top)
+        self.f.scopes.append([])
+        self.f.loops.append(_Loop(end, end, depth))
+        self.stmts(s.body.stmts)
+        self.f.loops.pop()
+        try:
+            self.expr(s.cond)
+        finally:
+            self.release_scopes(depth)  # keeps rax
+            self.f.scopes.pop()
+        a.test(RAX, RAX)
+        a.jcc("e", top)
+        a.label(end)
 
     def for_range(self, s: A.ForRange) -> None:
         a = self.asm
         sym = self.ref(s.var.span)
-        self.value_type(sym.type if sym else None, s.var, "a loop variable")
         if sym is not None and sym.type != INTEGER:
             self.unsupported(s.var, f"a loop over {show(sym.type)}")
         var = self.local(s.var.span)
@@ -389,7 +483,7 @@ class Emitter:
     # --------------------------------------------------------------- expressions
 
     def expr(self, e) -> None:
-        """Computes ``e`` into rax."""
+        """Computes ``e`` into rax (an owned reference, for a string)."""
         t = self.type(e)
         if t is not None and t != VOID:
             self.value_type(t, e)
@@ -403,6 +497,15 @@ class Emitter:
 
     def e_BoolLit(self, e) -> None:
         self.asm.mov_imm(RAX, 1 if e.value else 0)
+
+    def e_CharLit(self, e) -> None:
+        self.asm.mov_imm(RAX, ord(e.value))
+
+    def e_StringLit(self, e) -> None:
+        self.asm.lea_data(RAX, self.literal(e.value))
+
+    def e_InterpString(self, e) -> None:
+        self.string_of(e.parts)
 
     def e_Paren(self, e) -> None:
         self.expr(e.inner)
@@ -431,13 +534,14 @@ class Emitter:
             return
         if sym.kind is Kind.RESULT and self.f.result_slot is not None:
             a.load(RAX, RBP, self.f.result_slot)
-            return
-        if sym in self.f.slots:
+        elif sym in self.f.slots:
             a.load(RAX, RBP, self.f.slots[sym])
             if self.is_var_param(sym):
                 a.load(RAX, RAX)
-            return
-        self.unsupported(e, f"using {sym.describe()} as a value")
+        else:
+            self.unsupported(e, f"using {sym.describe()} as a value")
+        if managed(self.type(e)):
+            self.retain()
 
     def e_Unary(self, e) -> None:
         a = self.asm
@@ -474,6 +578,16 @@ class Emitter:
         self.expr(e.left)
         a.push(RAX)
         self.expr(e.right)
+        if managed(self.type(e.left)) and op in _COMPARE:
+            a.push(RAX)
+            a.load(RDI, RSP, 8)
+            a.mov(RSI, RAX)
+            a.call(self.runtime("rt_str_cmp"))
+            self.drop(2)
+            a.cmp_imm(RAX, 0)
+            a.setcc(_COMPARE[op], RAX)
+            a.movzx8(RAX, RAX)
+            return
         a.mov(RCX, RAX)
         a.pop(RAX)
         if op in _COMPARE:
@@ -527,8 +641,35 @@ class Emitter:
     def e_Call(self, e) -> None:
         if id(e) in self.f.old:
             self.asm.load(RAX, RBP, self.f.old[id(e)])
+            if managed(self.type(e)):
+                self.retain()
             return
         self.call(e)
+
+    # ------------------------------------------------------------------- strings
+
+    def string_of(self, parts: list) -> None:
+        """Builds a new string from text and Printable expressions, into rax."""
+        a = self.asm
+        for p in parts:
+            if isinstance(p, str):
+                a.lea_data(RAX, self.literal(p))
+            else:
+                self.to_string(p)
+            a.push(RAX)
+        a.mov(RDI, RSP)
+        a.lea(RSI, RSP, 8 * len(parts))
+        a.call(self.runtime("rt_concat"))
+        a.add_imm(RSP, 8 * len(parts))
+
+    def to_string(self, e) -> None:
+        """Computes ``e`` and converts it to a String (`toString`)."""
+        t = self.type(e)
+        if t not in (STRING, *_TO_STRING):
+            self.unsupported(e, f"converting {show(t)} to a string")
+        self.expr(e)
+        if t in _TO_STRING:
+            self.asm.call(self.runtime(_TO_STRING[t]))
 
     # --------------------------------------------------------------------- calls
 
@@ -568,13 +709,21 @@ class Emitter:
         """Routines declared `extern "pst"`: implemented by the compiler."""
         a = self.asm
         args = [s.expr if s is not None else None for s in m.slots]
-        if sym.unit == "IO" and sym.name in ("write", "writeln"):
-            self.write(args[0] if args else None, newline=sym.name == "writeln")
-        elif sym.unit == "System" and sym.name == "halt":
+        name = (sym.unit, sym.name)
+        if name in (("IO", "write"), ("IO", "writeln")):
+            parts = [] if not args else _parts(args[0])
+            self.string_of(parts + (["\n"] if sym.name == "writeln" else []))
+            a.mov(RDI, RAX)
+            a.call(self.runtime("rt_write_str"))
+        elif name == ("System", "toString"):
+            self.to_string(args[0])
+        elif name == ("System", "ord") and self.type(args[0]) == CHAR:
+            self.expr(args[0])
+        elif name == ("System", "halt"):
             self.expr(args[0])
             a.mov(RDI, RAX)
             self.exit()
-        elif sym.unit == "System" and sym.name in ("inc", "dec"):
+        elif name in (("System", "inc"), ("System", "dec")):
             t = m.s.get(m.sig.tparams[0]) if m.sig.tparams else None
             if t != INTEGER:
                 self.unsupported(e, f"'{sym.name}' of {show(t)}")
@@ -589,58 +738,65 @@ class Emitter:
             (a.add if sym.name == "inc" else a.sub)(RDX, RCX)
             self.overflow(e.span)
             a.store(RAX, 0, RDX)
+        elif sym.name in ("byteLen", "charCount") and sym.unit in ("System", "Strings"):
+            self.expr(args[0])
+            a.push(RAX)
+            a.load(RAX, RAX, _LEN if sym.name == "byteLen" else _CHARS)
+            self.drop(1)
+        elif name == ("Strings", "startsWith"):
+            self.expr(args[0])
+            a.push(RAX)
+            self.expr(args[1])
+            a.push(RAX)
+            a.load(RDI, RSP, 8)
+            a.mov(RSI, RAX)
+            a.call(self.runtime("rt_starts_with"))
+            self.drop(2)
+        elif name == ("Strings", "slice"):
+            self.slice(e, args)
         else:
             self.unsupported(e, f"'{sym.name}'")
 
-    def write(self, arg, newline: bool) -> None:
-        """`write` / `writeln`: text pieces are written as they're computed."""
-        pending = ""
-        parts = arg.parts if isinstance(arg, A.InterpString) else [arg] if arg is not None else []
-        for p in parts:
-            if isinstance(p, A.StringLit):
-                p = p.value
-            if isinstance(p, str):
-                pending += p
-                continue
-            self.write_text(pending)
-            pending = ""
-            self.write_value(p)
-        self.write_text(pending + ("\n" if newline else ""))
-
-    def write_text(self, text: str) -> None:
-        if not text:
-            return
+    def slice(self, e, args) -> None:
+        """`slice(s, start, stop)`: offsets out of range panic with `P0001` (in checked
+        builds), offsets inside a character with `P0006`."""
         a = self.asm
-        data = text.encode("utf-8")
-        a.mov_imm(RDI, 1)
-        a.lea_data(RSI, a.data(data))
-        a.mov_imm(RDX, len(data))
-        a.call(self.runtime("rt_write", self.rt_write))
-
-    def write_value(self, e) -> None:
-        a = self.asm
-        t = self.type(e)
-        self.expr(e)
-        if t == INTEGER:
-            a.call(self.runtime("rt_write_int", self.rt_write_int))
-        elif t == BOOLEAN:
-            false = a.new_label("false")
-            a.mov_imm(RDI, 1)
-            a.lea_data(RSI, a.data(b"true"))
-            a.mov_imm(RDX, 4)
-            a.test(RAX, RAX)
-            a.jcc("ne", false)
-            a.lea_data(RSI, a.data(b"false"))
-            a.mov_imm(RDX, 5)
-            a.label(false)
-            a.call(self.runtime("rt_write", self.rt_write))
-        else:
-            self.unsupported(e, f"writing a value of type {show(t)}")
+        for arg in args:
+            self.expr(arg)
+            a.push(RAX)
+        a.pop(RDX)  # stop
+        a.pop(RSI)  # start
+        a.load(RDI, RSP)  # the string stays on the stack until released
+        if self.checked:
+            bounds = self.panic("P0001", "slice offsets out of bounds", e.span)
+            a.cmp(RSI, RDX)  # unsigned: a negative start is out of range too
+            a.jcc("a", bounds)
+            a.load(RCX, RDI, _LEN)
+            a.cmp(RDX, RCX)
+            a.jcc("a", bounds)
+        inside = self.panic("P0006", "slice offset is not on a character boundary", e.span)
+        for reg in (RSI, RDX):
+            ok = a.new_label("ok")
+            a.load(RCX, RDI, _LEN)
+            a.cmp(reg, RCX)
+            a.jcc("ae", ok)  # the end, or out of range in an unchecked build
+            a.mov(RCX, RDI)
+            a.add(RCX, reg)
+            a.load8(RCX, RCX, _BYTES)
+            a.and32_imm(RCX, 0xC0)
+            a.cmp_imm(RCX, 0x80)  # a continuation byte
+            a.jcc("e", inside)
+            a.label(ok)
+        a.call(self.runtime("rt_slice"))
+        self.drop(1)
 
     # ----------------------------------------------------------------- runtime
+    # Runtime routines are emitted once, after the program, if something uses them.
+    # They call libc for memory, copying, comparing, number formatting and I/O.
 
-    def runtime(self, label: str, emitter) -> str:
-        self._runtime.setdefault(label, emitter)
+    def runtime(self, label: str) -> str:
+        """Marks the runtime routine ``label`` (a method of this class) as used."""
+        self._runtime.setdefault(label, getattr(self, label))
         return label
 
     def emit_runtime(self) -> None:
@@ -652,73 +808,343 @@ class Emitter:
                     self.asm.label(label)
                     emitter()
 
+    def ccall(self, name: str) -> None:
+        """Calls a libc function, with the stack aligned as the C ABI requires (and al = 0
+        for variadic ones)."""
+        a = self.asm
+        a.push(RBP)
+        a.mov(RBP, RSP)
+        a.and_imm(RSP, -16)
+        a.xor32(RAX, RAX)
+        a.call_import(name)
+        a.leave()
+
     def exit(self) -> None:
-        """exit_group(rdi)."""
-        self.asm.mov_imm(RAX, _SYS_EXIT_GROUP)
-        self.asm.syscall()
+        """Ends the program with status rdi."""
+        self.ccall("_exit")
 
     def rt_write(self) -> None:
-        """Writes rdx bytes at rsi to file descriptor rdi, retrying partial writes and
-        EINTR. On any other error (a closed pipe), exits with status 1."""
+        """Writes rdx bytes at rsi to file descriptor rdi, retrying partial writes. On an
+        error (a closed pipe), exits with status 1."""
         a = self.asm
         loop, done, failed = a.new_label("w"), a.new_label("w"), a.new_label("w")
+        for r in (RBX, R12, R13):
+            a.push(r)
+        a.mov(RBX, RDI)
+        a.mov(R12, RSI)
+        a.mov(R13, RDX)
         a.label(loop)
-        a.test(RDX, RDX)
+        a.test(R13, R13)
         a.jcc("e", done)
-        a.mov_imm(RAX, _SYS_WRITE)
-        a.syscall()  # clobbers rcx, r11
+        a.mov(RDI, RBX)
+        a.mov(RSI, R12)
+        a.mov(RDX, R13)
+        self.ccall("write")
         a.test(RAX, RAX)
-        a.jcc("s", failed)
-        a.add(RSI, RAX)
-        a.sub(RDX, RAX)
+        a.jcc("le", failed)
+        a.add(R12, RAX)
+        a.sub(R13, RAX)
         a.jmp(loop)
         a.label(failed)
-        a.cmp_imm(RAX, -_EINTR)
-        a.jcc("e", loop)
         a.mov_imm(RDI, 1)
         self.exit()
         a.label(done)
+        for r in (R13, R12, RBX):
+            a.pop(r)
         a.ret()
 
-    def rt_write_int(self) -> None:
-        """Writes the signed integer in rax to stdout, in decimal."""
+    def rt_write_str(self) -> None:
+        """Writes the string rdi to stdout and releases it."""
         a = self.asm
-        positive, digit, write = a.new_label("i"), a.new_label("i"), a.new_label("i")
-        a.sub_imm(RSP, 32)
-        a.lea(RSI, RSP, 32)  # digits are stored backwards from the end of the buffer
-        a.mov(R8, RAX)
-        a.test(RAX, RAX)
-        a.jcc("ns", positive)
-        a.neg(RAX)  # the minimum stays itself, which is right when read unsigned
-        a.label(positive)
-        a.mov_imm(RCX, 10)
-        a.label(digit)
-        a.xor32(RDX, RDX)
-        a.div(RCX)
-        a.add_imm(RDX, ord("0"))
-        a.dec(RSI)
-        a.store8(RSI, 0, RDX)
-        a.test(RAX, RAX)
-        a.jcc("ne", digit)
-        a.test(R8, R8)
-        a.jcc("ns", write)
-        a.dec(RSI)
-        a.store8_imm(RSI, 0, ord("-"))
-        a.label(write)
-        a.lea(RDX, RSP, 32)
-        a.sub(RDX, RSI)
+        a.push(RDI)
+        a.lea(RSI, RDI, _BYTES)
+        a.load(RDX, RDI, _LEN)
         a.mov_imm(RDI, 1)
-        a.call(self.runtime("rt_write", self.rt_write))
-        a.add_imm(RSP, 32)
+        a.call(self.runtime("rt_write"))
+        self.drop(1)
         a.ret()
 
     def rt_panic(self) -> None:
         """Writes the message (rsi, rdx) to stderr and exits with status 70."""
         a = self.asm
         a.mov_imm(RDI, 2)
-        a.call(self.runtime("rt_write", self.rt_write))
+        a.call(self.runtime("rt_write"))
         a.mov_imm(RDI, _PANIC_STATUS)
         self.exit()
+
+    def rt_retain(self) -> None:
+        """Adds a reference to the block rax (not to literals). Preserves registers."""
+        a = self.asm
+        done = a.new_label("r")
+        a.cmp_mem_imm(RAX, _RC, 0)
+        a.jcc("l", done)
+        a.inc_mem(RAX, _RC)
+        a.label(done)
+        a.ret()
+
+    def rt_release(self) -> None:
+        """Drops a reference to the block rdi, freeing it with the last one. Preserves
+        registers."""
+        a = self.asm
+        done = a.new_label("r")
+        a.cmp_mem_imm(RDI, _RC, 0)
+        a.jcc("l", done)
+        a.dec_mem(RDI, _RC)
+        a.jcc("ne", done)
+        for r in _CALLER_SAVED:
+            a.push(r)
+        self.ccall("free")
+        for r in reversed(_CALLER_SAVED):
+            a.pop(r)
+        a.label(done)
+        a.ret()
+
+    def rt_alloc(self) -> None:
+        """rax := malloc(rdi). Running out of memory is fatal."""
+        a = self.asm
+        oom = a.new_label("oom")
+        self.ccall("malloc")
+        a.test(RAX, RAX)
+        a.jcc("e", oom)
+        a.ret()
+        a.label(oom)
+        message = b"panic: out of memory\n"
+        a.lea_data(RSI, a.data(message))
+        a.mov_imm(RDX, len(message))
+        a.jmp(self.runtime("rt_panic"))
+
+    def rt_str_new(self) -> None:
+        """rax := a new string block of rdi bytes, refcount 1, NUL-terminated. The bytes
+        and the char count are the caller's to fill in."""
+        a = self.asm
+        a.push(RBX)
+        a.mov(RBX, RDI)
+        a.add_imm(RDI, _BYTES + 1)
+        a.call(self.runtime("rt_alloc"))
+        a.store_imm(RAX, _RC, 1)
+        a.store(RAX, _LEN, RBX)
+        a.lea(RCX, RAX, _BYTES)
+        a.add(RCX, RBX)
+        a.store8_imm(RCX, 0, 0)
+        a.pop(RBX)
+        a.ret()
+
+    def rt_str_from(self) -> None:
+        """rax := a new string holding the rsi UTF-8 bytes at rdi."""
+        a = self.asm
+        loop, done = a.new_label("f"), a.new_label("f")
+        for r in (RBX, R12, R13):
+            a.push(r)
+        a.mov(RBX, RDI)
+        a.mov(R12, RSI)
+        a.mov(RDI, RSI)
+        a.call(self.runtime("rt_str_new"))
+        a.mov(R13, RAX)
+        a.lea(RDI, RAX, _BYTES)
+        a.mov(RSI, RBX)
+        a.mov(RDX, R12)
+        self.ccall("memcpy")
+        a.xor32(RAX, RAX)  # chars: the bytes that don't continue a character
+        a.label(loop)
+        a.test(R12, R12)
+        a.jcc("e", done)
+        a.load8(RCX, RBX)
+        a.inc(RBX)
+        a.dec(R12)
+        a.and32_imm(RCX, 0xC0)
+        a.cmp_imm(RCX, 0x80)
+        a.jcc("e", loop)
+        a.inc(RAX)
+        a.jmp(loop)
+        a.label(done)
+        a.store(R13, _CHARS, RAX)
+        a.mov(RAX, R13)
+        for r in (R13, R12, RBX):
+            a.pop(r)
+        a.ret()
+
+    def rt_concat(self) -> None:
+        """rax := the concatenation of the strings in [rdi, rsi), last to first (the stack
+        order of pushed parts). Releases the parts."""
+        a = self.asm
+        saved = (RBX, R12, R13, R14, R15)
+        for r in saved:
+            a.push(r)
+        a.mov(R12, RDI)  # first slot (the last part)
+        a.mov(R13, RSI)  # end (just past the first part)
+        a.xor32(R14, R14)  # bytes
+        a.xor32(R15, R15)  # chars
+        total, alloc = a.new_label("c"), a.new_label("c")
+        a.mov(RBX, R13)
+        a.label(total)
+        a.cmp(RBX, R12)
+        a.jcc("e", alloc)
+        a.sub_imm(RBX, 8)
+        a.load(RAX, RBX)
+        a.load(RCX, RAX, _LEN)
+        a.add(R14, RCX)
+        a.load(RCX, RAX, _CHARS)
+        a.add(R15, RCX)
+        a.jmp(total)
+        a.label(alloc)
+        a.mov(RDI, R14)
+        a.call(self.runtime("rt_str_new"))
+        a.store(RAX, _CHARS, R15)
+        a.mov(R14, RAX)  # the result
+        a.lea(R15, RAX, _BYTES)  # where the next part goes
+        copy, done = a.new_label("c"), a.new_label("c")
+        a.mov(RBX, R13)
+        a.label(copy)
+        a.cmp(RBX, R12)
+        a.jcc("e", done)
+        a.sub_imm(RBX, 8)
+        a.load(RSI, RBX)
+        a.load(RDX, RSI, _LEN)
+        a.add_imm(RSI, _BYTES)
+        a.mov(RDI, R15)
+        a.add(R15, RDX)
+        self.ccall("memcpy")
+        a.load(RDI, RBX)
+        self.release(RDI)
+        a.jmp(copy)
+        a.label(done)
+        a.mov(RAX, R14)
+        for r in reversed(saved):
+            a.pop(r)
+        a.ret()
+
+    def rt_int_to_str(self) -> None:
+        """rax := the decimal string of the integer rax."""
+        a = self.asm
+        a.sub_imm(RSP, 32)
+        a.mov(RCX, RAX)
+        a.mov(RDI, RSP)
+        a.mov_imm(RSI, 32)
+        a.lea_data(RDX, a.data(b"%ld\0"))
+        self.ccall("snprintf")
+        a.mov(RDI, RSP)
+        a.mov(RSI, RAX)
+        a.call(self.runtime("rt_str_from"))
+        a.add_imm(RSP, 32)
+        a.ret()
+
+    def rt_bool_to_str(self) -> None:
+        """rax := "true" or "false"."""
+        a = self.asm
+        done = a.new_label("b")
+        a.test(RAX, RAX)
+        a.lea_data(RAX, self.literal("false"))  # lea keeps the flags
+        a.jcc("e", done)
+        a.lea_data(RAX, self.literal("true"))
+        a.label(done)
+        a.ret()
+
+    def rt_char_to_str(self) -> None:
+        """rax := the one-character string of the code point rax (UTF-8 encoded)."""
+        a = self.asm
+        sized, loop, lead = a.new_label("u"), a.new_label("u"), a.new_label("u")
+        for n, prefix, limit in ((1, 0, 0x80), (2, 0xC0, 0x800), (3, 0xE0, 0x10000)):
+            a.mov_imm(RSI, n)  # bytes
+            a.mov_imm(RDX, prefix)  # bits of the first byte
+            a.cmp_imm(RAX, limit)
+            a.jcc("b", sized)
+        a.mov_imm(RSI, 4)
+        a.mov_imm(RDX, 0xF0)
+        a.label(sized)
+        a.sub_imm(RSP, 8)  # the bytes
+        a.lea(RCX, RSP, -1)
+        a.add(RCX, RSI)  # the last byte; continuation bytes are written backwards
+        a.mov(RDI, RSI)
+        a.label(loop)
+        a.dec(RDI)
+        a.jcc("e", lead)
+        a.mov(R8, RAX)
+        a.and32_imm(R8, 0x3F)
+        a.or32_imm(R8, 0x80)
+        a.store8(RCX, 0, R8)
+        a.shr_imm(RAX, 6)
+        a.dec(RCX)
+        a.jmp(loop)
+        a.label(lead)
+        a.add(RDX, RAX)  # the prefix bits and the remaining value don't overlap
+        a.store8(RCX, 0, RDX)
+        a.mov(RDI, RSP)
+        a.call(self.runtime("rt_str_from"))
+        a.add_imm(RSP, 8)
+        a.ret()
+
+    def rt_str_cmp(self) -> None:
+        """rax := -1, 0 or 1 as string rdi is before, equal to or after string rsi
+        (bytewise, which is code point order for UTF-8)."""
+        a = self.asm
+        short, less, more, done = (a.new_label("s") for _ in range(4))
+        a.push(RBX)
+        a.push(R12)
+        a.load(RBX, RDI, _LEN)
+        a.load(R12, RSI, _LEN)
+        a.mov(RDX, RBX)
+        a.cmp(RDX, R12)
+        a.jcc("be", short)
+        a.mov(RDX, R12)
+        a.label(short)  # rdx: the shorter length
+        a.add_imm(RDI, _BYTES)
+        a.add_imm(RSI, _BYTES)
+        self.ccall("memcmp")
+        a.test32(RAX, RAX)
+        a.jcc("s", less)
+        a.jcc("ne", more)
+        a.cmp(RBX, R12)  # one is a prefix of the other
+        a.jcc("b", less)
+        a.jcc("a", more)
+        a.xor32(RAX, RAX)
+        a.jmp(done)
+        a.label(less)
+        a.mov_imm(RAX, -1)
+        a.jmp(done)
+        a.label(more)
+        a.mov_imm(RAX, 1)
+        a.label(done)
+        a.pop(R12)
+        a.pop(RBX)
+        a.ret()
+
+    def rt_starts_with(self) -> None:
+        """rax := whether string rdi starts with string rsi."""
+        a = self.asm
+        no = a.new_label("p")
+        a.load(RDX, RSI, _LEN)
+        a.load(RCX, RDI, _LEN)
+        a.cmp(RDX, RCX)
+        a.jcc("a", no)
+        a.add_imm(RDI, _BYTES)
+        a.add_imm(RSI, _BYTES)
+        self.ccall("memcmp")
+        a.test32(RAX, RAX)
+        a.jcc("ne", no)
+        a.mov_imm(RAX, 1)
+        a.ret()
+        a.label(no)
+        a.xor32(RAX, RAX)
+        a.ret()
+
+    def rt_slice(self) -> None:
+        """rax := the bytes [rsi, rdx) of string rdi, as a new string. The offsets are
+        checked by the caller."""
+        a = self.asm
+        a.sub(RDX, RSI)
+        a.add_imm(RDI, _BYTES)
+        a.add(RDI, RSI)
+        a.mov(RSI, RDX)
+        a.jmp(self.runtime("rt_str_from"))
+
+def _parts(arg) -> list:
+    """The pieces of a `write` argument: a literal's text, an interpolation's parts, or
+    the value."""
+    if isinstance(arg, A.StringLit):
+        return [arg.value]
+    if isinstance(arg, A.InterpString):
+        return list(arg.parts)
+    return [arg]
 
 
 def _children(node):
