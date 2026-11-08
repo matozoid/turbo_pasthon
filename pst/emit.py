@@ -4,11 +4,14 @@ The code generator grows construct by construct. Anything it can't compile yet i
 reported as `E0990` at the construct, so a program either builds correctly or not at all.
 
 Supported so far:
-- values of type Integer, Boolean, Char, String, enums, and non-generic or concretely
-  instantiated records and unions (so `Option[Integer]`, `Result[String, Integer]`):
-  literals, constants, locals, parameters (`var` ones too), fields, construction,
-  arithmetic with overflow checks, comparisons, `and`/`or`/`not`, `if` and `case`
-  expressions, string interpolation;
+- values of type Integer (and the sized integers), Boolean, Char, String, enums, and
+  non-generic or concretely instantiated records and unions (so `Option[Integer]`,
+  `Result[String, Integer]`): literals, constants, locals, parameters (`var` ones too),
+  fields, construction, arithmetic with overflow checks, integer conversions, comparisons,
+  `and`/`or`/`not`, `if` and `case` expressions, string interpolation;
+- C interop (SPEC §10): calls into shared libraries, callbacks, `Ptr[T]`/`Pointer`/
+  `CString`, `deref`, pointer arithmetic, `cast`, `addr`, C records,
+  `toCString`/`fromCString`, `isNull`;
 - statements: `var`/`let`, assignment (to fields too), `if`, `case`, `while`, `repeat`,
   `for ... to/downto`, `break`, `continue`, `return`, `assert`, `_ := e`, calls;
 - routines (up to 6 parameters), with defaults, named arguments, dot calls, and
@@ -44,7 +47,12 @@ Records are values: a copy shares the block, and writing a field first makes the
 unique (copying it if it is shared). A `var` argument that is a whole variable is passed
 as the variable's address. Any other place (`var p.x`) is copied into a temporary, whose
 address is passed, and copied back after the call. So no pointer into a block ever
-outlives the statement that made it.
+outlives the statement that made it, except one made by `addr` in unsafe code.
+
+Sized integers are kept sign- or zero-extended to 64 bits; arithmetic is done in 64 bits
+and then checked against the type's range. A C record's block holds the C struct's bytes,
+zero-padded to whole words that its descriptor marks as plain data. C places (`deref(p)`,
+fields of C records) are read and written at their C width.
 
 Panics (SPEC §12) print `panic P0002: integer overflow` and the source position to
 stderr, then exit with status 70. Each panic site has its own out-of-line stub.
@@ -62,8 +70,8 @@ from .diagnostics import Diagnostic, Severity
 from .resolve import CheckResult
 from .symbols import Kind, Symbol
 from .types import (
-    BOOLEAN, CHAR, INTEGER, STRING, THIS, VOID, Named, Prim, TypeValue, has_error, params_in,
-    show, subst,
+    BOOLEAN, CHAR, INTEGER, STRING, THIS, VOID, Builtin, FuncT, Named, Prim, TypeValue,
+    has_error, params_in, show, subst,
 )  # fmt: skip
 from .x86 import (
     R8, R9, R10, R11, R12, R13, R14, R15, RAX, RBP, RBX, RCX, RDI, RDX, RSI, RSP, Assembler,
@@ -75,8 +83,15 @@ _ARG_REGS = (RDI, RSI, RDX, RCX, R8, R9)
 _CALLER_SAVED = (RAX, RCX, RDX, RSI, RDI, R8, R9, R10, R11)
 _DECLS = (A.TypeSection, A.ConstSection, A.Routine, A.ExternBlock, A.TestBlock)
 _VALUES = (INTEGER, BOOLEAN, CHAR, STRING)  # the types the code generator handles so far
-_TO_STRING = {INTEGER: "rt_int_to_str", BOOLEAN: "rt_bool_to_str", CHAR: "rt_char_to_str"}
+_TO_STRING = {BOOLEAN: "rt_bool_to_str", CHAR: "rt_char_to_str"}
 _COMPARE = {"=": "e", "<>": "ne", "<": "l", "<=": "le", ">": "g", ">=": "ge"}
+_UNSIGNED = {"=": "e", "<>": "ne", "<": "b", "<=": "be", ">": "a", ">=": "ae"}
+# Integer types: (bits, signed). A value is kept sign- or zero-extended to 64 bits.
+_INTS = {
+    "Int8": (8, True), "Int16": (16, True), "Int32": (32, True), "Int64": (64, True),
+    "UInt8": (8, False), "UInt16": (16, False), "UInt32": (32, False), "UInt64": (64, False),
+}  # fmt: skip
+_UINT64 = Prim("UInt64")
 # Heap block layout: the header, then a string's parts or a record's fields.
 _RC, _DESC = 0, 8
 _LEN, _CHARS, _BYTES = 16, 24, 32
@@ -131,6 +146,7 @@ class _Frame:
     s: dict = field(default_factory=dict)
     sites: dict = field(default_factory=dict)
     depth: int = 0  # instances that led to this one
+    keep: dict = field(default_factory=dict)  # id(toCString call) -> slot keeping its string
 
     def alloc(self, key) -> int:
         self.size += 8
@@ -151,6 +167,9 @@ class Emitter:
         self._labels: dict[tuple, str] = {}  # (routine, type arguments) -> label
         self._queue: list[tuple] = []  # (routine, type arguments, sites, depth) to emit
         self._descs: dict[object, str] = {}  # record type, or (union, variant) -> label
+        self._thunks: list[tuple] = []  # (label, routine label, parameter types) of callbacks
+        self.needed: list[bytes] = [elf.LIBC]  # shared libraries, in DT_NEEDED order
+        self.library: dict[int, str] = {}  # id(extern declaration) -> its library
         self.units = {u.path: u for u in [self.main, *result.units.values()]}
         # Expression types and resolved calls, from every unit's checker.
         self.types: dict[int, object] = {}
@@ -159,6 +178,11 @@ class Emitter:
             self.types.update(c.types)
             self.calls.update(c.calls)
         self.f: _Frame | None = None
+        for u in self.units.values():
+            for item in u.tree.items:
+                if isinstance(item, A.ExternBlock):
+                    for d in item.decls:
+                        self.library[id(d)] = item.library
 
     # ------------------------------------------------------------------ helpers
 
@@ -182,12 +206,44 @@ class Emitter:
         """"record", "union", "enum", ... for a declared type."""
         return self.env.kind_of(t)
 
+    @staticmethod
+    def ints(t) -> tuple | None:
+        """(bits, signed) for an integer type."""
+        return _INTS.get(t.name) if isinstance(t, Prim) else None
+
+    def is_c_record(self, t) -> bool:
+        return self.kind(t) == "record" and self.env.decl(t.sym).c
+
+    def normalize(self, t, reg: int = RAX) -> None:
+        """Extends the low bits of a value of type ``t`` that C (or a cast) left in ``reg``."""
+        info = self.ints(t)
+        if info is not None:
+            self.asm.extend(reg, *info)
+        elif t == BOOLEAN:
+            self.asm.movzx8(reg, reg)
+
+    def fit(self, t, span, cc: str = "o") -> None:
+        """After 64-bit arithmetic in rax: wraps the result to integer type ``t``. A checked
+        build panics if it didn't fit (for 64-bit types: if flag ``cc`` is set)."""
+        a = self.asm
+        bits, signed = self.ints(t) or (64, True)
+        if bits == 64:
+            if self.checked:
+                a.jcc(cc, self.panic("P0002", "integer overflow", span))
+            return
+        if self.checked:
+            a.mov(RDX, RAX)
+        a.extend(RAX, bits, signed)
+        if self.checked:
+            a.cmp(RAX, RDX)
+            a.jcc("ne", self.panic("P0002", "integer overflow", span))
+
     def managed(self, t) -> bool:
         """Whether values of type ``t`` are reference counted."""
         return t == STRING or self.kind(t) in ("record", "union")
 
     def supported(self, t, seen: frozenset = frozenset()) -> bool:
-        if t in _VALUES or has_error(t) or t in seen:
+        if t in _VALUES or has_error(t) or t in seen or self.ints(t) or _is_pointer(t):
             return True
         kind = self.kind(t)
         if kind == "enum":
@@ -283,10 +339,13 @@ class Emitter:
 
     def release_scopes(self, depth: int) -> None:
         """Releases the variables of the blocks above ``depth``, innermost first."""
+        keep = set(self.f.keep.values())
         for scope in reversed(self.f.scopes[depth:]):
             for slot in reversed(scope):
                 self.asm.load(RDI, RBP, slot)
                 self.release(RDI)
+                if slot in keep:  # the scope may be entered again without reaching toCString
+                    self.asm.store_imm(RBP, slot, 0)
 
     # --------------------------------------------------------------------- driver
 
@@ -302,9 +361,9 @@ class Emitter:
         a.label("_start")
         a.mov(RBP, RSP)
         size_at = a.sub_imm32_fixed(RSP)
-        self.block(A.Block(self.main.tree.span, [
-            i for i in self.main.tree.items if not isinstance(i, _DECLS)
-        ]))  # fmt: skip
+        body = [i for i in self.main.tree.items if not isinstance(i, _DECLS)]
+        self.keep_alive(body)
+        self.block(A.Block(self.main.tree.span, body))
         a.label(self.f.exit)
         a.xor32(RDI, RDI)
         self.exit()
@@ -312,6 +371,8 @@ class Emitter:
         while self._queue:
             self.routine(*self._queue.pop())
         self.f = None
+        for thunk in self._thunks:
+            self.thunk(*thunk)
         for label, message in self._panics:
             a.label(label)
             a.lea_data(RSI, a.data(message))
@@ -320,9 +381,10 @@ class Emitter:
         self.emit_runtime()
         if self.diagnostics:
             return BuildResult(None, self.diagnostics)
-        got = elf.got_offset(len(a.code), len(a.rodata), a.imports)
+        needed = tuple(self.needed)
+        got = elf.got_offset(len(a.code), len(a.rodata), a.imports, needed)
         code = a.finish(elf.rodata_offset(len(a.code)), got)
-        exe = elf.executable(code, bytes(a.rodata), a.labels["_start"], a.imports)
+        exe = elf.executable(code, bytes(a.rodata), a.labels["_start"], a.imports, needed)
         return BuildResult(exe)
 
     def label_of(self, e, sym: Symbol, targs: tuple = (), sites: dict | None = None) -> str:
@@ -354,6 +416,7 @@ class Emitter:
         a.mov(RBP, RSP)
         size_at = a.sub_imm32_fixed(RSP)
         try:
+            self.keep_alive([*node.requires, *node.ensures, node.body])
             for i, p in enumerate(sig.params):
                 if p.sym is None:
                     self.unsupported(node.sig, "this kind of parameter")
@@ -390,6 +453,22 @@ class Emitter:
         a.leave()
         a.ret()
         a.patch32(size_at, elf.align(f.size, 16))
+
+    def keep_alive(self, nodes: list) -> None:
+        """Gives each `toCString` call in ``nodes`` a slot, cleared on entry, that keeps
+        its string alive until the end of the enclosing block (SPEC §10.2)."""
+        for n in nodes:
+            if isinstance(n, A.Call) and self.is_c(n, "toCString"):
+                slot = self.f.alloc(("keep", id(n)))
+                self.asm.store_imm(RBP, slot, 0)
+                self.f.keep[id(n)] = slot
+            self.keep_alive(list(_children(n)))
+
+    def is_c(self, e: A.Call, name: str) -> bool:
+        """Whether ``e`` calls the routine ``name`` of unit C."""
+        m = self.calls.get(id(e))
+        sym = m.sig.sym if m is not None else self.ref(_callee_span(e.callee))
+        return sym is not None and sym.unit == "C" and sym.name == name and sym.is_extern
 
     def save_old(self, e) -> None:
         """Evaluates the `old(x)` calls of an `ensures` on entry."""
@@ -448,10 +527,7 @@ class Emitter:
             a.push(RAX)
             self.address(s.target)
             a.pop(RCX)
-            if self.managed(t):
-                a.load(RDI, RAX)
-                self.release(RDI)
-            a.store(RAX, 0, RCX)
+            self.store_at(s.target, t)
         elif isinstance(s, A.Discard):
             self.expr(s.value)
             if self.managed(self.type(s.value)):
@@ -538,8 +614,9 @@ class Emitter:
         a = self.asm
         sym = self.ref(s.var.span)
         t = self.sub(sym.type) if sym is not None else None
-        if t is not None and t not in (INTEGER, CHAR) and self.kind(t) != "enum":
+        if t is not None and t != CHAR and not self.ints(t) and self.kind(t) != "enum":
             self.unsupported(s.var, f"a loop over {show(t)}")
+        unsigned = t is not None and self.ints(t) is not None and not self.ints(t)[1]
         var = self.local(s.var.span)
         stop = self.f.alloc(object())
         top, cont, end = a.new_label("for"), a.new_label("next"), a.new_label("rof")
@@ -550,7 +627,7 @@ class Emitter:
         a.mov(RCX, RAX)
         a.load(RAX, RBP, var)
         a.cmp(RAX, RCX)
-        a.jcc("l" if s.down else "g", end)
+        a.jcc(("b" if s.down else "a") if unsigned else ("l" if s.down else "g"), end)
         a.label(top)
         self.loop(s.body, end, cont)
         a.label(cont)
@@ -633,10 +710,11 @@ class Emitter:
             a.jcc("e", target)
         elif isinstance(label, A.RangeLabel):
             skip = a.new_label("range")
+            unsigned = self.ints(t) is not None and not self.ints(t)[1]
             self.label_compare(t, slot, label.low)
-            a.jcc("l", skip)
+            a.jcc("b" if unsigned else "l", skip)
             self.label_compare(t, slot, label.high)
-            a.jcc("le", target)
+            a.jcc("be" if unsigned else "le", target)
             a.label(skip)
         else:
             self.label_compare(t, slot, label.value)
@@ -662,6 +740,8 @@ class Emitter:
         first, so the write doesn't show through other copies."""
         if isinstance(e, A.Paren):
             return self.address(e.inner)
+        if self.is_cplace(e):
+            return self.cplace(e)
         if isinstance(e, A.FieldAccess) and self.kind(self.type(e.target)) == "record":
             names = [n for n, _ in self.fields(self.type(e.target))]
             self.address(e.target)
@@ -678,6 +758,133 @@ class Emitter:
                     self.asm.lea(RAX, RBP, self.f.slots[sym])
                 return
         self.unsupported(e, "changing this kind of place")
+
+    def is_cplace(self, e) -> bool:
+        """Whether the place ``e`` is in C memory: `deref(p)`, or a field of a C record."""
+        e = _unparen(e)
+        if isinstance(e, A.Deref):
+            return True
+        return isinstance(e, A.FieldAccess) and self.is_c_record(self.type(e.target))
+
+    def cplace(self, e) -> None:
+        """rax := the address of the C bytes of place ``e``: `deref(p)`, a field of a C
+        record, or a C record held in a variable (made unique first)."""
+        e = _unparen(e)
+        if isinstance(e, A.Deref):
+            return self.expr(e.target)
+        if isinstance(e, A.FieldAccess) and self.is_c_record(self.type(e.target)):
+            self.cplace(e.target)
+            self.asm.add_imm(RAX, self.c_offset(self.type(e.target), e.name.name, e))
+            return
+        self.address(e)
+        self.asm.mov(RDI, RAX)
+        self.asm.call(self.runtime("rt_unique"))
+        self.asm.add_imm(RAX, _FIELDS)
+
+    def store_at(self, place, t) -> None:
+        """Stores the owned value rcx of type ``t`` at address rax of ``place``, releasing
+        what it replaces."""
+        if self.is_cplace(place):
+            return self.store_c(t, place)
+        if self.managed(t):
+            self.asm.load(RDI, RAX)
+            self.release(RDI)
+        self.asm.store(RAX, 0, RCX)
+
+    def load_at(self, place, t) -> None:
+        """rax := the value of type ``t`` at address rax of ``place`` (owned)."""
+        if self.is_cplace(place):
+            return self.load_c(t, place)
+        self.asm.load(RAX, RAX)
+        if self.managed(t):
+            self.retain()
+
+    # ------------------------------------------------------------------ C memory
+    # C records (SPEC §10.5) are blocks like other records, but their payload has the C
+    # struct's layout. Its padding and tail are zeroed, so `=` compares it word by word.
+
+    def c_layout(self, t, node) -> tuple[int, int]:
+        """(size, alignment) of type ``t`` in C memory."""
+        info = self.ints(t)
+        if info is not None:
+            return info[0] // 8, info[0] // 8
+        if t == BOOLEAN:
+            return 1, 1
+        if _is_pointer(t) or isinstance(t, FuncT):
+            return 8, 8
+        if self.is_c_record(t):
+            _, size, align = self.c_struct(t, node)
+            return size, align
+        self.unsupported(node, f"{show(t)} in C memory")
+
+    def c_struct(self, t, node) -> tuple[list, int, int]:
+        """The fields of C record ``t`` as (name, type, offset), its size and alignment."""
+        out, offset, align = [], 0, 1
+        for name, ft in self.fields(t):
+            size, al = self.c_layout(ft, node)
+            offset = elf.align(offset, al)
+            out.append((name, ft, offset))
+            offset += size
+            align = max(align, al)
+        return out, elf.align(offset, align), align
+
+    def c_offset(self, t, name: str, node) -> int:
+        return next(off for n, _, off in self.c_struct(t, node)[0] if n == name)
+
+    def new_c_block(self, t, node) -> None:
+        """rax := a new zeroed block for C record ``t``."""
+        a = self.asm
+        words = (self.c_struct(t, node)[1] + 7) // 8
+        self.new_block(self.descriptor(t, [INTEGER] * words))
+        a.push(RAX)
+        a.lea(RDI, RAX, _FIELDS)
+        a.xor32(RSI, RSI)
+        a.mov_imm(RDX, 8 * words)
+        self.ccall("memset")
+        a.pop(RAX)
+
+    def load_c(self, t, node) -> None:
+        """rax := the value of type ``t`` in C memory at address rax (owned)."""
+        a = self.asm
+        info = self.ints(t)
+        if info is not None:
+            a.load_w(RAX, RAX, 0, *info)
+        elif t == BOOLEAN:
+            a.load8(RAX, RAX)
+        elif _is_pointer(t):
+            a.load(RAX, RAX)
+        elif self.is_c_record(t):
+            a.push(RAX)
+            self.new_c_block(t, node)
+            a.push(RAX)
+            a.lea(RDI, RAX, _FIELDS)
+            a.load(RSI, RSP, 8)
+            a.mov_imm(RDX, self.c_layout(t, node)[0])
+            self.ccall("memcpy")
+            a.pop(RAX)
+            a.add_imm(RSP, 8)
+        else:
+            self.unsupported(node, f"reading {show(t)} from C memory")
+
+    def store_c(self, t, node) -> None:
+        """Stores the owned value rcx of type ``t`` in C memory at address rax."""
+        a = self.asm
+        info = self.ints(t)
+        if info is not None:
+            a.store_w(RAX, 0, RCX, info[0])
+        elif t == BOOLEAN:
+            a.store8(RAX, 0, RCX)
+        elif _is_pointer(t):
+            a.store(RAX, 0, RCX)
+        elif self.is_c_record(t):
+            a.push(RCX)
+            a.mov(RDI, RAX)
+            a.lea(RSI, RCX, _FIELDS)
+            a.mov_imm(RDX, self.c_layout(t, node)[0])
+            self.ccall("memcpy")
+            self.drop(1)
+        else:
+            self.unsupported(node, f"writing {show(t)} to C memory")
 
     @staticmethod
     def is_var_param(sym: Symbol) -> bool:
@@ -728,6 +935,13 @@ class Emitter:
             return self.load_sym(sym, e)
         if self.kind(t) != "record":
             self.unsupported(e, f"a field of {show(t)}")
+        if self.is_c_record(t):
+            self.expr(e.target)
+            self.asm.push(RAX)
+            self.asm.add_imm(RAX, _FIELDS + self.c_offset(t, e.name.name, e))
+            self.load_c(self.type(e), e)
+            self.drop(1)
+            return
         names = [n for n, _ in self.fields(t)]
         self.expr(e.target)
         self.asm.push(RAX)
@@ -759,10 +973,19 @@ class Emitter:
             a.load(RAX, RBP, self.f.slots[sym])
             if self.is_var_param(sym):
                 a.load(RAX, RAX)
+            if self.ints(t) is not None:  # C may have written only the low bits (`addr`)
+                self.normalize(t)
         else:
             self.unsupported(e, f"using {sym.describe()} as a value")
         if self.managed(t):
             self.retain()
+
+    def e_Deref(self, e) -> None:
+        t = self.type(e.target)
+        if not _is_ptr(t):
+            self.unsupported(e, f"'deref' of {show(t)}")
+        self.expr(e.target)
+        self.load_c(self.type(e), e)
 
     def e_Unary(self, e) -> None:
         a = self.asm
@@ -774,8 +997,9 @@ class Emitter:
                 a.mov_imm(RAX, -e.operand.value)
                 return
             self.expr(e.operand)
-            a.neg(RAX)
-            self.overflow(e.span)
+            a.neg(RAX)  # sets CF unless the operand is 0
+            t = self.type(e)
+            self.fit(t, e.span, "b" if t == _UINT64 else "o")
         else:
             self.unsupported(e, f"'{e.op}'")
 
@@ -796,6 +1020,8 @@ class Emitter:
             return
         if op == "in":
             self.unsupported(e, "'in'")
+        if _is_ptr(self.type(e.left)) and op in ("+", "-"):
+            return self.pointer_arith(e)
         t = self.type(e.left)
         if self.kind(self.type(e.right)) == "union":
             t = self.type(e.right)  # comparing a variant with a union
@@ -825,23 +1051,53 @@ class Emitter:
         a.pop(RAX)
         if op in _COMPARE:
             a.cmp(RAX, RCX)
-            a.setcc(_COMPARE[op], RAX)
+            unsigned = _UINT64 in (self.type(e.left), self.type(e.right))
+            a.setcc((_UNSIGNED if unsigned else _COMPARE)[op], RAX)
             a.movzx8(RAX, RAX)
-        elif op in ("+", "-", "*"):
-            {"+": a.add, "-": a.sub, "*": a.imul}[op](RAX, RCX)
-            self.overflow(e.op_span)
-        elif op in ("div", "mod"):
-            self.divide(op, e.op_span)
+        elif op in ("+", "-", "*", "div", "mod"):
+            self.arith(op, self.type(e), e.op_span)
         else:
             self.unsupported(e, f"'{op}'")
 
-    def divide(self, op: str, span) -> None:
+    def arith(self, op: str, t, span) -> None:
+        """rax := rax op rcx for integers of type ``t``, checked for overflow."""
+        a = self.asm
+        if op in ("div", "mod"):
+            return self.divide(op, t, span)
+        if t == _UINT64:
+            if op == "*":
+                a.mul(RCX)
+            else:
+                (a.add if op == "+" else a.sub)(RAX, RCX)
+            return self.fit(t, span, "b")
+        {"+": a.add, "-": a.sub, "*": a.imul}[op](RAX, RCX)
+        self.fit(t, span)
+
+    def pointer_arith(self, e) -> None:
+        """`p + n`, `p - n`: moves a `Ptr[T]` by ``n`` values of type T (SPEC §10.4)."""
+        a = self.asm
+        size, _ = self.c_layout(self.type(e.left).args[0], e)
+        self.expr(e.left)
+        a.push(RAX)
+        self.expr(e.right)
+        a.mov_imm(RCX, size)
+        a.imul(RCX, RAX)
+        a.pop(RAX)
+        (a.add if e.op == "+" else a.sub)(RAX, RCX)
+
+    def divide(self, op: str, t, span) -> None:
         """rax div/mod rcx, truncating toward zero (the remainder takes the sign of the
         dividend). Division by zero panics even in unchecked builds."""
         a = self.asm
         normal, done = a.new_label("div"), a.new_label("div")
         a.test(RCX, RCX)
         a.jcc("e", self.panic("P0004", "division by zero", span))
+        if not (self.ints(t) or (64, True))[1]:
+            a.xor32(RDX, RDX)
+            a.div(RCX)
+            if op == "mod":
+                a.mov(RAX, RDX)
+            return
         a.cmp_imm(RCX, -1)  # idiv traps on MIN div -1
         a.jcc("ne", normal)
         if op == "div":
@@ -856,6 +1112,8 @@ class Emitter:
         if op == "mod":
             a.mov(RAX, RDX)
         a.label(done)
+        if (self.ints(t) or (64, True))[0] < 64:
+            self.fit(t, span)  # MIN div -1
 
     def e_IfExpr(self, e) -> None:
         a = self.asm
@@ -903,10 +1161,13 @@ class Emitter:
         string is its name."""
         t = self.type(e)
         enum = self.kind(t) == "enum"
-        if t not in (STRING, *_TO_STRING) and not enum:
+        info = self.ints(t)
+        if t not in (STRING, *_TO_STRING) and not enum and info is None:
             self.unsupported(e, f"converting {show(t)} to a string")
         self.expr(e)
-        if t in _TO_STRING:
+        if info is not None:
+            self.asm.call(self.runtime("rt_int_to_str" if info[1] else "rt_uint_to_str"))
+        elif t in _TO_STRING:
             self.asm.call(self.runtime(_TO_STRING[t]))
         elif enum:
             names = "".join(m + "\0" for m in self.env.decl(t.sym).members)
@@ -921,11 +1182,20 @@ class Emitter:
         m = self.calls.get(id(e))
         if m is not None and m.sig.kind == "record":
             return self.construct(e, m)
+        if m is None and self.is_c(e, "cast"):
+            self.expr(e.args[0].value)
+            return self.normalize(self.type(e))  # truncates to a smaller integer type
+        if m is None and len(e.args) == 1:
+            sym = self.ref(_callee_span(e.callee))
+            if sym is not None and sym.kind in (Kind.TYPE, Kind.BUILTIN_TYPE):
+                return self.convert(e)
         if m is None or m.sig.kind != "routine" or m.sig.sym is None:
             self.unsupported(e, "this kind of call")
         sym = m.sig.sym
         if isinstance(sym.node, A.ExternDecl):
-            return self.builtin(e, sym, m)
+            if self.library.get(id(sym.node)) == "pst":
+                return self.builtin(e, sym, m)
+            return self.c_call(e, sym, m)
         if isinstance(sym.node, A.Signature):
             target, targs, sites = self.bound_member(e, m)
         else:
@@ -956,12 +1226,110 @@ class Emitter:
             a.push(RAX)
             for place, tmp in copies:
                 self.address(place)
-                if self.managed(self.type(place)):
-                    a.load(RDI, RAX)
-                    self.release(RDI)
                 a.load(RCX, RBP, tmp)
-                a.store(RAX, 0, RCX)
+                self.store_at(place, self.type(place))
             a.pop(RAX)
+
+    def convert(self, e) -> None:
+        """`Int32(x)`: converts between integer types, panicking (in checked builds) if
+        the value doesn't fit."""
+        a = self.asm
+        src, dst = self.type(e.args[0].value), self.type(e)
+        if not (self.ints(src) and self.ints(dst)):
+            self.unsupported(e, f"converting {show(src)} to {show(dst)}")
+        self.expr(e.args[0].value)
+        if src == dst:
+            return
+        if self.checked and (src == _UINT64) != (dst == _UINT64) and (src == _UINT64 or not self.ints(dst)[1]):
+            a.test(RAX, RAX)  # UInt64 above Int64's range, or a negative value to UInt64
+            a.jcc("s", self.panic("P0002", "integer overflow", e.span))
+        self.fit(dst, e.span)
+
+    def c_call(self, e, sym: Symbol, m) -> None:
+        """Calls a C function (SPEC §10.1) through the GOT, with the System V ABI. C records
+        of up to 16 bytes are passed and returned in registers."""
+        a = self.asm
+        lib = self.library[id(sym.node)].encode()
+        if lib not in self.needed:
+            self.needed.append(lib)
+        args = []  # (type, whether it is a C record passed by value)
+        for p, slot in zip(m.params, m.slots):
+            if p.varargs:
+                continue
+            t = self.sub(subst(p.type, m.s))
+            place = _unparen(slot.expr) if slot is not None else None
+            if p.is_var:
+                self.cplace(place) if self.is_c_record(t) or self.is_cplace(place) else self.address(place)
+            elif isinstance(t, FuncT):
+                self.callback(place, t)
+            else:
+                self.argument(p, slot, m, sym.file)
+            a.push(RAX)
+            args.append((t, self.is_c_record(t) and not p.is_var))
+        for x in m.extra:
+            self.expr(x.expr)
+            a.push(RAX)
+            args.append((self.type(x.expr), False))
+        regs, n = 0, len(args)
+        for i, (t, by_value) in enumerate(args):
+            words = (self.c_layout(t, e)[0] + 7) // 8 if by_value else 1
+            if words > 2:
+                self.unsupported(e, f"passing a C record of more than 16 bytes")
+            if regs + words > len(_ARG_REGS):
+                self.unsupported(e, f"a C call needing more than {len(_ARG_REGS)} registers")
+            a.load(_ARG_REGS[regs], RSP, 8 * (n - 1 - i))
+            if by_value:
+                a.mov(R11, _ARG_REGS[regs])
+                for w in range(words):
+                    a.load(_ARG_REGS[regs + w], R11, _FIELDS + 8 * w)
+            regs += words
+        self.ccall(sym.node.symbol or sym.name)
+        for i, (t, by_value) in enumerate(args):
+            if by_value:
+                a.load(RDI, RSP, 8 * (n - 1 - i))
+                self.release(RDI)
+        if n:
+            a.add_imm(RSP, 8 * n)
+        result = self.sub(subst(m.result, m.s))
+        if self.is_c_record(result):
+            size = self.c_layout(result, e)[0]
+            if size > 16:
+                self.unsupported(e, "returning a C record of more than 16 bytes")
+            a.push(RDX)
+            a.push(RAX)
+            self.new_c_block(result, e)
+            a.push(RAX)
+            a.lea(RDI, RAX, _FIELDS)
+            a.lea(RSI, RSP, 8)
+            a.mov_imm(RDX, size)
+            self.ccall("memcpy")
+            a.pop(RAX)
+            a.add_imm(RSP, 16)
+        elif m.sig.is_function:
+            self.normalize(result)  # C leaves the upper bits of small results undefined
+
+    def callback(self, e, t: FuncT) -> None:
+        """rax := the address of a thunk through which C calls the routine named by ``e``
+        (SPEC §10.3)."""
+        sym = self.ref(_callee_span(e)) if isinstance(e, (A.Name, A.FieldAccess)) else None
+        if sym is None or not isinstance(sym.node, A.Routine) or self.env.sig(sym).tparams:
+            self.unsupported(e, "a callback other than the name of a top-level routine")
+        key = ("thunk", sym)
+        if key not in self._labels:
+            for p in t.params:
+                if self.managed(p):
+                    self.unsupported(e, f"a callback taking {show(p)}")
+            self._labels[key] = self.asm.new_label("thunk")
+            self._thunks.append((self._labels[key], self.label_of(e, sym), t.params))
+        self.asm.lea_code(RAX, self._labels[key])
+
+    def thunk(self, label: str, target: str, params: tuple) -> None:
+        """C passes small integers with undefined upper bits: extend them, then go on to
+        the routine."""
+        self.asm.label(label)
+        for reg, t in zip(_ARG_REGS, params):
+            self.normalize(t, reg)
+        self.asm.jmp(target)
 
     def instance(self, tparams: list, s: dict) -> tuple[tuple, dict]:
         """The type arguments of a call to a generic routine, and for each the file whose
@@ -1009,6 +1377,15 @@ class Emitter:
         for p, slot in zip(m.params, m.slots):
             self.argument(p, slot, m, m.sig.sym.file)
             a.push(RAX)
+        if self.is_c_record(t):
+            self.new_c_block(t, e)
+            for name, ft, offset in reversed(self.c_struct(t, e)[0]):
+                a.pop(RCX)
+                a.push(RAX)
+                a.add_imm(RAX, _FIELDS + offset)
+                self.store_c(ft, e)
+                a.pop(RAX)
+            return
         self.new_block(self.descriptor(t, [ft for _, ft in self.fields(t)]))
         for i in reversed(range(len(m.params))):
             a.pop(RCX)
@@ -1034,7 +1411,7 @@ class Emitter:
             self.exit()
         elif name in (("System", "inc"), ("System", "dec")):
             t = self.sub(m.s.get(m.sig.tparams[0])) if m.sig.tparams else None
-            if t != INTEGER:
+            if not self.ints(t):
                 self.unsupported(e, f"'{sym.name}' of {show(t)}")
             if len(args) > 1 and args[1] is not None:
                 self.expr(args[1])
@@ -1043,10 +1420,42 @@ class Emitter:
             a.push(RAX)
             self.address(args[0])
             a.pop(RCX)
-            a.load(RDX, RAX)
-            (a.add if sym.name == "inc" else a.sub)(RDX, RCX)
-            self.overflow(e.span)
-            a.store(RAX, 0, RDX)
+            a.push(RAX)
+            a.push(RCX)
+            self.load_at(args[0], t)
+            a.pop(RCX)
+            self.arith("+" if sym.name == "inc" else "-", t, e.span)
+            a.mov(RCX, RAX)
+            a.pop(RAX)
+            self.store_at(args[0], t)
+        elif name == ("C", "toCString"):
+            if id(e) not in self.f.keep:
+                self.unsupported(e, "'toCString' here")
+            slot = self.f.keep[id(e)]
+            self.expr(args[0])
+            a.load(RDI, RBP, slot)
+            self.release(RDI)  # the string of the previous time round a loop
+            a.store(RBP, slot, RAX)
+            if slot not in self.f.scopes[-1]:
+                self.f.scopes[-1].append(slot)
+            a.add_imm(RAX, _BYTES)
+        elif name == ("C", "isNull"):
+            self.expr(args[0])
+            a.test(RAX, RAX)
+            a.setcc("e", RAX)
+            a.movzx8(RAX, RAX)
+        elif name == ("C", "fromCString"):
+            self.expr(args[0])
+            a.test(RAX, RAX)
+            a.jcc("e", self.panic("P0007", "null C string", e.span))
+            a.mov(RDI, RAX)
+            a.call(self.runtime("rt_from_cstring"))
+        elif name == ("C", "addr"):
+            place = _unparen(args[0])
+            if self.is_c_record(self.type(place)) or self.is_cplace(place):
+                self.cplace(place)
+            else:
+                self.address(place)
         elif sym.name in ("byteLen", "charCount") and sym.unit in ("System", "Strings"):
             self.expr(args[0])
             a.push(RAX)
@@ -1129,8 +1538,9 @@ class Emitter:
         a.leave()
 
     def exit(self) -> None:
-        """Ends the program with status rdi."""
-        self.ccall("_exit")
+        """Ends the program with status rdi. `exit`, not `_exit`: C code may have output
+        waiting in stdio buffers."""
+        self.ccall("exit")
 
     def rt_write(self) -> None:
         """Writes rdx bytes at rsi to file descriptor rdi, retrying partial writes. On an
@@ -1192,10 +1602,12 @@ class Emitter:
         a.ret()
 
     def rt_release(self) -> None:
-        """Drops a reference to the block rdi. With the last one, releases the references
-        its fields hold and frees it. Preserves registers."""
+        """Drops a reference to the block rdi (if not 0). With the last one, releases the
+        references its fields hold and frees it. Preserves registers."""
         a = self.asm
         loop, skip, free, done = (a.new_label("r") for _ in range(4))
+        a.test(RDI, RDI)  # an empty slot (toCString's)
+        a.jcc("e", done)
         a.cmp_mem_imm(RDI, _RC, 0)
         a.jcc("l", done)
         a.dec_mem(RDI, _RC)
@@ -1434,6 +1846,133 @@ class Emitter:
             a.pop(r)
         a.ret()
 
+    def rt_utf8_len(self) -> None:
+        """rax := the length of the valid UTF-8 sequence at rdi, or 0 if there is none (no
+        overlong forms or surrogates). A NUL never continues a sequence, so this doesn't
+        read past the end of a C string. Uses rcx, rdx, r8-r11."""
+        a = self.asm
+        one, three, four, check, cont, bad = (a.new_label("u8") for _ in range(6))
+        a.load8(RCX, RDI)
+        a.cmp_imm(RCX, 0x80)
+        a.jcc("b", one)
+        a.mov_imm(R9, 0x80)  # the range of the second byte
+        a.mov_imm(R10, 0xBF)
+        a.mov_imm(R8, 2)
+        a.cmp_imm(RCX, 0xC2)
+        a.jcc("b", bad)
+        a.cmp_imm(RCX, 0xE0)
+        a.jcc("b", check)
+        a.mov_imm(R8, 3)
+        a.cmp_imm(RCX, 0xF0)
+        a.jcc("b", three)
+        a.mov_imm(R8, 4)
+        a.cmp_imm(RCX, 0xF5)
+        a.jcc("b", four)
+        a.jmp(bad)
+        for label, lead, low, high in ((three, 0xE0, 0xA0, 0x9F), (four, 0xF0, 0x90, 0x8F)):
+            not_low = a.new_label("u8")
+            a.label(label)
+            a.cmp_imm(RCX, lead)
+            a.jcc("ne", not_low)
+            a.mov_imm(R9, low)  # overlong
+            a.label(not_low)
+            a.cmp_imm(RCX, lead + 0x0D if lead == 0xE0 else lead + 4)  # ED: surrogates; F4: > U+10FFFF
+            a.jcc("ne", check)
+            a.mov_imm(R10, high)
+            a.jmp(check)
+        a.label(check)
+        a.load8(RDX, RDI, 1)
+        a.cmp(RDX, R9)
+        a.jcc("b", bad)
+        a.cmp(RDX, R10)
+        a.jcc("a", bad)
+        a.mov_imm(R11, 2)
+        a.label(cont)  # r11: the next byte
+        a.cmp(R11, R8)
+        a.jcc("e", one)
+        a.mov(RDX, RDI)
+        a.add(RDX, R11)
+        a.load8(RDX, RDX)
+        a.and32_imm(RDX, 0xC0)
+        a.cmp_imm(RDX, 0x80)
+        a.jcc("ne", bad)
+        a.inc(R11)
+        a.jmp(cont)
+        a.label(one)  # r8 = 1 isn't set for ASCII: return it here
+        a.cmp_imm(RCX, 0x80)
+        a.mov_imm(RAX, 1)
+        a.jcc("b", done := a.new_label("u8"))
+        a.mov(RAX, R8)
+        a.label(done)
+        a.ret()
+        a.label(bad)
+        a.xor32(RAX, RAX)
+        a.ret()
+
+    def rt_from_cstring(self) -> None:
+        """rax := a new string copied from the C string rdi. Each byte that isn't part of
+        valid UTF-8 becomes U+FFFD."""
+        a = self.asm
+        saved = (RBX, R12, R13, R14, R15)
+        for r in saved:
+            a.push(r)
+        a.mov(RBX, RDI)
+        a.xor32(R12, R12)  # bytes
+        a.xor32(R13, R13)  # chars
+        a.mov(R14, RDI)
+        count, invalid, alloc = (a.new_label("fc") for _ in range(3))
+        a.label(count)
+        a.load8(RCX, R14)
+        a.test(RCX, RCX)
+        a.jcc("e", alloc)
+        a.inc(R13)
+        a.mov(RDI, R14)
+        a.call(self.runtime("rt_utf8_len"))
+        a.test(RAX, RAX)
+        a.jcc("e", invalid)
+        a.add(R12, RAX)
+        a.add(R14, RAX)
+        a.jmp(count)
+        a.label(invalid)
+        a.add_imm(R12, 3)
+        a.inc(R14)
+        a.jmp(count)
+        a.label(alloc)
+        a.mov(RDI, R12)
+        a.call(self.runtime("rt_str_new"))
+        a.store(RAX, _CHARS, R13)
+        a.mov(R15, RAX)
+        a.lea(R13, RAX, _BYTES)  # where the next byte goes
+        a.mov(R14, RBX)
+        copy, byte, replace, done = (a.new_label("fc") for _ in range(4))
+        a.label(copy)
+        a.load8(RCX, R14)
+        a.test(RCX, RCX)
+        a.jcc("e", done)
+        a.mov(RDI, R14)
+        a.call(self.runtime("rt_utf8_len"))
+        a.test(RAX, RAX)
+        a.jcc("e", replace)
+        a.label(byte)
+        a.load8(RDX, R14)
+        a.store8(R13, 0, RDX)
+        a.inc(R14)
+        a.inc(R13)
+        a.dec(RAX)
+        a.jcc("ne", byte)
+        a.jmp(copy)
+        a.label(replace)
+        for i, b in enumerate(b"\xef\xbf\xbd"):
+            a.store8_imm(R13, i, b)
+        a.add_imm(R13, 3)
+        a.inc(R14)
+        a.jmp(copy)
+        a.label(done)
+        a.mov(RAX, R15)
+        for r in reversed(saved):
+            a.pop(r)
+        a.ret()
+
     def rt_concat(self) -> None:
         """rax := the concatenation of the strings in [rdi, rsi), last to first (the stack
         order of pushed parts). Releases the parts."""
@@ -1484,20 +2023,24 @@ class Emitter:
             a.pop(r)
         a.ret()
 
-    def rt_int_to_str(self) -> None:
+    def rt_int_to_str(self, fmt: bytes = b"%ld\0") -> None:
         """rax := the decimal string of the integer rax."""
         a = self.asm
         a.sub_imm(RSP, 32)
         a.mov(RCX, RAX)
         a.mov(RDI, RSP)
         a.mov_imm(RSI, 32)
-        a.lea_data(RDX, a.data(b"%ld\0"))
+        a.lea_data(RDX, a.data(fmt))
         self.ccall("snprintf")
         a.mov(RDI, RSP)
         a.mov(RSI, RAX)
         a.call(self.runtime("rt_str_from"))
         a.add_imm(RSP, 32)
         a.ret()
+
+    def rt_uint_to_str(self) -> None:
+        """rax := the decimal string of the unsigned integer rax."""
+        self.rt_int_to_str(b"%lu\0")
 
     def rt_bool_to_str(self) -> None:
         """rax := "true" or "false"."""
@@ -1608,6 +2151,15 @@ class Emitter:
         a.mov(RSI, RDX)
         a.jmp(self.runtime("rt_str_from"))
 
+def _is_pointer(t) -> bool:
+    """`Ptr[T]`, `Pointer` or `CString`: an unmanaged address (SPEC §4.13)."""
+    return t in (Prim("Pointer"), Prim("CString")) or (isinstance(t, Builtin) and t.name == "Ptr")
+
+
+def _is_ptr(t) -> bool:
+    return isinstance(t, Builtin) and t.name == "Ptr"
+
+
 def _head(t):
     """What a variant label names: a declared type's symbol, or a primitive's name."""
     return t.sym if isinstance(t, Named) else t.name if isinstance(t, Prim) else None
@@ -1615,6 +2167,13 @@ def _head(t):
 
 def _unparen(e):
     return _unparen(e.inner) if isinstance(e, A.Paren) else e
+
+
+def _callee_span(c):
+    """The span naming what a callee refers to: `f`, or the `f` of `Unit.f` or `f[T]`."""
+    if isinstance(c, A.Index):
+        return _callee_span(c.target)
+    return c.name.span if isinstance(c, A.FieldAccess) else c.span
 
 
 def _parts(arg) -> list:

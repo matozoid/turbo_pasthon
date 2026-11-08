@@ -1,3 +1,4 @@
+import textwrap
 import unittest
 
 from tests.test_resolve import codes, prog, run
@@ -286,6 +287,61 @@ class Errors(unittest.TestCase):
             let b := if a > 0 then 1 else "x"
             writeln("{b}")
             """), [("E0340", 2, 1), ("E0802", 3, 31)])
+
+
+
+def c_errs(body: str) -> list[tuple[str, int, int]]:
+    files = {"Main.pst": "program Main\n\nuses IO, C\n\n" + textwrap.dedent(body).lstrip("\n")}
+    return [(c, line - 4, col) for _, c, line, col in codes(run(files))]
+
+
+class CInterop(unittest.TestCase):
+    maxDiff = None
+
+    def test_c_compatible(self):
+        self.assertEqual(c_errs("""
+            extern "libc.so.6"
+                type
+                    export Good = record
+                        p: Ptr[Good]
+                        n: CInt
+                    export Bad = record
+                        s: String
+                function f(s: String, g: Good): CInt
+                function g(cb: function(String): CInt): Pointer
+                function h(fmt: CString, ...): CInt
+            _ := h(toCString("%s"), "x")
+            _ := h(toCString("%d"), 1, Good(p: cast[Ptr[Good]](0), n: 1))
+            """), [
+                ("E0901", 7, 16), ("E0901", 8, 19), ("E0901", 9, 20),
+                ("E0901", 11, 25), ("E0902", 12, 36),
+            ])  # fmt: skip
+
+    def test_unsafe_operations(self):
+        self.assertEqual(c_errs("""
+            procedure f(p: Ptr[CInt])
+                var x: CInt := 1
+                writeln(deref(p))
+                writeln(deref(p + 1))
+                let q := addr(var x)
+                let n := cast[Integer](p)
+                writeln("{n} {deref(q)}")
+
+            unsafe procedure g(p: Ptr[CInt], s: String)
+                var x: CInt := 1
+                let q := addr(var x)
+                let n := cast[Integer](p)
+                let t := cast[String](p)
+                let u := cast[Ptr[CInt]](n, s)
+                writeln("{n} {deref(q)} {deref(p + 1)} {t} {deref(u)}")
+                var xs: List[CInt] := [1]
+                let v := addr(var xs[0])
+                writeln(deref(v))
+            """), [
+                ("E0902", 3, 13), ("E0902", 4, 13), ("E0902", 4, 21), ("E0902", 5, 14),
+                ("E0902", 6, 14), ("E0902", 7, 19), ("E0904", 13, 14), ("E0511", 14, 14),
+                ("E0905", 17, 23),
+            ])  # fmt: skip
 
 
 if __name__ == "__main__":

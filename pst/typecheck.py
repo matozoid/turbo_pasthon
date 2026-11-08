@@ -78,6 +78,14 @@ def _literal_value(e):
     return None
 
 
+def _unparen(e):
+    return _unparen(e.inner) if isinstance(e, A.Paren) else e
+
+
+def _castable(t) -> bool:
+    return is_integer(t) or t in (Prim("Pointer"), Prim("CString")) or (isinstance(t, Builtin) and t.name == "Ptr")
+
+
 def _is_literal(e) -> bool:
     return _literal_value(e) is not None
 
@@ -141,6 +149,7 @@ class Decl:
     alias: object = ERROR
     routines: list[Symbol] = field(default_factory=list)  # traits
     members: list[str] = field(default_factory=list)  # enums
+    c: bool = False  # a C record (SPEC §10.5)
 
     def field(self, name: str) -> FieldInfo | None:
         return next((f for f in self.fields if f.name == name), None)
@@ -362,7 +371,7 @@ class Env:
             kind = "subrange"
         else:
             kind = "alias"
-        d = Decl(kind, params)
+        d = Decl(kind, params, c=kind == "record" and body.c)
         self._decls[sym] = d  # before the parts, which may refer back to the type
         if kind in ("record", "trait"):
             for f in body.fields:
@@ -499,6 +508,7 @@ class TypeChecker:
         self.result = VOID
         self.is_function = False
         self.in_routine = False
+        self.in_unsafe = False
         self.tparams: list[Symbol] = []
         self.loops: list[dict] = []
         self.in_ensures = False
@@ -569,9 +579,15 @@ class TypeChecker:
                 self.routine(item)
             elif isinstance(item, A.ExternBlock):
                 for d in item.decls:
+                    if isinstance(d, A.TypeSection):
+                        for td in d.decls:
+                            self.type_decl(td)
+                        continue
                     sym = self.sym_at(d.sig.name.span)
                     if sym is not None:
                         self.signature(sym)
+                        if item.library != "pst":
+                            self.c_signature(sym, d.sig)
             elif isinstance(item, A.TestBlock):
                 self.body(item.body.stmts)
         self.body([i for i in items if not isinstance(i, _DECLS)])
@@ -590,6 +606,9 @@ class TypeChecker:
             if tp is not None:
                 self.env.bounds(tp)
         info = self.env.decl(sym)
+        if info.c:
+            for f, node in zip(info.fields, d.body.fields):
+                self.c_compatible(f.type, node.type.span, in_record=True)
         if info.kind == "record":
             for f in info.fields:
                 if f.default is not None:
@@ -608,6 +627,44 @@ class TypeChecker:
                 if not has_error(v) and v in seen:
                     self.error("E0300", node.span, f"variant {show(v)} appears twice in the union")
                 seen.append(v)
+
+    def c_signature(self, sym: Symbol, node: A.Signature) -> None:
+        """An extern routine's parameters and result must be C-compatible (SPEC §10.1)."""
+        sig = self.env.sig(sym)
+        for p in sig.params:
+            if not p.varargs:
+                self.c_compatible(p.type, node.params[p.group].type.span)
+        if sig.is_function:
+            self.c_compatible(sig.result, node.result.span)
+
+    def c_compatible(self, t, span, in_record: bool = False) -> bool:
+        """Whether C can take or give values of type ``t`` (SPEC §10.1); E0901 if not."""
+        if self.is_c_type(t, in_record):
+            return True
+        self.error(
+            "E0901", span,
+            f"{show(t)} isn't C-compatible; use numbers, Boolean, C types (CInt, CString, "
+            "Ptr[T], Pointer), C records, or function types of those",
+        )  # fmt: skip
+        return False
+
+    def is_c_type(self, t, in_record: bool = False) -> bool:
+        if has_error(t) or t == VOID:
+            return True
+        if isinstance(t, Prim):
+            return t not in (CHAR, STRING)
+        if isinstance(t, Builtin):
+            if t.name == "Ptr":
+                return self.is_c_type(t.args[0], True)
+            return t.name == "Array" and in_record and self.is_c_type(t.args[0], True)
+        if isinstance(t, FuncT):
+            return all(self.is_c_type(p) for p in t.params) and self.is_c_type(t.result)
+        return isinstance(t, Named) and self.env.decl(t.sym).c
+
+    def unsafe(self, span, what: str) -> None:
+        """E0902 unless inside an unsafe routine (SPEC §10.4)."""
+        if not self.in_unsafe:
+            self.error("E0902", span, f"{what} is only allowed inside an 'unsafe' function or procedure")
 
     def signature(self, sym: Symbol) -> Sig:
         sig = self.env.sig(sym)
@@ -631,6 +688,7 @@ class TypeChecker:
                 p.sym.type = p.type
         self.result = sig.result if sig.is_function else VOID
         self.is_function, self.in_routine, self.loops = sig.is_function, True, []
+        self.in_unsafe = r.unsafe
         for e in r.requires:
             self.check(e, BOOLEAN)
         self.in_ensures = True
@@ -643,7 +701,7 @@ class TypeChecker:
                 f"function '{sym.name}' doesn't return a value on every path; "
                 "end it with a 'return'",
             )  # fmt: skip
-        self.tparams, self.in_routine = [], False
+        self.tparams, self.in_routine, self.in_unsafe = [], False, False
 
     # ---------------------------------------------------------------- statements
 
@@ -1306,6 +1364,7 @@ class TypeChecker:
         if isinstance(t, RefT):
             return t.target
         if isinstance(t, Builtin) and t.name == "Ptr":
+            self.unsafe(e.span, "dereferencing a pointer")
             return t.args[0]
         if not has_error(t):
             self.error("E0305", e.span, f"'deref' needs a ref, not {show(t)}")
@@ -1396,6 +1455,9 @@ class TypeChecker:
         if has_error(lt) or has_error(rt):
             return ERROR
         lb, rb = self.base(lt), self.base(rt)
+        if isinstance(lb, Builtin) and lb.name == "Ptr" and is_integer(rb) and op in ("+", "-"):
+            self.unsafe(e.op_span, "pointer arithmetic")
+            return lt
         for b in (lb, rb):
             if isinstance(b, Param):
                 self.error("E0710", e.op_span, f"'{op}' isn't available on '{b.sym.name}': its bounds don't provide arithmetic")
@@ -1569,9 +1631,48 @@ class TypeChecker:
         s0 = syms[0]
         if s0.kind in (Kind.TYPE, Kind.BUILTIN_TYPE):
             return self.construct(e, s0, explicit, expected)
+        if s0.is_extern and s0.unit == "C" and s0.name == "cast":
+            return self.cast(e, explicit)
+        if s0.is_extern and s0.unit == "C" and s0.name == "addr":
+            t = self.call(e, name, self.candidates(syms), None, explicit, expected, span)
+            self.addr(e, t)
+            return t
         if s0.is_routine:
             return self.call(e, name, self.candidates(syms), None, explicit, expected, span)
         return self.call_value(e, self.as_value(self.sym_value(syms, span, None), callee), name)
+
+    def cast(self, e, explicit):
+        """`cast[T](x)`: reinterprets a pointer or integer as another (SPEC §10.4)."""
+        if explicit is None or len(explicit) != 1 or len(e.args) != 1 or e.args[0].name or e.args[0].is_var:
+            self.prepare(e.args)
+            self.error("E0511", e.span, "write 'cast[T](x)': one type argument and one value")
+            return ERROR
+        target = explicit[0]
+        t = self.value(e.args[0].value)
+        self.unsafe(e.span, "'cast'")
+        if not (has_error(t) or has_error(target) or (_castable(self.base(t)) and _castable(target))):
+            self.error("E0904", e.span, f"can't cast {show(t)} to {show(target)}: 'cast' converts between pointers (Ptr[T], Pointer, CString) and integers")
+        return target
+
+    def addr(self, e, t) -> None:
+        """`addr(var x)`: the address of a variable, or of a field of a C record in one."""
+        self.unsafe(e.span, "'addr'")
+        if len(e.args) != 1 or has_error(t):
+            return
+        arg = e.args[0].value
+        if not self.c_compatible(t.args[0], arg.span):
+            return
+        place = arg
+        while True:
+            place = _unparen(place)
+            if isinstance(place, A.FieldAccess) and self.env.kind_of(self.types.get(id(place.target))) == "record":
+                if not self.env.decl(self.types[id(place.target)].sym).c:
+                    break
+                place = place.target
+                continue
+            break
+        if not isinstance(place, A.Name):
+            self.error("E0905", arg.span, "'addr' needs a variable, or a field of a C record held in one")
 
     def bound_candidates(self, member_of) -> list[Cand]:
         """Candidates from the bounds of the type parameters in scope. ``member_of(d)``
@@ -1936,8 +2037,9 @@ class TypeChecker:
             elif a.is_var:
                 self.error("E0522", a.span, f"'{p.name}' is not a var parameter of '{name}'; remove 'var'")
         for a in m.extra:
-            if a.flex is not None:
-                self.value(a.expr)
+            t = self.value(a.expr) if a.flex is not None else a.type
+            if t is not None:
+                self.c_compatible(t, a.expr.span)
             if a.is_var:
                 self.error("E0522", a.span, f"variadic arguments of '{name}' can't be 'var'")
         self.var_overlap([a for p, a in zip(m.params, m.slots) if a is not None and p.is_var and a.is_var])

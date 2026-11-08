@@ -427,6 +427,7 @@ class UnionType(Node):
 @dataclass(eq=False)
 class RecordType(Node):
     fields: list[FieldDecl]
+    c: bool = False  # declared in an extern block: a C record (SPEC §10.5)
 
 
 @dataclass(eq=False)
@@ -489,7 +490,7 @@ class ExternDecl(Node):
 @dataclass(eq=False)
 class ExternBlock(Node):
     library: str
-    decls: list[ExternDecl]
+    decls: list[ExternDecl | TypeSection]  # type sections declare C records
     end_marker: Span | None = None
 
 

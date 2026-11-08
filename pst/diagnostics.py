@@ -149,5 +149,12 @@ ERROR_CODES: dict[str, str] = {
     "E0802": "Branches of an 'if' or 'case' expression have different types.",
     "E0803": "'if' expression used as an operand must be parenthesized.",
     "E0804": "'case' expression must be the whole right side of ':=', 'var', 'let', or 'return'.",
+    "E0901": "Type isn't C-compatible. Extern routines, C record fields and C varargs take "
+    "numbers, Boolean, CString, Pointer, Ptr[T], C records, or function types of these.",
+    "E0902": "Unsafe operation (deref of a Ptr, pointer arithmetic, cast, addr) outside an "
+    "'unsafe' function or procedure.",
+    "E0903": "Only records without defaults or type parameters can be declared in an extern block.",
+    "E0904": "'cast' converts only between pointers (Ptr[T], Pointer, CString) and integers.",
+    "E0905": "'addr' needs a variable, or a field of a C record held in one.",
     "E0990": "Not supported by the code generator yet (the program checks, but can't be built).",
 }

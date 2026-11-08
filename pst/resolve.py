@@ -275,6 +275,10 @@ class Declarations:
                         "'extern \"pst\"' is reserved for the standard units",
                     )  # fmt: skip
                 for d in item.decls:
+                    if isinstance(d, A.TypeSection):
+                        for td in d.decls:
+                            self.type_decl(td)
+                        continue
                     kind = Kind.FUNCTION if d.sig.is_function else Kind.PROCEDURE
                     sym = self.new(kind, d.sig.name, d.exported, d)
                     sym.is_extern = True
@@ -380,7 +384,11 @@ class Resolver:
                 self.routine(item)
             elif isinstance(item, A.ExternBlock):
                 for d in item.decls:
-                    self.signature(d.sig)
+                    if isinstance(d, A.TypeSection):
+                        for td in d.decls:
+                            self.type_decl(td)
+                    else:
+                        self.signature(d.sig)
             elif isinstance(item, A.TestBlock):
                 self.ctx = _Ctx()
                 self.stmts(item.body.stmts)

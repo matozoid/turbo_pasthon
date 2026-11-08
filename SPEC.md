@@ -495,9 +495,16 @@ Available from the `C` unit:
 | `Pointer` | `void*` |
 
 `Ptr`/`Pointer` are unmanaged and can be dereferenced (`deref(p)`, same form as for `ref`) only inside functions marked `unsafe` (§10.4).
+`isNull(p)` tests a `Ptr[T]`, `Pointer` or `CString` for null, outside `unsafe` too (§10.2).
 `addr(var x): Ptr[T]` gives the address of a variable, or of a field of a C record in one
 (§10.5). It is allowed only inside `unsafe` functions, and only for C-compatible types
-(§10.1). The pointer is valid until the variable's scope ends.
+(§10.1). The pointer is valid while the variable is in scope and not reassigned (assigning
+a C record variable may move its bytes).
+
+Sized integers (`Int8` … `UInt64`) are checked like `Integer`: arithmetic that leaves the
+type's range panics (`P0002`) in checked builds and wraps in `--unchecked` ones. Conversions
+between integer types (`Int32(x)`) are checked the same way; `cast[T](x)` truncates without
+checking.
 
 ### 4.14 Iterators
 ```pascal
@@ -998,30 +1005,52 @@ extern "libm.so.6"
 ### 10.2 Strings
 - A `String` is never converted to a `CString` implicitly: write `strlen(toCString(s))`.
 - `toCString(s: String): CString` doesn't copy: it returns a pointer to the string's bytes,
-  which always end with a NUL, and keeps the string alive until the end of the calling
-  scope. A NUL inside the string ends it early for C.
-- `fromCString(p: CString): String` copies the C string.
+  which always end with a NUL, and keeps the string alive until the end of the enclosing
+  block. A NUL inside the string ends it early for C.
+- `fromCString(p: CString): String` copies the C string. Bytes that aren't valid UTF-8 each
+  become U+FFFD. A null pointer panics (`P0007`), in `--unchecked` builds too: where C may
+  return null, check with `isNull` first.
+- `isNull(p)` takes a `CString`, `Pointer` or `Ptr[T]`. It is safe (no `unsafe` needed),
+  since it doesn't read through the pointer:
+
+  ```pascal
+  function env(name: String): Option[String]
+      let p := getenv(toCString(name))
+      if p.isNull() then
+          return None
+      return Some(fromCString(p))
+  ```
+  Planned, not in v0.1: decoding other encodings (Latin-1 and other 8-bit code pages,
+  where bytes 0x80–0xFF are characters), as a parameter or a separate function.
+- A program ends through libc's `exit`, so output C buffered with `stdio` is written. It is
+  buffered separately from `IO`'s: their order is only kept when C flushes (`fflush`).
 
 ### 10.3 Callbacks
 A top-level, non-generic Pasthon function whose signature is C-compatible can be passed
-where C expects a function pointer.
+where C expects a function pointer. C may call it any number of times while the program
+runs.
 
 ### 10.4 unsafe
-Dereferencing `Ptr[T]`/`Pointer`, pointer arithmetic (`p + n`), and `cast[T](x)` are allowed
-only inside functions declared `unsafe function` / `unsafe procedure`. Calling an unsafe
+Dereferencing `Ptr[T]`/`Pointer`, pointer arithmetic (`p + n`, in units of `T`), `cast[T](x)`
+and `addr(var x)` are allowed only inside functions declared `unsafe function` /
+`unsafe procedure`. Calling an unsafe
 function requires no marker. Unsafe code is greppable, not contagious.
 
 
 ### 10.5 C records
 A record declared in a `type` section inside an `extern` block is a **C record**: it has
-exactly the layout of the C struct (fields in declaration order, C alignment rules) and
-is stored inline, like an `Integer`, with no header and no reference count.
+exactly the layout of the C struct (fields in declaration order, C alignment rules). A
+C record value holds those bytes; like other records, it is a value: assignment copies it
+(copy-on-write, §4.6).
 
 ```pascal
 extern "libSDL2-2.0.so.0"
     type
         export SdlRect = record
-            x, y, w, h: CInt
+            x: CInt
+            y: CInt
+            w: CInt
+            h: CInt
     function sdlFillRect(s: Ptr[SdlSurface], r: Ptr[SdlRect], color: CUInt): CInt as "SDL_FillRect"
 
 unsafe procedure fill(s: Ptr[SdlSurface])
@@ -1035,6 +1064,9 @@ unsafe procedure fill(s: Ptr[SdlSurface])
 - Outside `unsafe`, a C record is used like any record: construction, field access, `=`.
   Assignment copies the bytes.
 - Only C records can be passed to C by value or through `Ptr[T]`.
+- v0.1 code generator limits (`E0990`): C records are passed and returned by value only up
+  to 16 bytes; a C call takes at most 6 register arguments; callbacks can't take C records
+  by value; `Real`/`CDouble`/`CFloat` aren't supported in C calls.
 
 ---
 
@@ -1116,6 +1148,7 @@ v0.1 is single-threaded, but the design is fixed now so v0.1 doesn't rule it out
 | `P0004` | division by zero |
 | `P0005` | `get` on `None` / `Err` |
 | `P0006` | string byte offset not on a `Char` boundary |
+| `P0007` | `fromCString` of a null pointer |
 | `P0010` | `requires` violated |
 | `P0011` | `ensures` violated |
 | `P0020` | `assert` failed |
@@ -1411,8 +1444,8 @@ the block it closes.
 | `E0048` | declaration not allowed here (types, routines, externs, tests are top level only) |
 | `E0049` | block doesn't start on a new line (`if a then f()`) |
 
-The parser also reports `E0101`, `E0104`, `E0201`, `E0202`, `E0801`, `E0803`, and `E0804`
-where they are purely syntactic.
+The parser also reports `E0101`, `E0104`, `E0201`, `E0202`, `E0801`, `E0803`, `E0804`, and
+`E0903` where they are purely syntactic.
 
 Recovery: an error skips the rest of its line and any block indented under it, leaving an
 error node, so one mistake gives one diagnostic. Syntax errors on a logical line that
@@ -1478,6 +1511,11 @@ already has a lexical error are not reported.
 | `E0710` | operation on a type parameter that its bounds don't provide |
 | `E0720` | generic instances nest more than 64 deep (§8) |
 | `E0802` | `if` / `case` expression branches of different types |
+| `E0901` | type isn't C-compatible (extern signature, C record field, C varargs argument; §10.1) |
+| `E0902` | unsafe operation outside an `unsafe` routine (§10.4) |
+| `E0903` | invalid declaration in an extern block's `type` section (§10.5) |
+| `E0904` | `cast` between types other than pointers and integers (§10.4) |
+| `E0905` | `addr` of something other than a variable or a C record field in one (§4.13) |
 
 ### 16.4 Build errors
 

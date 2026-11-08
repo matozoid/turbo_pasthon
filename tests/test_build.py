@@ -34,7 +34,7 @@ def compile_program(body: str, checked: bool = True, uses: str = "IO", units: di
 
 def run_program(
     body: str, *args: str, checked: bool = True, uses: str = "IO", under: tuple = (),
-    units: dict | None = None,
+    units: dict | None = None, env: dict | None = None,
 ) -> subprocess.CompletedProcess:
     """Builds and runs a program, optionally under a tool such as valgrind."""
     built, tmp = compile_program(body, checked, uses, units)
@@ -42,7 +42,8 @@ def run_program(
     exe = os.path.join(tmp, "main")
     Path(exe).write_bytes(built.executable)
     os.chmod(exe, 0o755)
-    return subprocess.run([*under, exe, *args], capture_output=True, timeout=60)
+    environ = {**os.environb, **{k.encode(): v for k, v in (env or {}).items()}}
+    return subprocess.run([*under, exe, *args], capture_output=True, timeout=60, env=environ)
 
 
 class Encoding(unittest.TestCase):
@@ -723,6 +724,191 @@ class Generics(unittest.TestCase):
             """)
         self.assertIsNone(built.executable)
         self.assertEqual([(d.code, d.span.line, d.span.col) for d in built.diagnostics], [("E0720", 12, 12)])
+
+
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class SizedIntegers(unittest.TestCase):
+    def output(self, body: str, **kw) -> str:
+        p = run_program(body, **kw)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return p.stdout.decode()
+
+    def test_values(self):
+        out = self.output("""
+            var a: Int8 := 127
+            var u: UInt8 := 250
+            var w: UInt64 := 18446744073709551615
+            let i: Int32 := -2147483648
+            writeln("{a} {u} {w} {i}")
+            inc(var u, 5)
+            dec(var w)
+            writeln("{u} {w} {UInt64(5) < w} {w div 3} {w mod 10}")
+            writeln("{Int64(i) - 1} {UInt16(65535)} {Int8(a - 100)} {Int16(a) * 3}")
+            for x := UInt8(254) to 255 do
+                write(x)
+            writeln()
+            """)
+        self.assertEqual(
+            out,
+            "127 250 18446744073709551615 -2147483648\n"
+            "255 18446744073709551614 true 6148914691236517204 4\n"
+            "-2147483649 65535 27 381\n254255\n",
+        )
+
+    def test_overflow_and_conversions(self):
+        for body in [
+            "var a: Int8 := 127\ninc(var a)",
+            "var a: Int32 := 2000000000\na := a * 2",
+            "var u: UInt8 := 0\ndec(var u)",
+            "var w: UInt64 := 18446744073709551615\nw := w + 1",
+            "let x := 300\nwriteln(UInt8(x))",
+            "let x := -1\nwriteln(UInt64(x))",
+            "let w: UInt64 := 18446744073709551615\nwriteln(Int64(w))",
+        ]:
+            with self.subTest(body):
+                p = run_program(body)
+                self.assertEqual(p.returncode, 70, p.stdout)
+                self.assertIn(b"P0002", p.stderr)
+        p = run_program("var a: Int8 := 127\ninc(var a)\nlet x := 300\nwriteln(\"{a} {UInt8(x)}\")", checked=False)
+        self.assertEqual(p.stdout, b"-128 44\n")
+
+
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class CInterop(unittest.TestCase):
+    LIBC = """
+        extern "libc.so.6"
+            type
+                export Div = record
+                    quot: CInt
+                    rem: CInt
+                export Mixed = record
+                    a: Int8
+                    b: Int64
+                    c: Int16
+            function abs(x: CInt): CInt
+            function strlen(s: CString): CSize
+            function printf(fmt: CString, ...): CInt
+            function malloc(n: CSize): Pointer
+            procedure free(p: Pointer)
+            procedure qsort(base: Pointer, n: CSize, size: CSize, cmp: function(Pointer, Pointer): CInt)
+            function cdiv(a: CInt, b: CInt): Div as "div"
+            function getenv(name: CString): CString
+            function setenv(name: CString, value: CString, overwrite: CInt): CInt
+
+        extern "libm.so.6"
+            function labs(x: CLong): CLong
+        """
+
+    def run_c(self, body: str, **kw) -> subprocess.CompletedProcess:
+        return run_program(textwrap.dedent(self.LIBC) + textwrap.dedent(body), uses="IO, C", **kw)
+
+    def output(self, body: str, **kw) -> str:
+        p = self.run_c(body, **kw)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return p.stdout.decode()
+
+    def test_calls_and_strings(self):
+        out = self.output("""
+            let s := "h\u00e9llo"
+            writeln("{abs(-5)} {strlen(toCString(s))} {labs(-7)}")
+            for i := 1 to 3 do
+                let t := "{s}{i}"
+                write(strlen(toCString(t)))
+            writeln()
+            _ := setenv(toCString("PST_TEST"), value: toCString("ok\u20ac"), overwrite: 1)
+            writeln(fromCString(getenv(toCString("PST_TEST"))))
+            _ := printf(toCString("%d-%s|"), 7, toCString("x"))
+            """)
+        self.assertEqual(out, "5 6 7\n777\nok\u20ac\n7-x|")
+
+    def test_invalid_utf8_and_null(self):
+        p = self.run_c(
+            'writeln(fromCString(getenv(toCString("PST_TEST"))))',
+            env={"PST_TEST": b"a\xff\xc3(\xed\xa0\x80\xf0\x9f\x98\x80\xe2\x82"},
+        )
+        r = "\ufffd"
+        self.assertEqual(p.stdout.decode(), f"a{r}{r}({r}{r}{r}\U0001F600{r}{r}\n")
+        out = self.output("""
+            function env(name: String): Option[String]
+                let p := getenv(toCString(name))
+                if p.isNull() then
+                    return None
+                return Some(fromCString(p))
+
+            unsafe procedure pointers()
+                let m := malloc(8)
+                writeln("{isNull(m)} {cast[Ptr[CInt]](m).isNull()} {isNull(cast[Ptr[Div]](0))}")
+                free(m)
+
+            writeln("{env("PST_TEST").isSome()} {env("PST_NOT_SET_ANYWHERE").isSome()}")
+            pointers()
+            """, env={"PST_TEST": b"x"})
+        self.assertEqual(out, "true false\nfalse false true\n")
+        p = self.run_c('writeln(fromCString(getenv(toCString("PST_NOT_SET_ANYWHERE"))))')
+        self.assertEqual(p.returncode, 70)
+        self.assertIn(b"panic P0007: null C string", p.stderr)
+
+    def test_pointers_and_callbacks(self):
+        out = self.output("""
+            function compare(a: Pointer, b: Pointer): CInt
+                return compareInts(a, b: b)
+
+            unsafe function compareInts(a: Pointer, b: Pointer): CInt
+                let x := deref(cast[Ptr[CInt]](a))
+                let y := deref(cast[Ptr[CInt]](b))
+                return if x < y then -1 else if x > y then 1 else 0
+
+            unsafe procedure sortDemo()
+                let p := cast[Ptr[CInt]](malloc(20))
+                for i := 0 to 4 do
+                    deref(p + i) := CInt(10 - 3 * i)
+                qsort(cast[Pointer](p), 5, size: 4, cmp: compare)
+                for i := 0 to 4 do
+                    write("{deref(p + i)} ")
+                writeln()
+                free(cast[Pointer](p))
+
+            sortDemo()
+            """)
+        self.assertEqual(out, "-2 1 4 7 10 \n")
+
+    def test_c_records(self):
+        out = self.output("""
+            unsafe procedure demo()
+                var d := Div(quot: 1, rem: 2)
+                let q := addr(var d.quot)
+                deref(q) := 42
+                inc(var d.rem)
+                writeln("{d.quot} {d.rem}")
+                var e := d
+                e.rem := 7
+                writeln("{d.rem} {e.rem} {d = e} {d = Div(quot: 42, rem: 3)}")
+                let m := Mixed(a: -3, b: 100, c: 300)
+                writeln("{m.a} {m.b} {m.c}")
+
+            demo()
+            let r := cdiv(17, b: 5)
+            writeln("{r.quot} {r.rem}")
+            """)
+        self.assertEqual(out, "42 3\n3 7 false true\n-3 100 300\n3 2\n")
+
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_no_leaks(self):
+        p = self.run_c("""
+            procedure demo()
+                for i := 1 to 3 do
+                    let t := "x{i}"
+                    _ := strlen(toCString(t))
+                    if i = 2 then
+                        return
+            demo()
+            var d := Div(quot: 1, rem: 2)
+            let e := d
+            d := cdiv(9, b: 2)
+            writeln(fromCString(getenv(toCString("PST_TEST"))))
+            writeln(e.rem + d.rem)
+            """, under=("valgrind", "--leak-check=full", "--error-exitcode=9", "-q"), env={"PST_TEST": b"v\xff"})
+        self.assertEqual((p.returncode, p.stdout.decode()), (0, "v\ufffd\n3\n"), p.stderr)
 
 
 class Unsupported(unittest.TestCase):

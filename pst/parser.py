@@ -676,8 +676,10 @@ class _Parser:
         decls = self.indented(self.extern_decl, "list of extern declarations")
         return A.ExternBlock(self.finish(start), library, decls)
 
-    def extern_decl(self) -> A.ExternDecl:
+    def extern_decl(self) -> A.ExternDecl | A.TypeSection:
         start = self.peek().span
+        if self.at(K.TYPE):
+            return self.c_records()
         exported = self.accept(K.EXPORT) is not None
         if not self.at(K.FUNCTION, K.PROCEDURE):
             self.fail(
@@ -687,6 +689,23 @@ class _Parser:
         symbol = self.string_const("C symbol name") if self.accept(K.AS) else None
         self.end_line()
         return A.ExternDecl(self.finish(start), exported, sig, symbol, self.doc(start))
+
+    def c_records(self) -> A.TypeSection:
+        """A type section in an extern block: C records (SPEC §10.5), whose fields are
+        all exported."""
+        section = self.type_section()
+        for d in section.decls:
+            if not isinstance(d.body, A.RecordType):
+                self.report("E0903", d.name.span, "only records can be declared in an extern block")
+                continue
+            d.body.c = True
+            if d.params:
+                self.report("E0903", d.params[0].span, "a C record can't be generic")
+            for f in d.body.fields:
+                f.exported = True
+                if f.default is not None:
+                    self.report("E0903", f.default.span, "a C record field can't have a default")
+        return section
 
     def test_block(self) -> A.TestBlock:
         start = self.advance().span

@@ -37,7 +37,7 @@ class Assembler:
         self.data_labels: dict[str, int] = {}  # -> offset in rodata
         self._fixups: list[tuple[int, str, str]] = []  # (position of rel32, label, kind)
         self._strings: dict[bytes, str] = {}
-        self.imports: list[str] = []  # libc functions, in GOT order
+        self.imports: list[str] = []  # imported C functions, in GOT order
         self._n = 0
 
     # ------------------------------------------------------------------ labels
@@ -110,9 +110,13 @@ class Assembler:
             self.emit(_rex(True, 0, dst), 0xB8 + (dst & 7))
             self.code += (value & (2**64 - 1)).to_bytes(8, "little")
 
-    def _mem(self, op: bytes, reg: int, base: int, disp: int, w: bool = True, byte_reg: bool = False) -> None:
+    def _mem(
+        self, op: bytes, reg: int, base: int, disp: int, w: bool = True, byte_reg: bool = False,
+        prefix: bytes = b"",
+    ) -> None:
         """An instruction with a `[base + disp]` operand. ``reg`` is the register operand
         or the opcode extension."""
+        self.code += prefix
         rex = _rex(w, reg, base)
         if rex != 0x40 or (byte_reg and reg >= 4):  # spl..dil need a REX prefix
             self.emit(rex)
@@ -153,6 +157,41 @@ class Assembler:
         """`movzx dst32, byte [base + disp]`."""
         self._mem(b"\x0f\xb6", dst, base, disp, w=False)
 
+    def load_w(self, dst: int, base: int, disp: int, bits: int, signed: bool) -> None:
+        """Loads a ``bits``-wide integer, sign- or zero-extended to 64 bits."""
+        if bits == 64:
+            return self.load(dst, base, disp)
+        op, w = {
+            (8, True): (b"\x0f\xbe", True), (8, False): (b"\x0f\xb6", False),
+            (16, True): (b"\x0f\xbf", True), (16, False): (b"\x0f\xb7", False),
+            (32, True): (b"\x63", True), (32, False): (b"\x8b", False),
+        }[bits, signed]  # fmt: skip
+        self._mem(op, dst, base, disp, w=w)
+
+    def store_w(self, base: int, disp: int, src: int, bits: int) -> None:
+        """Stores the low ``bits`` of ``src``."""
+        if bits == 8:
+            self.store8(base, disp, src)
+        elif bits == 16:
+            self._mem(b"\x89", src, base, disp, w=False, prefix=b"\x66")
+        elif bits == 32:
+            self._mem(b"\x89", src, base, disp, w=False)
+        else:
+            self.store(base, disp, src)
+
+    def extend(self, r: int, bits: int, signed: bool) -> None:
+        """Sign- or zero-extends the low ``bits`` of ``r`` to 64 bits."""
+        if bits == 64:
+            return
+        if bits == 32:
+            if signed:  # movsxd r64, r32
+                self.emit(_rex(True, r, r), 0x63, 0xC0 | (r & 7) << 3 | (r & 7))
+            else:  # mov r32, r32 zero-extends
+                self._rr(0x89, r, r, w=False)
+            return
+        op = {(8, True): 0xBE, (8, False): 0xB6, (16, True): 0xBF, (16, False): 0xB7}[bits, signed]
+        self.emit(_rex(True, r, r), 0x0F, op, 0xC0 | (r & 7) << 3 | (r & 7))
+
     def inc_mem(self, base: int, disp: int = 0) -> None:
         self._mem(b"\xff", 0, base, disp)
 
@@ -171,6 +210,11 @@ class Assembler:
         """`lea dst, [rip + label]` for a rodata label."""
         self.emit(_rex(True, dst, 0), 0x8D, 0x05 | (dst & 7) << 3)
         self._rel32(label, "data")
+
+    def lea_code(self, dst: int, label: str) -> None:
+        """`lea dst, [rip + label]` for a code label."""
+        self.emit(_rex(True, dst, 0), 0x8D, 0x05 | (dst & 7) << 3)
+        self._rel32(label)
 
     def add(self, dst: int, src: int) -> None:
         self._rr(0x01, dst, src)
@@ -197,6 +241,14 @@ class Assembler:
 
     def neg(self, r: int) -> None:
         self._unary(3, r)
+
+    def mul(self, r: int) -> None:
+        """Unsigned rdx:rax := rax * r (sets CF when rdx isn't 0)."""
+        self._unary(4, r)
+
+    def div(self, r: int) -> None:
+        """Unsigned rdx:rax / r: quotient in rax, remainder in rdx."""
+        self._unary(6, r)
 
     def idiv(self, r: int) -> None:
         """Signed rdx:rax / r: quotient in rax, remainder in rdx."""
@@ -301,7 +353,7 @@ class Assembler:
         self._rel32(label)
 
     def call_import(self, name: str) -> None:
-        """`call [rip + GOT slot]` for a libc function."""
+        """`call [rip + GOT slot]` for an imported C function."""
         if name not in self.imports:
             self.imports.append(name)
         self.emit(0xFF, 0x15)

@@ -16,5 +16,15 @@ extern "pst"
     ## A pointer to the NUL-terminated bytes of `s`, without copying. `s` is kept alive
     ## until the end of the calling scope.
     export function toCString(s: String): CString
-    ## Copies a NUL-terminated C string. Invalid UTF-8 is replaced with U+FFFD.
+    ## Copies a NUL-terminated C string. Invalid UTF-8 is replaced with U+FFFD. Panics
+    ## (P0007) if `s` is null: check with `isNull` first where C may return null.
     export function fromCString(s: CString): String
+    ## Whether a pointer is null. Safe: it doesn't read through the pointer.
+    export function isNull(p: CString): Boolean
+    export function isNull(p: Pointer): Boolean
+    export function isNull[T](p: Ptr[T]): Boolean
+    ## The address of `x` (SPEC §10.4). Unsafe; the pointer is valid while `x` is in
+    ## scope and not reassigned.
+    export function addr[T](var x: T): Ptr[T]
+    ## Reinterprets a pointer or integer as another pointer or integer type. Unsafe.
+    export function cast[T, U](x: U): T
