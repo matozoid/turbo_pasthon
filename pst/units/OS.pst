@@ -9,6 +9,19 @@ extern "libc.so.6"
     function getcwd(buf: Pointer, size: CSize): CString
     function cStat(path: CString, st: Ptr[Stat]): CInt as "stat"
     procedure free(p: CString)
+    procedure freeMemory(p: Pointer) as "free"
+    function malloc(size: CSize): Pointer
+    function strdup(s: CString): CString
+    function readlink(path: CString, buf: Pointer, size: CSize): CLong
+    function mkdtemp(template: CString): CString
+    function unlink(path: CString): CInt
+    function rmdir(path: CString): CInt
+    function fork(): CInt
+    function execv(path: CString, argv: Ptr[CString]): CInt
+    procedure cExit(code: CInt) as "_exit"
+    function waitpid(pid: CInt, status: Ptr[CInt], options: CInt): CInt
+    function errnoLocation(): Ptr[CInt] as "__errno_location"
+    function strerror(code: CInt): CString
     type
         ## glibc's `struct stat` on x86-64: 144 bytes; `st_mode` is the low half of
         ## `w3`.
@@ -75,3 +88,75 @@ export unsafe function isFile(path: String): Boolean
     if cStat(toCString(path), addr(var st)) <> 0 then
         return false
     return band(st.w3, 0o170000) = 0o100000
+
+## The message for C's `errno`.
+unsafe function lastError(): String
+    return fromCString(strerror(deref(errnoLocation())))
+
+## The path of the running executable, from `/proc/self/exe`.
+export unsafe function programPath(): String
+    let size := 4096
+    let buf := malloc(CSize(size))
+    let n := readlink(toCString("/proc/self/exe"), buf, CSize(size))
+    var path := ""
+    if n > 0 then
+        path := fromCBytes(buf, Integer(n))
+    freeMemory(buf)
+    return path
+
+## Creates a new directory, readable only by the user, under `TMPDIR` (or `/tmp`) and
+## returns its path.
+export unsafe function tempDir(): Result[String, String]
+    var base := env("TMPDIR").getOr("")
+    if base = "" then
+        base := "/tmp"
+    let template := strdup(toCString("{base}/pst-XXXXXX"))
+    if isNull(mkdtemp(template)) then
+        let message := "{base}: {lastError()}"
+        free(template)
+        return Err(message)
+    let dir := fromCString(template)
+    free(template)
+    return Ok(dir)
+
+## Deletes the file at `path`.
+export unsafe function removeFile(path: String): Result[Integer, String]
+    if unlink(toCString(path)) <> 0 then
+        return Err("{path}: {lastError()}")
+    return Ok(0)
+
+## Deletes the empty directory at `path`.
+export unsafe function removeDir(path: String): Result[Integer, String]
+    if rmdir(toCString(path)) <> 0 then
+        return Err("{path}: {lastError()}")
+    return Ok(0)
+
+## Runs the executable at `path` with arguments `args` and waits for it to finish. The
+## result is its exit status, or minus the signal that ended it. If the program can't be
+## started, the child process exits with status 127.
+export unsafe function run(path: String, args: List[String]): Result[Integer, String]
+    let n := len(args)
+    let argv := cast[Ptr[CString]](malloc(CSize(8 * (n + 2))))
+    deref(argv) := strdup(toCString(path))
+    for i := 0 to n - 1 do
+        deref(argv + (i + 1)) := strdup(toCString(args[i]))
+    deref(argv + (n + 1)) := cast[CString](0)
+    let pid := fork()
+    if pid = 0 then
+        _ := execv(deref(argv), argv)
+        cExit(CInt(127))
+    var message := ""
+    if pid < 0 then
+        message := lastError()
+    var status := CInt(0)
+    if pid > 0 and waitpid(pid, addr(var status), options: CInt(0)) < 0 then
+        message := lastError()
+    for i := 0 to n do
+        free(deref(argv + i))
+    freeMemory(cast[Pointer](argv))
+    if message <> "" then
+        return Err("{path}: {message}")
+    let s := Integer(status)
+    if band(s, 0x7F) = 0 then
+        return Ok(band(shr(s, 8), 0xFF))
+    return Ok(-band(s, 0x7F))

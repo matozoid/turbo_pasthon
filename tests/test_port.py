@@ -869,7 +869,7 @@ class Build(unittest.TestCase):
 
     def test_programs(self):
         for path in (ROOT / "examples" / "Inventory.pst", COMPILER / "LexDump.pst",
-                     COMPILER / "AsmDump.pst"):
+                     COMPILER / "AsmDump.pst", COMPILER / "Pst.pst"):
             with self.subTest(path.name):
                 self.compare(path)
 
@@ -890,6 +890,83 @@ class Build(unittest.TestCase):
             ROOT / "examples" / "Inventory.pst",
             under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"),
         )
+
+
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class Cli(unittest.TestCase):
+    """The port's command line tool (compiler/Pst.pst) against ``python3 -m pst``: the
+    same output, exit status and executables."""
+
+    PROGRAMS = {
+        "Args.pst": "program Args\nuses IO, OS\nfor a in args() do\n    writeln(a)\n",
+        "Exit.pst": (
+            "program Exit\nuses IO, OS\nwriteln(len(args()))\nlet xs: List[Integer] := []\n"
+            "if len(args()) > 0 then\n    writeln(xs[0])\nexit(3)\n"
+        ),
+        "Bad.pst": (
+            "program Bad\nuses IO\nfunction f(): Integer\n    return 1\nf()\n"
+            "writeln(na\u00efve)\nwriteln(x\U0001d11e)\nlet s := 1 \x01 \x7f \x0c\n"
+        ),
+        "Lib.pst": "unit Lib\nexport function one(): Integer\n    return 1\n",
+    }
+
+    @classmethod
+    def setUpClass(cls):
+        tool = build_tool("Pst")
+        cls.dir = Path(tempfile.mkdtemp(dir=_TMP.name))
+        cls.exe = str(cls.dir / "bin" / "pst")
+        os.makedirs(cls.dir / "bin")
+        shutil.move(tool, cls.exe)
+        os.symlink(STD_DIR, cls.dir / "bin" / "units")
+        cls.work = cls.dir / "work"
+        os.makedirs(cls.work)
+        for name, text in cls.PROGRAMS.items():
+            (cls.work / name).write_text(text)
+
+    def compare(self, *args: str, outputs: tuple = ()):
+        def run(command):
+            for o in outputs:
+                Path(self.work, o).unlink(missing_ok=True)
+            r = subprocess.run([*command, *args], cwd=self.work, capture_output=True, timeout=600)
+            return (r.returncode, r.stdout.decode(), r.stderr.decode(),
+                    [Path(self.work, o).read_bytes() for o in outputs])
+
+        env = {**os.environ, "PYTHONPATH": str(ROOT)}
+        r = subprocess.run(["python3", "-m", "pst", *args], cwd=self.work, capture_output=True,
+                           env=env, timeout=600)
+        want = (r.returncode, r.stdout.decode(), r.stderr.decode(),
+                [Path(self.work, o).read_bytes() for o in outputs])
+        self.assertEqual(run([self.exe]), want)
+        return want
+
+    def test_check(self):
+        self.assertEqual(self.compare("check", "Args.pst")[0], 0)
+        self.assertEqual(self.compare("check", "Lib.pst", "--json")[0], 0)
+        self.assertEqual(self.compare("check", "Bad.pst")[0], 1)
+        self.assertIn("\\ud834\\udd1e", self.compare("check", "--json", "Bad.pst")[1])
+        self.compare("check", "missing.pst", "--json")
+
+    def test_build(self):
+        self.compare("build", "Args.pst", outputs=("Args",))
+        self.compare("build", "Args.pst", "-o", "a.out", outputs=("a.out",))
+        self.compare("build", "--unchecked", "--output", "e", "Exit.pst", outputs=("e",))
+        self.assertEqual(self.compare("build", "Bad.pst", "--json")[0], 1)
+        self.assertEqual(self.compare("build", "Lib.pst")[0], 1)
+        self.assertEqual(os.stat(self.work / "Args").st_mode & 0o777, 0o755)
+
+    def test_run(self):
+        self.assertEqual(self.compare("run", "Args.pst", "x", "-- y", "--json")[1],
+                         "x\n-- y\n--json\n")
+        self.assertEqual(self.compare("run", "Args.pst", "--", "a", "b c")[1], "a\nb c\n")
+        self.assertEqual(self.compare("run", "Exit.pst")[0], 3)
+        self.assertEqual(self.compare("run", "Exit.pst", "--", "x")[0], 70)
+        self.assertEqual(self.compare("run", "--unchecked", "Bad.pst")[0], 1)
+
+    def test_usage(self):
+        for args in ([], ["frob"], ["build"], ["build", "Args.pst", "-o"]):
+            with self.subTest(args):
+                r = subprocess.run([self.exe, *args], capture_output=True)
+                self.assertEqual(r.returncode, 2)
 
 
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")

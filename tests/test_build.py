@@ -1519,6 +1519,42 @@ class OsAndFiles(unittest.TestCase):
         self.assertEqual(p.returncode, 0, p.stderr)
         self.assertEqual(p.stdout.decode(), f"{os.path.realpath(tmp)}\ntrue\nfalse\nfalse\n")
 
+    def test_processes_and_temp_dirs(self):
+        tmp = tempfile.mkdtemp(dir=_TMP.name)
+        p = run_program("""
+            writeln(programPath())
+            case tempDir() of
+                Ok(d):
+                    writeln(startsWith(d.value, prefix: "{env("TMPDIR").get()}/pst-"))
+                    case create("{d.value}/f") of
+                        Ok(f):
+                            _ := close(f.value)
+                        Err(e):
+                            writeln(e.error)
+                    writeln(removeDir(d.value).isOk())
+                    writeln(removeFile("{d.value}/f").isOk())
+                    writeln(removeFile("{d.value}/f").isOk())
+                    writeln(removeDir(d.value).isOk())
+                    writeln(isFile(d.value))
+                Err(e):
+                    writeln(e.error)
+            procedure show(r: Result[Integer, String])
+                case r of
+                    Ok(c):
+                        writeln(c.value)
+                    Err(e):
+                        writeln(e.error)
+            show(run("/bin/sh", ["-c", "echo \\"[$0] [$1]\\"; exit 3", "a b", "é"]))
+            show(run("/bin/sh", ["-c", "kill -9 $$"]))
+            show(run("/missing", []))
+            """, uses="IO, OS, Strings", env={"TMPDIR": tmp}, under=self.under())  # fmt: skip
+        self.assertEqual(p.returncode, 0, p.stderr)
+        lines = p.stdout.decode().split("\n")
+        self.assertTrue(lines[0].endswith("/main"), lines[0])
+        self.assertEqual(lines[1:], ["true", "false", "true", "false", "true", "false",
+                                     "[a b] [é]", "3", "-9", "127", ""])
+        self.assertEqual(os.listdir(tmp), [])
+
     def test_readln(self):
         p = run_program("""
             while true do

@@ -2,7 +2,7 @@ unit Diagnostics
 
 ## Diagnostics with stable error codes and machine-applicable fixes (SPEC §15.1).
 
-uses Source
+uses Source, Strings
 
 type
     export Severity = (Error, Warning)
@@ -35,3 +35,58 @@ export function name(s: Severity): String
 ## The human form: `Main.pst:12:5: error E0502: result of 'restock' is ignored`.
 export function human(d: Diagnostic): String
     return "{d.file}:{d.span.line}:{d.span.col}: {name(d.severity)} {d.code}: {d.message}"
+
+## The digits of `n` in base 16, lowercase, at least four.
+function hex4(n: Integer): String
+    let digits := ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f']
+    var cs: List[String] := []
+    var m := n
+    while m > 0 or len(cs) < 4 do
+        add(var cs, toString(digits[m mod 16]))
+        m := m div 16
+    var r: List[String] := []
+    for i := len(cs) - 1 downto 0 do
+        add(var r, cs[i])
+    return join(r)
+
+## `s` as a JSON string, ASCII only, as Python's `json.dumps` writes it.
+export function jsonString(s: String): String
+    var parts: List[String] := ["\""]
+    for c in s do
+        let n := ord(c)
+        if c = '"' then
+            add(var parts, "\\\"")
+        else if c = '\\' then
+            add(var parts, "\\\\")
+        else if c = '\n' then
+            add(var parts, "\\n")
+        else if c = '\r' then
+            add(var parts, "\\r")
+        else if c = '\t' then
+            add(var parts, "\\t")
+        else if n = 8 then
+            add(var parts, "\\b")
+        else if n = 12 then
+            add(var parts, "\\f")
+        else if n < 0x20 or (n >= 0x7F and n < 0x10000) then
+            add(var parts, "\\u{hex4(n)}")
+        else if n >= 0x10000 then
+            let v := n - 0x10000
+            add(var parts, "\\u{hex4(0xD800 + v div 0x400)}\\u{hex4(0xDC00 + v mod 0x400)}")
+        else
+            add(var parts, toString(c))
+    add(var parts, "\"")
+    return join(parts)
+
+function jsonSpan(s: Span): String
+    return "\"line\": {s.line}, \"col\": {s.col}, \"endLine\": {s.endLine}, \"endCol\": {s.endCol}"
+
+## The JSON form (SPEC §15.1) on one line, as Python's `json.dumps` writes it.
+export function json(d: Diagnostic): String
+    var fixes: List[String] := []
+    for f in d.fixes do
+        var edits: List[String] := []
+        for e in f.edits do
+            add(var edits, "\{{jsonSpan(e.span)}, \"text\": {jsonString(e.text)}}")
+        add(var fixes, "\{\"description\": {jsonString(f.description)}, \"edits\": [{join(edits, sep: ", ")}]}")
+    return "\{\"file\": {jsonString(d.file)}, {jsonSpan(d.span)}, \"severity\": \"{name(d.severity)}\", \"code\": {jsonString(d.code)}, \"message\": {jsonString(d.message)}, \"fixes\": [{join(fixes, sep: ", ")}]}"
