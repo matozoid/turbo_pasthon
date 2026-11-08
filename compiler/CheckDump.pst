@@ -1,0 +1,56 @@
+program CheckDump
+
+## Prints the symbol index, the types of local variables, and the diagnostics of
+## type-checking a program or unit in a canonical form, to compare the type checker
+## with the Python one (tests/test_port.py).
+##
+## Usage: `CheckDump STD_DIR FILE`.
+
+uses IO, OS, Strings, Source, Diagnostics, Symbols, Resolve, Types, Typecheck
+
+## `s` in double quotes, with `\`, `"` and control characters escaped.
+function quote(s: String): String
+    var parts: List[String] := ["\""]
+    for c in s do
+        if c = '\\' then
+            add(var parts, "\\\\")
+        else if c = '"' then
+            add(var parts, "\\\"")
+        else if c = '\n' then
+            add(var parts, "\\n")
+        else
+            add(var parts, toString(c))
+    add(var parts, "\"")
+    return join(parts)
+
+function where(s: Span): String
+    return "{s.line}:{s.col}-{s.endLine}:{s.endCol}"
+
+let a := args()
+if len(a) <> 2 then
+    writelnErr("usage: CheckDump STD_DIR FILE")
+    exit(2)
+let checked := typecheck(a[1], stdDir: a[0])
+let r := checked.resolved
+var symTypes: Map[Integer, Type] := {}
+if checked.env.isSome() then
+    symTypes := checked.env.get().symTypes
+for x in r.checker.index.refs do
+    var what := "use"
+    if x.isDef then
+        what := "def"
+    writeln("{what} {x.file} {where(x.span)}")
+    for t in x.targets do
+        writeln("  {describe(t)} @ {location(t)}")
+        if x.isDef and isLocal(t.kind) then
+            case get(symTypes, t.id) of
+                Some(st):
+                    writeln("    : {show(st.value)}")
+                None:
+                    writeln("    : ?")
+for d in r.checker.diagnostics do
+    writeln("{d.file} {name(d.severity)} {d.code} {where(d.span)} {quote(d.message)}")
+    for f in d.fixes do
+        writeln("  fix {quote(f.description)}")
+        for e in f.edits do
+            writeln("    edit {where(e.span)} {quote(e.text)}")

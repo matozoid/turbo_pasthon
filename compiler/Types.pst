@@ -1,0 +1,458 @@
+unit Types
+
+## Semantic types (SPEC §4).
+##
+## Types are values compared structurally; the symbols in them compare by identity.
+## Declared types (records, enums, unions, subranges, traits) are identified by their
+## declaring symbol plus type arguments. Aliases are expanded when a type expression is
+## evaluated, so `Integer` *is* `Int64`.
+##
+## Type parameters appear as `ParamT`. During inference, the parameters of the generic
+## being called act as variables: `unify` binds them in a substitution, which maps symbol
+## ids to types (`This` has id 0).
+
+uses Strings, Symbols
+
+type
+    ## Int8..UInt64, Real32, Real64, Boolean, Char, String, CString, Pointer.
+    export PrimT = record
+        export name: String
+
+    ## `List[T]`, `Array[T, N]`, `Weak[T]`, `Ptr[T]`.
+    export BuiltinT = record
+        export name: String
+        export args: List[Type]
+
+    export RefT = record
+        export target: Type
+
+    ## `result` is `<no value>` for procedures.
+    export FuncT = record
+        export isFunction: Boolean
+        export params: List[Type]
+        export result: Type
+
+    ## A declared record, enum, union or subrange type, with its type arguments.
+    export NamedT = record
+        export sym: ref Symbol
+        export args: List[Type]
+
+    ## A trait, as used in a bound. Never the type of a value (E0420).
+    export TraitT = record
+        export sym: ref Symbol
+        export args: List[Type]
+
+    ## A type parameter, or a constant parameter used as a type argument.
+    export ParamT = record
+        export sym: ref Symbol
+
+    ## A constant type argument: `5`, or an expression like `N * 2` kept as text.
+    export ConstT = record
+        export isInt: Boolean
+        export value: Integer
+        export text: String
+
+    export SpecialT = record
+        export name: String
+
+    ## A type name used in an expression: a constructor, conversion, or enum.
+    export TypeValueT = record
+        export inner: Type
+
+    ## A routine name used as a value before a single routine is chosen.
+    export OverloadsT = record
+        export syms: List[ref Symbol]
+
+    export Type = PrimT | BuiltinT | RefT | FuncT | NamedT | TraitT | ParamT | ConstT | SpecialT | TypeValueT | OverloadsT
+
+    ## Symbol id to type; `This` is id 0.
+    export Subst = Map[Integer, Type]
+
+    ## A set of symbol ids: the parameters that may be bound.
+    export Vars = Map[Integer, Boolean]
+
+const
+    export ThisId = 0
+
+## Already reported; compatible with everything.
+export function errorT(): Type
+    return SpecialT(name: "<error>")
+
+## The result of a procedure.
+export function voidT(): Type
+    return SpecialT(name: "<no value>")
+
+## `This`, inside trait signatures.
+export function thisT(): Type
+    return SpecialT(name: "This")
+
+## `[]` before its type is known.
+export function emptyListT(): Type
+    return SpecialT(name: "[]")
+
+export function emptyBracesT(): Type
+    return SpecialT(name: "\{}")
+
+export function intLitT(): Type
+    return SpecialT(name: "<integer literal>")
+
+export function realLitT(): Type
+    return SpecialT(name: "<real literal>")
+
+export function prim(name: String): Type
+    return PrimT(name: name)
+
+export function integerT(): Type
+    return prim("Int64")
+
+export function realT(): Type
+    return prim("Real64")
+
+export function booleanT(): Type
+    return prim("Boolean")
+
+export function charT(): Type
+    return prim("Char")
+
+export function stringT(): Type
+    return prim("String")
+
+export function builtin(name: String, args: List[Type]): Type
+    return BuiltinT(name: name, args: args)
+
+export function named(sym: ref Symbol, args: List[Type]): Type
+    return NamedT(sym: sym, args: args)
+
+export function param(sym: ref Symbol): Type
+    return ParamT(sym: sym)
+
+export function constInt(v: Integer): Type
+    return ConstT(isInt: true, value: v, text: toString(v))
+
+export function constText(s: String): Type
+    return ConstT(isInt: false, value: 0, text: s)
+
+## The name of an integer primitive, or "".
+export function integerName(t: Type): String
+    case t of
+        PrimT(p):
+            if p.name = "Int8" or p.name = "Int16" or p.name = "Int32" or p.name = "Int64" or p.name = "UInt8" or p.name = "UInt16" or p.name = "UInt32" or p.name = "UInt64" then
+                return p.name
+            return ""
+        else:
+            return ""
+
+export function isInteger(t: Type): Boolean
+    return integerName(t) <> ""
+
+export function isReal(t: Type): Boolean
+    case t of
+        PrimT(p):
+            return p.name = "Real32" or p.name = "Real64"
+        else:
+            return false
+
+export function isNumeric(t: Type): Boolean
+    return isInteger(t) or isReal(t)
+
+## Whether `t` is the builtin generic `name` (`List`, `Array`, `Weak`, `Ptr`).
+export function isBuiltin(t: Type, name: String): Boolean
+    case t of
+        BuiltinT(b):
+            return b.name = name
+        else:
+            return false
+
+## The type arguments of a builtin, named or trait type; empty for others.
+export function argsOf(t: Type): List[Type]
+    case t of
+        BuiltinT(b):
+            return b.args
+        NamedT(n):
+            return n.args
+        TraitT(r):
+            return r.args
+        else:
+            return []
+
+## The declaring symbol of a named type.
+export function namedSym(t: Type): Option[ref Symbol]
+    case t of
+        NamedT(n):
+            return Some(n.sym)
+        else:
+            return None
+
+export function isParam(t: Type): Boolean
+    case t of
+        ParamT(_):
+            return true
+        else:
+            return false
+
+export function isTraitT(t: Type): Boolean
+    case t of
+        TraitT(_):
+            return true
+        else:
+            return false
+
+export function isRefT(t: Type): Boolean
+    case t of
+        RefT(_):
+            return true
+        else:
+            return false
+
+export function isTypeValue(t: Type): Boolean
+    case t of
+        TypeValueT(_):
+            return true
+        else:
+            return false
+
+export function isOverloads(t: Type): Boolean
+    case t of
+        OverloadsT(_):
+            return true
+        else:
+            return false
+
+export function hasErrorIn(ts: List[Type]): Boolean
+    for a in ts do
+        if hasError(a) then
+            return true
+    return false
+
+export function hasError(t: Type): Boolean
+    case t of
+        SpecialT(s):
+            return s.name = "<error>"
+        BuiltinT(b):
+            return hasErrorIn(b.args)
+        NamedT(n):
+            return hasErrorIn(n.args)
+        TraitT(r):
+            return hasErrorIn(r.args)
+        RefT(r):
+            return hasError(r.target)
+        FuncT(f):
+            return hasErrorIn(f.params) or hasError(f.result)
+        else:
+            return false
+
+function showArgs(name: String, args: List[Type]): String
+    if len(args) = 0 then
+        return name
+    var parts: List[String] := []
+    for a in args do
+        add(var parts, show(a))
+    return "{name}[{join(parts, sep: ", ")}]"
+
+## `t` as messages show it.
+export function show(t: Type): String
+    case t of
+        PrimT(p):
+            if p.name = "Int64" then
+                return "Integer"
+            if p.name = "Real64" then
+                return "Real"
+            if p.name = "UInt8" then
+                return "Byte"
+            return p.name
+        BuiltinT(b):
+            return showArgs(b.name, b.args)
+        NamedT(n):
+            return showArgs(n.sym.name, n.args)
+        TraitT(r):
+            return showArgs(r.sym.name, r.args)
+        RefT(r):
+            return "ref {show(r.target)}"
+        FuncT(f):
+            var parts: List[String] := []
+            for p in f.params do
+                add(var parts, show(p))
+            if f.isFunction then
+                return "function({join(parts, sep: ", ")}): {show(f.result)}"
+            return "procedure({join(parts, sep: ", ")})"
+        ParamT(p):
+            return p.sym.name
+        ConstT(c):
+            return c.text
+        SpecialT(s):
+            return s.name
+        TypeValueT(v):
+            return "type {show(v.inner)}"
+        OverloadsT(o):
+            return "routine '{o.syms[0].name}'"
+    return ""
+
+function keyArgs(head: String, args: List[Type]): String
+    var parts: List[String] := []
+    for a in args do
+        add(var parts, key(a))
+    return "{head}[{join(parts, sep: ",")}]"
+
+## A string that identifies `t` exactly, for caches keyed by type.
+export function key(t: Type): String
+    case t of
+        PrimT(p):
+            return p.name
+        BuiltinT(b):
+            return keyArgs("B:{b.name}", b.args)
+        NamedT(n):
+            return keyArgs("N#{n.sym.id}", n.args)
+        TraitT(r):
+            return keyArgs("T#{r.sym.id}", r.args)
+        RefT(r):
+            return "R({key(r.target)})"
+        FuncT(f):
+            return "{keyArgs("F{f.isFunction}", f.params)}:{key(f.result)}"
+        ParamT(p):
+            return "P#{p.sym.id}"
+        ConstT(c):
+            return "C{c.isInt}:{c.text}"
+        SpecialT(s):
+            return "S:{s.name}"
+        TypeValueT(v):
+            return "V({key(v.inner)})"
+        OverloadsT(o):
+            var parts: List[String] := []
+            for s in o.syms do
+                add(var parts, toString(s.id))
+            return "O#{join(parts, sep: ",")}"
+    return ""
+
+function substAll(ts: List[Type], s: Subst): List[Type]
+    var out: List[Type] := []
+    for a in ts do
+        add(var out, subst(a, s))
+    return out
+
+## Replaces the parameters bound in `s` (one pass: bindings are not re-substituted).
+export function subst(t: Type, s: Subst): Type
+    if len(s) = 0 then
+        return t
+    case t of
+        ParamT(p):
+            return getOr(s, p.sym.id, default: t)
+        BuiltinT(b):
+            return BuiltinT(name: b.name, args: substAll(b.args, s))
+        NamedT(n):
+            return NamedT(sym: n.sym, args: substAll(n.args, s))
+        TraitT(r):
+            return TraitT(sym: r.sym, args: substAll(r.args, s))
+        RefT(r):
+            return RefT(target: subst(r.target, s))
+        FuncT(f):
+            return FuncT(isFunction: f.isFunction, params: substAll(f.params, s), result: subst(f.result, s))
+        SpecialT(x):
+            if x.name = "This" and ThisId in s then
+                return s[ThisId]
+            return t
+        else:
+            return t
+
+## Adds the parameters that appear in `t` to `out`.
+export procedure paramsIn(t: Type, var out: Vars)
+    case t of
+        ParamT(p):
+            out[p.sym.id] := true
+        BuiltinT(b):
+            for a in b.args do
+                paramsIn(a, var out)
+        NamedT(n):
+            for a in n.args do
+                paramsIn(a, var out)
+        TraitT(r):
+            for a in r.args do
+                paramsIn(a, var out)
+        RefT(r):
+            paramsIn(r.target, var out)
+        FuncT(f):
+            for p in f.params do
+                paramsIn(p, var out)
+            paramsIn(f.result, var out)
+        else:
+            return
+
+## Whether a parameter in `vars` appears in `t`.
+export function mentions(t: Type, vars: Vars): Boolean
+    var found: Vars := {}
+    paramsIn(t, var found)
+    for id, _ in found do
+        if id in vars then
+            return true
+    return false
+
+## Whether a parameter in `vars` that `s` doesn't bind appears in `t`.
+export function mentionsUnbound(t: Type, vars: Vars, s: Subst): Boolean
+    var found: Vars := {}
+    paramsIn(t, var found)
+    for id, _ in found do
+        if id in vars and not (id in s) then
+            return true
+    return false
+
+function unifyAll(patterns, actuals: List[Type], var s: Subst, vars: Vars): Boolean
+    if len(patterns) <> len(actuals) then
+        return false
+    for i := 0 to len(patterns) - 1 do
+        if not unify(patterns[i], actuals[i], var s, vars) then
+            return false
+    return true
+
+## Matches `pattern` against `actual`, binding parameters in `vars` into `s`. Only exact
+## structure matches; implicit conversions are the caller's business.
+export function unify(pattern, actual: Type, var s: Subst, vars: Vars): Boolean
+    let err := errorT()
+    if actual = err or pattern = err then
+        return true
+    case pattern of
+        ParamT(p):
+            if p.sym.id in vars then
+                case get(s, p.sym.id) of
+                    Some(bound):
+                        return bound.value = actual or bound.value = err or actual = err
+                    None:
+                        s[p.sym.id] := actual
+                        return true
+        else:
+            pass()
+    case pattern of
+        BuiltinT(p):
+            case actual of
+                BuiltinT(a):
+                    return p.name = a.name and unifyAll(p.args, a.args, var s, vars)
+                else:
+                    return false
+        NamedT(p):
+            case actual of
+                NamedT(a):
+                    return p.sym = a.sym and unifyAll(p.args, a.args, var s, vars)
+                else:
+                    return false
+        TraitT(p):
+            case actual of
+                TraitT(a):
+                    return p.sym = a.sym and unifyAll(p.args, a.args, var s, vars)
+                else:
+                    return false
+        RefT(p):
+            case actual of
+                RefT(a):
+                    return unify(p.target, a.target, var s, vars)
+                else:
+                    return false
+        FuncT(p):
+            case actual of
+                FuncT(a):
+                    return p.isFunction = a.isFunction and unifyAll(p.params, a.params, var s, vars) and unify(p.result, a.result, var s, vars)
+                else:
+                    return false
+        else:
+            return pattern = actual
+
+## Does nothing.
+procedure pass()
+    return

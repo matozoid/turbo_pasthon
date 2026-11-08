@@ -20,7 +20,9 @@ from pst.lexer import lex
 from pst.parser import parse
 from pst.source import Span
 from pst.resolve import Checker, Resolver as PyResolver, STD_DIR, check
+from pst.symbols import LOCALS
 from pst.tokens import TokenKind
+from pst.types import show
 
 ROOT = Path(__file__).resolve().parent.parent
 COMPILER = ROOT / "compiler"
@@ -217,6 +219,26 @@ def resolve_dump(path: str, std_dir: str = STD_DIR) -> str:
         for t in r.targets:
             lines.append(f"  {t.describe()} @ {t.location()}")
     for d in c.diagnostics:
+        lines.append(f"{d.file} {d.severity.value} {d.code} {where(d.span)} {quote(d.message)}")
+        for f in d.fixes:
+            lines.append(f"  fix {quote(f.description)}")
+            for e in f.edits:
+                lines.append(f"    edit {where(e.span)} {quote(e.text)}")
+    return "".join(line + "\n" for line in lines)
+
+
+def check_dump(path: str, std_dir: str = STD_DIR) -> str:
+    """Resolution and type checking, as ``compiler/CheckDump.pst`` prints it: the symbol
+    index with the type of each local variable at its definition, then the diagnostics."""
+    result = check(path, std_dir)
+    lines = []
+    for r in result.index.refs:
+        lines.append(f"{'def' if r.is_def else 'use'} {r.file} {where(r.span)}")
+        for t in r.targets:
+            lines.append(f"  {t.describe()} @ {t.location()}")
+            if r.is_def and t.kind in LOCALS:
+                lines.append(f"    : {'?' if t.type is None else show(t.type)}")
+    for d in result.diagnostics:
         lines.append(f"{d.file} {d.severity.value} {d.code} {where(d.span)} {quote(d.message)}")
         for f in d.fixes:
             lines.append(f"  fix {quote(f.description)}")
@@ -589,6 +611,72 @@ class Resolve(_Differential):
 
     def test_std_unit(self):
         self.compare(Path(STD_DIR, "Strings.pst"))
+
+
+def checker_inputs(out: str) -> list[Path]:
+    """Copies the programs that the resolver, type checker and build tests check into
+    ``out``, one directory each, and returns their main files. The tests run with
+    ``check`` recording its input and building skipped."""
+    import io
+    import tests.test_build as tb
+    import tests.test_resolve as tr
+    import tests.test_typecheck as tt
+
+    paths = []
+    real = tr.check
+
+    def record(path, std_dir=STD_DIR):
+        src = os.path.dirname(os.path.abspath(path))
+        if not src.startswith(str(ROOT)):  # not the std units or examples
+            d = Path(out, str(len(paths)))
+            shutil.copytree(src, d)
+            paths.append(d / os.path.basename(path))
+        return real(path, std_dir)
+
+    def skip(*args, **kwargs):
+        raise unittest.SkipTest("only checking")
+
+    os.makedirs(tb._TMP.name, exist_ok=True)  # removed if test_build already ran
+    saved = tr.check, tb.check, tb.build
+    tr.check, tb.check, tb.build = record, record, skip
+    try:
+        suite = unittest.TestSuite()
+        for m in (tr, tt, tb):
+            suite.addTests(unittest.defaultTestLoader.loadTestsFromModule(m))
+        unittest.TextTestRunner(stream=io.StringIO()).run(suite)
+    finally:
+        tr.check, tb.check, tb.build = saved
+    return paths
+
+
+class Check(_Differential):
+    tool = "CheckDump"
+
+    def args(self, path: Path) -> list[str]:
+        return [STD_DIR, str(path)]
+
+    def expected_for(self, path: Path) -> str:
+        return check_dump(str(path))
+
+    def test_checker_tests(self):
+        paths = checker_inputs(tempfile.mkdtemp(dir=_TMP.name))
+        self.assertGreater(len(paths), 100)
+        for path in paths:
+            with self.subTest(str(path)):
+                self.compare(path)
+
+    def test_missing_file(self):
+        self.compare(Path(_TMP.name, "does-not-exist.pst"))
+
+    def test_std_unit(self):
+        self.compare(Path(STD_DIR, "Strings.pst"))
+
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_valgrind(self):
+        self.compare(
+            ROOT / "examples" / "Inventory.pst",
+            under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"),
+        )
 
 
 del _Differential

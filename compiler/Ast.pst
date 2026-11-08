@@ -468,3 +468,79 @@ type
         export units: List[Ident]
         ## In source order.
         export items: List[TopItem]
+
+# ---------------------------------------------------------------------- spans
+
+export function exprSpan(e: Expr): Span
+    case e of
+        Name(x): return x.span
+        IntLit(x): return x.span
+        RealLit(x): return x.span
+        CharLit(x): return x.span
+        BoolLit(x): return x.span
+        StringLit(x): return x.span
+        InterpString(x): return x.span
+        ListLit(x): return x.span
+        MapLit(x): return x.span
+        SetLit(x): return x.span
+        EmptyBraces(x): return x.span
+        Paren(x): return x.span
+        Unary(x): return x.span
+        Binary(x): return x.span
+        Call(x): return x.span
+        Index(x): return x.span
+        FieldAccess(x): return x.span
+        Deref(x): return x.span
+        IfExpr(x): return x.span
+        CaseExpr(x): return x.span
+        ErrorExpr(x): return x.span
+
+export function stmtSpan(s: Stmt): Span
+    case s of
+        VarDecl(x): return x.span
+        Assign(x): return x.span
+        Discard(x): return x.span
+        ExprStmt(x): return x.span
+        If(x): return x.span
+        While(x): return x.span
+        Repeat(x): return x.span
+        ForRange(x): return x.span
+        ForIn(x): return x.span
+        Case(x): return x.span
+        Defer(x): return x.span
+        Break(x): return x.span
+        Continue(x): return x.span
+        Return(x): return x.span
+        Assert(x): return x.span
+        ErrorStmt(x): return x.span
+
+export function typeSpan(t: TypeExpr): Span
+    case t of
+        TypeName(x): return x.span
+        RefType(x): return x.span
+        FuncType(x): return x.span
+
+## The id of an expression, unique within a parse.
+export function exprId(e: Expr): Integer
+    case e of
+        Name(x): return x.id
+        IntLit(x): return x.id
+        RealLit(x): return x.id
+        CharLit(x): return x.id
+        BoolLit(x): return x.id
+        StringLit(x): return x.id
+        InterpString(x): return x.id
+        ListLit(x): return x.id
+        MapLit(x): return x.id
+        SetLit(x): return x.id
+        EmptyBraces(x): return x.id
+        Paren(x): return x.id
+        Unary(x): return x.id
+        Binary(x): return x.id
+        Call(x): return x.id
+        Index(x): return x.id
+        FieldAccess(x): return x.id
+        Deref(x): return x.id
+        IfExpr(x): return x.id
+        CaseExpr(x): return x.id
+        ErrorExpr(x): return x.id

@@ -1,0 +1,4091 @@
+unit Typecheck
+
+## Type checking: checker stage 2 (SPEC §4, §6–§9).
+##
+## Runs after name resolution, over every unit (standard units included). Names were
+## already resolved into the symbol index, so this pass finds the symbol behind a name by
+## its span. What it adds:
+##
+## - the type of every expression and variable (`Env.symTypes` for locals),
+## - overload resolution: the index entry of an overloaded call is narrowed to the
+##   routine chosen (SPEC §6.7),
+## - field access and dot calls (UFCS, SPEC §6.6), named arguments, and bare names in
+##   `case` labels, which stage 1 leaves alone because they need types,
+## - trait satisfaction for bounds (SPEC §4.10), checked structurally where the generic
+##   is used.
+##
+## Inside a generic, a type parameter is an opaque type: only what its bounds provide
+## works on it (SPEC §8). A type error produces the error type, which is compatible with
+## everything, so one mistake gives one diagnostic.
+
+uses Strings, Source, Diagnostics, Ast, Symbols, Resolve, Types
+
+type
+    # ------------------------------------------------------------- signatures
+
+    ## One parameter (or record field, for construction).
+    export PInfo = record
+        export name: String
+        export ty: Type
+        export isVar: Boolean
+        export hasDefault: Boolean
+        ## Parameters declared together (`a, b: T`) share a group.
+        export group: Integer
+        export varargs: Boolean
+        ## The parameter or field, for named-argument references.
+        export sym: Option[ref Symbol]
+        export default: Option[Expr]
+
+    export Sig = record
+        export sym: Option[ref Symbol]
+        export name: String
+        export isFunction: Boolean
+        export tparams: List[ref Symbol]
+        export params: List[PInfo]
+        ## `<no value>` for procedures.
+        export result: Type
+        ## "routine", "record" (construction), "value" (function value).
+        export kind: String
+        ## Records: only with a single field.
+        export positional: Boolean
+
+    export FieldInfo = record
+        export sym: Option[ref Symbol]
+        export name: String
+        export ty: Type
+        export hasDefault: Boolean
+        export default: Option[Expr]
+        export exported: Boolean
+
+    ## What a declared type is: record, enum, union, subrange, alias, trait, or builtin.
+    export TypeInfo = record
+        export kind: String
+        export params: List[ref Symbol]
+        export fields: List[FieldInfo]
+        export variants: List[Type]
+        ## Subranges.
+        export base: Type
+        export alias: Type
+        ## Traits.
+        export routines: List[ref Symbol]
+        ## Enums.
+        export members: List[String]
+        ## A C record (SPEC §10.5).
+        export c: Boolean
+
+    ## An overload candidate. `pre` binds `This` and the trait's parameters for a bound
+    ## member, or a generic record's parameters for an alias.
+    Cand = record
+        sig: Sig
+        pre: Subst
+
+    ## An argument. `ty` is `<none>` while flexible; `flex` is the integer or real literal
+    ## type, `[]`, `{}`, an `OverloadsT`, or `<none>`.
+    export CArg = record
+        export span: Span
+        export name: Option[Ident]
+        export isVar: Boolean
+        export expr: Expr
+        export ty: Type
+        export flex: Type
+        ## The `a` of `a.f(...)`.
+        export receiver: Boolean
+
+    Fail = record
+        code: String
+        span: Span
+        message: String
+        ## The arguments fit the parameters; a type was wrong.
+        bound: Boolean
+
+    ## The overload a call chose, for the backend.
+    export Match = record
+        export sig: Sig
+        export params: List[PInfo]
+        export result: Type
+        export s: Subst
+        ## 0 exact, 1 union injection, 2 literal of a non-default type.
+        export tier: Integer
+        export slots: List[Option[CArg]]
+        export extra: List[CArg]
+        ## The candidate's `pre`.
+        export pre: Subst
+
+    MatchResult = Match | Fail
+
+    ## What one call asks: the callee's name, its candidates and the arguments.
+    CallReq = record
+        e: Call
+        name: String
+        cands: List[Cand]
+        receiver: Option[CArg]
+        explicit: Option[List[Type]]
+        expected: Type
+        refSpan: Option[Span]
+
+    ## The arguments of a call being matched against one candidate.
+    MatchReq = record
+        args: List[CArg]
+        explicit: Option[List[Type]]
+        expected: Type
+        span: Span
+
+    ## The value of a constant case label: 0 unknown, 1 integer, 2 Boolean, 3 string.
+    LVal = record
+        kind: Integer
+        i: Integer
+        s: String
+
+    LRange = record
+        lo: LVal
+        hi: LVal
+
+    CaseInfo = record
+        ty: Type
+        ## union, enum, bool, value, error.
+        kind: String
+        ## Union variants.
+        variants: List[Type]
+        ## Enum members.
+        members: List[String]
+        ## Keys of covered variants (their position), members, or `true` / `false`.
+        covered: Map[String, Boolean]
+        ranges: List[LRange]
+
+    ## An integer or real literal, possibly negated: 0 none, 1 integer, 2 real.
+    Lit = record
+        kind: Integer
+        neg: Boolean
+        mag: UInt64
+
+    LoopInfo = record
+        broke: Boolean
+        isRepeat: Boolean
+
+    ## A generic type written in a type expression.
+    Written = record
+        file: String
+        span: Span
+        ty: Type
+
+    OrdRange = record
+        lo: Integer
+        hi: Integer
+
+    ## Everything shared between the units: declared types, signatures, constants.
+    export Env = record
+        export c: ref Checker
+        index: ref SymbolIndex
+        units: Map[String, ref Unit]
+        byFile: Map[String, ref Unit]
+        sigCache: Map[Integer, Sig]
+        declCache: Map[Integer, ref TypeInfo]
+        constCache: Map[Integer, Type]
+        boundCache: Map[Integer, List[Type]]
+        checkers: Map[String, ref TC]
+        constCheckers: Map[String, ref TC]
+        busy: Map[Integer, Boolean]
+        satCache: Map[String, Boolean]
+        ## Enum members, fields, trait routines, by id: the type that declares them.
+        export owner: Map[Integer, ref Symbol]
+        ## Generic types written in type expressions, by file and span: their bounds are
+        ## checked once every declaration is known (checkBounds).
+        written: Map[String, Written]
+        hooksDone: Boolean
+        ## Resource record id -> its destroy hook.
+        hookMap: Map[Integer, ref Symbol]
+        ## A variable for "the element type", when asking whether a type is an iterator.
+        elemVar: ref Symbol
+        ## The types of locals, by symbol id.
+        export symTypes: Map[Integer, Type]
+
+    ## The checker of one unit.
+    export TC = record
+        env: ref Env
+        c: ref Checker
+        home: ref Unit
+        file: String
+        src: Text
+        resolver: Option[ref Resolver]
+        ## Expression id -> type.
+        export types: Map[Integer, Type]
+        ## Call id -> the overload chosen, for the backend.
+        export calls: Map[Integer, Match]
+        ## Why the last trait check failed.
+        why: String
+        inBuiltin: Map[String, Boolean]
+        ## The routine being checked:
+        result: Type
+        isFunction: Boolean
+        inRoutine: Boolean
+        inUnsafe: Boolean
+        tparams: List[ref Symbol]
+        loops: List[LoopInfo]
+        inDefer: Boolean
+        inEnsures: Boolean
+        ## Ids of the arguments of `new` calls, for resources().
+        newArgs: Map[Integer, Boolean]
+        ## The depth of the trait check in progress, for provider().
+        depth: Integer
+
+    ## What a node is inside, for the resources walk.
+    Parent = record
+        ## other, RefType, Weak, Param, FieldTarget, Arg.
+        kind: String
+        span: Span
+        id: Integer
+
+    export Checked = record
+        export resolved: Resolved
+        ## None if the main file couldn't be read.
+        export env: Option[ref Env]
+
+# ------------------------------------------------------------------------ helpers
+
+## The expected type when there is none.
+function noType(): Type
+    return SpecialT(name: "<none>")
+
+function known(t: Type): Boolean
+    return not (t = noType())
+
+function point(span: Span): Span
+    return Span(start: span.start, end: span.start, line: span.line, col: span.col, endLine: span.line, endCol: span.col)
+
+procedure pass()
+    return
+
+function plural(n: Integer): String
+    if n > 1 then
+        return "s"
+    return ""
+
+function containsSym(xs: List[ref Symbol], s: ref Symbol): Boolean
+    for x in xs do
+        if x = s then
+            return true
+    return false
+
+function containsType(xs: List[Type], t: Type): Boolean
+    for x in xs do
+        if x = t then
+            return true
+    return false
+
+function lastSpan(t: TypeName): Span
+    if len(t.partSpans) = 0 then
+        return t.span
+    return t.partSpans[len(t.partSpans) - 1]
+
+function firstSpan(t: TypeName): Span
+    if len(t.partSpans) = 0 then
+        return t.span
+    return t.partSpans[0]
+
+function isSignatureNode(s: ref Symbol): Boolean
+    case s.node of
+        Signature(_):
+            return true
+        else:
+            return false
+
+function unparen(e: Expr): Expr
+    case e of
+        Paren(p):
+            return unparen(p.inner)
+        else:
+            return e
+
+function noLit(): Lit
+    return Lit(kind: 0, neg: false, mag: 0)
+
+## The value of an integer or real literal, possibly negated.
+function literalValue(e: Expr): Lit
+    case e of
+        Paren(p):
+            return literalValue(p.inner)
+        IntLit(x):
+            return Lit(kind: 1, neg: false, mag: x.value)
+        RealLit(_):
+            return Lit(kind: 2, neg: false, mag: 0)
+        Unary(u):
+            if u.op = "-" then
+                case u.operand of
+                    IntLit(x):
+                        return Lit(kind: 1, neg: true, mag: x.value)
+                    RealLit(_):
+                        return Lit(kind: 2, neg: true, mag: 0)
+                    else:
+                        return noLit()
+            return noLit()
+        else:
+            return noLit()
+
+function isLiteral(e: Expr): Boolean
+    return literalValue(e).kind <> 0
+
+function isIntLit(e: Expr): Boolean
+    return literalValue(e).kind = 1
+
+function isRealLit(e: Expr): Boolean
+    return literalValue(e).kind = 2
+
+## An integer literal as an Integer, clamped.
+function litInt(l: Lit): Integer
+    let big: UInt64 := 9223372036854775807
+    if l.mag > big then
+        if l.neg then
+            return -9223372036854775807 - 1
+        return 9223372036854775807
+    if l.neg then
+        return -Integer(l.mag)
+    return Integer(l.mag)
+
+function litText(l: Lit): String
+    if l.neg and l.mag > UInt64(0) then
+        return "-{l.mag}"
+    return "{l.mag}"
+
+## The number of bits of an integer type, and whether it is signed.
+function intBits(name: String): Integer
+    if name = "Int8" or name = "UInt8" then
+        return 8
+    if name = "Int16" or name = "UInt16" then
+        return 16
+    if name = "Int32" or name = "UInt32" then
+        return 32
+    return 64
+
+## The largest value of an unsigned integer type of `bits` bits.
+function unsignedMax(bits: Integer): UInt64
+    if bits = 8 then
+        return 255
+    if bits = 16 then
+        return 65535
+    if bits = 32 then
+        return 4294967295
+    return 18446744073709551615
+
+## 2 to the power `bits - 1`: one past the largest value of a signed type.
+function signedLimit(bits: Integer): UInt64
+    if bits = 8 then
+        return 128
+    if bits = 16 then
+        return 32768
+    if bits = 32 then
+        return 2147483648
+    return 9223372036854775808
+
+## Whether an integer literal fits in the integer type `name`.
+function fits(l: Lit, name: String): Boolean
+    let bits := intBits(name)
+    if startsWith(name, prefix: "U") then
+        if l.neg then
+            return l.mag = UInt64(0)
+        return l.mag <= unsignedMax(bits)
+    if l.neg then
+        return l.mag <= signedLimit(bits)
+    return l.mag < signedLimit(bits)
+
+function castable(t: Type): Boolean
+    return isInteger(t) or t = prim("Pointer") or t = prim("CString") or isBuiltin(t, "Ptr")
+
+## The number of type arguments of a builtin generic; 0 for other builtin types.
+function arityOf(name: String): Integer
+    if name = "List" or name = "Weak" or name = "Ptr" then
+        return 1
+    if name = "Array" then
+        return 2
+    return 0
+
+function isArith(op: String): Boolean
+    return op = "+" or op = "-" or op = "*" or op = "/" or op = "div" or op = "mod"
+
+function paramTypes(syms: List[ref Symbol]): List[Type]
+    var out: List[Type] := []
+    for p in syms do
+        add(var out, param(p))
+    return out
+
+## Pairs `params` with `args`, as far as both go.
+function zipSubst(params: List[ref Symbol], args: List[Type]): Subst
+    var s: Subst := {}
+    var i := 0
+    while i < len(params) and i < len(args) do
+        s[params[i].id] := args[i]
+        i := i + 1
+    return s
+
+function setOf(syms: List[ref Symbol]): Vars
+    var v: Vars := {}
+    for s in syms do
+        v[s.id] := true
+    return v
+
+procedure merge(var s: Subst, other: Subst)
+    for k, v in other do
+        s[k] := v
+
+function substAll(ts: List[Type], s: Subst): List[Type]
+    var out: List[Type] := []
+    for t in ts do
+        add(var out, subst(t, s))
+    return out
+
+function bare(s: String): Boolean
+    if byteLen(s) = 0 then
+        return false
+    for c in s do
+        if c = ' ' or c = '\t' or c = '\n' or c = '\r' or c = '(' or c = ')' or c = '[' or c = ']' or c = '"' then
+            return false
+    return true
+
+function dumpStr(s: String): String
+    if bare(s) then
+        return s
+    return "\"{s}\""
+
+## An expression in the compact s-expression form of the Python `ast.dump`, for constant
+## type arguments kept as text.
+function dumpExpr(e: Expr): String
+    case e of
+        Name(x):
+            return "(Name {dumpStr(x.name)})"
+        IntLit(x):
+            return "(IntLit {x.value})"
+        Binary(x):
+            return "(Binary {dumpStr(x.op)} {dumpExpr(x.left)} {dumpExpr(x.right)})"
+        Unary(x):
+            return "(Unary {dumpStr(x.op)} {dumpExpr(x.operand)})"
+        Paren(x):
+            return "(Paren {dumpExpr(x.inner)})"
+        FieldAccess(x):
+            return "(FieldAccess {dumpExpr(x.target)} (Ident {dumpStr(x.name.name)}))"
+        else:
+            return "(Expr)"
+
+## An expression that names a type (`List[Integer]` in `f[List[Integer]]`), as a
+## TypeName. The resolver recorded its names at the same spans.
+function exprToType(x: TypeOrExpr): Option[TypeExpr]
+    case x of
+        TypeExpr(t):
+            return Some(t)
+        Expr(e):
+            case e of
+                Name(n):
+                    return Some(TypeName(span: n.span, parts: [n.name], args: [], partSpans: [n.span]))
+                FieldAccess(f):
+                    case exprToType(f.target) of
+                        Some(inner):
+                            case inner.value of
+                                TypeName(tn):
+                                    if len(tn.args) = 0 then
+                                        var parts := tn.parts
+                                        add(var parts, f.name.name)
+                                        var spans := tn.partSpans
+                                        add(var spans, f.name.span)
+                                        return Some(TypeName(span: f.span, parts: parts, args: [], partSpans: spans))
+                                else:
+                                    pass()
+                        None:
+                            pass()
+                    return None
+                Index(ix):
+                    case exprToType(ix.target) of
+                        Some(inner):
+                            case inner.value of
+                                TypeName(tn):
+                                    if len(tn.args) = 0 then
+                                        var args: List[TypeOrExpr] := []
+                                        for item in ix.items do
+                                            case exprToType(item) of
+                                                Some(t):
+                                                    add(var args, t.value)
+                                                None:
+                                                    add(var args, item)
+                                        return Some(TypeName(span: ix.span, parts: tn.parts, args: args, partSpans: tn.partSpans))
+                                else:
+                                    pass()
+                        None:
+                            pass()
+                    return None
+                else:
+                    return None
+    return None
+
+# -------------------------------------------------------------------- environment
+
+function newEnv(c: ref Checker, units: List[ref Unit]): ref Env
+    var byName: Map[String, ref Unit] := {}
+    var i := len(units) - 1
+    while i >= 0 do
+        byName[units[i].name] := units[i]
+        i := i - 1
+    var byFile: Map[String, ref Unit] := {}
+    for u in units do
+        byFile[u.path] := u
+    let env := new(Env(
+        c: c,
+        index: c.index,
+        units: byName,
+        byFile: byFile,
+        sigCache: {},
+        declCache: {},
+        constCache: {},
+        boundCache: {},
+        checkers: {},
+        constCheckers: {},
+        busy: {},
+        satCache: {},
+        owner: {},
+        written: {},
+        hooksDone: false,
+        hookMap: {},
+        elemVar: newSymbol(c, Kind.TypeParamSym, "T", span: None, file: "", unitName: "System"),
+        symTypes: {},
+    ))
+    for u in units do
+        for item in u.parsed.file.items do
+            case item of
+                Decl(dd):
+                    case dd of
+                        TypeSection(ts):
+                            for d in ts.decls do
+                                case defSym(env, u.path, d.name.span) of
+                                    Some(sym):
+                                        for _, m in sym.value.members do
+                                            env.owner[m.id] := sym.value
+                                    None:
+                                        pass()
+                        else:
+                            pass()
+                Stmt(_):
+                    pass()
+    return env
+
+function newTC(env: ref Env, u: ref Unit): ref TC
+    return new(TC(
+        env: env,
+        c: env.c,
+        home: u,
+        file: u.path,
+        src: textOf(u.text),
+        resolver: None,
+        types: {},
+        calls: {},
+        why: "",
+        inBuiltin: {},
+        result: voidT(),
+        isFunction: false,
+        inRoutine: false,
+        inUnsafe: false,
+        tparams: [],
+        loops: [],
+        inDefer: false,
+        inEnsures: false,
+        newArgs: {},
+        depth: 0,
+    ))
+
+export function checker(env: ref Env, u: ref Unit): ref TC
+    if not (u.path in env.checkers) then
+        env.checkers[u.path] := newTC(env, u)
+    return env.checkers[u.path]
+
+## A separate checker for constants and subrange bounds, evaluated on demand.
+function constChecker(env: ref Env, file: String): ref TC
+    if not (file in env.constCheckers) then
+        env.constCheckers[file] := newTC(env, env.byFile[file])
+    return env.constCheckers[file]
+
+procedure envError(env: ref Env, span: Span, file, code, message: String)
+    error(env.c, file, code, span, message: message)
+
+export function defSym(env: ref Env, file: String, span: Span): Option[ref Symbol]
+    case lookup(env.index, file, span) of
+        Some(r):
+            if len(r.value.targets) = 1 then
+                return Some(r.value.targets[0])
+            return None
+        None:
+            return None
+
+## A symbol of the System unit.
+export function sys(env: ref Env, name: String): Option[ref Symbol]
+    case get(env.units, "System") of
+        Some(u):
+            if not u.value.std then
+                return None
+            let syms := getOr(u.value.top, name, default: [])
+            if len(syms) = 0 then
+                return None
+            return Some(syms[0])
+        None:
+            return None
+
+## Whether `s` is System's `name`.
+function isSys(env: ref Env, s: ref Symbol, name: String): Boolean
+    case sys(env, name) of
+        Some(x):
+            return x.value = s
+        None:
+            return false
+
+function isSysType(env: ref Env, t: Type, name: String): Boolean
+    case t of
+        NamedT(n):
+            return isSys(env, n.sym, name)
+        else:
+            return false
+
+## The destroy hooks (SPEC §11.1): resource record symbol -> its `destroy` procedure, a
+## non-generic `procedure destroy(var r: R)` in the record's unit.
+export function hooks(env: ref Env): Map[Integer, ref Symbol]
+    if env.hooksDone then
+        return env.hookMap
+    env.hooksDone := true
+    for _, u in env.units do
+        for item in u.parsed.file.items do
+            case item of
+                Decl(d):
+                    case d of
+                        Routine(r):
+                            if r.sig.name.name = "destroy" then
+                                hookOf(env, u, r)
+                        else:
+                            pass()
+                Stmt(_):
+                    pass()
+    return env.hookMap
+
+procedure hookOf(env: ref Env, u: ref Unit, r: Routine)
+    let found := defSym(env, u.path, r.sig.name.span)
+    if found.isNone() then
+        return
+    let sym := found.get()
+    let g := sig(env, sym)
+    if g.isFunction or len(g.tparams) > 0 or len(g.params) <> 1 or not g.params[0].isVar then
+        return
+    let t := g.params[0].ty
+    case t of
+        NamedT(n):
+            if kindOf(env, t) <> "record" or len(n.args) > 0 then
+                return
+            if n.sym.unitName <> u.name then
+                envError(env, r.sig.name.span, u.path, "E1102", "a destroy hook for '{n.sym.name}' must be declared in its unit, '{n.sym.unitName}'")
+            else if not (n.sym.id in env.hookMap) then
+                env.hookMap[n.sym.id] := sym
+        else:
+            return
+
+function isHook(env: ref Env, s: ref Symbol): Boolean
+    for _, h in hooks(env) do
+        if h = s then
+            return true
+    return false
+
+## Whether `t` is a resource record, which exists only behind `ref`.
+export function isResource(env: ref Env, t: Type): Boolean
+    case t of
+        NamedT(n):
+            return n.sym.id in hooks(env)
+        else:
+            return false
+
+## `Map[Real, V]`: each type argument of a written generic type must satisfy its
+## parameter's bounds (E0700), and a `Set`'s elements must fit one.
+procedure checkBounds(env: ref Env)
+    for _, w in env.written do
+        case w.ty of
+            NamedT(n):
+                if isSet(env, w.ty) then
+                    checkElement(env, w.file, w.span, n.args[0])
+                let d := decl(env, n.sym)
+                let s := zipSubst(d.params, n.args)
+                let chk := checker(env, env.byFile[w.file])
+                for p in d.params do
+                    for b in bounds(env, p) do
+                        if isTraitT(b) and not satisfiesPlain(chk, s[p.id], subst(b, s)) then
+                            envError(env, w.span, w.file, "E0700", "{show(s[p.id])} doesn't satisfy {show(subst(b, s))}, required by '{n.sym.name}'")
+                            break
+            else:
+                pass()
+
+## Whether `t` is a `Set[T]`: a record of System's, with literals of its own.
+export function isSet(env: ref Env, t: Type): Boolean
+    return isSysType(env, t, "Set")
+
+## Whether `t` is a `Map[K, V]`: a record of System's, with literals of its own.
+export function isMap(env: ref Env, t: Type): Boolean
+    return isSysType(env, t, "Map")
+
+## A `Set` element type: ordinal, with at most 256 values (SPEC §4.5).
+procedure checkElement(env: ref Env, file: String, span: Span, t: Type)
+    if isParam(t) or hasError(t) then
+        return
+    let r := ordinalRange(env, t)
+    if r.isNone() or r.get().hi - 255 > r.get().lo then
+        envError(env, span, file, "E0700", "{show(t)} can't be a Set element: it needs an ordinal type with at most 256 values (Boolean, Byte, an enum, or a subrange)")
+
+## The first and last `ord` of an ordinal type. None for other types, and for a
+## subrange whose bounds aren't literals or enum members. Ranges wider than Integer
+## are clamped.
+export function ordinalRange(env: ref Env, t: Type): Option[OrdRange]
+    if t = booleanT() then
+        return Some(OrdRange(lo: 0, hi: 1))
+    if t = charT() then
+        return Some(OrdRange(lo: 0, hi: 0x10FFFF))
+    let n := integerName(t)
+    if n <> "" then
+        let bits := intBits(n)
+        if bits = 64 then
+            if startsWith(n, prefix: "U") then
+                return Some(OrdRange(lo: 0, hi: 9223372036854775807))
+            return Some(OrdRange(lo: -9223372036854775807 - 1, hi: 9223372036854775807))
+        if startsWith(n, prefix: "U") then
+            return Some(OrdRange(lo: 0, hi: Integer(unsignedMax(bits))))
+        let limit := Integer(signedLimit(bits))
+        return Some(OrdRange(lo: -limit, hi: limit - 1))
+    case t of
+        NamedT(nt):
+            let d := decl(env, nt.sym)
+            if d.kind = "enum" then
+                return Some(OrdRange(lo: 0, hi: len(d.members) - 1))
+            if d.kind <> "subrange" then
+                return None
+            case nt.sym.node of
+                TypeDecl(td):
+                    case td.body of
+                        SubrangeType(sr):
+                            let lo := ordinalOf(env, sr.low, d.base)
+                            let hi := ordinalOf(env, sr.high, d.base)
+                            if lo.isNone() or hi.isNone() then
+                                return None
+                            return Some(OrdRange(lo: lo.get(), hi: hi.get()))
+                        else:
+                            return None
+                else:
+                    return None
+        else:
+            return None
+    return None
+
+## The `ord` of a subrange bound of type `t`: a literal or an enum member.
+function ordinalOf(env: ref Env, e: Expr, t: Type): Option[Integer]
+    let x := unparen(e)
+    let v := literalValue(x)
+    if v.kind = 1 then
+        return Some(litInt(v))
+    case x of
+        CharLit(ch):
+            return Some(ord(ch.value))
+        FieldAccess(f):
+            if kindOf(env, t) = "enum" then
+                let members := decl(env, namedSym(t).get()).members
+                for i := 0 to len(members) - 1 do
+                    if members[i] = f.name.name then
+                        return Some(i)
+            return None
+        else:
+            return None
+
+# --------------------------------------------------------------- type expressions
+
+## The type a type expression denotes.
+export function typeOf(env: ref Env, t: TypeExpr, file: String): Type
+    return typeOfFull(env, t, file, false, true)
+
+function optTypeOf(env: ref Env, t: Option[TypeExpr], file: String, thisOk: Boolean): Type
+    case t of
+        Some(x):
+            return typeOfFull(env, x.value, file, thisOk, true)
+        None:
+            return errorT()
+
+## The type a type expression denotes. Traits are only allowed when `value` is false
+## (bounds).
+function typeOfFull(env: ref Env, t: TypeExpr, file: String, thisOk, value: Boolean): Type
+    case t of
+        RefType(r):
+            return RefT(target: typeOfFull(env, r.target, file, thisOk, true))
+        FuncType(f):
+            var ps: List[Type] := []
+            for p in f.params do
+                add(var ps, typeOfFull(env, p, file, thisOk, true))
+            var res := voidT()
+            case f.result of
+                Some(x):
+                    res := typeOfFull(env, x.value, file, thisOk, true)
+                None:
+                    pass()
+            return FuncT(isFunction: f.isFunction, params: ps, result: res)
+        TypeName(n):
+            return typeName(env, n, file, thisOk, value)
+
+function typeName(env: ref Env, t: TypeName, file: String, thisOk, value: Boolean): Type
+    if len(t.parts) = 1 and t.parts[0] = "This" then
+        if thisOk then
+            return thisT()
+        return errorT()  # outside a trait: E0111 from stage 1
+    let found := lookup(env.index, file, lastSpan(t))
+    if found.isNone() or len(found.get().targets) <> 1 then
+        return errorT()  # unknown or ambiguous: already reported
+    let sym := found.get().targets[0]
+    let name := join(t.parts, sep: ".")
+    var args: List[Type] := []
+    for a in t.args do
+        add(var args, typeArg(env, a, file, thisOk))
+    if sym.kind = Kind.BuiltinType then
+        let want := arityOf(sym.name)
+        if len(args) <> want then
+            return arity(env, t.span, file, name, want, len(args))
+        if want > 0 then
+            return builtin(sym.name, args: args)
+        return prim(sym.name)
+    if sym.kind = Kind.TypeSym or sym.kind = Kind.TraitSym then
+        let d := decl(env, sym)
+        if len(args) <> len(d.params) then
+            return arity(env, t.span, file, name, len(d.params), len(args))
+        if d.kind = "trait" then
+            return traitType(env, TraitT(sym: sym, args: args), file, t.span, value)
+        if d.kind = "alias" then
+            return subst(d.alias, zipSubst(d.params, args))
+        if len(args) > 0 then
+            env.written["{file}|{t.span.start}|{t.span.end}"] := Written(file: file, span: t.span, ty: named(sym, args: args))
+        return named(sym, args: args)
+    if sym.kind = Kind.BuiltinTrait then
+        return traitType(env, TraitT(sym: sym, args: args), file, t.span, value)
+    if sym.kind = Kind.TypeParamSym then
+        if len(args) > 0 then
+            return arity(env, t.span, file, name, 0, len(args))
+        if isConstParam(env, sym) then
+            envError(env, t.span, file, "E0304", "'{name}' is a constant parameter, not a type")
+            return errorT()
+        return param(sym)
+    envError(env, t.span, file, "E0304", "'{name}' is a {Symbols.name(sym.kind)}, not a type")
+    return errorT()
+
+function traitType(env: ref Env, t: Type, file: String, span: Span, value: Boolean): Type
+    if value then
+        let n := namedTrait(t)
+        envError(env, span, file, "E0420", "trait '{n}' can't be the type of a value; use a type parameter bounded by it ('[T: {n}]'), or a union")
+        return errorT()
+    return t
+
+function namedTrait(t: Type): String
+    case t of
+        TraitT(r):
+            return r.sym.name
+        else:
+            return ""
+
+function arity(env: ref Env, span: Span, file, name: String, want, got: Integer): Type
+    var msg := "'{name}' takes no type arguments"
+    if want > 0 then
+        msg := "'{name}' takes {want} type argument{plural(want)}, not {got}"
+    envError(env, span, file, "E0303", msg)
+    return errorT()
+
+function typeArg(env: ref Env, a: TypeOrExpr, file: String, thisOk: Boolean): Type
+    case a of
+        TypeExpr(t):
+            case t of
+                TypeName(n):
+                    if len(n.parts) = 1 and len(n.args) = 0 and n.parts[0] <> "This" then
+                        let found := lookup(env.index, file, firstSpan(n))
+                        if found.isSome() and len(found.get().targets) = 1 then
+                            let sym := found.get().targets[0]
+                            if sym.kind = Kind.ConstSym then
+                                case symConstInt(sym) of
+                                    Some(v):
+                                        return constInt(v.value)
+                                    None:
+                                        return constText(sym.name)
+                            if sym.kind = Kind.TypeParamSym and isConstParam(env, sym) then
+                                return param(sym)
+                else:
+                    pass()
+            return typeOfFull(env, t, file, thisOk, true)
+        Expr(e):
+            case e of
+                IntLit(_):
+                    return constInt(litInt(literalValue(e)))
+                else:
+                    return constText(dumpExpr(e))
+    return errorT()
+
+# ------------------------------------------------------------------- declarations
+
+function emptyInfo(kind: String, params: List[ref Symbol], c: Boolean): ref TypeInfo
+    return new(TypeInfo(kind: kind, params: params, fields: [], variants: [], base: errorT(), alias: errorT(), routines: [], members: [], c: c))
+
+export function decl(env: ref Env, sym: ref Symbol): ref TypeInfo
+    case get(env.declCache, sym.id) of
+        Some(d):
+            return d.value
+        None:
+            pass()
+    case sym.node of
+        TypeDecl(node):
+            return typeDecl(env, sym, node)
+        else:
+            let d := emptyInfo("builtin", [], false)
+            env.declCache[sym.id] := d
+            return d
+
+function typeDecl(env: ref Env, sym: ref Symbol, node: TypeDecl): ref TypeInfo
+    let file := sym.file
+    var params: List[ref Symbol] := []
+    for p in node.params do
+        case defSym(env, file, p.name.span) of
+            Some(s):
+                add(var params, s.value)
+            None:
+                add(var params, newSymbol(env.c, Kind.TypeParamSym, "?", span: None, file: "", unitName: ""))
+    var kind := "alias"
+    var c := false
+    case node.body of
+        RecordType(rt):
+            kind := "record"
+            c := rt.c
+        TraitType(_):
+            kind := "trait"
+        EnumType(_):
+            kind := "enum"
+        UnionType(_):
+            kind := "union"
+        SubrangeType(_):
+            kind := "subrange"
+        else:
+            pass()
+    let d := emptyInfo(kind, params, c)
+    env.declCache[sym.id] := d  # before the parts, which may refer back to the type
+    case node.body of
+        RecordType(rt):
+            addFields(env, d, rt.fields, file, false)
+        TraitType(tt):
+            addFields(env, d, tt.fields, file, true)
+            for g in tt.routines do
+                case defSym(env, file, g.name.span) of
+                    Some(r):
+                        add(var d.routines, r.value)
+                    None:
+                        pass()
+        EnumType(et):
+            for m in et.members do
+                add(var d.members, m.name)
+        UnionType(ut):
+            for v in ut.variants do
+                add(var d.variants, typeOf(env, v, file))
+        SubrangeType(sr):
+            d.base := value(constChecker(env, file), sr.low, noType())
+        TypeExpr(t):
+            if sym.id in env.busy then
+                envError(env, node.name.span, file, "E0304", "alias '{sym.name}' refers to itself")
+                return d
+            env.busy[sym.id] := true
+            d.alias := typeOf(env, t, file)
+            remove(var env.busy, sym.id)
+    return d
+
+procedure addFields(env: ref Env, d: ref TypeInfo, fs: List[FieldDecl], file: String, inTrait: Boolean)
+    for f in fs do
+        let fsym := defSym(env, file, f.name.span)
+        var exported := false
+        if fsym.isSome() then
+            exported := fsym.get().exported
+        add(var d.fields, FieldInfo(
+            sym: fsym,
+            name: f.name.name,
+            ty: typeOfFull(env, f.declType, file, inTrait, true),
+            hasDefault: f.default.isSome(),
+            default: f.default,
+            exported: exported,
+        ))
+
+function findFieldInfo(d: ref TypeInfo, name: String): Option[FieldInfo]
+    for f in d.fields do
+        if f.name = name then
+            return Some(f)
+    return None
+
+export function variants(env: ref Env, t: Type): List[Type]
+    case t of
+        NamedT(n):
+            let d := decl(env, n.sym)
+            if d.kind = "union" then
+                return substAll(d.variants, zipSubst(d.params, n.args))
+            return []
+        else:
+            return []
+
+## A subrange's base type; any other type itself.
+export function base(env: ref Env, t: Type): Type
+    case t of
+        NamedT(n):
+            let d := decl(env, n.sym)
+            if d.kind = "subrange" then
+                return d.base
+            return t
+        else:
+            return t
+
+## The kind of a declared type; "" for other types.
+export function kindOf(env: ref Env, t: Type): String
+    case t of
+        NamedT(n):
+            return decl(env, n.sym).kind
+        else:
+            return ""
+
+export function bounds(env: ref Env, tp: ref Symbol): List[Type]
+    if not (tp.id in env.boundCache) then
+        env.boundCache[tp.id] := []
+        case tp.node of
+            TypeParam(node):
+                var bs: List[Type] := []
+                for b in node.bounds do
+                    add(var bs, typeOfFull(env, b, tp.file, false, false))
+                env.boundCache[tp.id] := bs
+            else:
+                pass()
+    return env.boundCache[tp.id]
+
+function isConstParam(env: ref Env, tp: ref Symbol): Boolean
+    for b in bounds(env, tp) do
+        if not isTraitT(b) and not (b = errorT()) then
+            return true
+    return false
+
+function constParamType(env: ref Env, tp: ref Symbol): Type
+    for b in bounds(env, tp) do
+        if not isTraitT(b) then
+            return b
+    return errorT()
+
+function constType(env: ref Env, sym: ref Symbol): Type
+    case get(env.constCache, sym.id) of
+        Some(t):
+            return t.value
+        None:
+            pass()
+    if sym.id in env.busy then
+        envError(env, sym.span.get(), sym.file, "E0300", "constant '{sym.name}' depends on itself")
+        return errorT()
+    env.busy[sym.id] := true
+    var t := errorT()
+    case sym.node of
+        ConstDecl(cd):
+            t := value(constChecker(env, sym.file), cd.value, noType())
+        else:
+            pass()
+    remove(var env.busy, sym.id)
+    env.constCache[sym.id] := t
+    return t
+
+function symConstInt(sym: ref Symbol): Option[Integer]
+    case sym.node of
+        ConstDecl(cd):
+            let v := literalValue(cd.value)
+            if v.kind = 1 then
+                return Some(litInt(v))
+            return None
+        else:
+            return None
+
+# --------------------------------------------------------------------- signatures
+
+function emptySignature(name: Ident): Signature
+    return Signature(span: name.span, isFunction: false, name: name, typeParams: [], params: [], result: None, doc: None)
+
+export function sig(env: ref Env, sym: ref Symbol): Sig
+    case get(env.sigCache, sym.id) of
+        Some(s):
+            return s.value
+        None:
+            pass()
+    var g := emptySignature(Ident(span: Span(start: 0, end: 0, line: 0, col: 0, endLine: 0, endCol: 0), name: sym.name))
+    var inTrait := false
+    var isRoutine := false
+    case sym.node of
+        Routine(r):
+            g := r.sig
+            isRoutine := true
+        ExternDecl(x):
+            g := x.sig
+        Signature(s):
+            g := s
+            inTrait := true
+        else:
+            pass()
+    let file := sym.file
+    var tparams: List[ref Symbol] := []
+    for tp in g.typeParams do
+        case defSym(env, file, tp.name.span) of
+            Some(t):
+                add(var tparams, t.value)
+            None:
+                pass()
+    var params: List[PInfo] := []
+    for gi := 0 to len(g.params) - 1 do
+        let p := g.params[gi]
+        if p.isVarargs then
+            add(var params, PInfo(name: "...", ty: errorT(), isVar: false, hasDefault: false, group: gi, varargs: true, sym: None, default: None))
+            continue
+        if p.isThis then
+            add(var params, PInfo(name: "this", ty: thisT(), isVar: p.isVar, hasDefault: false, group: gi, varargs: false, sym: None, default: None))
+            continue
+        let t := optTypeOf(env, p.declType, file, inTrait)
+        for ident in p.names do
+            var psym: Option[ref Symbol] := None
+            if isRoutine then
+                psym := defSym(env, file, ident.span)
+            add(var params, PInfo(name: ident.name, ty: t, isVar: p.isVar, hasDefault: p.default.isSome(), group: gi, varargs: false, sym: psym, default: p.default))
+    var result := voidT()
+    if g.result.isSome() then
+        result := optTypeOf(env, g.result, file, inTrait)
+    let s := Sig(sym: Some(sym), name: sym.name, isFunction: g.isFunction, tparams: tparams, params: params, result: result, kind: "routine", positional: true)
+    env.sigCache[sym.id] := s
+    return s
+
+function recordSig(env: ref Env, sym: ref Symbol): Sig
+    let d := decl(env, sym)
+    var params: List[PInfo] := []
+    for i := 0 to len(d.fields) - 1 do
+        let f := d.fields[i]
+        add(var params, PInfo(name: f.name, ty: f.ty, isVar: false, hasDefault: f.hasDefault, group: i, varargs: false, sym: f.sym, default: f.default))
+    let result := named(sym, args: paramTypes(d.params))
+    return Sig(sym: Some(sym), name: sym.name, isFunction: true, tparams: d.params, params: params, result: result, kind: "record", positional: len(params) = 1)
+
+function functype(g: Sig): Type
+    var ps: List[Type] := []
+    for p in g.params do
+        add(var ps, p.ty)
+    return FuncT(isFunction: g.isFunction, params: ps, result: g.result)
+
+function describeSig(g: Sig): String
+    var parts: List[String] := []
+    for p in g.params do
+        if p.isVar then
+            add(var parts, "var {show(p.ty)}")
+        else
+            add(var parts, show(p.ty))
+    var where := ""
+    case g.sym of
+        Some(s):
+            where := " ({location(s.value)})"
+        None:
+            pass()
+    return "{g.name}({join(parts, sep: ", ")}){where}"
+
+# ------------------------------------------------------------------ the checker
+
+procedure fail(tc: ref TC, span: Span, code, message: String, fixes: List[Fix] := [])
+    error(tc.c, tc.file, code, span, message: message, fixes: fixes)
+
+function refAt(tc: ref TC, span: Span): Option[Ref]
+    return lookup(tc.env.index, tc.file, span)
+
+function symAt(tc: ref TC, span: Span): Option[ref Symbol]
+    return defSym(tc.env, tc.file, span)
+
+function text(tc: ref TC, span: Span): String
+    return sub(tc.src, span.start, end: span.end)
+
+## Unit-level lookup, as in a declaration of this unit.
+function visible(tc: ref TC, name: String): List[ref Symbol]
+    if tc.resolver.isNone() then
+        tc.resolver := Some(newResolver(tc.c, tc.home))
+    return unitLookup(tc.resolver.get(), name)
+
+function visibleRoutines(tc: ref TC, name: String): List[ref Symbol]
+    var out: List[ref Symbol] := []
+    for s in visible(tc, name) do
+        if isRoutine(s.kind) then
+            add(var out, s)
+    return out
+
+procedure setType(tc: ref TC, sym: Option[ref Symbol], t: Type)
+    case sym of
+        Some(s):
+            tc.env.symTypes[s.value.id] := t
+        None:
+            pass()
+
+function assignable(tc: ref TC, actual, expected: Type): Boolean
+    if hasError(actual) or hasError(expected) or actual = expected then
+        return true
+    if base(tc.env, actual) = base(tc.env, expected) then
+        return true  # subrange and its base: checked at runtime
+    return containsType(variants(tc.env, expected), actual)
+
+procedure mismatch(tc: ref TC, span: Span, actual, expected: Type)
+    var msg := "expected {show(expected)}, found {show(actual)}"
+    let a := base(tc.env, actual)
+    let e := base(tc.env, expected)
+    if isInteger(a) and isReal(e) then
+        msg := "{msg}; convert with toReal(...)"
+    else if isReal(a) and isInteger(e) then
+        msg := "{msg}; convert with round(...) or toInt(...)"
+    else if isInteger(a) and isInteger(e) then
+        msg := "{msg}; convert with {show(e)}(...)"
+    fail(tc, span, "E0300", msg)
+
+# -------------------------------------------------------------------------- units
+
+procedure run(tc: ref TC)
+    let items := tc.home.parsed.file.items
+    var rest: List[Stmt] := []
+    for item in items do
+        case item of
+            Decl(d):
+                runDecl(tc, d)
+            Stmt(s):
+                add(var rest, s)
+    body(tc, rest)
+    if len(hooks(tc.env)) > 0 then
+        walkFile(tc, tc.home.parsed.file)
+
+procedure runDecl(tc: ref TC, d: Decl)
+    case d of
+        TypeSection(ts):
+            for td in ts.decls do
+                checkTypeDecl(tc, td)
+        ConstSection(cs):
+            for cd in cs.decls do
+                case symAt(tc, cd.name.span) of
+                    Some(s):
+                        _ := constType(tc.env, s.value)
+                    None:
+                        pass()
+        Routine(r):
+            routine(tc, r)
+        ExternBlock(b):
+            for item in b.decls do
+                case item of
+                    TypeSection(ts):
+                        for td in ts.decls do
+                            checkTypeDecl(tc, td)
+                    ExternDecl(x):
+                        case symAt(tc, x.sig.name.span) of
+                            Some(s):
+                                _ := signature(tc, s.value)
+                                if b.library <> "pst" then
+                                    cSignature(tc, s.value, x.sig)
+                            None:
+                                pass()
+        TestBlock(t):
+            body(tc, t.body.stmts)
+
+## The program body or a test block.
+procedure body(tc: ref TC, ss: List[Stmt])
+    tc.result := voidT()
+    tc.isFunction := false
+    tc.inRoutine := false
+    tc.tparams := []
+    _ := stmts(tc, ss)
+
+procedure checkTypeDecl(tc: ref TC, d: TypeDecl)
+    let found := symAt(tc, d.name.span)
+    if found.isNone() then
+        return
+    let sym := found.get()
+    for p in d.params do
+        case symAt(tc, p.name.span) of
+            Some(tp):
+                _ := bounds(tc.env, tp.value)
+            None:
+                pass()
+    let info := decl(tc.env, sym)
+    if info.c then
+        case d.body of
+            RecordType(rt):
+                var i := 0
+                while i < len(info.fields) and i < len(rt.fields) do
+                    _ := cCompatible(tc, info.fields[i].ty, typeSpan(rt.fields[i].declType), true)
+                    i := i + 1
+            else:
+                pass()
+    if info.kind = "record" then
+        for f in info.fields do
+            case f.default of
+                Some(x):
+                    _ := check(tc, x.value, f.ty)
+                None:
+                    pass()
+    else if info.kind = "trait" then
+        for r in info.routines do
+            _ := sig(tc.env, r)
+    else if info.kind = "subrange" then
+        case d.body of
+            SubrangeType(sr):
+                let b := info.base
+                if not hasError(b) and not (isInteger(b) or b = charT() or kindOf(tc.env, b) = "enum") then
+                    fail(tc, sr.span, "E0300", "a subrange needs integer, Char or enum bounds, not {show(b)}")
+                _ := check(tc, sr.high, b)
+            else:
+                pass()
+    else if info.kind = "union" then
+        case d.body of
+            UnionType(ut):
+                var seen: List[Type] := []
+                var i := 0
+                while i < len(info.variants) and i < len(ut.variants) do
+                    let v := info.variants[i]
+                    if not hasError(v) and containsType(seen, v) then
+                        fail(tc, typeSpan(ut.variants[i]), "E0300", "variant {show(v)} appears twice in the union")
+                    add(var seen, v)
+                    i := i + 1
+            else:
+                pass()
+
+## An extern routine's parameters and result must be C-compatible (SPEC §10.1).
+procedure cSignature(tc: ref TC, sym: ref Symbol, node: Signature)
+    let g := sig(tc.env, sym)
+    for p in g.params do
+        if not p.varargs then
+            case node.params[p.group].declType of
+                Some(t):
+                    _ := cCompatible(tc, p.ty, typeSpan(t.value), false)
+                None:
+                    pass()
+    if g.isFunction then
+        case node.result of
+            Some(t):
+                _ := cCompatible(tc, g.result, typeSpan(t.value), false)
+            None:
+                pass()
+
+## Whether C can take or give values of type `t` (SPEC §10.1); E0901 if not.
+function cCompatible(tc: ref TC, t: Type, span: Span, inRecord: Boolean): Boolean
+    if isCType(tc, t, inRecord) then
+        return true
+    fail(tc, span, "E0901", "{show(t)} isn't C-compatible; use numbers, Boolean, C types (CInt, CString, Ptr[T], Pointer), C records, or function types of those")
+    return false
+
+function isCType(tc: ref TC, t: Type, inRecord: Boolean): Boolean
+    if hasError(t) or t = voidT() then
+        return true
+    case t of
+        PrimT(_):
+            return not (t = charT() or t = stringT())
+        BuiltinT(b):
+            if b.name = "Ptr" then
+                return isCType(tc, b.args[0], true)
+            return b.name = "Array" and inRecord and isCType(tc, b.args[0], true)
+        FuncT(f):
+            for p in f.params do
+                if not isCType(tc, p, false) then
+                    return false
+            return isCType(tc, f.result, false)
+        NamedT(n):
+            return decl(tc.env, n.sym).c
+        else:
+            return false
+
+## E0902 unless inside an unsafe routine (SPEC §10.4).
+procedure requireUnsafe(tc: ref TC, span: Span, what: String)
+    if not tc.inUnsafe then
+        fail(tc, span, "E0902", "{what} is only allowed inside an 'unsafe' function or procedure")
+
+function signature(tc: ref TC, sym: ref Symbol): Sig
+    let g := sig(tc.env, sym)
+    for tp in g.tparams do
+        _ := bounds(tc.env, tp)
+    var done: Map[Integer, Boolean] := {}
+    for p in g.params do
+        case p.default of
+            Some(x):
+                let id := exprId(x.value)
+                if not (id in done) then
+                    done[id] := true
+                    _ := check(tc, x.value, p.ty)
+            None:
+                pass()
+    return g
+
+procedure routine(tc: ref TC, r: Routine)
+    let found := symAt(tc, r.sig.name.span)
+    if found.isNone() then
+        return
+    let sym := found.get()
+    tc.tparams := sig(tc.env, sym).tparams
+    let g := signature(tc, sym)
+    for p in g.params do
+        setType(tc, p.sym, p.ty)
+    tc.result := voidT()
+    if g.isFunction then
+        tc.result := g.result
+    tc.isFunction := g.isFunction
+    tc.inRoutine := true
+    tc.loops := []
+    tc.inUnsafe := r.isUnsafe
+    for e in r.pre do
+        _ := check(tc, e, booleanT())
+    tc.inEnsures := true
+    for e in r.post do
+        _ := check(tc, e, booleanT())
+    tc.inEnsures := false
+    if not stmts(tc, r.body.stmts) and g.isFunction then
+        fail(tc, r.sig.name.span, "E0501", "function '{sym.name}' doesn't return a value on every path; end it with a 'return'")
+    tc.tparams := []
+    tc.inRoutine := false
+    tc.inUnsafe := false
+
+# --------------------------------------------------------------------- resources
+
+function noParent(): Parent
+    return Parent(kind: "other", span: Span(start: 0, end: 0, line: 0, col: 0, endLine: 0, endCol: 0), id: -1)
+
+function parentOf(kind: String): Parent
+    return Parent(kind: kind, span: noParent().span, id: -1)
+
+## Resource records exist only behind `ref`, and their destroy hook runs by itself (SPEC
+## §11.1): E1103 for a value of one (other than `r.field`, and `R(...)` as the argument of
+## `new`), E1101 for naming the hook.
+procedure walkFile(tc: ref TC, f: SourceFile)
+    for item in f.items do
+        case item of
+            Decl(d):
+                walkDecl(tc, d)
+            Stmt(s):
+                walkStmt(tc, s)
+
+procedure walkDecl(tc: ref TC, d: Decl)
+    case d of
+        TypeSection(ts):
+            walkTypeSection(tc, ts)
+        ConstSection(cs):
+            for cd in cs.decls do
+                walkExpr(tc, cd.value, noParent())
+        Routine(r):
+            walkSignature(tc, r.sig)
+            for e in r.pre do
+                walkExpr(tc, e, noParent())
+            for e in r.post do
+                walkExpr(tc, e, noParent())
+            walkStmts(tc, r.body.stmts)
+        ExternBlock(b):
+            for item in b.decls do
+                case item of
+                    TypeSection(ts):
+                        walkTypeSection(tc, ts)
+                    ExternDecl(x):
+                        walkSignature(tc, x.sig)
+        TestBlock(t):
+            walkStmts(tc, t.body.stmts)
+
+procedure walkTypeSection(tc: ref TC, ts: TypeSection)
+    for td in ts.decls do
+        walkTypeParams(tc, td.params)
+        case td.body of
+            TypeExpr(t):
+                walkType(tc, t, noParent())
+            EnumType(_):
+                pass()
+            SubrangeType(sr):
+                walkExpr(tc, sr.low, noParent())
+                walkExpr(tc, sr.high, noParent())
+            UnionType(ut):
+                for v in ut.variants do
+                    walkType(tc, v, noParent())
+            RecordType(rt):
+                walkFields(tc, rt.fields)
+            TraitType(tt):
+                walkFields(tc, tt.fields)
+                for g in tt.routines do
+                    walkSignature(tc, g)
+
+procedure walkFields(tc: ref TC, fs: List[FieldDecl])
+    for f in fs do
+        walkType(tc, f.declType, noParent())
+        walkOptExpr(tc, f.default)
+
+procedure walkTypeParams(tc: ref TC, ps: List[TypeParam])
+    for p in ps do
+        for b in p.bounds do
+            walkType(tc, b, noParent())
+
+procedure walkSignature(tc: ref TC, g: Signature)
+    walkTypeParams(tc, g.typeParams)
+    for p in g.params do
+        let parent := Parent(kind: "Param", span: p.span, id: -1)
+        case p.declType of
+            Some(t):
+                walkType(tc, t.value, parent)
+            None:
+                pass()
+        case p.default of
+            Some(x):
+                walkExpr(tc, x.value, parent)
+            None:
+                pass()
+    case g.result of
+        Some(t):
+            walkType(tc, t.value, noParent())
+        None:
+            pass()
+
+procedure walkOptExpr(tc: ref TC, e: Option[Expr])
+    case e of
+        Some(x):
+            walkExpr(tc, x.value, noParent())
+        None:
+            pass()
+
+procedure walkStmts(tc: ref TC, ss: List[Stmt])
+    for s in ss do
+        walkStmt(tc, s)
+
+procedure walkArm(tc: ref TC, b: ArmBody)
+    case b of
+        Block(x):
+            walkStmts(tc, x.stmts)
+        Stmt(s):
+            walkStmt(tc, s)
+
+procedure walkLabels(tc: ref TC, ls: List[Label])
+    for l in ls do
+        case l of
+            ValueLabel(v):
+                walkExpr(tc, v.value, noParent())
+            RangeLabel(r):
+                walkExpr(tc, r.low, noParent())
+                walkExpr(tc, r.high, noParent())
+            VariantLabel(v):
+                walkTypeName(tc, v.variant, noParent())
+
+procedure walkStmt(tc: ref TC, s: Stmt)
+    case s of
+        VarDecl(v):
+            case v.declType of
+                Some(t):
+                    walkType(tc, t.value, noParent())
+                None:
+                    pass()
+            walkExpr(tc, v.value, noParent())
+        Assign(a):
+            walkExpr(tc, a.target, noParent())
+            walkExpr(tc, a.value, noParent())
+        Discard(d):
+            walkExpr(tc, d.value, noParent())
+        ExprStmt(x):
+            walkExpr(tc, x.expr, noParent())
+        If(i):
+            for b in i.branches do
+                walkExpr(tc, b.cond, noParent())
+                walkStmts(tc, b.body.stmts)
+            case i.elseBody of
+                Some(b):
+                    walkStmts(tc, b.value.stmts)
+                None:
+                    pass()
+        While(w):
+            walkExpr(tc, w.cond, noParent())
+            walkStmts(tc, w.body.stmts)
+        Repeat(r):
+            walkStmts(tc, r.body.stmts)
+            walkExpr(tc, r.cond, noParent())
+        ForRange(f):
+            walkExpr(tc, f.start, noParent())
+            walkExpr(tc, f.stop, noParent())
+            walkStmts(tc, f.body.stmts)
+        ForIn(f):
+            walkExpr(tc, f.iterable, noParent())
+            walkStmts(tc, f.body.stmts)
+        Case(c):
+            walkExpr(tc, c.subject, noParent())
+            for arm in c.arms do
+                walkLabels(tc, arm.labels)
+                walkArm(tc, arm.body)
+        Defer(d):
+            walkArm(tc, d.body)
+        Return(r):
+            walkOptExpr(tc, r.value)
+        Assert(a):
+            walkExpr(tc, a.cond, noParent())
+            walkOptExpr(tc, a.message)
+        else:
+            pass()
+
+procedure walkType(tc: ref TC, t: TypeExpr, parent: Parent)
+    case t of
+        TypeName(n):
+            walkTypeName(tc, n, parent)
+        RefType(r):
+            walkType(tc, r.target, parentOf("RefType"))
+        FuncType(f):
+            for p in f.params do
+                walkType(tc, p, noParent())
+            case f.result of
+                Some(x):
+                    walkType(tc, x.value, noParent())
+                None:
+                    pass()
+
+procedure walkTypeOrExpr(tc: ref TC, x: TypeOrExpr, parent: Parent)
+    case x of
+        TypeExpr(t):
+            walkType(tc, t, parent)
+        Expr(e):
+            walkExpr(tc, e, parent)
+
+function typeSym(tc: ref TC, t: TypeName): Option[ref Symbol]
+    case refAt(tc, lastSpan(t)) of
+        Some(r):
+            if len(r.value.targets) = 1 then
+                return Some(r.value.targets[0])
+            return None
+        None:
+            return None
+
+## Whether `t` is the type expression `Weak[...]`, whose argument is the type of what it
+## refers to, as with `ref`.
+function isWeak(tc: ref TC, t: TypeName): Boolean
+    case typeSym(tc, t) of
+        Some(s):
+            return s.value.kind = Kind.BuiltinType and s.value.name = "Weak"
+        None:
+            return false
+
+## Whether `parent` is the first parameter of destroy hook `hook`.
+function isOwnParam(tc: ref TC, parent: Parent, hook: ref Symbol): Boolean
+    if parent.kind <> "Param" or hook.file <> tc.file then
+        return false
+    case hook.node of
+        Routine(r):
+            return len(r.sig.params) > 0 and r.sig.params[0].span = parent.span
+        else:
+            return false
+
+procedure walkTypeName(tc: ref TC, n: TypeName, parent: Parent)
+    if parent.kind <> "RefType" and parent.kind <> "Weak" then
+        case typeSym(tc, n) of
+            Some(s):
+                let sym := s.value
+                case get(hooks(tc.env), sym.id) of
+                    Some(hook):
+                        if not isOwnParam(tc, parent, hook.value) then
+                            fail(tc, n.span, "E1103", "'{sym.name}' is a resource record (it has a destroy hook), so its values exist only behind 'ref': write 'ref {sym.name}'", fixes: [Fix(description: "write 'ref {sym.name}'", edits: [Edit(span: point(n.span), text: "ref ")])])
+                    None:
+                        pass()
+            None:
+                pass()
+    var inner := noParent()
+    if isWeak(tc, n) then
+        inner := parentOf("Weak")
+    for a in n.args do
+        walkTypeOrExpr(tc, a, inner)
+
+procedure walkExpr(tc: ref TC, e: Expr, parent: Parent)
+    case e of
+        Call(c):
+            case get(tc.calls, c.id) of
+                Some(m):
+                    case m.value.sig.sym of
+                        Some(s):
+                            if isHook(tc.env, s.value) then
+                                fail(tc, c.span, "E1101", "a destroy hook can't be called; it runs when the last reference goes away")
+                                return
+                            if isSys(tc.env, s.value, "new") and len(c.args) > 0 then
+                                tc.newArgs[c.args[0].id] := true
+                        None:
+                            pass()
+                None:
+                    pass()
+        Name(n):
+            case refAt(tc, n.span) of
+                Some(r):
+                    var all := len(r.value.targets) > 0
+                    for s in r.value.targets do
+                        if not isHook(tc.env, s) then
+                            all := false
+                    if all then
+                        fail(tc, n.span, "E1101", "a destroy hook can't be used as a value; it runs by itself")
+                None:
+                    pass()
+        else:
+            pass()
+    let t := getOr(tc.types, exprId(e), default: noType())
+    if isResource(tc.env, t) and not resourceOk(tc, e, parent) then
+        let name := namedSym(t).get().name
+        var msg := "a value of resource record '{name}' would be copied here; only 'ref {name}' can be"
+        case e of
+            Deref(_):
+                msg := "'deref' of a 'ref {name}' would copy a resource record; use its fields"
+            Call(c):
+                msg := "a resource record can only be made inside 'new': 'new({text(tc, c.span)})'"
+            else:
+                pass()
+        fail(tc, exprSpan(e), "E1103", msg)
+        return
+    walkChildren(tc, e)
+
+procedure walkChildren(tc: ref TC, e: Expr)
+    let none := noParent()
+    case e of
+        InterpString(x):
+            for p in x.parts do
+                case p of
+                    TextPart(_):
+                        pass()
+                    Expr(pe):
+                        walkExpr(tc, pe, none)
+        ListLit(x):
+            for i in x.items do
+                walkExpr(tc, i, none)
+        SetLit(x):
+            for i in x.items do
+                walkExpr(tc, i, none)
+        MapLit(x):
+            for en in x.entries do
+                walkExpr(tc, en.key, none)
+                walkExpr(tc, en.value, none)
+        Paren(x):
+            walkExpr(tc, x.inner, none)
+        Unary(x):
+            walkExpr(tc, x.operand, none)
+        Binary(x):
+            walkExpr(tc, x.left, none)
+            walkExpr(tc, x.right, none)
+        Call(x):
+            walkExpr(tc, x.callee, none)
+            for a in x.args do
+                walkExpr(tc, a.value, Parent(kind: "Arg", span: a.span, id: a.id))
+        Index(x):
+            walkExpr(tc, x.target, none)
+            for i in x.items do
+                walkTypeOrExpr(tc, i, none)
+        FieldAccess(x):
+            walkExpr(tc, x.target, parentOf("FieldTarget"))
+        Deref(x):
+            walkExpr(tc, x.target, none)
+        IfExpr(x):
+            for b in x.branches do
+                walkExpr(tc, b.cond, none)
+                walkExpr(tc, b.value, none)
+            walkExpr(tc, x.elseValue, none)
+        CaseExpr(x):
+            walkExpr(tc, x.subject, none)
+            for arm in x.arms do
+                walkLabels(tc, arm.labels)
+                walkExpr(tc, arm.value, none)
+        else:
+            pass()
+
+## Whether a value of a resource record may appear as `e`: as `r.field`, or `R(...)`
+## directly inside `new`.
+function resourceOk(tc: ref TC, e: Expr, parent: Parent): Boolean
+    case e of
+        Deref(_):
+            return false
+        Call(_):
+            if parent.kind = "Arg" and parent.id in tc.newArgs then
+                return true
+        else:
+            pass()
+    return parent.kind = "FieldTarget"
+
+# -------------------------------------------------------------------- statements
+
+## Checks statements; true if they never complete normally (always return).
+function stmts(tc: ref TC, ss: List[Stmt]): Boolean
+    var ends := false
+    for s in ss do
+        if stmt(tc, s) then
+            ends := true
+    return ends
+
+function block(tc: ref TC, b: ArmBody): Boolean
+    case b of
+        Block(x):
+            return stmts(tc, x.stmts)
+        Stmt(s):
+            return stmts(tc, [s])
+
+function loop(tc: ref TC, b: Block, isRepeat: Boolean): LoopInfo
+    add(var tc.loops, LoopInfo(broke: false, isRepeat: isRepeat))
+    _ := stmts(tc, b.stmts)
+    return popLoop(tc)
+
+function popLoop(tc: ref TC): LoopInfo
+    let n := len(tc.loops)
+    let info := tc.loops[n - 1]
+    remove(var tc.loops, n - 1)
+    return info
+
+function isBool(e: Expr, v: Boolean): Boolean
+    case e of
+        BoolLit(b):
+            return b.value = v
+        else:
+            return false
+
+function stmt(tc: ref TC, s: Stmt): Boolean
+    case s of
+        VarDecl(v):
+            var t := errorT()
+            case v.declType of
+                Some(dt):
+                    t := typeOf(tc.env, dt.value, tc.file)
+                    _ := check(tc, v.value, t)
+                None:
+                    t := value(tc, v.value, noType())
+            setType(tc, symAt(tc, v.name.span), t)
+        Assign(a):
+            let t := value(tc, a.target, noType())
+            let why := immutable(tc, a.target)
+            if why <> "" then
+                fail(tc, exprSpan(a.target), "E0340", "can't assign to {why}")
+            _ := check(tc, a.value, t)
+        Discard(d):
+            _ := value(tc, d.value, noType())
+        ExprStmt(x):
+            exprStmt(tc, x)
+        If(i):
+            var ends := true
+            for b in i.branches do
+                _ := check(tc, b.cond, booleanT())
+                ends := stmts(tc, b.body.stmts) and ends
+            case i.elseBody of
+                Some(b):
+                    return stmts(tc, b.value.stmts) and ends
+                None:
+                    return false
+        While(w):
+            _ := check(tc, w.cond, booleanT())
+            let info := loop(tc, w.body, false)
+            return isBool(w.cond, true) and not info.broke
+        Repeat(r):
+            add(var tc.loops, LoopInfo(broke: false, isRepeat: true))
+            let ends := stmts(tc, r.body.stmts)
+            let info := popLoop(tc)
+            _ := check(tc, r.cond, booleanT())
+            return (ends or isBool(r.cond, false)) and not info.broke
+        ForRange(f):
+            forRange(tc, f)
+        ForIn(f):
+            forIn(tc, f)
+        Case(c):
+            return caseStmt(tc, c)
+        Defer(d):  # runs as its block is left, so can't leave itself
+            let outerLoops := tc.loops
+            let outerDefer := tc.inDefer
+            tc.loops := []
+            tc.inDefer := true
+            _ := block(tc, d.body)
+            tc.loops := outerLoops
+            tc.inDefer := outerDefer
+        Break(b):
+            leave(tc, b.span, "break")
+        Continue(c):
+            leave(tc, c.span, "continue")
+        Return(r):
+            returnStmt(tc, r)
+            return true
+        Assert(a):
+            _ := check(tc, a.cond, booleanT())
+            case a.message of
+                Some(m):
+                    _ := check(tc, m.value, stringT())
+                None:
+                    pass()
+        ErrorStmt(_):
+            pass()
+    return false
+
+procedure leave(tc: ref TC, span: Span, word: String)
+    let n := len(tc.loops)
+    if n = 0 and tc.inDefer then
+        fail(tc, span, "E0507", "'{word}' can't leave a deferred statement")
+    else if n = 0 then
+        fail(tc, span, "E0504", "'{word}' outside a loop")
+    else if word = "break" then
+        tc.loops[n - 1] := LoopInfo(broke: true, isRepeat: tc.loops[n - 1].isRepeat)
+    else if tc.loops[n - 1].isRepeat then
+        fail(tc, span, "E0506", "'continue' isn't allowed in a 'repeat' loop")
+
+procedure exprStmt(tc: ref TC, s: ExprStmt)
+    let e := s.expr
+    case e of
+        Unary(u):
+            if u.op = "try" then
+                _ := expr(tc, e, noType())  # `try f()` alone: propagate the error, drop the value
+                return
+        else:
+            pass()
+    let t := expr(tc, e, noType())
+    case e of
+        Call(c):
+            if not (t = voidT()) and not hasError(t) and not isTypeValue(t) then
+                let name := text(tc, exprSpan(c.callee))
+                fail(tc, c.span, "E0502", "result of '{name}' is ignored; use it, or discard it with '_ := ...'", fixes: [Fix(description: "discard the result", edits: [Edit(span: point(s.span), text: "_ := ")])])
+        else:
+            pass()
+
+procedure returnStmt(tc: ref TC, s: Return)
+    if tc.inDefer then
+        fail(tc, s.span, "E0507", "'return' can't leave a deferred statement")
+    case s.value of
+        None:
+            if tc.isFunction then
+                fail(tc, s.span, "E0503", "missing return value of type {show(tc.result)}")
+        Some(v):
+            if not tc.isFunction then
+                var where := "the program body or a test"
+                if tc.inRoutine then
+                    where := "a procedure"
+                fail(tc, exprSpan(v.value), "E0503", "{where} can't return a value")
+                _ := value(tc, v.value, noType())
+                return
+            _ := check(tc, v.value, tc.result)
+
+procedure forRange(tc: ref TC, s: ForRange)
+    var t := value(tc, s.start, noType())
+    let b := base(tc.env, t)
+    if not hasError(b) and not (isInteger(b) or b = charT() or kindOf(tc.env, b) = "enum") then
+        fail(tc, exprSpan(s.start), "E0300", "'for ... to' needs integer, Char or enum bounds, not {show(t)}")
+        t := errorT()
+    _ := check(tc, s.stop, t)
+    setType(tc, symAt(tc, s.variable.span), t)
+    _ := loop(tc, s.body, false)
+
+procedure forIn(tc: ref TC, s: ForIn)
+    let t := expr(tc, s.iterable, noType())
+    let elems := elements(tc, t, len(s.vars), s.iterable)
+    var i := 0
+    while i < len(s.vars) and i < len(elems) do
+        setType(tc, symAt(tc, s.vars[i].span), elems[i])
+        i := i + 1
+    _ := loop(tc, s.body, false)
+
+## The loop variable types of `for ... in e` (SPEC §4.14).
+function elements(tc: ref TC, t0: Type, n: Integer, e: Expr): List[Type]
+    var bad: List[Type] := []
+    for i := 1 to n do
+        add(var bad, errorT())
+    var t := t0
+    case t0 of
+        TypeValueT(v):
+            if kindOf(tc.env, v.inner) = "enum" and n = 1 then
+                return [v.inner]
+            t := asValue(tc, t0, e)
+        OverloadsT(_):
+            t := asValue(tc, t0, e)
+        else:
+            if t0 = voidT() then
+                t := asValue(tc, t0, e)
+    if hasError(t) then
+        return bad
+    if isMap(tc.env, t) then
+        let args := argsOf(t)
+        if n = 2 then
+            return args
+        return [args[0]]
+    if n = 2 then
+        fail(tc, exprSpan(e), "E0350", "two loop variables ('for k, v in m') need a Map, not {show(t)}")
+        return bad
+    if isBuiltin(t, "List") or isBuiltin(t, "Array") then
+        return [argsOf(t)[0]]
+    if t = stringT() then
+        return [charT()]
+    case iteratorItem(tc, t) of
+        Some(x):
+            return [x.value]
+        None:
+            pass()
+    for f in visibleRoutines(tc, "iter") do
+        let fs := sig(tc.env, f)
+        if len(fs.params) <> 1 or isSignatureNode(f) then
+            continue
+        var sf: Subst := {}
+        if unify(fs.params[0].ty, t, var sf, setOf(fs.tparams)) then
+            case iteratorItem(tc, subst(fs.result, sf)) of
+                Some(x):
+                    return [x.value]
+                None:
+                    pass()
+    fail(tc, exprSpan(e), "E0350", "can't iterate over {show(t)}: it isn't a List, Array, Set, Map, String, enum, or iterator, and no 'iter' function takes it")
+    return bad
+
+function iteratorItem(tc: ref TC, t: Type): Option[Type]
+    let it := sys(tc.env, "Iterator")
+    if it.isNone() then
+        return None
+    let x := tc.env.elemVar
+    var s: Subst := {}
+    var vars: Vars := {}
+    vars[x.id] := true
+    if satisfies(tc, t, TraitT(sym: it.get(), args: [param(x)]), var s, vars, 0) then
+        return Some(getOr(s, x.id, default: errorT()))
+    return None
+
+# -------------------------------------------------------------------------- case
+
+function caseStmt(tc: ref TC, s: Case): Boolean
+    var info := caseBegin(tc, value(tc, s.subject, noType()))
+    var ends := len(s.arms) > 0
+    var hasElse := false
+    for arm in s.arms do
+        hasElse := hasElse or len(arm.labels) = 0
+        caseLabels(tc, var info, arm.labels)
+        ends := block(tc, arm.body) and ends
+    let complete := caseEnd(tc, info, hasElse, s.span)
+    return ends and complete
+
+function caseInfo(t: Type, kind: String): CaseInfo
+    return CaseInfo(ty: t, kind: kind, variants: [], members: [], covered: {}, ranges: [])
+
+function caseBegin(tc: ref TC, t: Type): CaseInfo
+    if hasError(t) then
+        return caseInfo(t, "error")
+    if t = booleanT() then
+        return caseInfo(t, "bool")
+    let kind := kindOf(tc.env, t)
+    if kind = "union" then
+        var info := caseInfo(t, "union")
+        info.variants := variants(tc.env, t)
+        return info
+    if kind = "enum" then
+        var info := caseInfo(t, "enum")
+        info.members := decl(tc.env, namedSym(t).get()).members
+        return info
+    return caseInfo(t, "value")
+
+function keyCount(info: CaseInfo): Integer
+    if info.kind = "union" then
+        return len(info.variants)
+    if info.kind = "enum" then
+        return len(info.members)
+    return 2
+
+## The key of the `i`th variant, member or truth value, as `covered` holds it.
+function keyAt(info: CaseInfo, i: Integer): String
+    if info.kind = "union" then
+        return toString(i)
+    if info.kind = "enum" then
+        return info.members[i]
+    if i = 0 then
+        return "true"
+    return "false"
+
+function keyName(info: CaseInfo, i: Integer): String
+    if info.kind = "union" then
+        return show(info.variants[i])
+    return keyAt(info, i)
+
+function caseEnd(tc: ref TC, info: CaseInfo, hasElse: Boolean, span: Span): Boolean
+    if info.kind = "error" or hasElse then
+        return true
+    if info.kind = "value" then
+        fail(tc, span, "E0602", "'case' over {show(info.ty)} needs an 'else' arm")
+        return false
+    var missing: List[String] := []
+    for i := 0 to keyCount(info) - 1 do
+        if not (keyAt(info, i) in info.covered) then
+            add(var missing, keyName(info, i))
+    if len(missing) > 0 then
+        fail(tc, span, "E0602", "'case' doesn't cover {join(missing, sep: ", ")}; add arms for them, or 'else'")
+        return false
+    return true
+
+procedure cover(tc: ref TC, var info: CaseInfo, span: Span, key, name: String)
+    if key in info.covered then
+        fail(tc, span, "E0601", "'{name}' is already covered by an earlier label")
+    info.covered[key] := true
+
+function noVal(): LVal
+    return LVal(kind: 0, i: 0, s: "")
+
+function memberIndex(info: CaseInfo, name: String): Integer
+    for i := 0 to len(info.members) - 1 do
+        if info.members[i] = name then
+            return i
+    return -1
+
+procedure caseLabels(tc: ref TC, var info: CaseInfo, labels: List[Label])
+    for label in labels do
+        case label of
+            VariantLabel(v):
+                variantLabel(tc, var info, v)
+            ValueLabel(v):
+                if info.kind = "union" or info.kind = "enum" then
+                    _ := namedLabel(tc, var info, v.value, true)
+                else
+                    let x := constLabel(tc, info, v.value)
+                    addRange(tc, var info, LRange(lo: x, hi: x), v.span)
+            RangeLabel(r):
+                if info.kind = "enum" then
+                    let lo := namedLabel(tc, var info, r.low, false)
+                    let hi := namedLabel(tc, var info, r.high, false)
+                    if lo.isSome() and hi.isSome() then
+                        let a := memberIndex(info, lo.get())
+                        let b := memberIndex(info, hi.get())
+                        if a > b then
+                            fail(tc, r.span, "E0603", "empty range: '{lo.get()}' comes after '{hi.get()}'")
+                        for i := a to b do
+                            cover(tc, var info, r.span, info.members[i], info.members[i])
+                else if info.kind = "union" or info.kind = "bool" then
+                    fail(tc, r.span, "E0603", "a range label needs integer, Char or enum values, not {show(info.ty)}")
+                else
+                    let lo := constLabel(tc, info, r.low)
+                    let hi := constLabel(tc, info, r.high)
+                    if lo.kind <> 0 and hi.kind <> 0 and lo.kind <> 3 and hi.kind <> 3 and lo.i > hi.i then
+                        fail(tc, r.span, "E0603", "empty range: the low end is above the high end")
+                    addRange(tc, var info, LRange(lo: lo, hi: hi), r.span)
+
+## `a < b` for label values of comparable kinds; false for others.
+function lvLess(a, b: LVal): Boolean
+    if a.kind = 3 and b.kind = 3 then
+        return a.s < b.s
+    if a.kind <> 3 and b.kind <> 3 then
+        return a.i < b.i
+    return false
+
+procedure addRange(tc: ref TC, var info: CaseInfo, r: LRange, span: Span)
+    if r.lo.kind = 0 or r.hi.kind = 0 then
+        return
+    if info.kind = "bool" then
+        var k := "false"
+        if r.lo.i <> 0 then
+            k := "true"
+        cover(tc, var info, span, k, k)
+        return
+    for x in info.ranges do
+        if x.lo.kind = r.lo.kind and not (lvLess(r.hi, x.lo) or lvLess(x.hi, r.lo)) then
+            fail(tc, span, "E0601", "this label overlaps an earlier one")
+            break
+    add(var info.ranges, r)
+
+## What a type is, for matching variant labels: `#id` of a declared type, the name of a
+## primitive or builtin, or "".
+function head(t: Type): String
+    case t of
+        NamedT(n):
+            return "#{n.sym.id}"
+        PrimT(p):
+            return p.name
+        BuiltinT(b):
+            return b.name
+        else:
+            return ""
+
+## What a variant label names: a declared type, or a primitive/builtin name.
+function labelHead(tc: ref TC, sym: ref Symbol): String
+    if sym.kind = Kind.TypeSym then
+        let d := decl(tc.env, sym)
+        if d.kind = "alias" and len(d.params) = 0 then
+            return head(d.alias)
+        return "#{sym.id}"
+    if sym.kind = Kind.BuiltinType then
+        return sym.name
+    return ""
+
+## The position of the variant `sym` names in the union.
+function variantOf(tc: ref TC, info: CaseInfo, sym: ref Symbol, span: Span, name: String): Option[Integer]
+    let h := labelHead(tc, sym)
+    for i := 0 to len(info.variants) - 1 do
+        if h <> "" and head(info.variants[i]) = h then
+            return Some(i)
+    var names: List[String] := []
+    for v in info.variants do
+        add(var names, show(v))
+    fail(tc, span, "E0603", "'{name}' is not a variant of {show(info.ty)} (variants: {join(names, sep: ", ")})")
+    return None
+
+procedure variantLabel(tc: ref TC, var info: CaseInfo, label: VariantLabel)
+    let tn := label.variant
+    let binding := symAt(tc, label.binding.span)
+    var vt := errorT()
+    let name := join(tn.parts, sep: ".")
+    let r := refAt(tc, lastSpan(tn))
+    if info.kind = "union" then
+        if r.isSome() and len(r.get().targets) = 1 then
+            case variantOf(tc, info, r.get().targets[0], tn.span, name) of
+                Some(i):
+                    vt := info.variants[i.value]
+                    cover(tc, var info, label.span, toString(i.value), name)
+                None:
+                    pass()
+    else if info.kind <> "error" then
+        fail(tc, label.span, "E0603", "'{name}(...)' needs a union to match, not {show(info.ty)}")
+    setType(tc, binding, vt)
+
+## A bare enum member or variant name (`Red:`, `None:`). Returns the enum member.
+function namedLabel(tc: ref TC, var info: CaseInfo, e: Expr, doCover: Boolean): Option[String]
+    var sym: Option[ref Symbol] := None
+    var span := exprSpan(e)
+    var name := ""
+    var member := ""
+    case e of
+        FieldAccess(f):  # `Color.Red`, `System.None`
+            let r := refAt(tc, f.name.span)
+            if r.isNone() or len(r.get().targets) <> 1 then
+                return None
+            sym := Some(r.get().targets[0])
+            name := text(tc, f.span)
+            member := f.name.name
+        Name(n):
+            name := n.name
+            member := n.name
+        else:
+            fail(tc, span, "E0603", "labels over {show(info.ty)} must be names")
+            _ := value(tc, e, noType())
+            return None
+    if info.kind = "enum" then
+        let owner := namedSym(info.ty).get()
+        var foreign := false
+        case sym of
+            Some(s):
+                case get(tc.env.owner, s.value.id) of
+                    Some(o):
+                        foreign := not (o.value = owner)
+                    None:
+                        foreign := true
+            None:
+                pass()
+        if memberIndex(info, member) < 0 or foreign then
+            fail(tc, span, "E0603", "'{name}' is not a member of {show(info.ty)}")
+            return None
+        if sym.isNone() then
+            add(tc.env.index, tc.file, span, [owner.members[member]])
+        if doCover then
+            cover(tc, var info, span, member, member)
+        return Some(member)
+    if sym.isNone() then
+        var found: List[ref Symbol] := []
+        for s in visible(tc, name) do
+            if s.kind = Kind.TypeSym or s.kind = Kind.BuiltinType then
+                add(var found, s)
+        if len(found) <> 1 then
+            fail(tc, span, "E0603", "'{name}' is not a variant of {show(info.ty)}")
+            return None
+        sym := Some(found[0])
+        add(tc.env.index, tc.file, span, [found[0]])
+    case variantOf(tc, info, sym.get(), span, name) of
+        Some(i):
+            let v := info.variants[i.value]
+            if kindOf(tc.env, v) <> "record" or len(decl(tc.env, namedSym(v).get()).fields) > 0 then
+                fail(tc, span, "E0603", "variant {show(v)} has fields; bind it: '{name}(x)' or '{name}(_)'")
+            if doCover then
+                cover(tc, var info, span, toString(i.value), name)
+        None:
+            pass()
+    return None
+
+## A constant label over a non-enum, non-union type. Returns its value, if known.
+function constLabel(tc: ref TC, info: CaseInfo, e: Expr): LVal
+    case e of
+        Name(n):
+            if refAt(tc, n.span).isNone() then
+                let found := visible(tc, n.name)
+                if len(found) = 0 then
+                    fail(tc, n.span, "E0100", "unknown name '{n.name}'")
+                    return noVal()
+                let sym := found[0]
+                if sym.kind <> Kind.ConstSym then
+                    fail(tc, n.span, "E0603", "case labels must be constants; '{n.name}' is a {Symbols.name(sym.kind)}")
+                    return noVal()
+                add(tc.env.index, tc.file, n.span, [sym])
+                let t := constType(tc.env, sym)
+                if info.kind <> "error" and not assignable(tc, t, info.ty) then
+                    mismatch(tc, n.span, t, info.ty)
+                case symConstInt(sym) of
+                    Some(v):
+                        return LVal(kind: 1, i: v.value, s: "")
+                    None:
+                        return noVal()
+        else:
+            pass()
+    if info.kind = "error" then
+        _ := value(tc, e, noType())
+        return noVal()
+    _ := check(tc, e, info.ty)
+    case e of
+        BoolLit(b):
+            if b.value then
+                return LVal(kind: 2, i: 1, s: "")
+            return LVal(kind: 2, i: 0, s: "")
+        CharLit(c):
+            return LVal(kind: 1, i: ord(c.value), s: "")
+        StringLit(s):
+            return LVal(kind: 3, i: 0, s: s.value)
+        Name(_):
+            return noVal()
+        FieldAccess(_):
+            return noVal()
+        else:
+            let v := literalValue(e)
+            if v.kind = 1 then
+                return LVal(kind: 1, i: litInt(v), s: "")
+            fail(tc, exprSpan(e), "E0603", "case labels must be constants")
+            return noVal()
+
+# ------------------------------------------------------------------- expressions
+
+type
+    ## A field found on a type: the field, the record declaring it (none for a trait
+    ## bound's), and the substitution for its type.
+    FoundField = record
+        f: FieldInfo
+        owner: Option[ref Symbol]
+        s: Subst
+
+## The type of `e`. `expected` is a hint: literals and empty collections take it, and
+## calls use it to infer type arguments. It is not checked here.
+function expr(tc: ref TC, e: Expr, expected: Type): Type
+    var t := errorT()
+    case e of
+        IntLit(x):
+            t := intLit(tc, literalValue(e), x.span, expected)
+        RealLit(_):
+            t := realLit(tc, expected)
+        CharLit(_):
+            t := charT()
+            if known(expected) and base(tc.env, expected) = charT() then
+                t := expected
+        BoolLit(_):
+            t := booleanT()
+        StringLit(_):
+            t := stringT()
+        InterpString(x):
+            t := interp(tc, x)
+        ErrorExpr(_):
+            t := errorT()
+        Paren(x):
+            t := expr(tc, x.inner, expected)
+        ListLit(x):
+            t := listLit(tc, x, expected)
+        SetLit(x):
+            t := setLit(tc, x, expected)
+        MapLit(x):
+            t := mapLit(tc, x, expected)
+        EmptyBraces(x):
+            if isMap(tc.env, expected) or isSet(tc.env, expected) then
+                t := expected
+            else
+                fail(tc, x.span, "E0301", "the type of '\{}' isn't known here; declare it: 'var m: Map[K, V] := \{}'")
+        Name(x):
+            case refAt(tc, x.span) of
+                Some(r):
+                    if len(r.value.targets) > 0 then
+                        t := symValue(tc, r.value.targets, x.span, expected)
+                None:
+                    pass()
+        FieldAccess(x):
+            t := fieldAccess(tc, x, expected)
+        Deref(x):
+            t := derefExpr(tc, x)
+        Unary(x):
+            t := unary(tc, x, e, expected)
+        Binary(x):
+            t := binary(tc, x, expected)
+        IfExpr(x):
+            var values: List[Expr] := []
+            for b in x.branches do
+                _ := check(tc, b.cond, booleanT())
+                add(var values, b.value)
+            add(var values, x.elseValue)
+            t := branches(tc, values, expected)
+        CaseExpr(x):
+            var info := caseBegin(tc, value(tc, x.subject, noType()))
+            var hasElse := false
+            var values: List[Expr] := []
+            for arm in x.arms do
+                hasElse := hasElse or len(arm.labels) = 0
+                caseLabels(tc, var info, arm.labels)
+                add(var values, arm.value)
+            _ := caseEnd(tc, info, hasElse, x.span)
+            t := branches(tc, values, expected)
+        Index(x):
+            t := index(tc, x, expected)
+        Call(x):
+            t := callExpr(tc, x, expected)
+    tc.types[exprId(e)] := t
+    return t
+
+## Like expr, but the result must be a value.
+function value(tc: ref TC, e: Expr, expected: Type): Type
+    return asValue(tc, expr(tc, e, expected), e)
+
+function asValue(tc: ref TC, t: Type, e: Expr): Type
+    case t of
+        TypeValueT(_):
+            fail(tc, exprSpan(e), "E0306", "'{text(tc, exprSpan(e))}' is a type, not a value")
+            return errorT()
+        OverloadsT(o):
+            fail(tc, exprSpan(e), "E0302", "'{o.syms[0].name}' is overloaded; the expected type must say which one is meant")
+            return errorT()
+        else:
+            if t = voidT() then
+                fail(tc, exprSpan(e), "E0306", "'{text(tc, exprSpan(e))}' is a procedure call and has no value")
+                return errorT()
+    return t
+
+## Checks that `e` is a value of type `expected`.
+function check(tc: ref TC, e: Expr, expected: Type): Type
+    let t := value(tc, e, expected)
+    if known(expected) and not assignable(tc, t, expected) then
+        mismatch(tc, exprSpan(e), t, expected)
+    return t
+
+## An index or type argument: type expressions have no value.
+function valueItem(tc: ref TC, x: TypeOrExpr, expected: Type): Type
+    case x of
+        Expr(e):
+            return value(tc, e, expected)
+        TypeExpr(_):
+            return errorT()
+
+function checkItem(tc: ref TC, x: TypeOrExpr, expected: Type): Type
+    case x of
+        Expr(e):
+            return check(tc, e, expected)
+        TypeExpr(_):
+            return errorT()
+
+function itemSpan(x: TypeOrExpr): Span
+    case x of
+        Expr(e):
+            return exprSpan(e)
+        TypeExpr(t):
+            return typeSpan(t)
+
+# literals
+
+function intLit(tc: ref TC, l: Lit, span: Span, expected: Type): Type
+    var t := integerT()
+    var name := "Int64"
+    if known(expected) then
+        let b := base(tc.env, expected)
+        if isInteger(b) then
+            t := expected
+            name := integerName(b)
+    if not fits(l, name) then
+        fail(tc, span, "E0300", "{litText(l)} doesn't fit in {show(t)}")
+    return t
+
+function realLit(tc: ref TC, expected: Type): Type
+    if known(expected) and isReal(base(tc.env, expected)) then
+        return expected
+    return realT()
+
+function interp(tc: ref TC, x: InterpString): Type
+    let printable := sys(tc.env, "Printable")
+    for p in x.parts do
+        case p of
+            TextPart(_):
+                pass()
+            Expr(pe):
+                let t := value(tc, pe, noType())
+                if printable.isSome() then
+                    var s: Subst := {}
+                    if not satisfies(tc, t, TraitT(sym: printable.get(), args: []), var s, {}, 0) then
+                        fail(tc, exprSpan(pe), "E0421", "{show(t)} can't be shown in a string: it isn't Printable (declare 'function toString(x: {show(t)}): String')")
+    return stringT()
+
+function listLit(tc: ref TC, x: ListLit, expected: Type): Type
+    if isBuiltin(expected, "List") or isBuiltin(expected, "Array") then
+        let ea := argsOf(expected)
+        for item in x.items do
+            _ := check(tc, item, ea[0])
+        if isBuiltin(expected, "Array") then
+            case ea[1] of
+                ConstT(n):
+                    if n.isInt and n.value <> len(x.items) then
+                        fail(tc, x.span, "E0300", "{show(expected)} needs {n.value} elements, found {len(x.items)}")
+                else:
+                    pass()
+        return expected
+    if len(x.items) = 0 then
+        fail(tc, x.span, "E0301", "the type of '[]' isn't known here; declare it: 'var xs: List[T] := []'")
+        return errorT()
+    let first := value(tc, x.items[0], noType())
+    for i := 1 to len(x.items) - 1 do
+        _ := check(tc, x.items[i], first)
+    return builtin("List", [first])
+
+function setLit(tc: ref TC, x: SetLit, expected: Type): Type
+    if isSet(tc.env, expected) then
+        for item in x.items do
+            _ := check(tc, item, argsOf(expected)[0])
+        return expected
+    let first := value(tc, x.items[0], noType())
+    for i := 1 to len(x.items) - 1 do
+        _ := check(tc, x.items[i], first)
+    checkElement(tc.env, tc.file, x.span, first)
+    return named(sys(tc.env, "Set").get(), [first])
+
+function mapLit(tc: ref TC, x: MapLit, expected: Type): Type
+    if isMap(tc.env, expected) then
+        let kv := argsOf(expected)
+        for en in x.entries do
+            _ := check(tc, en.key, kv[0])
+            _ := check(tc, en.value, kv[1])
+        return expected
+    let k := value(tc, x.entries[0].key, noType())
+    let v := value(tc, x.entries[0].value, noType())
+    for i := 1 to len(x.entries) - 1 do
+        _ := check(tc, x.entries[i].key, k)
+        _ := check(tc, x.entries[i].value, v)
+    return named(sys(tc.env, "Map").get(), [k, v])
+
+# names
+
+function symValue(tc: ref TC, syms: List[ref Symbol], span: Span, expected: Type): Type
+    let s := syms[0]
+    if isRoutine(s.kind) then
+        return routineValue(tc, syms, span, expected, None)
+    let k := s.kind
+    if k = Kind.ResultSym then
+        return tc.result
+    if isLocal(k) then
+        return getOr(tc.env.symTypes, s.id, default: errorT())
+    if k = Kind.ConstSym then
+        return constType(tc.env, s)
+    if k = Kind.EnumMember then
+        case get(tc.env.owner, s.id) of
+            Some(o):
+                return named(o.value, [])
+            None:
+                return errorT()
+    if k = Kind.TypeSym then
+        let d := decl(tc.env, s)
+        if d.kind = "record" and len(d.fields) = 0 and len(d.params) = 0 then
+            return named(s, [])  # `None`: a record without fields is a value
+        if d.kind = "alias" then
+            return TypeValueT(inner: d.alias)
+        return TypeValueT(inner: named(s, paramTypes(d.params)))
+    if k = Kind.BuiltinType then
+        if arityOf(s.name) = 0 then
+            return TypeValueT(inner: prim(s.name))
+        return TypeValueT(inner: builtin(s.name, []))
+    if k = Kind.TypeParamSym then
+        if isConstParam(tc.env, s) then
+            return constParamType(tc.env, s)
+        return TypeValueT(inner: param(s))
+    fail(tc, span, "E0306", "{describe(s)} is not a value")
+    return errorT()
+
+function tparamNames(ts: List[ref Symbol]): String
+    var names: List[String] := []
+    for t in ts do
+        add(var names, t.name)
+    return join(names, sep: ", ")
+
+procedure narrowTo(tc: ref TC, span: Span, sym: Option[ref Symbol])
+    case sym of
+        Some(s):
+            narrow(tc.env.index, tc.file, span, [s.value])
+        None:
+            pass()
+
+## `g` with its type parameters replaced by `targs`.
+function instantiate(g: Sig, targs: List[Type]): Sig
+    let sb := zipSubst(g.tparams, targs)
+    var ps: List[PInfo] := []
+    for p in g.params do
+        var q := p
+        q.ty := subst(p.ty, sb)
+        add(var ps, q)
+    var h := g
+    h.tparams := []
+    h.params := ps
+    h.result := subst(g.result, sb)
+    return h
+
+function routineValue(tc: ref TC, syms: List[ref Symbol], span: Span, expected: Type, targs: Option[List[Type]]): Type
+    var sigs: List[Sig] := []
+    for s in syms do
+        if not isSignatureNode(s) then
+            add(var sigs, sig(tc.env, s))
+    case targs of
+        Some(ta):
+            var out: List[Sig] := []
+            for g in sigs do
+                if len(g.tparams) = len(ta.value) then
+                    add(var out, instantiate(g, ta.value))
+            sigs := out
+        None:
+            var plain: List[Sig] := []
+            for g in sigs do
+                if len(g.tparams) = 0 then
+                    add(var plain, g)
+            if len(plain) > 0 then
+                sigs := plain
+    case expected of
+        FuncT(_):
+            var fit: List[Sig] := []
+            for g in sigs do
+                if len(g.tparams) = 0 and functype(g) = expected then
+                    add(var fit, g)
+            if len(fit) = 1 then
+                narrowTo(tc, span, fit[0].sym)
+                return expected
+        else:
+            pass()
+    if len(sigs) = 1 then
+        let g := sigs[0]
+        if len(g.tparams) > 0 then
+            fail(tc, span, "E0302", "generic '{g.name}' must be instantiated to be used as a value: '{g.name}[{tparamNames(g.tparams)}]' with the types filled in")
+            return errorT()
+        narrowTo(tc, span, g.sym)
+        return functype(g)
+    if len(sigs) = 0 then
+        fail(tc, span, "E0302", "'{syms[0].name}' can't be used as a value here")
+        return errorT()
+    var os: List[ref Symbol] := []
+    for g in sigs do
+        add(var os, g.sym.get())
+    return OverloadsT(syms: os)
+
+## The unit or enum that `e` names, if it names one (the left of `Unit.x`).
+function staticOwner(tc: ref TC, e: Expr): Option[ref Symbol]
+    var span := exprSpan(e)
+    case e of
+        Name(_):
+            pass()
+        FieldAccess(f):
+            if staticOwner(tc, f.target).isNone() then
+                return None
+            span := f.name.span
+        else:
+            return None
+    let r := refAt(tc, span)
+    if r.isNone() or len(r.get().targets) <> 1 then
+        return None
+    let sym := r.get().targets[0]
+    if sym.kind = Kind.UnitSym then
+        return Some(sym)
+    if sym.kind = Kind.TypeSym then
+        case sym.node of
+            TypeDecl(td):
+                case td.body of
+                    EnumType(_):
+                        return Some(sym)
+                    else:
+                        pass()
+            else:
+                pass()
+    return None
+
+function fieldAccess(tc: ref TC, x: FieldAccess, expected: Type): Type
+    if staticOwner(tc, x.target).isSome() then
+        case refAt(tc, x.name.span) of
+            Some(r):
+                if len(r.value.targets) = 0 then
+                    return errorT()
+                return symValue(tc, r.value.targets, x.name.span, expected)
+            None:
+                return errorT()
+    let t := value(tc, x.target, noType())
+    return field(tc, t, x.name)
+
+function unref(t: Type): Type
+    case t of
+        RefT(r):
+            return r.target
+        else:
+            return t
+
+## A field of `t`, or none.
+function findField(tc: ref TC, t: Type, name: String): Option[FoundField]
+    let b := unref(t)
+    case b of
+        NamedT(n):
+            let d := decl(tc.env, n.sym)
+            if d.kind = "record" then
+                case findFieldInfo(d, name) of
+                    Some(f):
+                        return Some(FoundField(f: f.value, owner: Some(n.sym), s: zipSubst(d.params, n.args)))
+                    None:
+                        pass()
+        ParamT(p):
+            for bound in bounds(tc.env, p.sym) do
+                case bound of
+                    TraitT(tr):
+                        if tr.sym.kind = Kind.TraitSym then
+                            let d := decl(tc.env, tr.sym)
+                            case findFieldInfo(d, name) of
+                                Some(f):
+                                    var s := zipSubst(d.params, tr.args)
+                                    s[ThisId] := b
+                                    return Some(FoundField(f: f.value, owner: None, s: s))
+                                None:
+                                    pass()
+                    else:
+                        pass()
+        else:
+            pass()
+    return None
+
+function field(tc: ref TC, t: Type, ident: Ident): Type
+    if hasError(t) then
+        return errorT()
+    case findField(tc, t, ident.name) of
+        Some(x):
+            let ff := x.value
+            case ff.owner of
+                Some(o):
+                    if not ff.f.exported and o.value.unitName <> tc.home.name then
+                        fail(tc, ident.span, "E0321", "field '{ff.f.name}' of {o.value.name} is private to unit {o.value.unitName}")
+                None:
+                    pass()
+            case ff.f.sym of
+                Some(fs):
+                    add(tc.env.index, tc.file, ident.span, [fs.value])
+                None:
+                    pass()
+            return subst(ff.f.ty, ff.s)
+        None:
+            pass()
+    case unref(t) of
+        ParamT(p):
+            fail(tc, ident.span, "E0710", "'{p.sym.name}' has no field '{ident.name}': no bound of '{p.sym.name}' provides one")
+            return errorT()
+        else:
+            pass()
+    var msg := "{show(t)} has no field '{ident.name}'"
+    if len(visibleRoutines(tc, ident.name)) > 0 then
+        msg := "{msg}; to call function '{ident.name}', add parentheses: '.{ident.name}()'"
+    fail(tc, ident.span, "E0320", msg)
+    return errorT()
+
+function derefExpr(tc: ref TC, x: Deref): Type
+    let t := value(tc, x.target, noType())
+    case t of
+        RefT(r):
+            return r.target
+        else:
+            pass()
+    if isBuiltin(t, "Ptr") then
+        requireUnsafe(tc, x.span, "dereferencing a pointer")
+        return argsOf(t)[0]
+    if not hasError(t) then
+        fail(tc, x.span, "E0305", "'deref' needs a ref, not {show(t)}")
+    return errorT()
+
+# operators
+
+function unary(tc: ref TC, u: Unary, e: Expr, expected: Type): Type
+    if u.op = "try" then
+        return tryExpr(tc, u)
+    if u.op = "not" then
+        _ := check(tc, u.operand, booleanT())
+        return booleanT()
+    let v := literalValue(e)
+    if v.kind = 1 then
+        return intLit(tc, v, u.span, expected)
+    if v.kind = 2 then
+        return realLit(tc, expected)
+    let t := value(tc, u.operand, expected)
+    let b := base(tc.env, t)
+    if hasError(b) or isNumeric(b) then
+        return b
+    case b of
+        ParamT(p):
+            fail(tc, u.span, "E0710", "'-' isn't available on '{p.sym.name}': its bounds don't provide arithmetic")
+        else:
+            fail(tc, u.span, "E0305", "'-' needs a number, not {show(t)}")
+    return errorT()
+
+function tryExpr(tc: ref TC, u: Unary): Type
+    let t := value(tc, u.operand, noType())
+    if hasError(t) then
+        return errorT()
+    let opt := sys(tc.env, "Option")
+    let res := sys(tc.env, "Result")
+    var which := ""
+    case t of
+        NamedT(n):
+            if opt.isSome() and n.sym = opt.get() then
+                which := "opt"
+            else if res.isSome() and n.sym = res.get() then
+                which := "res"
+        else:
+            pass()
+    if which = "" then
+        fail(tc, u.span, "E0505", "'try' needs an Option or a Result, not {show(t)}")
+        return errorT()
+    let args := argsOf(t)
+    if tc.inDefer then
+        fail(tc, u.span, "E0507", "'try' can't leave a deferred statement")
+        return args[0]
+    var want := "an Option"
+    if which = "res" then
+        want := "a Result[..., {show(args[1])}]"
+    if not tc.isFunction then
+        fail(tc, u.span, "E0505", "'try' can only be used in a function that returns {want}")
+    else if not hasError(tc.result) then
+        let r := tc.result
+        let rs := namedSym(r)
+        if rs.isNone() or not (rs.get() = namedSym(t).get()) then
+            fail(tc, u.span, "E0505", "'try' here needs the function to return {want}, not {show(r)}")
+        else if which = "res" and not hasError(args[1]) and not (argsOf(r)[1] = args[1]) then
+            fail(tc, u.span, "E0505", "'try' would return an error of type {show(args[1])}, but the function returns errors of type {show(argsOf(r)[1])}")
+    return args[0]
+
+function operands(tc: ref TC, b: Binary, hint: Type): List[Type]
+    if isLiteral(b.left) and not isLiteral(b.right) then
+        let rt := value(tc, b.right, hint)
+        let lt := value(tc, b.left, rt)
+        return [lt, rt]
+    let lt := value(tc, b.left, hint)
+    let rt := value(tc, b.right, lt)
+    return [lt, rt]
+
+function binary(tc: ref TC, b: Binary, expected: Type): Type
+    let op := b.op
+    if op = "and" or op = "or" then
+        _ := check(tc, b.left, booleanT())
+        _ := check(tc, b.right, booleanT())
+        return booleanT()
+    if op = "in" then
+        return inOp(tc, b)
+    var hint := noType()
+    if isArith(op) then
+        hint := expected
+    let ts := operands(tc, b, hint)
+    let lt := ts[0]
+    let rt := ts[1]
+    if isArith(op) then
+        return arith(tc, b, lt, rt)
+    if hasError(lt) or hasError(rt) then
+        return booleanT()
+    if not (assignable(tc, lt, rt) or assignable(tc, rt, lt)) then
+        fail(tc, b.opSpan, "E0305", "can't compare {show(lt)} with {show(rt)}")
+        return booleanT()
+    var t := lt
+    if containsType(variants(tc.env, rt), lt) then
+        t := rt
+    var wanted := "Ordered"
+    if op = "=" or op = "<>" then
+        wanted := "Equatable"
+    if not builtinTrait(tc, t, wanted) then
+        case t of
+            ParamT(p):
+                fail(tc, b.opSpan, "E0710", "'{op}' needs '{p.sym.name}: {wanted}'; add the bound")
+            else:
+                fail(tc, b.opSpan, "E0305", "'{op}' doesn't work on {show(t)}: it isn't {wanted}")
+    return booleanT()
+
+function arith(tc: ref TC, b: Binary, lt, rt: Type): Type
+    let op := b.op
+    if hasError(lt) or hasError(rt) then
+        return errorT()
+    let lb := base(tc.env, lt)
+    let rb := base(tc.env, rt)
+    if isBuiltin(lb, "Ptr") and isInteger(rb) and (op = "+" or op = "-") then
+        requireUnsafe(tc, b.opSpan, "pointer arithmetic")
+        return lt
+    for x in [lb, rb] do
+        case x of
+            ParamT(p):
+                fail(tc, b.opSpan, "E0710", "'{op}' isn't available on '{p.sym.name}': its bounds don't provide arithmetic")
+                return errorT()
+            else:
+                pass()
+    if not (lb = rb) or not isNumeric(lb) then
+        var msg := "'{op}' can't combine {show(lt)} and {show(rt)}"
+        if lb = stringT() or rb = stringT() then
+            msg := "{msg}; build strings with interpolation: \"\{a}\{b}\""
+        else if isBuiltin(lb, "List") or isBuiltin(rb, "List") then
+            msg := "{msg}; join lists with concat(a, b)"
+        else if isNumeric(lb) and isNumeric(rb) then
+            msg := "{msg}; mixed numeric types: convert one side (toReal, round, Int32(...))"
+        fail(tc, b.opSpan, "E0305", msg)
+        return errorT()
+    if op = "/" and not isReal(lb) then
+        fail(tc, b.opSpan, "E0305", "'/' works on Real only; use 'div' for integer division")
+        return errorT()
+    if (op = "div" or op = "mod") and not isInteger(lb) then
+        fail(tc, b.opSpan, "E0305", "'{op}' works on integers only; use '/' for Real")
+        return errorT()
+    return lb
+
+function inOp(tc: ref TC, b: Binary): Type
+    let rt := value(tc, b.right, noType())
+    if isBuiltin(rt, "List") or isMap(tc.env, rt) or isSet(tc.env, rt) then
+        _ := check(tc, b.left, argsOf(rt)[0])
+    else
+        _ := value(tc, b.left, noType())
+        if not hasError(rt) then
+            fail(tc, b.opSpan, "E0305", "'in' needs a Set, List or Map on the right, not {show(rt)}")
+    return booleanT()
+
+function branches(tc: ref TC, values: List[Expr], expected: Type): Type
+    if known(expected) and not hasError(expected) then
+        for v in values do
+            _ := check(tc, v, expected)
+        return expected
+    var first := noType()
+    for v in values do
+        let t := value(tc, v, first)
+        if not known(first) or hasError(first) then
+            first := t
+        else if not hasError(t) and not (t = first) then
+            fail(tc, exprSpan(v), "E0802", "this branch is {show(t)}, but the first is {show(first)}; all branches must have the same type")
+    if known(first) then
+        return first
+    return errorT()
+
+# indexing
+
+## The span of the name an instantiation `f[T]` / `Unit.f[T]` names.
+function instSpan(tc: ref TC, target: Expr): Option[Span]
+    case target of
+        Name(n):
+            return Some(n.span)
+        FieldAccess(f):
+            if staticOwner(tc, f.target).isSome() then
+                return Some(f.name.span)
+            return None
+        else:
+            return None
+
+## The type arguments of `f[T]` / `Stack[T]`, if `ix` is an instantiation.
+function typeArgs(tc: ref TC, ix: Index): Option[List[Type]]
+    let span := instSpan(tc, ix.target)
+    if span.isNone() then
+        return None
+    let r := refAt(tc, span.get())
+    if r.isNone() or len(r.get().targets) = 0 then
+        return None
+    let s := r.get().targets[0]
+    if not (isRoutine(s.kind) or s.kind = Kind.TypeSym) then
+        return None
+    var out: List[Type] := []
+    for x in ix.items do
+        case exprToType(x) of
+            Some(tn):
+                add(var out, typeArg(tc.env, tn.value, tc.file, false))
+            None:
+                add(var out, typeArg(tc.env, x, tc.file, false))
+    return Some(out)
+
+function index(tc: ref TC, ix: Index, expected: Type): Type
+    case typeArgs(tc, ix) of
+        Some(ta):
+            let span := instSpan(tc, ix.target).get()
+            let syms := refAt(tc, span).get().targets
+            if isRoutine(syms[0].kind) then
+                return routineValue(tc, syms, span, expected, Some(ta.value))
+            let d := decl(tc.env, syms[0])
+            if len(ta.value) <> len(d.params) then
+                return arity(tc.env, ix.span, tc.file, syms[0].name, len(d.params), len(ta.value))
+            return TypeValueT(inner: named(syms[0], ta.value))
+        None:
+            pass()
+    let t := value(tc, ix.target, noType())
+    let b := unref(t)
+    if len(ix.items) <> 1 then
+        for x in ix.items do
+            _ := valueItem(tc, x, noType())
+        if not hasError(b) then
+            fail(tc, ix.span, "E0311", "index with one value: 'a[i]'")
+        return errorT()
+    let item := ix.items[0]
+    if isBuiltin(b, "List") or isBuiltin(b, "Array") then
+        let it := valueItem(tc, item, integerT())
+        if not hasError(it) and not isInteger(base(tc.env, it)) then
+            fail(tc, itemSpan(item), "E0300", "an index must be an integer, not {show(it)}")
+        return argsOf(b)[0]
+    if isMap(tc.env, b) then
+        _ := checkItem(tc, item, argsOf(b)[0])
+        return argsOf(b)[1]
+    _ := valueItem(tc, item, noType())
+    if b = stringT() then
+        fail(tc, ix.span, "E0310", "strings can't be indexed; iterate with 'for c in s', index the bytes with 'bytes(s)[i]', or cut with 'slice(s, start, stop)'")
+    else if not hasError(b) then
+        fail(tc, ix.span, "E0311", "{show(t)} can't be indexed")
+    return errorT()
+
+# -------------------------------------------------------------------------- calls
+
+function request(e: Call, name: String, cands: List[Cand], explicit: Option[List[Type]], expected: Type, refSpan: Option[Span]): CallReq
+    return CallReq(e: e, name: name, cands: cands, receiver: None, explicit: explicit, expected: expected, refSpan: refSpan)
+
+function callExpr(tc: ref TC, e: Call, expected: Type): Type
+    var callee := e.callee
+    var explicit: Option[List[Type]] := None
+    case callee of
+        Index(ix):
+            explicit := typeArgs(tc, ix)
+            if explicit.isSome() then
+                callee := ix.target
+        else:
+            pass()
+    if tc.inEnsures and len(e.args) = 1 then
+        case callee of
+            Name(n):
+                if n.name = "old" and refAt(tc, n.span).isNone() then
+                    return value(tc, e.args[0].value, expected)
+            else:
+                pass()
+    var name := ""
+    var span := exprSpan(callee)
+    case callee of
+        Name(n):
+            name := n.name
+        FieldAccess(f):
+            name := f.name.name
+            span := f.name.span
+            if staticOwner(tc, f.target).isNone() then
+                let rt := value(tc, f.target, noType())
+                if hasError(rt) then
+                    _ := prepare(tc, e.args)
+                    return errorT()
+                if findField(tc, rt, name).isSome() then
+                    return callValue(tc, e, field(tc, rt, f.name), name)
+                let recv := CArg(span: exprSpan(f.target), name: None, isVar: false, expr: f.target, ty: rt, flex: noType(), receiver: true)
+                let cands := ufcsCandidates(tc, name)
+                if len(cands) = 0 then
+                    _ := prepare(tc, e.args)
+                    fail(tc, f.name.span, "E0320", "{show(rt)} has no field '{name}', and no function '{name}' is visible")
+                    return errorT()
+                var req := request(e, name, cands, explicit, expected, None)
+                req.receiver := Some(recv)
+                return call(tc, req)
+        else:
+            return callValue(tc, e, value(tc, callee, noType()), text(tc, exprSpan(callee)))
+    let r := refAt(tc, span)
+    if r.isNone() or len(r.get().targets) = 0 then
+        _ := prepare(tc, e.args)
+        return errorT()
+    let syms := r.get().targets
+    let s0 := syms[0]
+    if s0.kind = Kind.TypeSym or s0.kind = Kind.BuiltinType then
+        return construct(tc, e, s0, explicit, expected)
+    if s0.isExtern and s0.unitName = "C" and s0.name = "cast" then
+        return cast(tc, e, explicit)
+    if s0.isExtern and s0.unitName = "C" and s0.name = "addr" then
+        let t := call(tc, request(e, name, candidates(tc, syms), explicit, expected, Some(span)))
+        addr(tc, e, t)
+        return t
+    if isRoutine(s0.kind) then
+        return call(tc, request(e, name, candidates(tc, syms), explicit, expected, Some(span)))
+    return callValue(tc, e, asValue(tc, symValue(tc, syms, span, noType()), callee), name)
+
+## `cast[T](x)`: reinterprets a pointer or integer as another (SPEC §10.4).
+function cast(tc: ref TC, e: Call, explicit: Option[List[Type]]): Type
+    var ok := explicit.isSome() and len(e.args) = 1
+    if ok then
+        ok := len(explicit.get()) = 1 and e.args[0].name.isNone() and not e.args[0].isVar
+    if not ok then
+        _ := prepare(tc, e.args)
+        fail(tc, e.span, "E0511", "write 'cast[T](x)': one type argument and one value")
+        return errorT()
+    let target := explicit.get()[0]
+    let t := value(tc, e.args[0].value, noType())
+    requireUnsafe(tc, e.span, "'cast'")
+    if not (hasError(t) or hasError(target) or (castable(base(tc.env, t)) and castable(target))) then
+        fail(tc, e.span, "E0904", "can't cast {show(t)} to {show(target)}: 'cast' converts between pointers (Ptr[T], Pointer, CString) and integers")
+    return target
+
+## `addr(var x)`: the address of a variable, or of a field of a C record in one.
+procedure addr(tc: ref TC, e: Call, t: Type)
+    requireUnsafe(tc, e.span, "'addr'")
+    if len(e.args) <> 1 or hasError(t) then
+        return
+    let arg := e.args[0].value
+    if not cCompatible(tc, argsOf(t)[0], exprSpan(arg), false) then
+        return
+    var place := arg
+    var going := true
+    while going do
+        place := unparen(place)
+        going := false
+        case place of
+            FieldAccess(f):
+                let tt := getOr(tc.types, exprId(f.target), default: noType())
+                if kindOf(tc.env, tt) = "record" then
+                    if decl(tc.env, namedSym(tt).get()).c then
+                        place := f.target
+                        going := true
+            else:
+                pass()
+    case place of
+        Name(_):
+            pass()
+        else:
+            fail(tc, exprSpan(arg), "E0905", "'addr' needs a variable, or a field of a C record held in one")
+
+## Candidates from the bounds of the type parameters in scope: the bound member `one`,
+## or else the trait routines called `name`.
+function boundCandidates(tc: ref TC, one: Option[ref Symbol], name: String): List[Cand]
+    var out: List[Cand] := []
+    for tp in tc.tparams do
+        for b in bounds(tc.env, tp) do
+            case b of
+                TraitT(bt):
+                    if bt.sym.kind = Kind.TraitSym then
+                        let d := decl(tc.env, bt.sym)
+                        var ms: List[ref Symbol] := []
+                        case one of
+                            Some(s):
+                                case get(tc.env.owner, s.value.id) of
+                                    Some(o):
+                                        if o.value = bt.sym then
+                                            add(var ms, s.value)
+                                    None:
+                                        pass()
+                            None:
+                                for m in d.routines do
+                                    if m.name = name then
+                                        add(var ms, m)
+                        for m in ms do
+                            var pre := zipSubst(d.params, bt.args)
+                            pre[ThisId] := param(tp)
+                            add(var out, Cand(sig: sig(tc.env, m), pre: pre))
+                else:
+                    pass()
+    return out
+
+function candidates(tc: ref TC, syms: List[ref Symbol]): List[Cand]
+    var out: List[Cand] := []
+    for s in syms do
+        if isSignatureNode(s) then  # a bound member (SPEC §8.2)
+            for c in boundCandidates(tc, Some(s), "") do
+                add(var out, c)
+        else
+            add(var out, Cand(sig: sig(tc.env, s), pre: {}))
+    return out
+
+function ufcsCandidates(tc: ref TC, name: String): List[Cand]
+    let bound := boundCandidates(tc, None, name)
+    if len(bound) > 0 then
+        return bound
+    var out: List[Cand] := []
+    for s in visibleRoutines(tc, name) do
+        if not isSignatureNode(s) then
+            add(var out, Cand(sig: sig(tc.env, s), pre: {}))
+    return out
+
+## `Point(x: 1.0)`, `Some(5)`, or a conversion like `Int32(x)`.
+function construct(tc: ref TC, e: Call, sym: ref Symbol, explicit: Option[List[Type]], expected: Type): Type
+    if sym.kind = Kind.BuiltinType then
+        if arityOf(sym.name) > 0 then
+            _ := prepare(tc, e.args)
+            fail(tc, exprSpan(e.callee), "E0306", "'{sym.name}' values are written as literals, not constructed")
+            return errorT()
+        return convert(tc, e, prim(sym.name))
+    var d := decl(tc.env, sym)
+    var pre: Subst := {}
+    var target := sym
+    if d.kind = "alias" then
+        let a := d.alias
+        if kindOf(tc.env, a) = "record" then
+            target := namedSym(a).get()
+            d := decl(tc.env, target)
+            pre := zipSubst(d.params, argsOf(a))
+        else if isNumeric(a) or a = charT() or kindOf(tc.env, a) = "subrange" then
+            return convert(tc, e, a)
+        else
+            _ := prepare(tc, e.args)
+            if not hasError(a) then
+                fail(tc, exprSpan(e.callee), "E0306", "{show(a)} can't be constructed like this")
+            return errorT()
+    if d.kind = "subrange" then
+        return convert(tc, e, named(sym, []))
+    if d.kind <> "record" then
+        _ := prepare(tc, e.args)
+        var what := "it has no values"
+        if d.kind = "union" then
+            what := "construct one of its variants"
+        else if d.kind = "enum" then
+            what := "write a member: '{sym.name}.X'"
+        var article := "a"
+        if d.kind = "enum" or d.kind = "alias" then
+            article := "an"
+        fail(tc, exprSpan(e.callee), "E0306", "'{sym.name}' is {article} {d.kind}; {what}")
+        return errorT()
+    var private: List[String] := []
+    for f in d.fields do
+        if not f.exported then
+            add(var private, f.name)
+    let foreign := target.unitName <> tc.home.name
+    if foreign and (isSys(tc.env, target, "Map") or isSys(tc.env, target, "Set")) then
+        _ := prepare(tc, e.args)
+        var lit := "\{a, b}"
+        if target.name = "Map" then
+            lit := "\{k: v}"
+        fail(tc, exprSpan(e.callee), "E0306", "'{target.name}' values are written as literals: '{lit}', or '\{}' where the type is known")
+        return errorT()
+    if foreign and len(private) > 0 then
+        _ := prepare(tc, e.args)
+        fail(tc, e.span, "E0330", "{target.name} has private fields ({join(private, sep: ", ")}), so only unit {target.unitName} can construct it; use a function it exports")
+        return errorT()
+    let cand := Cand(sig: recordSig(tc.env, target), pre: pre)
+    return call(tc, request(e, target.name, [cand], explicit, expected, None))
+
+function convert(tc: ref TC, e: Call, target: Type): Type
+    let args := e.args
+    if len(args) <> 1 or args[0].name.isSome() or args[0].isVar then
+        _ := prepare(tc, args)
+        fail(tc, e.span, "E0511", "conversion to {show(target)} takes one value: '{show(target)}(x)'")
+        return target
+    let x := args[0].value
+    var hint := noType()
+    if isLiteral(x) then
+        hint := target
+    let t := value(tc, x, hint)
+    let a := base(tc.env, t)
+    let b := base(tc.env, target)
+    let ok := hasError(t) or a = b or (isInteger(a) and isInteger(b)) or (isReal(a) and isReal(b)) or (isInteger(a) and b = charT())
+    if not ok then
+        var msg := "can't convert {show(t)} to {show(target)}"
+        if isInteger(a) and isReal(b) then
+            msg := "{msg}; use toReal(x)"
+        else if isReal(a) and isInteger(b) then
+            msg := "{msg}; use round(x) or toInt(x)"
+        fail(tc, exprSpan(x), "E0300", msg)
+    return target
+
+function callValue(tc: ref TC, e: Call, t: Type, name: String): Type
+    if hasError(t) then
+        _ := prepare(tc, e.args)
+        return errorT()
+    case t of
+        FuncT(f):
+            var params: List[PInfo] := []
+            for i := 0 to len(f.params) - 1 do
+                add(var params, PInfo(name: "#{i + 1}", ty: f.params[i], isVar: false, hasDefault: false, group: i, varargs: false, sym: None, default: None))
+            let g := Sig(sym: None, name: name, isFunction: f.isFunction, tparams: [], params: params, result: f.result, kind: "value", positional: true)
+            return call(tc, request(e, name, [Cand(sig: g, pre: {})], None, noType(), None))
+        else:
+            _ := prepare(tc, e.args)
+            fail(tc, exprSpan(e.callee), "E0307", "'{name}' is {show(t)}, not a function")
+            return errorT()
+
+## Arguments whose type depends on the parameter: literals, `[]`, `{}`, and overloaded
+## function names.
+function flex(tc: ref TC, v: Expr): Type
+    case v of
+        Paren(p):
+            return flex(tc, p.inner)
+        ListLit(l):
+            if len(l.items) = 0 then
+                return emptyListT()
+        EmptyBraces(_):
+            return emptyBracesT()
+        else:
+            pass()
+    let lit := literalValue(v)
+    if lit.kind = 1 then
+        return intLitT()
+    if lit.kind = 2 then
+        return realLitT()
+    var span: Option[Span] := None
+    case v of
+        Name(n):
+            span := Some(n.span)
+        FieldAccess(f):
+            if staticOwner(tc, f.target).isSome() then
+                span := Some(f.name.span)
+        else:
+            pass()
+    case span of
+        Some(sp):
+            case refAt(tc, sp.value) of
+                Some(r):
+                    var all := len(r.value.targets) > 1
+                    for s in r.value.targets do
+                        if not isRoutine(s.kind) then
+                            all := false
+                    if all then
+                        return OverloadsT(syms: r.value.targets)
+                None:
+                    pass()
+        None:
+            pass()
+    return noType()
+
+function prepare(tc: ref TC, args: List[Arg]): List[CArg]
+    var out: List[CArg] := []
+    for a in args do
+        let f := flex(tc, a.value)
+        var t := noType()
+        if not known(f) then
+            t := value(tc, a.value, noType())
+        add(var out, CArg(span: a.span, name: a.name, isVar: a.isVar, expr: a.value, ty: t, flex: f, receiver: false))
+    return out
+
+function argDesc(a: CArg): String
+    if not known(a.flex) then
+        return show(a.ty)
+    if a.flex = intLitT() then
+        return "integer literal"
+    if a.flex = realLitT() then
+        return "real literal"
+    if a.flex = emptyListT() then
+        return "[]"
+    if a.flex = emptyBracesT() then
+        return "\{}"
+    return "overloaded function"
+
+function maxInt(a, b: Integer): Integer
+    if a > b then
+        return a
+    return b
+
+function minInt(a, b: Integer): Integer
+    if a < b then
+        return a
+    return b
+
+## A match's rank: exact before injected before odd literal types, plain before generic.
+function rank(m: Match): Integer
+    if len(m.sig.tparams) > 0 then
+        return m.tier * 2 + 1
+    return m.tier * 2
+
+function call(tc: ref TC, req: CallReq): Type
+    var args: List[CArg] := []
+    case req.receiver of
+        Some(r):
+            add(var args, r.value)
+        None:
+            pass()
+    for a in prepare(tc, req.e.args) do
+        add(var args, a)
+    var matches: List[Match] := []
+    var fails: List[Fail] := []
+    let mr := MatchReq(args: args, explicit: req.explicit, expected: req.expected, span: req.e.span)
+    for c in req.cands do
+        case matchCand(tc, c, mr) of
+            Match(m):
+                add(var matches, m)
+            Fail(f):
+                add(var fails, f)
+    if len(matches) = 0 then
+        var bound: List[Fail] := []
+        for f in fails do
+            if f.bound then
+                add(var bound, f)
+        if len(fails) = 1 then
+            fail(tc, fails[0].span, fails[0].code, fails[0].message)
+        else if len(bound) = 1 then
+            fail(tc, bound[0].span, bound[0].code, bound[0].message)
+        else if len(req.cands) > 0 then
+            var options: List[String] := []
+            for c in req.cands do
+                if len(options) < 6 then
+                    add(var options, describeSig(c.sig))
+            var descs: List[String] := []
+            for a in args do
+                add(var descs, argDesc(a))
+            fail(tc, req.e.span, "E0511", "no overload of '{req.name}' takes ({join(descs, sep: ", ")}); candidates: {join(options, sep: "; ")}")
+        return errorT()
+    var best := rank(matches[0])
+    for m in matches do
+        if rank(m) < best then
+            best := rank(m)
+    var top: List[Match] := []
+    for m in matches do
+        if rank(m) = best then
+            add(var top, m)
+    if len(top) > 1 then
+        var options: List[String] := []
+        for m in top do
+            add(var options, describeSig(m.sig))
+        fail(tc, req.e.span, "E0510", "call to '{req.name}' is ambiguous: {join(options, sep: "; ")}")
+        return errorT()
+    let m := top[0]
+    finish(tc, req.e, req.name, m, req.refSpan)
+    tc.calls[req.e.id] := m
+    return subst(m.result, m.s)
+
+## Matches the arguments against a candidate. With an expected type, type parameters
+## are first inferred from it, so that a variant argument is injected (`Ok(Circle(...))`
+## as a `Result[Shape, E]`); if that fails, from the arguments alone.
+function matchCand(tc: ref TC, c: Cand, r: MatchReq): MatchResult
+    if r.explicit.isNone() and known(r.expected) and not hasError(r.expected) then
+        let m := matchWith(tc, c, r, true)
+        case m of
+            Match(_):
+                return m
+            else:
+                pass()
+    return matchWith(tc, c, r, false)
+
+function failure(span: Span, code, message: String, bound: Boolean): MatchResult
+    return Fail(code: code, span: span, message: message, bound: bound)
+
+function what(g: Sig, name: String): String
+    if g.kind = "record" then
+        return "field '{name}' of {g.name}"
+    return "parameter '{name}' of '{g.name}'"
+
+## Binds the result type to the expected type, or one of its variants.
+function inferResult(tc: ref TC, result, expected: Type, var s: Subst, vars: Vars): Boolean
+    var targets: List[Type] := [expected]
+    for v in variants(tc.env, expected) do
+        add(var targets, v)
+    for target in targets do
+        var s2 := s
+        if unify(result, target, var s2, vars) then
+            s := s2
+            return true
+    return false
+
+function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResult
+    let g := c.sig
+    let pre := c.pre
+    var params := g.params
+    if len(pre) > 0 then
+        params := []
+        for p in g.params do
+            var q := p
+            q.ty := subst(p.ty, pre)
+            add(var params, q)
+    let result := subst(g.result, pre)
+    var tparams: List[ref Symbol] := []
+    for t in g.tparams do
+        if not (t.id in pre) then
+            add(var tparams, t)
+    var vars := setOf(tparams)
+    var s: Subst := {}
+    case r.explicit of
+        Some(ex):
+            if len(ex.value) <> len(tparams) then
+                let n := len(tparams)
+                var ss := "s"
+                if n = 1 then
+                    ss := ""
+                return failure(r.span, "E0303", "'{g.name}' takes {n} type argument{ss}, not {len(ex.value)}", false)
+            s := zipSubst(tparams, ex.value)
+            vars := {}
+        None:
+            pass()
+    # Bind arguments to parameters.
+    var slots: List[Option[CArg]] := []
+    var rest := -1
+    for i := 0 to len(params) - 1 do
+        add(var slots, None)
+        if params[i].varargs and rest < 0 then
+            rest := i
+    var extra: List[CArg] := []
+    var pos := 0
+    for a in r.args do
+        case a.name of
+            None:
+                if not g.positional then
+                    var pn := "x"
+                    if len(params) > 0 then
+                        pn := params[0].name
+                    return failure(a.span, "E0511", "name the fields: '{g.name}({pn}: ...)'", false)
+                if pos < len(params) and not params[pos].varargs then
+                    slots[pos] := Some(a)
+                    pos := pos + 1
+                else if rest >= 0 then
+                    add(var extra, a)
+                else
+                    return failure(a.span, "E0511", "too many arguments: '{g.name}' takes {len(params)}", false)
+            Some(nm):
+                let n := nm.value.name
+                var i := -1
+                for j := 0 to len(params) - 1 do
+                    if i < 0 and params[j].name = n and not params[j].varargs then
+                        i := j
+                if i < 0 then
+                    var kind := "parameter"
+                    if g.kind = "record" then
+                        kind := "field"
+                    return failure(nm.value.span, "E0511", "'{g.name}' has no {kind} '{n}'", false)
+                if slots[i].isSome() then
+                    return failure(a.span, "E0511", "'{n}' is passed twice", false)
+                slots[i] := Some(a)
+    var missing: List[String] := []
+    for i := 0 to len(params) - 1 do
+        if slots[i].isNone() and not params[i].hasDefault and not params[i].varargs then
+            add(var missing, "'{params[i].name}'")
+    if len(missing) > 0 then
+        return failure(r.span, "E0511", "missing argument{plural(len(missing))} {join(missing, sep: ", ")} for '{g.name}'", false)
+    if early and mentions(result, vars) then
+        if not inferResult(tc, result, r.expected, var s, vars) then
+            return failure(r.span, "E0300", "", false)
+    # Types.
+    var tier := 0
+    var flexes: List[Integer] := []
+    for i := 0 to len(params) - 1 do
+        if slots[i].isNone() then
+            continue
+        let a := slots[i].get()
+        let p := params[i]
+        if known(a.flex) then
+            add(var flexes, i)
+            continue
+        var s2 := s
+        if unify(p.ty, a.ty, var s2, vars) then
+            s := s2
+            continue
+        s2 := s
+        if inject(tc, p.ty, a.ty, var s2, vars) then
+            s := s2
+            tier := maxInt(tier, 1)
+            continue
+        let want := subst(p.ty, s)
+        if not mentions(want, vars) and assignable(tc, a.ty, want) then
+            tier := maxInt(tier, 1)
+            continue
+        return failure(a.span, "E0300", "{what(g, p.name)}: expected {show(want)}, found {show(a.ty)}", true)
+    if known(r.expected) and not hasError(r.expected) and mentionsUnbound(result, vars, s) then
+        _ := inferResult(tc, result, r.expected, var s, vars)
+    for i in flexes do
+        let a := slots[i].get()
+        let p := params[i]
+        let want := subst(p.ty, s)
+        let t := flexFit(tc, a, want, var s, vars)
+        if t < 0 then
+            return failure(a.span, "E0300", "{what(g, p.name)}: expected {show(want)}, found {argDesc(a)}", true)
+        tier := maxInt(tier, t)
+    # Bounds, which may also infer parameters used only in bounds (`T` of `I: Iterator[T]`).
+    for round := 1 to 2 do
+        for tp in tparams do
+            if not (tp.id in s) then
+                continue
+            for b in bounds(tc.env, tp) do
+                if not isTraitT(b) then
+                    continue
+                let have := s[tp.id]
+                case subst(b, s) of
+                    TraitT(st):
+                        if not satisfies(tc, have, st, var s, vars, 0) then
+                            var msg := "{show(s[tp.id])} doesn't satisfy {show(subst(b, s))}, required by '{g.name}'"
+                            if tc.why <> "" then
+                                msg := "{msg}: {tc.why}"
+                            return failure(r.span, "E0700", msg, true)
+                    else:
+                        pass()
+    var errors := false
+    for sl in slots do
+        case sl of
+            Some(a):
+                if known(a.value.ty) and hasError(a.value.ty) then
+                    errors := true
+            None:
+                pass()
+    for a in extra do
+        if known(a.ty) and hasError(a.ty) then
+            errors := true
+    for tp in tparams do
+        if tp.id in vars and not (tp.id in s) then
+            if errors then  # an argument already failed: don't pile on
+                s[tp.id] := errorT()
+                continue
+            return failure(r.span, "E0302", "can't infer '{tp.name}' for '{g.name}'; give it explicitly: '{g.name}[{tparamNames(tparams)}](...)'", true)
+    return Match(sig: g, params: params, result: result, s: s, tier: tier, slots: slots, extra: extra, pre: pre)
+
+## Matches a variant against a union parameter (`Some[T]` against `Option[T]`).
+function inject(tc: ref TC, pattern, actual: Type, var s: Subst, vars: Vars): Boolean
+    for v in variants(tc.env, pattern) do
+        var s2 := s
+        if unify(v, actual, var s2, vars) then
+            s := s2
+            return true
+    return false
+
+## Whether a flexible argument fits `want`: 0 exact, 2 non-default literal type, -1 not.
+function flexFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Integer
+    let k := a.flex
+    if hasError(want) then
+        return 0
+    case want of
+        ParamT(p):
+            if p.sym.id in vars then
+                if k = intLitT() then
+                    s[p.sym.id] := integerT()
+                    return 0
+                if k = realLitT() then
+                    s[p.sym.id] := realT()
+                    return 0
+                return -1
+        else:
+            pass()
+    let b := base(tc.env, want)
+    if k = intLitT() then
+        if not isInteger(b) or not fits(literalValue(a.expr), integerName(b)) then
+            return -1
+        if want = integerT() then
+            return 0
+        return 2
+    if k = realLitT() then
+        if not isReal(b) then
+            return -1
+        if want = realT() then
+            return 0
+        return 2
+    if k = emptyListT() then
+        if isBuiltin(want, "List") then
+            return 0
+        return -1
+    if k = emptyBracesT() then
+        if isMap(tc.env, want) or isSet(tc.env, want) then
+            return 0
+        return -1
+    case k of
+        OverloadsT(o):
+            case want of
+                FuncT(_):
+                    var found: List[Subst] := []
+                    for sym in o.syms do
+                        let g := sig(tc.env, sym)
+                        if len(g.tparams) = 0 then
+                            var s2 := s
+                            if unify(want, functype(g), var s2, vars) then
+                                add(var found, s2)
+                    if len(found) = 1 then
+                        s := found[0]
+                        return 0
+                else:
+                    pass()
+        else:
+            pass()
+    return -1
+
+procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Span])
+    let g := m.sig
+    case refSpan of
+        Some(rs):
+            if g.kind = "routine" then
+                narrowTo(tc, rs.value, g.sym)
+        None:
+            pass()
+    var varArgs: List[CArg] := []
+    for i := 0 to len(m.params) - 1 do
+        if m.slots[i].isNone() then
+            continue
+        let a := m.slots[i].get()
+        let p := m.params[i]
+        let want := subst(p.ty, m.s)
+        if known(a.flex) then
+            _ := check(tc, a.expr, want)
+        case a.name of
+            Some(nm):
+                case p.sym of
+                    Some(ps):
+                        add(tc.env.index, tc.file, nm.value.span, [ps.value])
+                    None:
+                        pass()
+            None:
+                pass()
+        if p.isVar then
+            if a.receiver then
+                var rest: List[String] := []
+                for x in e.args do
+                    add(var rest, text(tc, x.span))
+                var fixed := "{name}(var {text(tc, a.span)}"
+                if len(rest) > 0 then
+                    fixed := "{fixed}, {join(rest, sep: ", ")}"
+                fixed := "{fixed})"
+                fail(tc, e.span, "E0520", "'{name}' changes its first argument, so it can't be called with a dot; write '{fixed}'", fixes: [Fix(description: "rewrite as '{fixed}'", edits: [Edit(span: e.span, text: fixed)])])
+            else if not a.isVar then
+                fail(tc, exprSpan(a.expr), "E0521", "'{p.name}' is a var parameter of '{name}': mark the argument 'var'", fixes: [Fix(description: "add 'var'", edits: [Edit(span: point(exprSpan(a.expr)), text: "var ")])])
+            else
+                let why := immutable(tc, a.expr)
+                if why <> "" then
+                    fail(tc, exprSpan(a.expr), "E0341", "can't pass {why} as 'var'")
+            if a.isVar then
+                add(var varArgs, a)
+        else if a.isVar then
+            fail(tc, a.span, "E0522", "'{p.name}' is not a var parameter of '{name}'; remove 'var'")
+    for a in m.extra do
+        var t := a.ty
+        if known(a.flex) then
+            t := value(tc, a.expr, noType())
+        _ := cCompatible(tc, t, exprSpan(a.expr), false)
+        if a.isVar then
+            fail(tc, a.span, "E0522", "variadic arguments of '{name}' can't be 'var'")
+    varOverlap(tc, varArgs)
+    if g.kind <> "routine" then
+        return
+    let dp := g.params
+    for i := 0 to len(m.slots) - 1 do
+        if m.slots[i].isNone() then
+            continue
+        let a := m.slots[i].get()
+        if a.name.isSome() or hasError(dp[i].ty) then
+            continue
+        let p := dp[i]
+        var q := -1
+        for j := 0 to i - 1 do
+            if q < 0 and dp[j].group <> p.group and not dp[j].varargs and dp[j].ty = p.ty then
+                q := j
+        if q >= 0 then
+            fail(tc, a.span, "E0530", "'{p.name}' has the same type as '{dp[q].name}'; pass it by name: '{p.name}: ...'", fixes: [Fix(description: "name the argument '{p.name}'", edits: [Edit(span: point(a.span), text: "{p.name}: ")])])
+
+# -------------------------------------------------------------------- mutability
+
+## `var` arguments of one call must be separate places (SPEC §6.3): not the same
+## variable, field or element, and not one inside another.
+procedure varOverlap(tc: ref TC, args: List[CArg])
+    var seen: List[List[String]] := []
+    var seenExpr: List[Expr] := []
+    for a in args do
+        let found := placePath(tc, a.expr)
+        if found.isNone() then
+            continue
+        let path := found.get()
+        for j := 0 to len(seen) - 1 do
+            let opath := seen[j]
+            let n := minInt(len(path), len(opath))
+            var same := true
+            for k := 0 to n - 1 do
+                if path[k] <> opath[k] then
+                    same := false
+            if same then
+                fail(tc, exprSpan(a.expr), "E0523", "'{text(tc, exprSpan(a.expr))}' overlaps '{text(tc, exprSpan(seenExpr[j]))}', which is also passed as 'var'; pass separate places")
+                break
+        add(var seen, path)
+        add(var seenExpr, a.expr)
+
+## A place as a path from where it is stored, or none if unknown: `p.a[i]` is
+## [#p, .a, []]. The index is left out, since `xs[i]` and `xs[j]` may be the same
+## element. A place reached through a ref starts at the pointee's type, since any two
+## refs to a `T` may point to the same one.
+function placePath(tc: ref TC, e: Expr): Option[List[String]]
+    case e of
+        Paren(p):
+            return placePath(tc, p.inner)
+        Name(n):
+            let r := refAt(tc, n.span)
+            if r.isSome() and len(r.get().targets) = 1 then
+                return Some(["#{r.get().targets[0].id}"])
+            return None
+        Deref(d):
+            return pointee(tc, d.target)
+        FieldAccess(f):
+            if staticOwner(tc, f.target).isSome() then
+                return None
+            return extend(tc, f.target, ".{f.name.name}")
+        Index(ix):
+            return extend(tc, ix.target, "[]")
+        else:
+            return None
+
+function extend(tc: ref TC, target: Expr, step: String): Option[List[String]]
+    var b := pointee(tc, target)
+    if b.isNone() then
+        b := placePath(tc, target)
+    if b.isNone() then
+        return None
+    var path := b.get()
+    add(var path, step)
+    return Some(path)
+
+## The start of a path through `e` if it is a ref or pointer, else none.
+function pointee(tc: ref TC, e: Expr): Option[List[String]]
+    let t := getOr(tc.types, exprId(e), default: noType())
+    case t of
+        RefT(r):
+            return Some(["ref {key(r.target)}"])
+        else:
+            pass()
+    if isBuiltin(t, "Ptr") then
+        return Some(["ref {key(argsOf(t)[0])}"])
+    return None
+
+function throughRef(tc: ref TC, e: Expr): Boolean
+    return isRefT(getOr(tc.types, exprId(e), default: noType()))
+
+## "" if `e` is a place that may be changed; otherwise what it is.
+function immutable(tc: ref TC, e: Expr): String
+    case e of
+        Paren(p):
+            return immutable(tc, p.inner)
+        Name(n):
+            let r := refAt(tc, n.span)
+            if r.isNone() or len(r.get().targets) <> 1 then
+                return ""  # already reported
+            let s := r.get().targets[0]
+            if s.kind = Kind.VarSym then
+                return ""
+            if s.kind = Kind.ParamSym then
+                case s.node of
+                    Param(p):
+                        if p.isVar then
+                            return ""
+                    else:
+                        pass()
+                return "parameter '{s.name}' (it isn't 'var')"
+            if s.kind = Kind.LetSym then
+                return "let binding '{s.name}' (declare it with 'var')"
+            if s.kind = Kind.LoopVar then
+                return "loop variable '{s.name}'"
+            if s.kind = Kind.Binding then
+                return "case binding '{s.name}'"
+            return describe(s)
+        FieldAccess(f):
+            if staticOwner(tc, f.target).isSome() then
+                return "'{text(tc, f.span)}'"
+            if throughRef(tc, f.target) then
+                return ""
+            return immutable(tc, f.target)
+        Index(ix):
+            if throughRef(tc, ix.target) then
+                return ""
+            return immutable(tc, ix.target)
+        Deref(_):
+            return ""
+        else:
+            return "'{text(tc, exprSpan(e))}', which isn't a variable"
+
+# ------------------------------------------------------------------------ traits
+
+## Whether `t` satisfies `trait`. Unbound parameters (`vars`) in the trait's arguments are
+## inferred into `s`.
+function satisfies(tc: ref TC, t: Type, wanted: TraitT, var s: Subst, vars: Vars, depth: Integer): Boolean
+    tc.why := ""
+    if hasError(t) then
+        return true
+    let sym := wanted.sym
+    if sym.kind = Kind.BuiltinTrait then
+        if builtinTrait(tc, t, sym.name) then
+            return true
+        tc.why := "{show(t)} isn't {sym.name}"
+        return false
+    case t of
+        ParamT(p):
+            for b in bounds(tc.env, p.sym) do
+                case b of
+                    TraitT(bt):
+                        if bt.sym = sym then
+                            var s2 := s
+                            var ok := true
+                            var i := 0
+                            while ok and i < len(wanted.args) and i < len(bt.args) do
+                                ok := unify(wanted.args[i], bt.args[i], var s2, vars)
+                                i := i + 1
+                            if ok then
+                                s := s2
+                                return true
+                    else:
+                        pass()
+            tc.why := "'{p.sym.name}' has no bound {show(wanted)}"
+            return false
+        else:
+            pass()
+    if isSys(tc.env, sym, "Printable") and printable(tc, t) then
+        return true
+    if depth > 16 then
+        return false
+    var ck := ""
+    if not mentions(wanted, vars) then
+        ck := "{tc.home.name}|{key(t)}|{key(wanted)}"
+        case get(tc.env.satCache, ck) of
+            Some(v):
+                return v.value
+            None:
+                pass()
+        tc.env.satCache[ck] := true  # assume while checking (recursive types)
+    let ok := structural(tc, t, wanted, var s, vars, depth)
+    if ck <> "" then
+        tc.env.satCache[ck] := ok
+    return ok
+
+function satisfiesPlain(tc: ref TC, t, wanted: Type): Boolean
+    case wanted of
+        TraitT(tr):
+            var s: Subst := {}
+            return satisfies(tc, t, tr, var s, {}, 0)
+        else:
+            return true
+
+## The substitution of a trait's declaration for `t` and the trait's arguments.
+function traitSubst(tc: ref TC, t: Type, wanted: TraitT): Subst
+    var sub := zipSubst(decl(tc.env, wanted.sym).params, wanted.args)
+    sub[ThisId] := t
+    return sub
+
+function structural(tc: ref TC, t: Type, wanted: TraitT, var s: Subst, vars: Vars, depth: Integer): Boolean
+    let d := decl(tc.env, wanted.sym)
+    let sub := traitSubst(tc, t, wanted)
+    for f in d.fields do
+        let need := subst(f.ty, sub)
+        var ok := false
+        var s2 := s
+        case findField(tc, t, f.name) of
+            Some(x):
+                ok := unify(need, subst(x.value.f.ty, x.value.s), var s2, vars)
+            None:
+                pass()
+        if not ok then
+            tc.why := "it has no field '{f.name}: {show(need)}'"
+            return false
+        s := s2
+    for m in d.routines do
+        tc.depth := depth
+        if not provides(tc, t, m, wanted, var s, vars) then
+            tc.why := "no visible function '{m.name}' takes {show(t)} as required"
+            return false
+    return true
+
+## Whether a visible routine provides trait routine `m` for type `t`. Reads the depth of
+## the trait check from `tc.depth`.
+function provides(tc: ref TC, t: Type, m: ref Symbol, wanted: TraitT, var s: Subst, vars: Vars): Boolean
+    let depth := tc.depth
+    let sub := traitSubst(tc, t, wanted)
+    let msig := sig(tc.env, m)
+    var need: List[Type] := []
+    for p in msig.params do
+        add(var need, subst(p.ty, sub))
+    let needResult := subst(msig.result, sub)
+    let varThis := len(msig.params) > 0 and msig.params[0].isVar
+    for f in visibleRoutines(tc, m.name) do
+        if isSignatureNode(f) then
+            continue
+        let fs := sig(tc.env, f)
+        if len(fs.params) <> len(need) or len(fs.params) = 0 then
+            continue
+        if fs.params[0].isVar <> varThis or fs.isFunction <> msig.isFunction then
+            continue
+        let fv := setOf(fs.tparams)
+        var sf: Subst := {}
+        if not unify(fs.params[0].ty, t, var sf, fv) then
+            continue
+        var ok := true
+        for tp in fs.tparams do
+            for b in bounds(tc.env, tp) do
+                if ok and isTraitT(b) and tp.id in sf then
+                    case subst(b, sf) of
+                        TraitT(st):
+                            let have := sf[tp.id]
+                            ok := satisfies(tc, have, st, var sf, fv, depth + 1)
+                        else:
+                            pass()
+        var s2 := s
+        for i := 1 to len(need) - 1 do
+            ok := ok and unify2(need[i], fs.params[i].ty, var s2, var sf, vars, fv)
+        ok := ok and unify2(needResult, fs.result, var s2, var sf, vars, fv)
+        if ok then
+            s := s2
+            return true
+    return false
+
+## Unifies a trait's requirement with a candidate's declared type, when both sides may
+## have unbound parameters.
+function unify2(need, have: Type, var s, sf: Subst, vars, fv: Vars): Boolean
+    var s2 := s
+    if unify(need, subst(have, sf), var s2, vars) then
+        s := s2
+        return true
+    var sf2 := sf
+    if unify(have, subst(need, s), var sf2, fv) then
+        sf := sf2
+        return true
+    return false
+
+## Built in: primitives, enums, and subranges are Printable (SPEC §4.10).
+function printable(tc: ref TC, t: Type): Boolean
+    case t of
+        PrimT(p):
+            return p.name <> "CString" and p.name <> "Pointer"
+        else:
+            let k := kindOf(tc.env, t)
+            return k = "enum" or k = "subrange"
+
+function implies(want, have: String): Boolean
+    if want = "Equatable" then
+        return have = "Equatable" or have = "Ordered" or have = "Hashable"
+    return have = want
+
+function builtinTrait(tc: ref TC, t: Type, name: String): Boolean
+    if hasError(t) then
+        return true
+    case t of
+        ParamT(p):
+            for b in bounds(tc.env, p.sym) do
+                case b of
+                    TraitT(bt):
+                        if bt.sym.kind = Kind.BuiltinTrait and implies(name, bt.sym.name) then
+                            return true
+                    else:
+                        pass()
+            return false
+        else:
+            pass()
+    let k := "{key(t)}|{name}"
+    if k in tc.inBuiltin then
+        return true  # a recursive type: assume, the other parts decide
+    tc.inBuiltin[k] := true
+    let ok := builtinTraitOf(tc, t, name)
+    remove(var tc.inBuiltin, k)
+    return ok
+
+function allTrait(tc: ref TC, parts: List[Type], name: String): Boolean
+    for p in parts do
+        if not builtinTrait(tc, p, name) then
+            return false
+    return true
+
+function builtinTraitOf(tc: ref TC, t: Type, name: String): Boolean
+    let kind := kindOf(tc.env, t)
+    var parts: List[Type] := []
+    if kind = "record" then
+        let d := decl(tc.env, namedSym(t).get())
+        let s := zipSubst(d.params, argsOf(t))
+        for f in d.fields do
+            add(var parts, subst(f.ty, s))
+    else if kind = "union" then
+        parts := variants(tc.env, t)
+    else
+        case t of
+            BuiltinT(b):
+                for a in b.args do
+                    case a of
+                        ConstT(_):
+                            pass()
+                        else:
+                            add(var parts, a)
+            else:
+                pass()
+    if name = "Equatable" then
+        case t of
+            FuncT(_):
+                return false
+            RefT(_):
+                return true
+            else:
+                return allTrait(tc, parts, name)
+    if name = "Ordered" then
+        return isNumeric(t) or t = charT() or t = stringT() or kind = "enum" or kind = "subrange"
+    if name = "Hashable" then
+        case t of
+            PrimT(_):
+                return isInteger(t) or t = charT() or t = stringT() or t = booleanT()
+            else:
+                pass()
+        if kind = "enum" or kind = "subrange" then
+            return true
+        return kind = "record" and allTrait(tc, parts, name)
+    if name = "Sendable" then
+        case t of
+            RefT(_):
+                return false
+            BuiltinT(b):
+                if b.name = "Weak" or b.name = "Ptr" then
+                    return false
+            PrimT(p):
+                if p.name = "Pointer" then
+                    return false
+            else:
+                pass()
+        return allTrait(tc, parts, name)
+    return false
+
+# ------------------------------------------------------------------------- entry
+
+## Resolves and type-checks a program and the units it uses.
+export function typecheck(path, stdDir: String): Checked
+    let r := resolveUnits(path, stdDir: stdDir)
+    var env: Option[ref Env] := None
+    if r.main.isSome() then
+        let e := newEnv(r.checker, r.units)
+        for u in r.units do
+            run(checker(e, u))
+        checkBounds(e)
+        e.checkers := {}
+        e.constCheckers := {}
+        env := Some(e)
+    r.checker.diagnostics := sortedDiagnostics(r.checker.diagnostics, mainFile: mainFile(r))
+    return Checked(resolved: r, env: env)
