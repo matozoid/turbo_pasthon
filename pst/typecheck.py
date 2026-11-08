@@ -1939,6 +1939,7 @@ class TypeChecker:
                 self.value(a.expr)
             if a.is_var:
                 self.error("E0522", a.span, f"variadic arguments of '{name}' can't be 'var'")
+        self.var_overlap([a for p, a in zip(m.params, m.slots) if a is not None and p.is_var and a.is_var])
         if sig.kind != "routine":
             return
         decl = sig.params
@@ -1955,6 +1956,54 @@ class TypeChecker:
                 )  # fmt: skip
 
     # ------------------------------------------------------------- mutability
+
+    def var_overlap(self, args: list) -> None:
+        """`var` arguments of one call must be separate places (SPEC §6.3): not the same
+        variable, field or element, and not one inside another."""
+        seen = []
+        for a in args:
+            path = self.place_path(a.expr)
+            if path is None:
+                continue
+            for other, opath in seen:
+                n = min(len(path), len(opath))
+                if path[:n] == opath[:n]:
+                    self.error(
+                        "E0523", a.expr.span,
+                        f"'{self.text(a.expr.span)}' overlaps '{self.text(other.span)}', which is "
+                        "also passed as 'var'; pass separate places",
+                    )  # fmt: skip
+                    break
+            seen.append((a.expr, path))
+
+    def place_path(self, e) -> tuple | None:
+        """A place as a path from where it is stored, or None if unknown: `p.a[i]` is
+        (p, "a", "[]"). The index is left out, since `xs[i]` and `xs[j]` may be the same
+        element. A place reached through a ref starts at the pointee's type, since any two
+        refs to a `T` may point to the same one."""
+        if isinstance(e, A.Paren):
+            return self.place_path(e.inner)
+        if isinstance(e, A.Name):
+            r = self.ref_at(e.span)
+            return (r.targets[0],) if r is not None and len(r.targets) == 1 else None
+        if isinstance(e, A.Deref):
+            return self.pointee(e.target)
+        if isinstance(e, (A.FieldAccess, A.Index)):
+            if isinstance(e, A.FieldAccess) and self.static_owner(e.target) is not None:
+                return None
+            base = self.pointee(e.target) or self.place_path(e.target)
+            step = e.name.name if isinstance(e, A.FieldAccess) else "[]"
+            return None if base is None else (*base, step)
+        return None
+
+    def pointee(self, e) -> tuple | None:
+        """The start of a path through ``e`` if it is a ref or pointer, else None."""
+        t = self.types.get(id(e))
+        if isinstance(t, RefT):
+            return (("ref", t.target),)
+        if isinstance(t, Builtin) and t.name == "Ptr":
+            return (("ref", t.args[0]),)
+        return None
 
     def immutable(self, e) -> str | None:
         """None if ``e`` is a place that may be changed; otherwise what it is."""

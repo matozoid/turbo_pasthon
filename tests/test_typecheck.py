@@ -246,6 +246,39 @@ class Errors(unittest.TestCase):
             until done
             """), [("E0506", 8, 9)])
 
+    def test_var_arguments_must_not_overlap(self):
+        self.assertEqual(errs("""
+            type
+                Pair = record
+                    a: Integer
+                    b: Integer
+
+            procedure both(var x, y: Integer)
+                x := y
+
+            procedure mix(var p: Pair, var x: Integer)
+                p.a := x
+
+            var p := Pair(a: 1, b: 2)
+            var n := 0
+            both(var p.a, var p.b)
+            both(var n, var p.a)
+            both(var n, var n)
+            both(var p.a, var (p.a))
+            mix(var p, var p.b)
+            var xs := [1, 2]
+            both(var xs[0], var xs[1])
+            let r := new(Pair(a: 1, b: 2))
+            let s := new(Pair(a: 3, b: 4))
+            both(var r.a, var s.a)
+            both(var r.a, var s.b)
+            mix(var deref(r), var s.a)
+            both(var r.a, var p.a)
+            """), [
+                ("E0523", 16, 17), ("E0523", 17, 19), ("E0523", 18, 16),
+                ("E0523", 20, 21), ("E0523", 23, 19), ("E0523", 25, 23),
+            ])  # fmt: skip
+
     def test_assign_immutable_and_branches(self):
         self.assertEqual(errs("""
             let a := 1

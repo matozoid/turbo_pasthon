@@ -307,8 +307,8 @@ type
 - Construction names every field without a default: `Point(x: 1.0, y: 2.0)`.
 - A record with exactly one field may be constructed positionally: `Some(5)`.
 - A record with zero fields is used as a value by its bare name: `None`.
-- Fields are laid out in declaration order with C alignment rules, so a record whose
-  fields are all C-compatible is layout-identical to the C struct.
+- Records are stored like strings (§11), so C can't use them. Records declared in an
+  `extern` block are C structs instead (§10.5).
 - Records cannot contain functions. Behavior is provided by free functions (§6.6).
 
 **Field visibility.** Fields are private to the declaring unit unless marked `export`:
@@ -354,8 +354,8 @@ exist on `String` (`E0310`, with a fix suggesting `chars`, `bytes`, or `slice`).
   `slice(s, from, to)` takes them. An offset that isn't on a `Char` boundary panics (`P0006`).
 
 ### 4.6 Value semantics everywhere (except `ref`)
-`String`, `List`, `Map` behave as **values**: assignment and parameter passing
-produce logically independent copies. They are implemented as refcounted buffers
+`String`, records, unions, `List` and `Map` behave as **values**: assignment and parameter
+passing produce logically independent copies. They are implemented as refcounted buffers
 with **copy-on-write**, so copies are O(1) until mutated.
 
 The only aliasing in the language comes from `ref T` (§4.9).
@@ -376,7 +376,6 @@ type
 - A value of variant type converts implicitly to the union (`var s: Shape := Circle(r: 1.0)`).
   This is the only implicit conversion in the language.
 - The only way to get a variant out is `case ... of` (§7.6), which must be exhaustive.
-- Layout: tag (UInt32) followed by storage for the largest variant.
 
 ### 4.8 Option and Result
 Defined in `System` as ordinary unions:
@@ -496,6 +495,9 @@ Available from the `C` unit:
 | `Pointer` | `void*` |
 
 `Ptr`/`Pointer` are unmanaged and can be dereferenced (`deref(p)`, same form as for `ref`) only inside functions marked `unsafe` (§10.4).
+`addr(var x): Ptr[T]` gives the address of a variable, or of a field of a C record in one
+(§10.5). It is allowed only inside `unsafe` functions, and only for C-compatible types
+(§10.1). The pointer is valid until the variable's scope ends.
 
 ### 4.14 Iterators
 ```pascal
@@ -639,6 +641,17 @@ swap(var a, var b)
 There are no exceptions to this rule. Because dot syntax can't carry a `var` marker,
 functions whose first parameter is `var` can't be called with dot syntax (§6.6).
 Every call that may mutate an argument shows `var` at that argument.
+
+- A `var` argument that is a whole variable is passed by reference. Any other place (a
+  field `p.x`, an element `xs[i]`) is copied in before the call and copied back after it,
+  left to right.
+- The `var` arguments of one call must be separate places: not the same variable, field
+  or element, and not one inside the other (`E0523`): `swap(var p, var p.x)` is an error.
+  The check is at compile time, so it assumes the worst where it can't know:
+  - Any two elements of one collection may be the same: `swap(var xs[i], var xs[j])` is an
+    error. Pass the collection and the indexes instead: `swap(var xs, i, j)`.
+  - Any two refs to a `T` may point to the same `T`: `swap(var deref(a), var deref(b))`
+    and `move(var a.pos, var b.pos)` are errors when `a` and `b` are both `ref T`.
 
 ### 6.4 Named arguments
 - Any argument may be passed by name: `restock(item, amount: 5)`.
@@ -974,11 +987,17 @@ extern "libm.so.6"
 - `...` (C varargs) is allowed only in extern declarations.
 - Calls use the System V AMD64 ABI.
 - Parameter and return types must be C-compatible: primitive numerics, `Boolean`, C types,
-  `Ptr[T]`, `Pointer`, records with only C-compatible fields, `Array[T, N]` (inside records),
-  and non-generic function types (as callbacks).
+  `Ptr[T]`, `Pointer`, C records (§10.5), `Array[T, N]` (inside C records), and non-generic
+  function types (as callbacks).
+- Bindings are written by hand (or by an AI). The compiler doesn't read C headers.
+- Only Pasthon calling C, and C calling back (§10.3), are supported. pst doesn't build
+  libraries for C to call, and doesn't link static C libraries (`.a`, `.o`).
 
 ### 10.2 Strings
-- `toCString(s: String): CString` returns a NUL-terminated copy owned by the runtime and freed at the end of the calling scope.
+- A `String` is never converted to a `CString` implicitly: write `strlen(toCString(s))`.
+- `toCString(s: String): CString` doesn't copy: it returns a pointer to the string's bytes,
+  which always end with a NUL, and keeps the string alive until the end of the calling
+  scope. A NUL inside the string ends it early for C.
 - `fromCString(p: CString): String` copies the C string.
 
 ### 10.3 Callbacks
@@ -990,14 +1009,41 @@ Dereferencing `Ptr[T]`/`Pointer`, pointer arithmetic (`p + n`), and `cast[T](x)`
 only inside functions declared `unsafe function` / `unsafe procedure`. Calling an unsafe
 function requires no marker. Unsafe code is greppable, not contagious.
 
+
+### 10.5 C records
+A record declared in a `type` section inside an `extern` block is a **C record**: it has
+exactly the layout of the C struct (fields in declaration order, C alignment rules) and
+is stored inline, like an `Integer`, with no header and no reference count.
+
+```pascal
+extern "libSDL2-2.0.so.0"
+    type
+        export SdlRect = record
+            x, y, w, h: CInt
+    function sdlFillRect(s: Ptr[SdlSurface], r: Ptr[SdlRect], color: CUInt): CInt as "SDL_FillRect"
+
+unsafe procedure fill(s: Ptr[SdlSurface])
+    var r := SdlRect(x: 0, y: 0, w: 8, h: 8)
+    r.w := 16
+    _ := sdlFillRect(s, addr(var r), color: 0)
+```
+
+- Fields must be C-compatible (§10.1): no `String`, unions, `ref`, `List`, or Pasthon
+  records. Fields have no defaults and are all exported.
+- Outside `unsafe`, a C record is used like any record: construction, field access, `=`.
+  Assignment copies the bytes.
+- Only C records can be passed to C by value or through `Ptr[T]`.
+
 ---
 
 ## 11. Memory model
 
-- **Automatic reference counting.** `String`, `List`, `Map`, `ref T`, and generic values containing them are refcounted.
+- **Automatic reference counting.** `String`, records, unions, `List`, `Map` and `ref T` are refcounted.
 - Increments and decrements are inserted by the compiler. Destruction is deterministic: memory is freed as soon as the last owner goes away.
 - **No cycle collector.** Strong cycles leak, so use `Weak[T]`.
-- Records, arrays, enums, unions, and primitives live inline (stack or embedded).
+- Primitives, enums, arrays and C records (§10.5) live inline (stack or embedded). Strings, records and unions
+  are pointers to refcounted heap blocks, shared on copy and copied before they're changed
+  (§4.6). A union value's block records which variant it holds.
 - Heap allocation goes through libc `malloc`/`free`. If `malloc` fails, the program prints
   `panic: out of memory` to stderr and exits with status 70.
 - Refcounts are **not atomic**. Every heap object belongs to exactly one thread (§11.2).
@@ -1313,7 +1359,7 @@ param       = ["var"] ( "this" | IDENT { "," IDENT } ":" typeExpr [":=" expr] ) 
 routineBody = NEWLINE INDENT { "requires" expr NEWLINE } { "ensures" expr NEWLINE }
               stmt { stmt } DEDENT ;
 
-externBlk   = "extern" STRING NEWLINE INDENT { externDecl NEWLINE } DEDENT ;
+externBlk   = "extern" STRING NEWLINE INDENT { externDecl NEWLINE | typeSect } DEDENT ;
 externDecl  = ["export"] signature ["as" STRING] ;
 testBlk     = "test" STRING block ;
 
@@ -1421,6 +1467,7 @@ already has a lexical error are not reported.
 | `E0520` | dot call of a routine whose first parameter is `var` (fix: `f(var a, ...)`) |
 | `E0521` | argument for a `var` parameter not marked `var` (fix: add `var`) |
 | `E0522` | `var` on an argument whose parameter isn't `var` |
+| `E0523` | two `var` arguments of one call overlap (§6.3) |
 | `E0530` | positional argument with the same type as an earlier parameter group (fix: name it) |
 | `E0601` | overlapping `case` labels |
 | `E0602` | non-exhaustive `case` (enum or union), or missing `else` (other types) |

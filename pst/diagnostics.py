@@ -137,6 +137,7 @@ ERROR_CODES: dict[str, str] = {
     "E0520": "A routine whose first parameter is 'var' can't be called with a dot.",
     "E0521": "Argument for a 'var' parameter must be marked 'var'.",
     "E0522": "'var' on an argument whose parameter isn't 'var'.",
+    "E0523": "Two 'var' arguments of one call may be the same place, or one part of the other.",
     "E0530": "Argument has the same type as an earlier parameter group; pass it by name.",
     "E0601": "Case label overlaps an earlier one.",
     "E0602": "Case isn't exhaustive. Cover every variant or member, or add 'else'.",

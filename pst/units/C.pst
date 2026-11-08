@@ -13,7 +13,8 @@ type
     export CChar = Int8
 
 extern "pst"
-    ## A NUL-terminated copy of `s`, freed when the CString goes away.
+    ## A pointer to the NUL-terminated bytes of `s`, without copying. `s` is kept alive
+    ## until the end of the calling scope.
     export function toCString(s: String): CString
     ## Copies a NUL-terminated C string. Invalid UTF-8 is replaced with U+FFFD.
     export function fromCString(s: CString): String

@@ -4,14 +4,16 @@ The code generator grows construct by construct. Anything it can't compile yet i
 reported as `E0990` at the construct, so a program either builds correctly or not at all.
 
 Supported so far:
-- values of type Integer, Boolean, Char and String: literals, constants, locals,
-  parameters (`var` ones too), arithmetic with overflow checks, comparisons,
-  `and`/`or`/`not`, `if` expressions, string interpolation;
-- statements: `var`/`let`, assignment, `if`, `while`, `repeat`, `for ... to/downto`,
-  `break`, `continue`, `return`, `assert`, `_ := e`, calls;
+- values of type Integer, Boolean, Char, String, enums, and non-generic or concretely
+  instantiated records and unions (so `Option[Integer]`, `Result[String, Integer]`):
+  literals, constants, locals, parameters (`var` ones too), fields, construction,
+  arithmetic with overflow checks, comparisons, `and`/`or`/`not`, `if` and `case`
+  expressions, string interpolation;
+- statements: `var`/`let`, assignment (to fields too), `if`, `case`, `while`, `repeat`,
+  `for ... to/downto`, `break`, `continue`, `return`, `assert`, `_ := e`, calls;
 - non-generic routines (up to 6 parameters), with defaults, named arguments, dot calls,
   and contracts;
-- built-ins: `write`/`writeln`, `toString`, `ord` of a Char, `halt`, `inc`, `dec`, and
+- built-ins: `write`/`writeln`, `toString`, `ord`, `halt`, `inc`, `dec`, and
   `byteLen`, `charCount`, `slice`, `startsWith` from `Strings`.
 
 Scheme (SPEC §15.2: no IR, no optimizer): every expression leaves its value in rax;
@@ -19,15 +21,29 @@ binary operators push the left operand while the right one is computed. Each rou
 an rbp frame with one 8-byte slot per local. Calls follow System V: arguments in rdi, rsi,
 rdx, rcx, r8, r9, result in rax. A `var` argument is passed as the address of its place.
 
-Strings (SPEC §4.6, §11) are pointers to reference-counted heap blocks:
+Strings, records and unions (SPEC §4.6, §11) are pointers to reference-counted heap
+blocks. Every block starts with a refcount and a descriptor:
 
-    refcount (8) | byte length (8) | char count (8) | UTF-8 bytes | NUL
+    string: refcount | 0          | byte length | char count | UTF-8 bytes | NUL
+    record: refcount | descriptor | field 0 | field 1 | ...     (8 bytes per field)
+    union:  refcount | descriptor | the variant's value
 
-Literals live in read-only data with refcount -1, which retain and release ignore.
+A descriptor (read-only data) gives the number of fields, the block size, a number that
+makes it unique, and per field whether it holds a reference. A union value has its own
+block, whose descriptor says which variant it holds; `case` compares descriptors. So one
+release, one copy, and one equality routine serve every type.
+
+String literals live in read-only data with refcount -1, which retain and release ignore.
 Reference counting follows one rule: every expression produces an *owned* reference.
 Reading a variable retains; whoever consumes a value releases it or stores it. Callees
 own their arguments and release them on exit. Locals are released when their block ends
 (or a `return`, `break` or `continue` leaves it).
+
+Records are values: a copy shares the block, and writing a field first makes the block
+unique (copying it if it is shared). A `var` argument that is a whole variable is passed
+as the variable's address. Any other place (`var p.x`) is copied into a temporary, whose
+address is passed, and copied back after the call. So no pointer into a block ever
+outlives the statement that made it.
 
 Panics (SPEC §12) print `panic P0002: integer overflow` and the source position to
 stderr, then exit with status 70. Each panic site has its own out-of-line stub.
@@ -44,7 +60,9 @@ from . import elf
 from .diagnostics import Diagnostic, Severity
 from .resolve import CheckResult
 from .symbols import Kind, Symbol
-from .types import BOOLEAN, CHAR, INTEGER, STRING, VOID, has_error, show
+from .types import (
+    BOOLEAN, CHAR, INTEGER, STRING, VOID, Named, Prim, TypeValue, has_error, show, subst,
+)  # fmt: skip
 from .x86 import (
     R8, R9, R10, R11, R12, R13, R14, R15, RAX, RBP, RBX, RCX, RDI, RDX, RSI, RSP, Assembler,
 )  # fmt: skip
@@ -56,13 +74,12 @@ _DECLS = (A.TypeSection, A.ConstSection, A.Routine, A.ExternBlock, A.TestBlock)
 _VALUES = (INTEGER, BOOLEAN, CHAR, STRING)  # the types the code generator handles so far
 _TO_STRING = {INTEGER: "rt_int_to_str", BOOLEAN: "rt_bool_to_str", CHAR: "rt_char_to_str"}
 _COMPARE = {"=": "e", "<>": "ne", "<": "l", "<=": "le", ">": "g", ">=": "ge"}
-# String block layout.
-_RC, _LEN, _CHARS, _BYTES = 0, 8, 16, 24
-
-
-def managed(t) -> bool:
-    """Whether values of type ``t`` are reference counted."""
-    return t == STRING
+# Heap block layout: the header, then a string's parts or a record's fields.
+_RC, _DESC = 0, 8
+_LEN, _CHARS, _BYTES = 16, 24, 32
+_FIELDS = 16
+# Descriptor layout: then one word per field, 1 if it holds a reference.
+_D_COUNT, _D_SIZE, _D_ID, _D_KINDS = 0, 8, 16, 24
 
 
 @dataclass
@@ -125,6 +142,7 @@ class Emitter:
         self._panics: list[tuple[str, bytes]] = []  # (stub label, message)
         self._labels: dict[Symbol, str] = {}  # routines -> label
         self._queue: list[Symbol] = []  # routines referenced but not emitted yet
+        self._descs: dict[object, str] = {}  # record type, or (union, variant) -> label
         self.units = {u.path: u for u in [self.main, *result.units.values()]}
         # Expression types and resolved calls, from every unit's checker.
         self.types: dict[int, object] = {}
@@ -148,10 +166,63 @@ class Emitter:
     def type(self, e):
         return self.types.get(id(e))
 
+    def kind(self, t) -> str | None:
+        """"record", "union", "enum", ... for a declared type."""
+        return self.env.kind_of(t)
+
+    def managed(self, t) -> bool:
+        """Whether values of type ``t`` are reference counted."""
+        return t == STRING or self.kind(t) in ("record", "union")
+
+    def supported(self, t, seen: frozenset = frozenset()) -> bool:
+        if t in _VALUES or has_error(t) or t in seen:
+            return True
+        kind = self.kind(t)
+        if kind == "enum":
+            return True
+        if kind not in ("record", "union") or any(not self.supported(a) for a in t.args):
+            return False
+        parts = [ft for _, ft in self.fields(t)] if kind == "record" else self.env.variants(t)
+        return all(self.supported(p, seen | {t}) for p in parts)
+
     def value_type(self, t, node, what: str = "a value"):
         """Checks that the code generator handles values of type ``t``."""
-        if t not in _VALUES and not has_error(t):
+        if not self.supported(t):
             self.unsupported(node, f"{what} of type {show(t)}")
+
+    def fields(self, t) -> list:
+        """(name, type) of each field of record type ``t``."""
+        d = self.env.decl(t.sym)
+        s = dict(zip(d.params, t.args))
+        return [(f.name, subst(f.type, s)) for f in d.fields]
+
+    def descriptor(self, key, parts: list) -> str:
+        """The data label of the descriptor for blocks of ``key`` holding ``parts``."""
+        if key not in self._descs:
+            words = [len(parts), _FIELDS + 8 * len(parts), len(self._descs)]
+            words += [int(self.managed(p)) for p in parts]
+            self._descs[key] = self.asm.data(struct.pack(f"<{len(words)}q", *words), align=8)
+        return self._descs[key]
+
+    def new_block(self, desc: str) -> None:
+        """rax := a new block with descriptor ``desc``; its fields are the caller's."""
+        self.asm.lea_data(RDI, desc)
+        self.asm.call(self.runtime("rt_new"))
+
+    def coerce(self, e, want) -> None:
+        """Computes ``e`` into rax as a value of type ``want``: a variant is put into its
+        union (SPEC §4.7, the only implicit conversion)."""
+        self.expr(e)
+        have = self.type(e)
+        if want is None or have == want or self.kind(want) != "union":
+            return
+        variants = self.env.variants(want)
+        if have not in variants:
+            self.unsupported(e, f"converting {show(have)} to {show(want)}")
+        self.asm.push(RAX)
+        self.new_block(self.descriptor((want, variants.index(have)), [have]))
+        self.asm.pop(RCX)
+        self.asm.store(RAX, _FIELDS, RCX)
 
     def text(self, node) -> str:
         u = self.units.get(self.f.file)
@@ -179,15 +250,15 @@ class Emitter:
     def literal(self, text: str) -> str:
         """The data label of an immortal string block holding ``text``."""
         data = text.encode("utf-8")
-        block = struct.pack("<qQQ", -1, len(data), len(text)) + data + b"\0"
+        block = struct.pack("<qQQQ", -1, 0, len(data), len(text)) + data + b"\0"
         return self.asm.data(block, align=8)
 
     def retain(self) -> None:
-        """Adds a reference to the string in rax."""
+        """Adds a reference to the block in rax."""
         self.asm.call(self.runtime("rt_retain"))
 
     def release(self, reg: int = RAX) -> None:
-        """Drops a reference to the string in ``reg``. Preserves every register."""
+        """Drops a reference to the block in ``reg``. Preserves every register."""
         if reg != RDI:
             self.asm.mov(RDI, reg)
         self.asm.call(self.runtime("rt_release"))
@@ -264,7 +335,7 @@ class Emitter:
                 self.value_type(p.type, node.sig.name, f"parameter '{p.name}'")
                 slot = f.alloc(p.sym)
                 a.store(RBP, slot, _ARG_REGS[i])
-                if managed(p.type) and not p.is_var:
+                if self.managed(p.type) and not p.is_var:
                     f.scopes[0].append(slot)
             if sig.is_function:
                 self.value_type(sig.result, node.sig.result, "a result")
@@ -302,7 +373,7 @@ class Emitter:
             slot = self.f.alloc(("old", id(e)))
             self.asm.store(RBP, slot, RAX)
             self.f.old[id(e)] = slot
-            if managed(self.type(e)):
+            if self.managed(self.type(e)):
                 self.f.scopes[0].append(slot)
             return
         for child in _children(e):
@@ -340,23 +411,24 @@ class Emitter:
         if isinstance(s, A.VarDecl):
             sym = self.ref(s.name.span)
             self.value_type(sym.type if sym else None, s.name, f"variable '{s.name.name}'")
-            self.expr(s.value)
+            self.coerce(s.value, sym.type)
             slot = self.local(s.name.span)
             a.store(RBP, slot, RAX)
-            if managed(sym.type):
+            if self.managed(sym.type):
                 self.f.scopes[-1].append(slot)
         elif isinstance(s, A.Assign):
-            self.expr(s.value)
+            t = self.type(s.target)
+            self.coerce(s.value, t)
             a.push(RAX)
             self.address(s.target)
             a.pop(RCX)
-            if managed(self.type(s.value)):
+            if self.managed(t):
                 a.load(RDI, RAX)
                 self.release(RDI)
             a.store(RAX, 0, RCX)
         elif isinstance(s, A.Discard):
             self.expr(s.value)
-            if managed(self.type(s.value)):
+            if self.managed(self.type(s.value)):
                 self.release()
         elif isinstance(s, A.ExprStmt):
             if not isinstance(s.expr, A.Call):
@@ -388,13 +460,15 @@ class Emitter:
             self.repeat(s)
         elif isinstance(s, A.ForRange):
             self.for_range(s)
+        elif isinstance(s, A.Case):
+            self.case(s.subject, s.arms, None)
         elif isinstance(s, (A.Break, A.Continue)):
             loop = self.f.loops[-1]
             self.release_scopes(loop.depth)
             a.jmp(loop.brk if isinstance(s, A.Break) else loop.cont)
         elif isinstance(s, A.Return):
             if s.value is not None:
-                self.expr(s.value)
+                self.coerce(s.value, self.env.sig(self.f.sym).result)
             self.release_scopes(1)  # the parameters are released after `ensures`
             a.jmp(self.f.exit)
         elif isinstance(s, A.Assert):
@@ -437,7 +511,7 @@ class Emitter:
     def for_range(self, s: A.ForRange) -> None:
         a = self.asm
         sym = self.ref(s.var.span)
-        if sym is not None and sym.type != INTEGER:
+        if sym is not None and sym.type not in (INTEGER, CHAR) and self.kind(sym.type) != "enum":
             self.unsupported(s.var, f"a loop over {show(sym.type)}")
         var = self.local(s.var.span)
         stop = self.f.alloc(object())
@@ -462,10 +536,112 @@ class Emitter:
         a.jmp(top)
         a.label(end)
 
+    def case(self, subject, arms: list, result) -> None:
+        """A `case` statement, or a `case` expression of type ``result`` (each arm's value
+        then ends up in rax). The subject is kept in a slot of its own block."""
+        a = self.asm
+        t = self.type(subject)
+        depth = len(self.f.scopes)
+        self.f.scopes.append([])
+        self.expr(subject)
+        slot = self.f.alloc(object())
+        a.store(RBP, slot, RAX)
+        if self.managed(t):
+            self.f.scopes[-1].append(slot)
+        end = a.new_label("esac")
+        for arm in arms:
+            body, nxt = a.new_label("arm"), a.new_label("arm")
+            for label in arm.labels:
+                self.case_label(t, slot, label, body)
+            if arm.labels:
+                a.jmp(nxt)
+            a.label(body)
+            self.f.scopes.append([])
+            bound = [x for x in arm.labels if isinstance(x, A.VariantLabel) and self.ref(x.binding.span)]
+            if bound:
+                if len(arm.labels) > 1:
+                    self.unsupported(bound[0], "a binding in an arm with several labels")
+                a.load(RAX, RBP, slot)
+                a.load(RAX, RAX, _FIELDS)
+                binding = self.ref(bound[0].binding.span)
+                if self.managed(binding.type):
+                    self.retain()
+                b = self.local(bound[0].binding.span)
+                a.store(RBP, b, RAX)
+                if self.managed(binding.type):
+                    self.f.scopes[-1].append(b)
+            if result is not None:
+                self.coerce(arm.value, result)
+            else:
+                self.stmts(arm.body.stmts if isinstance(arm.body, A.Block) else [arm.body])
+            self.release_scopes(len(self.f.scopes) - 1)  # keeps rax
+            self.f.scopes.pop()
+            a.jmp(end)
+            a.label(nxt)
+        a.label(end)
+        self.release_scopes(depth)
+        self.f.scopes.pop()
+
+    def case_label(self, t, slot: int, label, target: str) -> None:
+        """Jumps to ``target`` if the subject in ``slot`` (of type ``t``) matches."""
+        a = self.asm
+        if self.kind(t) == "union":
+            e = label.variant if isinstance(label, A.VariantLabel) else label.value
+            span = e.part_spans[-1] if isinstance(e, A.TypeName) and e.part_spans else e.span
+            if isinstance(e, A.FieldAccess):
+                span = e.name.span
+            sym = self.ref(span)
+            if sym is not None and sym.kind is Kind.TYPE and self.env.decl(sym).kind == "alias":
+                sym = _head(self.env.decl(sym).alias)
+            elif sym is not None and sym.kind is Kind.BUILTIN_TYPE:
+                sym = sym.name
+            variants = self.env.variants(t)
+            i = next((i for i, v in enumerate(variants) if _head(v) == sym), None)
+            if sym is None or i is None:
+                self.unsupported(label, "this label")
+            a.load(RAX, RBP, slot)
+            a.load(RAX, RAX, _DESC)
+            a.lea_data(RCX, self.descriptor((t, i), [variants[i]]))
+            a.cmp(RAX, RCX)
+            a.jcc("e", target)
+        elif isinstance(label, A.RangeLabel):
+            skip = a.new_label("range")
+            self.label_compare(t, slot, label.low)
+            a.jcc("l", skip)
+            self.label_compare(t, slot, label.high)
+            a.jcc("le", target)
+            a.label(skip)
+        else:
+            self.label_compare(t, slot, label.value)
+            a.jcc("e", target)
+
+    def label_compare(self, t, slot: int, e) -> None:
+        """Compares the subject in ``slot`` with the label value ``e``, setting the flags."""
+        a = self.asm
+        self.expr(e)
+        if t == STRING:
+            a.push(RAX)
+            a.mov(RSI, RAX)
+            a.load(RDI, RBP, slot)
+            a.call(self.runtime("rt_str_cmp"))
+            self.drop(1)
+            a.cmp_imm(RAX, 0)
+        else:
+            a.load(RCX, RBP, slot)
+            a.cmp(RCX, RAX)
+
     def address(self, e) -> None:
-        """Puts the address of the place ``e`` in rax."""
+        """Puts the address of the place ``e`` in rax. A field's record is made unique
+        first, so the write doesn't show through other copies."""
         if isinstance(e, A.Paren):
             return self.address(e.inner)
+        if isinstance(e, A.FieldAccess) and self.kind(self.type(e.target)) == "record":
+            names = [n for n, _ in self.fields(self.type(e.target))]
+            self.address(e.target)
+            self.asm.mov(RDI, RAX)
+            self.asm.call(self.runtime("rt_unique"))
+            self.asm.add_imm(RAX, _FIELDS + 8 * names.index(e.name.name))
+            return
         if isinstance(e, A.Name):
             sym = self.ref(e.span)
             if sym is not None and sym in self.f.slots:
@@ -517,10 +693,21 @@ class Emitter:
         self.load_sym(sym, e)
 
     def e_FieldAccess(self, e) -> None:
-        sym = self.ref(e.name.span)
-        if sym is None or sym.kind is not Kind.CONST:
-            self.unsupported(e, "field access")
-        self.load_sym(sym, e)
+        t = self.type(e.target)
+        if t is None or isinstance(t, TypeValue):  # `Color.Red`, `Unit.name`
+            sym = self.ref(e.name.span)
+            if sym is None:
+                self.unsupported(e, "this name")
+            return self.load_sym(sym, e)
+        if self.kind(t) != "record":
+            self.unsupported(e, f"a field of {show(t)}")
+        names = [n for n, _ in self.fields(t)]
+        self.expr(e.target)
+        self.asm.push(RAX)
+        self.asm.load(RAX, RAX, _FIELDS + 8 * names.index(e.name.name))
+        if self.managed(self.type(e)):
+            self.retain()
+        self.drop(1)
 
     def load_sym(self, sym: Symbol, e) -> None:
         a = self.asm
@@ -532,6 +719,13 @@ class Emitter:
             finally:
                 self.f.file = outer
             return
+        t = self.type(e)
+        if sym.kind is Kind.ENUM_MEMBER:
+            a.mov_imm(RAX, self.env.decl(self.env.owner[sym]).members.index(sym.name))
+            return
+        if sym.kind is Kind.TYPE and self.kind(t) == "record":  # `None`
+            self.new_block(self.descriptor(t, []))
+            return
         if sym.kind is Kind.RESULT and self.f.result_slot is not None:
             a.load(RAX, RBP, self.f.result_slot)
         elif sym in self.f.slots:
@@ -540,7 +734,7 @@ class Emitter:
                 a.load(RAX, RAX)
         else:
             self.unsupported(e, f"using {sym.describe()} as a value")
-        if managed(self.type(e)):
+        if self.managed(t):
             self.retain()
 
     def e_Unary(self, e) -> None:
@@ -575,10 +769,22 @@ class Emitter:
             return
         if op == "in":
             self.unsupported(e, "'in'")
-        self.expr(e.left)
+        t = self.type(e.left)
+        if self.kind(self.type(e.right)) == "union":
+            t = self.type(e.right)  # comparing a variant with a union
+        self.coerce(e.left, t)
         a.push(RAX)
-        self.expr(e.right)
-        if managed(self.type(e.left)) and op in _COMPARE:
+        self.coerce(e.right, t)
+        if self.managed(t) and t != STRING:  # `=` or `<>`
+            a.push(RAX)
+            a.load(RDI, RSP, 8)
+            a.mov(RSI, RAX)
+            a.call(self.runtime("rt_eq"))
+            self.drop(2)
+            if op == "<>":
+                a.xor_imm32(RAX, 1)
+            return
+        if t == STRING and op in _COMPARE:
             a.push(RAX)
             a.load(RDI, RSP, 8)
             a.mov(RSI, RAX)
@@ -632,16 +838,19 @@ class Emitter:
             self.expr(b.cond)
             a.test(RAX, RAX)
             a.jcc("e", nxt)
-            self.expr(b.value)
+            self.coerce(b.value, self.type(e))
             a.jmp(end)
             a.label(nxt)
-        self.expr(e.else_value)
+        self.coerce(e.else_value, self.type(e))
         a.label(end)
+
+    def e_CaseExpr(self, e) -> None:
+        self.case(e.subject, e.arms, self.type(e))
 
     def e_Call(self, e) -> None:
         if id(e) in self.f.old:
             self.asm.load(RAX, RBP, self.f.old[id(e)])
-            if managed(self.type(e)):
+            if self.managed(self.type(e)):
                 self.retain()
             return
         self.call(e)
@@ -663,13 +872,19 @@ class Emitter:
         a.add_imm(RSP, 8 * len(parts))
 
     def to_string(self, e) -> None:
-        """Computes ``e`` and converts it to a String (`toString`)."""
+        """Computes ``e`` and converts it to a String (`toString`). An enum member's
+        string is its name."""
         t = self.type(e)
-        if t not in (STRING, *_TO_STRING):
+        enum = self.kind(t) == "enum"
+        if t not in (STRING, *_TO_STRING) and not enum:
             self.unsupported(e, f"converting {show(t)} to a string")
         self.expr(e)
         if t in _TO_STRING:
             self.asm.call(self.runtime(_TO_STRING[t]))
+        elif enum:
+            names = "".join(m + "\0" for m in self.env.decl(t.sym).members)
+            self.asm.lea_data(RSI, self.asm.data(names.encode("utf-8")))
+            self.asm.call(self.runtime("rt_enum_name"))
 
     # --------------------------------------------------------------------- calls
 
@@ -677,6 +892,8 @@ class Emitter:
         """Calls a routine; a function's result is left in rax."""
         a = self.asm
         m = self.calls.get(id(e))
+        if m is not None and m.sig.kind == "record":
+            return self.construct(e, m)
         if m is None or m.sig.kind != "routine" or m.sig.sym is None:
             self.unsupported(e, "this kind of call")
         sym = m.sig.sym
@@ -688,22 +905,59 @@ class Emitter:
             self.unsupported(e, f"calling generic '{sym.name}'")
         if m.extra or len(m.params) > len(_ARG_REGS):
             self.unsupported(e, f"a call with more than {len(_ARG_REGS)} arguments")
+        copies = []  # (place, temporary) of `var` arguments that aren't whole variables
         for p, slot in zip(m.params, m.slots):
-            if slot is not None and p.is_var:
-                self.address(slot.expr)
-            elif slot is not None:
-                self.expr(slot.expr)
-            else:  # the default, which belongs to the callee's unit
-                outer = self.f.file
-                self.f.file = sym.file
-                try:
-                    self.expr(p.default)
-                finally:
-                    self.f.file = outer
+            place = _unparen(slot.expr) if slot is not None and p.is_var else None
+            if isinstance(place, A.Name):
+                self.address(place)
+            elif place is not None:
+                self.expr(place)
+                tmp = self.f.alloc(object())
+                a.store(RBP, tmp, RAX)
+                a.lea(RAX, RBP, tmp)
+                copies.append((place, tmp))
+            else:
+                self.argument(p, slot, m, sym.file)
             a.push(RAX)
         for i in reversed(range(len(m.params))):
             a.pop(_ARG_REGS[i])
         a.call(self.label_of(sym))
+        if copies:
+            a.push(RAX)
+            for place, tmp in copies:
+                self.address(place)
+                if self.managed(self.type(place)):
+                    a.load(RDI, RAX)
+                    self.release(RDI)
+                a.load(RCX, RBP, tmp)
+                a.store(RAX, 0, RCX)
+            a.pop(RAX)
+
+    def argument(self, p, slot, m, file: str) -> None:
+        """Computes an argument (or a record field) into rax: the one given, or the
+        parameter's default, which belongs to the declaring unit."""
+        want = subst(p.type, m.s)
+        if slot is not None:
+            return self.coerce(slot.expr, want)
+        outer = self.f.file
+        self.f.file = file
+        try:
+            self.coerce(p.default, want)
+        finally:
+            self.f.file = outer
+
+    def construct(self, e, m) -> None:
+        """`Point(x: 1, y: 2)`: the field values are pushed, then moved into a new block."""
+        a = self.asm
+        t = subst(m.sig.result, m.s)
+        self.value_type(t, e)
+        for p, slot in zip(m.params, m.slots):
+            self.argument(p, slot, m, m.sig.sym.file)
+            a.push(RAX)
+        self.new_block(self.descriptor(t, [ft for _, ft in self.fields(t)]))
+        for i in reversed(range(len(m.params))):
+            a.pop(RCX)
+            a.store(RAX, _FIELDS + 8 * i, RCX)
 
     def builtin(self, e, sym: Symbol, m) -> None:
         """Routines declared `extern "pst"`: implemented by the compiler."""
@@ -717,7 +971,7 @@ class Emitter:
             a.call(self.runtime("rt_write_str"))
         elif name == ("System", "toString"):
             self.to_string(args[0])
-        elif name == ("System", "ord") and self.type(args[0]) == CHAR:
+        elif name == ("System", "ord") and (self.type(args[0]) == CHAR or self.kind(self.type(args[0])) == "enum"):
             self.expr(args[0])
         elif name == ("System", "halt"):
             self.expr(args[0])
@@ -883,20 +1137,181 @@ class Emitter:
         a.ret()
 
     def rt_release(self) -> None:
-        """Drops a reference to the block rdi, freeing it with the last one. Preserves
-        registers."""
+        """Drops a reference to the block rdi. With the last one, releases the references
+        its fields hold and frees it. Preserves registers."""
         a = self.asm
-        done = a.new_label("r")
+        loop, skip, free, done = (a.new_label("r") for _ in range(4))
         a.cmp_mem_imm(RDI, _RC, 0)
         a.jcc("l", done)
         a.dec_mem(RDI, _RC)
         a.jcc("ne", done)
         for r in _CALLER_SAVED:
             a.push(r)
+        a.mov(RSI, RDI)  # the block
+        a.load(RDX, RSI, _DESC)
+        a.test(RDX, RDX)
+        a.jcc("e", free)  # a string
+        a.load(RCX, RDX, _D_COUNT)
+        a.add_imm(RDX, _D_KINDS)
+        a.lea(R8, RSI, _FIELDS)
+        a.label(loop)  # rcx fields left; rdx their kinds, r8 their values
+        a.test(RCX, RCX)
+        a.jcc("e", free)
+        a.load(RAX, RDX)
+        a.test(RAX, RAX)
+        a.jcc("e", skip)
+        a.load(RDI, R8)
+        a.call(self.runtime("rt_release"))
+        a.label(skip)
+        a.add_imm(RDX, 8)
+        a.add_imm(R8, 8)
+        a.dec(RCX)
+        a.jmp(loop)
+        a.label(free)
+        a.mov(RDI, RSI)
         self.ccall("free")
         for r in reversed(_CALLER_SAVED):
             a.pop(r)
         a.label(done)
+        a.ret()
+
+    def rt_new(self) -> None:
+        """rax := a new block with descriptor rdi and refcount 1. Its fields are the
+        caller's to fill in."""
+        a = self.asm
+        a.push(RDI)
+        a.load(RDI, RDI, _D_SIZE)
+        a.call(self.runtime("rt_alloc"))
+        a.pop(RCX)
+        a.store_imm(RAX, _RC, 1)
+        a.store(RAX, _DESC, RCX)
+        a.ret()
+
+    def rt_unique(self) -> None:
+        """rdi is the address of a variable holding a record. If the record is shared,
+        the variable gets a copy of its own. rax := the record, now unshared."""
+        a = self.asm
+        copy, loop, skip, done = (a.new_label("u") for _ in range(4))
+        a.load(RAX, RDI)
+        a.cmp_mem_imm(RAX, _RC, 1)
+        a.jcc("ne", copy)
+        a.ret()
+        a.label(copy)
+        for r in (RBX, R12, R13):
+            a.push(r)
+        a.mov(RBX, RDI)  # the variable
+        a.mov(R12, RAX)  # the shared record
+        a.load(RDI, RAX, _DESC)
+        a.call(self.runtime("rt_new"))
+        a.mov(R13, RAX)  # the copy
+        a.lea(RDI, R13, _FIELDS)
+        a.lea(RSI, R12, _FIELDS)
+        a.load(RDX, R12, _DESC)
+        a.load(RDX, RDX, _D_SIZE)
+        a.sub_imm(RDX, _FIELDS)
+        self.ccall("memcpy")
+        a.load(RDX, R13, _DESC)
+        a.load(RCX, RDX, _D_COUNT)
+        a.add_imm(RDX, _D_KINDS)
+        a.lea(R8, R13, _FIELDS)
+        a.label(loop)  # the copy holds new references to what the fields refer to
+        a.test(RCX, RCX)
+        a.jcc("e", done)
+        a.load(RAX, RDX)
+        a.test(RAX, RAX)
+        a.jcc("e", skip)
+        a.load(RAX, R8)
+        self.retain()
+        a.label(skip)
+        a.add_imm(RDX, 8)
+        a.add_imm(R8, 8)
+        a.dec(RCX)
+        a.jmp(loop)
+        a.label(done)
+        self.release(R12)  # not the last reference: the record was shared
+        a.store(RBX, 0, R13)
+        a.mov(RAX, R13)
+        for r in (R13, R12, RBX):
+            a.pop(r)
+        a.ret()
+
+    def rt_eq(self) -> None:
+        """rax := whether the blocks rdi and rsi hold equal values: the same string, or
+        records (or union values) of the same descriptor whose fields are equal."""
+        a = self.asm
+        record, loop, plain, nxt, yes, no, done = (a.new_label("q") for _ in range(7))
+        saved = (RBX, R12, R13, R14)
+        for r in saved:
+            a.push(r)
+        a.load(RAX, RDI, _DESC)
+        a.load(RCX, RSI, _DESC)
+        a.cmp(RAX, RCX)
+        a.jcc("ne", no)
+        a.test(RAX, RAX)
+        a.jcc("ne", record)
+        a.call(self.runtime("rt_str_cmp"))
+        a.test(RAX, RAX)
+        a.jcc("ne", no)
+        a.jmp(yes)
+        a.label(record)
+        a.load(R14, RAX, _D_COUNT)
+        a.lea(R13, RAX, _D_KINDS)
+        a.lea(RBX, RDI, _FIELDS)
+        a.lea(R12, RSI, _FIELDS)
+        a.label(loop)  # r14 fields left; r13 their kinds; rbx, r12 the two values
+        a.test(R14, R14)
+        a.jcc("e", yes)
+        a.load(RDI, RBX)
+        a.load(RSI, R12)
+        a.load(RAX, R13)
+        a.test(RAX, RAX)
+        a.jcc("e", plain)
+        a.call(self.runtime("rt_eq"))
+        a.test(RAX, RAX)
+        a.jcc("e", no)
+        a.jmp(nxt)
+        a.label(plain)
+        a.cmp(RDI, RSI)
+        a.jcc("ne", no)
+        a.label(nxt)
+        a.add_imm(RBX, 8)
+        a.add_imm(R12, 8)
+        a.add_imm(R13, 8)
+        a.dec(R14)
+        a.jmp(loop)
+        a.label(yes)
+        a.mov_imm(RAX, 1)
+        a.jmp(done)
+        a.label(no)
+        a.xor32(RAX, RAX)
+        a.label(done)
+        for r in reversed(saved):
+            a.pop(r)
+        a.ret()
+
+    def rt_enum_name(self) -> None:
+        """rax := the name of enum member rax, from the NUL-separated names at rsi."""
+        a = self.asm
+        loop, found = a.new_label("n"), a.new_label("n")
+        a.push(RBX)
+        a.push(R12)
+        a.mov(RBX, RAX)
+        a.mov(R12, RSI)
+        a.label(loop)
+        a.mov(RDI, R12)
+        self.ccall("strlen")
+        a.test(RBX, RBX)
+        a.jcc("e", found)
+        a.add(R12, RAX)
+        a.inc(R12)
+        a.dec(RBX)
+        a.jmp(loop)
+        a.label(found)
+        a.mov(RDI, R12)
+        a.mov(RSI, RAX)
+        a.call(self.runtime("rt_str_from"))
+        a.pop(R12)
+        a.pop(RBX)
         a.ret()
 
     def rt_alloc(self) -> None:
@@ -922,6 +1337,7 @@ class Emitter:
         a.add_imm(RDI, _BYTES + 1)
         a.call(self.runtime("rt_alloc"))
         a.store_imm(RAX, _RC, 1)
+        a.store_imm(RAX, _DESC, 0)
         a.store(RAX, _LEN, RBX)
         a.lea(RCX, RAX, _BYTES)
         a.add(RCX, RBX)
@@ -1136,6 +1552,15 @@ class Emitter:
         a.add(RDI, RSI)
         a.mov(RSI, RDX)
         a.jmp(self.runtime("rt_str_from"))
+
+def _head(t):
+    """What a variant label names: a declared type's symbol, or a primitive's name."""
+    return t.sym if isinstance(t, Named) else t.name if isinstance(t, Prim) else None
+
+
+def _unparen(e):
+    return _unparen(e.inner) if isinstance(e, A.Paren) else e
+
 
 def _parts(arg) -> list:
     """The pieces of a `write` argument: a literal's text, an interpolation's parts, or

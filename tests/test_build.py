@@ -385,6 +385,205 @@ class Strings(unittest.TestCase):
         self.assertEqual(out, "n = 999999!\n")
 
 
+class Records(unittest.TestCase):
+    def output(self, body: str, **kw) -> str:
+        p = run_program(body, **kw)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        return p.stdout.decode()
+
+    def test_records_enums_and_unions(self):
+        out = self.output("""
+            type
+                Color = (Red, Green, Blue)
+                Point = record
+                    x: Integer
+                    y: Integer
+                    label: String := "p"
+                Circle = record
+                    r: Integer
+                Rect = record
+                    w: Integer
+                    h: Integer
+                Shape = Circle | Rect
+
+            function area(s: Shape): Integer
+                return case s of
+                    Circle(c): 3 * c.r * c.r
+                    Rect(r): r.w * r.h
+
+            procedure move(var p: Point, dx: Integer)
+                p.x := p.x + dx
+
+            procedure bump(var n: Integer)
+                n := n + 1
+
+            function find(n: Integer): Option[Integer]
+                if n > 0 then
+                    return Some(n * 2)
+                return None
+
+            var p := Point(x: 1, y: 2)
+            let q := p
+            move(var p, dx: 10)
+            p.label := "moved"
+            writeln("{p.x} {p.y} {p.label} / {q.x} {q.label}")
+            bump(var p.y)
+            writeln(p.y)
+            writeln(p = q)
+            writeln(Point(x: 1, y: 2) = q)
+            let c := Color.Green
+            writeln("{c} {ord(c)} {Color.Blue}")
+            for k := Color.Red to Color.Blue do
+                write("{k} ")
+            writeln("")
+            case c of
+                Red: writeln("red")
+                Green, Blue: writeln("not red")
+            var shapes: Shape := Circle(r: 2)
+            writeln(area(shapes))
+            shapes := Rect(w: 3, h: 4)
+            writeln(area(shapes))
+            writeln(area(Circle(r: 1)))
+            case find(4) of
+                Some(v): writeln("some {v.value}")
+                None: writeln("none")
+            case find(0) of
+                Some(v): writeln("some {v.value}")
+                None: writeln("none")
+            let o: Option[Integer] := Some(3)
+            writeln(o = Some(3))
+            writeln(o = None)
+            let label := case 7 of
+                1..5: "low"
+                else: "high"
+            writeln(label)
+            """)
+        self.assertEqual(
+            out,
+            "11 2 moved / 1 p\n3\nfalse\ntrue\nGreen 1 Blue\nRed Green Blue \nnot red\n12\n12\n3\n"
+            "some 8\nnone\ntrue\nfalse\nhigh\n",
+        )
+
+    def test_case_on_values(self):
+        out = self.output("""
+            type
+                Circle = record
+                    r: Integer
+                Rect = record
+                    w: Integer
+                    h: Integer
+                Shape = Circle | Rect
+
+            function kind(s: String): Integer
+                return case s of
+                    "a", "b": 1
+                    "c": 2
+                    else: 0
+
+            function cls(c: Char): String
+                return case c of
+                    'a'..'z': "lower"
+                    '0'..'9': "digit"
+                    else: "other"
+
+            for n := 1 to 3 do
+                let s: Shape := case n of
+                    1: Circle(r: n)
+                    else: Rect(w: n, h: 1)
+                case s of
+                    Circle(c): writeln("circle {c.r}")
+                    Rect(_): writeln("rect")
+            writeln("{kind("b")} {kind("c")} {kind("zz")}")
+            writeln("{cls('q')} {cls('5')} {cls('#')}")
+            let o: Option[String] := System.None
+            case o of
+                Some(v): writeln(v.value)
+                None: writeln("nothing")
+            let flag := true
+            case flag of
+                true: writeln("yes")
+                false: writeln("no")
+            """)
+        self.assertEqual(out, "circle 1\nrect\nrect\n1 2 0\nlower digit other\nnothing\nyes\n")
+
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_copy_on_write(self):
+        """Copies share a block until one is changed; every block is freed once."""
+        out = self.output("""
+            type
+                Inner = record
+                    name: String
+                    n: Integer
+                Outer = record
+                    inner: Inner
+                    tag: String
+                Value = Integer | String | Inner
+                Tree = Leaf | Node
+                Leaf = record
+                Node = record
+                    left: Tree
+                    value: Integer
+                    right: Tree
+
+            procedure rename(var s: String, text: String)
+                s := text
+
+            function make(n: Integer): Outer
+                return Outer(inner: Inner(name: "in{n}", n: n), tag: "t{n}")
+
+            function describe(v: Value): String
+                return case v of
+                    Integer(i): "int {i}"
+                    String(s): "str {s}"
+                    Inner(r): "inner {r.name}"
+
+            function sum(t: Tree): Integer
+                case t of
+                    Leaf: return 0
+                    Node(n): return sum(n.left) + n.value + sum(n.right)
+
+            function parse(s: String): Result[Integer, String]
+                if s = "one" then
+                    return Ok(1)
+                return Err("bad: {s}")
+
+            var a := make(1)
+            var b := a
+            a.inner.name := "changed"
+            rename(var a.inner.name, text: "renamed {a.tag}")
+            writeln("{a.inner.name} {b.inner.name} {make(5).inner.name}")
+            b.inner.n := 7
+            writeln("{a.inner.n} {b.inner.n}")
+            writeln(a = b)
+            b := a
+            writeln(a = b)
+            writeln(describe(a.inner.n))
+            writeln(describe("x"))
+            writeln(describe(a.inner))
+            var t: Tree := Node(left: Node(left: Leaf, value: 1, right: Leaf), value: 2, right: Node(left: Leaf, value: 3, right: Leaf))
+            writeln(sum(t))
+            var i := 0
+            while true do
+                i := i + 1
+                case parse(if i = 1 then "one" else "two") of
+                    Ok(v): writeln("ok {v.value}")
+                    Err(e):
+                        writeln(e.error)
+                        break
+            var total := 0
+            for k := 1 to 10000 do
+                let o := make(k)
+                var c := o
+                c.inner.n := k
+                total := total + c.inner.n - o.inner.n
+            writeln(total)
+            """, under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))  # fmt: skip
+        self.assertEqual(
+            out,
+            "renamed t1 in1 in5\n1 7\nfalse\ntrue\nint 1\nstr x\ninner renamed t1\n6\nok 1\nbad: two\n0\n",
+        )
+
+
 class Unsupported(unittest.TestCase):
     def test_reported_at_the_construct(self):
         built, _ = compile_program("""
