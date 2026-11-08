@@ -891,7 +891,10 @@ function largest[T: Ordered](xs: List[T]): Option[T]
 | 7 | unary `-`, `try` | |
 | 8 | postfix: call `()`, index `[]`, field `.` | |
 
-- `/` works on Real only. `div` and `mod` work on integers only.
+- `/` works on Real only. `div` and `mod` work on integers only. `div` truncates toward
+  zero and `a mod b` takes the sign of `a`, so `a = (a div b) * b + a mod b`:
+  `-7 div 2 = -3`, `-7 mod 2 = -1`. `x mod -1` is `0`; `Integer.min div -1` overflows.
+- Division by zero panics (`P0004`), in `--unchecked` builds too.
 - `and`, `or`, `not` work on Boolean only (short-circuit). Bitwise ops are library functions in the `Bits` unit (§14).
 - Mixed numeric types are an error. Convert explicitly: `toReal(i)`, `toInt(r)` (truncates), `round(r)`, `Int32(x)` (checked narrowing).
 - Integer overflow panics in checked builds (`P0002`) and wraps in `--unchecked` builds.
@@ -1047,7 +1050,13 @@ v0.1 is single-threaded, but the design is fixed now so v0.1 doesn't rule it out
 ## 12. Errors and panics
 
 - **Expected failures** (I/O, parsing, validation) are values: `Result[T, E]`.
-- **Bugs** panic. A panic prints the code, message, file:line:col, and a stack trace to stderr, then exits with status 70.
+- **Bugs** panic. A panic prints the code, message, file:line:col, and a stack trace to stderr, then exits with status 70:
+  ```
+  panic P0002: integer overflow
+      at Main.pst:12:15
+  ```
+  Paths are relative to the program's directory; standard units show their file name.
+  `requires`, `ensures` and `assert` panics quote the failed condition (and the assert's message).
 
 | Code | Cause |
 |---|---|

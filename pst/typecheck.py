@@ -491,6 +491,7 @@ class TypeChecker:
         self.file = unit.file
         self._resolver = None
         self.types: dict[int, object] = {}  # id(expr) -> type
+        self.calls: dict[int, Match] = {}  # id(call) -> the overload chosen, for the backend
         self.why = ""  # why the last trait check failed
         self._in_builtin: set = set()
         # The routine being checked:
@@ -1740,6 +1741,7 @@ class TypeChecker:
             return ERROR
         m = top[0]
         self.finish(e, name, m, receiver, ref_span)
+        self.calls[id(e)] = m
         return subst(m.result, m.s)
 
     def match(self, c: Cand, args: list[CArg], explicit, expected, span: Span):

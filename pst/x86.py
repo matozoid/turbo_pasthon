@@ -107,6 +107,43 @@ class Assembler:
             self.emit(_rex(True, 0, dst), 0xB8 + (dst & 7))
             self.code += (value & (2**64 - 1)).to_bytes(8, "little")
 
+    def _mem(self, op: bytes, reg: int, base: int, disp: int, w: bool = True, byte_reg: bool = False) -> None:
+        """An instruction with a `[base + disp]` operand. ``reg`` is the register operand
+        or the opcode extension."""
+        rex = _rex(w, reg, base)
+        if rex != 0x40 or (byte_reg and reg >= 4):  # spl..dil need a REX prefix
+            self.emit(rex)
+        self.code += op
+        if disp == 0 and base & 7 != RBP:
+            mod, tail = 0, b""
+        elif -128 <= disp < 128:
+            mod, tail = 1, bytes([disp & 0xFF])
+        else:
+            mod, tail = 2, _i32(disp)
+        self.emit(mod << 6 | (reg & 7) << 3 | (base & 7))
+        if base & 7 == RSP:
+            self.emit(0x24)  # SIB: no index
+        self.code += tail
+
+    def load(self, dst: int, base: int, disp: int = 0) -> None:
+        """`mov dst, [base + disp]`."""
+        self._mem(b"\x8b", dst, base, disp)
+
+    def store(self, base: int, disp: int, src: int) -> None:
+        """`mov [base + disp], src`."""
+        self._mem(b"\x89", src, base, disp)
+
+    def store8(self, base: int, disp: int, src: int) -> None:
+        """`mov byte [base + disp], src8`."""
+        self._mem(b"\x88", src, base, disp, w=False, byte_reg=True)
+
+    def store8_imm(self, base: int, disp: int, value: int) -> None:
+        self._mem(b"\xc6", 0, base, disp, w=False)
+        self.emit(value & 0xFF)
+
+    def lea(self, dst: int, base: int, disp: int) -> None:
+        self._mem(b"\x8d", dst, base, disp)
+
     def lea_data(self, dst: int, label: str) -> None:
         """`lea dst, [rip + label]` for a rodata label."""
         self.emit(_rex(True, dst, 0), 0x8D, 0x05 | (dst & 7) << 3)
@@ -123,6 +160,66 @@ class Assembler:
 
     def test(self, a: int, b: int) -> None:
         self._rr(0x85, a, b)
+
+    def imul(self, dst: int, src: int) -> None:
+        """`imul dst, src` (signed; sets OF on overflow)."""
+        self.emit(_rex(True, dst, src), 0x0F, 0xAF, 0xC0 | (dst & 7) << 3 | (src & 7))
+
+    def _unary(self, ext: int, r: int) -> None:
+        self.emit(_rex(True, 0, r), 0xF7, 0xC0 | ext << 3 | (r & 7))
+
+    def neg(self, r: int) -> None:
+        self._unary(3, r)
+
+    def idiv(self, r: int) -> None:
+        """Signed rdx:rax / r: quotient in rax, remainder in rdx."""
+        self._unary(7, r)
+
+    def div(self, r: int) -> None:
+        """Unsigned rdx:rax / r."""
+        self._unary(6, r)
+
+    def cqo(self) -> None:
+        """Sign-extends rax into rdx."""
+        self.emit(0x48, 0x99)
+
+    def inc(self, r: int) -> None:
+        self.emit(_rex(True, 0, r), 0xFF, 0xC0 | (r & 7))
+
+    def dec(self, r: int) -> None:
+        self.emit(_rex(True, 0, r), 0xFF, 0xC8 | (r & 7))
+
+    def setcc(self, cc: str, r: int) -> None:
+        """Sets the low byte of ``r`` to 1 if the condition holds, else 0."""
+        if r >= 4:
+            self.emit(_rex(False, 0, r))
+        self.emit(0x0F, 0x90 | CC[cc], 0xC0 | (r & 7))
+
+    def movzx8(self, dst: int, src: int) -> None:
+        """`movzx dst32, src8`."""
+        rex = _rex(False, dst, src)
+        if rex != 0x40 or src >= 4:
+            self.emit(rex)
+        self.emit(0x0F, 0xB6, 0xC0 | (dst & 7) << 3 | (src & 7))
+
+    def xor_imm32(self, dst: int, value: int) -> None:
+        """`xor r32, imm8` (flips Booleans)."""
+        if dst >= 8:
+            self.emit(0x41)
+        self.emit(0x83, 0xF0 | (dst & 7), value & 0xFF)
+
+    def sub_imm32_fixed(self, dst: int) -> int:
+        """`sub dst, imm32` with the immediate patched later; returns its position."""
+        self.emit(_rex(True, 0, dst), 0x81, 0xE8 | (dst & 7))
+        pos = len(self.code)
+        self.code += b"\0\0\0\0"
+        return pos
+
+    def patch32(self, pos: int, value: int) -> None:
+        self.code[pos : pos + 4] = _i32(value)
+
+    def leave(self) -> None:
+        self.emit(0xC9)
 
     def xor32(self, dst: int, src: int) -> None:
         """`xor r32, r32`: the short way to zero a register."""
