@@ -1,0 +1,1670 @@
+unit Parser
+
+## Recursive-descent parser (SPEC §16).
+##
+## The parser never stops at the first error (SPEC §15.6). A syntax error inside a line
+## returns `Err(Failed())`, which `try` carries up to the enclosing line list; the list
+## then skips the rest of the line and any block indented under it, and inserts an
+## `ErrorStmt`. Indentation makes these recovery points reliable, so one mistake produces
+## one diagnostic.
+##
+## Errors that don't make the structure ambiguous (a chained comparison, an `if`
+## expression without `else`, a missing initializer that is still followed by a value...)
+## are reported without unwinding, and parsing continues normally.
+
+uses Source, Tokens, Diagnostics, Lexer, Ast, Strings
+
+type
+    export ParseResult = record
+        export file: SourceFile
+        export tokens: List[Token]
+        export comments: List[Comment]
+        export diagnostics: List[Diagnostic]
+
+    ## A syntax error that unwinds to the nearest line list; it is already reported.
+    Failed = record
+
+    Parsed[T] = Result[T, Failed]
+
+    ## What an end marker after an item would close.
+    TargetKind = (NoTarget, Broken, RepeatBlock, Closes)
+
+    Target = record
+        kind: TargetKind
+        ## For `Closes`: the marker's keyword, and the block's name or "".
+        keyword: String
+        name: String
+        hasMarker: Boolean
+
+    ## How to parse the lines of one kind of list.
+    Lines[T] = record
+        ## One line; `None` for a line that adds nothing.
+        one: function(ref State): Parsed[Option[T]]
+        ## The item that stands for a broken line.
+        onError: Option[function(Span): T]
+        ## For items that end markers can close.
+        marks: Option[Marks[T]]
+
+    Marks[T] = record
+        ## What an end marker after the item closes.
+        target: function(T): Target
+        ## The item with its end marker set.
+        mark: function(T, Span): T
+
+    ## A line in a record or trait.
+    Member = FieldDecl | Signature
+
+    State = record
+        toks: List[Token]
+        i: Integer
+        file: String
+        diags: List[Diagnostic]
+        ## `code:start` of the reported diagnostics.
+        reported: Map[String, Boolean]
+        ## The last consumed non-layout token.
+        last: Token
+        ## `program` or `unit`.
+        kind: String
+        units: List[Ident]
+        ## Parser errors on a logical line that already has a lexical error are almost
+        ## always follow-on errors, so they are not reported. A logical line can span
+        ## several physical lines inside brackets.
+        lexErrorLines: Map[Integer, Boolean]
+        lexErrorRanges: List[Pair[Integer, Integer]]
+        ## The text of each doc comment on a line without code, by line.
+        docs: Map[Integer, String]
+        nextId: Integer
+
+## Parses `text`, the contents of `file`.
+export function parse(text: String, file: String := "<input>"): ParseResult
+    let lexed := lex(text, file: file)
+    var lines: Map[Integer, Boolean] := {}
+    for d in lexed.diagnostics do
+        lines[d.span.line] := true
+    var ends: List[Integer] := []
+    for t in lexed.tokens do
+        if t.kind = TokenKind.Newline or t.kind = TokenKind.Eof then
+            add(var ends, t.span.end)
+    var ranges: List[Pair[Integer, Integer]] := []
+    for d in lexed.diagnostics do
+        var stop := d.span.end
+        for e in ends do
+            if e >= d.span.end then
+                stop := e
+                break
+        add(var ranges, Pair(first: d.span.start, second: stop))
+    var codeLines: Map[Integer, Boolean] := {}
+    for t in lexed.tokens do
+        if not isLayout(t.kind) then
+            codeLines[t.span.line] := true
+    var docs: Map[Integer, String] := {}
+    for c in lexed.comments do
+        if c.isDoc and not (c.span.line in codeLines) then
+            docs[c.span.line] := c.text
+    let p := new(State(
+        toks: lexed.tokens,
+        i: 0,
+        file: file,
+        diags: [],
+        reported: {},
+        last: lexed.tokens[0],
+        kind: "program",
+        units: [],
+        lexErrorLines: lines,
+        lexErrorRanges: ranges,
+        docs: docs,
+        nextId: 0,
+    ))
+    let tree := parseFile(p)
+    return ParseResult(
+        file: tree,
+        tokens: lexed.tokens,
+        comments: lexed.comments,
+        diagnostics: sorted(concat(lexed.diagnostics, p.diags)),
+    )
+
+## The diagnostics by position, stably.
+function sorted(ds: List[Diagnostic]): List[Diagnostic]
+    var out: List[Diagnostic] := []
+    for d in ds do
+        add(var out, d)
+        var j := len(out) - 1
+        while j > 0 and before(d, b: out[j - 1]) do
+            out[j] := out[j - 1]
+            j := j - 1
+        out[j] := d
+    return out
+
+function before(a: Diagnostic, b: Diagnostic): Boolean
+    return a.span.start < b.span.start or (a.span.start = b.span.start and a.span.end < b.span.end)
+
+function point(s: Span, atEnd: Boolean := false): Span
+    if atEnd then
+        return Span(start: s.end, end: s.end, line: s.endLine, col: s.endCol, endLine: s.endLine, endCol: s.endCol)
+    return Span(start: s.start, end: s.start, line: s.line, col: s.col, endLine: s.line, endCol: s.col)
+
+function describe(tok: Token): String
+    let k := tok.kind
+    if k = TokenKind.Newline then
+        return "end of line"
+    if k = TokenKind.Indent then
+        return "an indented line"
+    if k = TokenKind.Dedent then
+        return "end of block"
+    if k = TokenKind.Eof then
+        return "end of file"
+    if k = TokenKind.Ident then
+        return "identifier '{tok.text}'"
+    if k = TokenKind.EndMarker then
+        return "an end marker"
+    if k = TokenKind.IntLit then
+        return "integer literal {tok.text}"
+    if k = TokenKind.RealLit then
+        return "real literal {tok.text}"
+    if k = TokenKind.CharLit then
+        return "char literal {tok.text}"
+    if k = TokenKind.StringLit then
+        return "string literal {tok.text}"
+    if k = TokenKind.StringBegin then
+        return "string start {tok.text}"
+    return "'{tok.text}'"
+
+## `s` without trailing spaces and tabs.
+function trimEnd(s: String): String
+    let cs := collect(chars(s))
+    var n := len(cs)
+    while n > 0 and (cs[n - 1] = ' ' or cs[n - 1] = '\t') do
+        n := n - 1
+    return slice(s, 0, byteLen(s) - (len(cs) - n))
+
+# --------------------------------------------------------------------- token kinds
+
+function isDeclStart(k: TokenKind): Boolean
+    return (
+        k = TokenKind.KwType or k = TokenKind.KwConst or k = TokenKind.KwFunction
+        or k = TokenKind.KwProcedure or k = TokenKind.KwExtern or k = TokenKind.KwTest
+        or k = TokenKind.KwExport or k = TokenKind.KwUnsafe
+    )
+
+## Kinds that start a type but not an expression.
+function isTypeOnlyStart(k: TokenKind): Boolean
+    return k = TokenKind.KwRef or k = TokenKind.KwFunction or k = TokenKind.KwProcedure or k = TokenKind.KwThisType
+
+function isComparison(k: TokenKind): Boolean
+    return (
+        k = TokenKind.Eq or k = TokenKind.Ne or k = TokenKind.Lt or k = TokenKind.Le
+        or k = TokenKind.Gt or k = TokenKind.Ge or k = TokenKind.KwIn
+    )
+
+function isOr(k: TokenKind): Boolean
+    return k = TokenKind.KwOr
+
+function isAnd(k: TokenKind): Boolean
+    return k = TokenKind.KwAnd
+
+function isAdditive(k: TokenKind): Boolean
+    return k = TokenKind.Plus or k = TokenKind.Minus
+
+function isMultiplicative(k: TokenKind): Boolean
+    return k = TokenKind.Star or k = TokenKind.Slash or k = TokenKind.KwDiv or k = TokenKind.KwMod
+
+# -------------------------------------------------------------------- token values
+
+function textValue(t: Token): String
+    case t.value of
+        TextValue(v): return v.text
+        else: return ""
+
+function intValue(t: Token): UInt64
+    case t.value of
+        IntValue(v): return v.value
+        else: return 0
+
+function realDigits(t: Token): String
+    case t.value of
+        RealValue(v): return v.digits
+        else: return ""
+
+function charValue(t: Token): Char
+    case t.value of
+        CharValue(v): return v.value
+        else: return Char(0)
+
+function markerValue(t: Token): MarkerValue
+    case t.value of
+        MarkerValue(v): return v
+        else: return MarkerValue(keyword: "", name: None)
+
+# --------------------------------------------------------------------------- spans
+
+function exprSpan(e: Expr): Span
+    case e of
+        Name(x): return x.span
+        IntLit(x): return x.span
+        RealLit(x): return x.span
+        CharLit(x): return x.span
+        BoolLit(x): return x.span
+        StringLit(x): return x.span
+        InterpString(x): return x.span
+        ListLit(x): return x.span
+        MapLit(x): return x.span
+        SetLit(x): return x.span
+        EmptyBraces(x): return x.span
+        Paren(x): return x.span
+        Unary(x): return x.span
+        Binary(x): return x.span
+        Call(x): return x.span
+        Index(x): return x.span
+        FieldAccess(x): return x.span
+        Deref(x): return x.span
+        IfExpr(x): return x.span
+        CaseExpr(x): return x.span
+        ErrorExpr(x): return x.span
+
+function stmtSpan(s: Stmt): Span
+    case s of
+        VarDecl(x): return x.span
+        Assign(x): return x.span
+        Discard(x): return x.span
+        ExprStmt(x): return x.span
+        If(x): return x.span
+        While(x): return x.span
+        Repeat(x): return x.span
+        ForRange(x): return x.span
+        ForIn(x): return x.span
+        Case(x): return x.span
+        Defer(x): return x.span
+        Break(x): return x.span
+        Continue(x): return x.span
+        Return(x): return x.span
+        Assert(x): return x.span
+        ErrorStmt(x): return x.span
+
+function typeSpan(t: TypeExpr): Span
+    case t of
+        TypeName(x): return x.span
+        RefType(x): return x.span
+        FuncType(x): return x.span
+
+# ---------------------------------------------------------------- union injections
+
+function typeItem(t: TypeExpr): TypeOrExpr
+    return t
+
+function exprItem(e: Expr): TypeOrExpr
+    return e
+
+function nameType(t: TypeName): TypeExpr
+    return t
+
+function textPart(s: String): InterpPart
+    return TextPart(text: s)
+
+function exprPart(e: Expr): InterpPart
+    return e
+
+# -------------------------------------------------------------------- token access
+
+function peek(p: ref State, ahead: Integer := 0): Token
+    let j := p.i + ahead
+    return p.toks[if j < len(p.toks) then j else len(p.toks) - 1]
+
+function at(p: ref State, k: TokenKind): Boolean
+    return p.toks[p.i].kind = k
+
+function advance(p: ref State): Token
+    let tok := p.toks[p.i]
+    if tok.kind <> TokenKind.Eof then
+        p.i := p.i + 1
+    if not isLayout(tok.kind) then
+        p.last := tok
+    return tok
+
+## Advances past one token.
+procedure step(p: ref State)
+    _ := advance(p)
+
+## Advances past a `k`, if there is one, and says whether there was.
+function accept(p: ref State, k: TokenKind): Boolean
+    if at(p, k) then
+        step(p)
+        return true
+    return false
+
+procedure skipOver(p: ref State, k: TokenKind)
+    _ := accept(p, k)
+
+function expect(p: ref State, k: TokenKind, what: String): Parsed[Token]
+    if at(p, k) then
+        return Ok(advance(p))
+    return fail(p, "E0040", peek(p).span, message: "expected {what}, found {describe(peek(p))}")
+
+## The span from `start` to the end of the last consumed token.
+function finish(p: ref State, start: Span): Span
+    if p.last.span.end >= start.start then
+        return join(start, b: p.last.span)
+    return point(start)
+
+function prevWasDedent(p: ref State): Boolean
+    return p.i > 0 and p.toks[p.i - 1].kind = TokenKind.Dedent
+
+## The end of a simple line: NEWLINE, or nothing right after an indented block.
+function endLine(p: ref State): Parsed[Boolean]
+    if at(p, TokenKind.Newline) then
+        step(p)
+    else if not prevWasDedent(p) then
+        return fail(p, "E0040", peek(p).span, message: "expected end of line, found {describe(peek(p))}")
+    return Ok(true)
+
+function newId(p: ref State): Integer
+    p.nextId := p.nextId + 1
+    return p.nextId
+
+# --------------------------------------------------------------------- diagnostics
+
+procedure reportWith(p: ref State, code: String, span: Span, message: String, fixes: List[Fix])
+    if span.line in p.lexErrorLines then
+        return
+    for r in p.lexErrorRanges do
+        if r.first <= span.start and span.start <= r.second then
+            return
+    let key := "{code}:{span.start}"
+    if key in p.reported then
+        return
+    p.reported[key] := true
+    add(var p.diags, Diagnostic(file: p.file, span: span, severity: Severity.Error, code: code, message: message, fixes: fixes))
+
+procedure report(p: ref State, code: String, span: Span, message: String)
+    reportWith(p, code, span, message: message, fixes: [])
+
+## Reports, and unwinds to the enclosing line list.
+function fail[T](p: ref State, code: String, span: Span, message: String): Parsed[T]
+    report(p, code, span, message: message)
+    return Err(Failed())
+
+## Skips the rest of the current line and any block indented under it.
+procedure sync(p: ref State)
+    var depth := 0
+    while true do
+        let k := peek(p).kind
+        if k = TokenKind.Eof then
+            return
+        if depth = 0 then
+            if k = TokenKind.Dedent then
+                return
+            if k = TokenKind.Newline then
+                step(p)
+                if not at(p, TokenKind.Indent) then
+                    return
+                depth := 1
+        else if k = TokenKind.Indent then
+            depth := depth + 1
+        else if k = TokenKind.Dedent then
+            depth := depth - 1
+            if depth = 0 then
+                step(p)
+                return
+        step(p)
+
+# ---------------------------------------------------------------------- line lists
+
+## Parses lines until the end of the current block (DEDENT or EOF).
+function lineList[T](p: ref State, how: Lines[T]): List[T]
+    var out: List[T] := []
+    while not at(p, TokenKind.Dedent) and not at(p, TokenKind.Eof) do
+        if at(p, TokenKind.EndMarker) then
+            let n := len(out)
+            var prev := target(TargetKind.NoTarget)
+            if n > 0 and isSome(how.marks) then
+                prev := get(how.marks).target(out[n - 1])
+            let marked := endMarker(p, prev)
+            if isSome(marked) then
+                out[n - 1] := get(how.marks).mark(out[n - 1], get(marked))
+            continue
+        if at(p, TokenKind.Indent) then
+            report(p, "E0041", peek(p).span, message: "unexpected indentation")
+            step(p)
+            out := concat(out, lineList(p, how: how))
+            skipOver(p, TokenKind.Dedent)
+            continue
+        let pos := p.i
+        let start := peek(p).span
+        case how.one(p) of
+            Ok(item):
+                if isSome(item.value) then
+                    add(var out, get(item.value))
+            Err(_):
+                sync(p)
+                if isSome(how.onError) then
+                    add(var out, get(how.onError)(finish(p, start)))
+        if p.i = pos then
+            step(p)
+    return out
+
+## The end of a header line, then an indented list of lines.
+function indented[T](p: ref State, how: Lines[T], what: String, optional: Boolean := false): Parsed[List[T]]
+    try endLine(p)
+    if not at(p, TokenKind.Indent) then
+        if not optional then
+            report(p, "E0042", point(peek(p).span), message: "expected an indented {what}")
+        let none: List[T] := []
+        return Ok(none)
+    let indent := advance(p)
+    let out := lineList(p, how: how)
+    skipOver(p, TokenKind.Dedent)
+    if len(out) = 0 then
+        report(p, "E0042", indent.span, message: "expected an indented {what}")
+    return Ok(out)
+
+## Checks the end marker at the current token against the item before it, and gives
+## the marker's span if the item takes it.
+function endMarker(p: ref State, prev: Target): Option[Span]
+    let tok := advance(p)
+    let m := markerValue(tok)
+    let text := trimEnd(tok.text)
+    var result: Option[Span] := None
+    if prev.kind = TargetKind.RepeatBlock then
+        report(p, "E0010", tok.span, message: "a 'repeat' block is closed by 'until' and takes no end marker")
+    else if prev.kind = TargetKind.NoTarget then
+        report(p, "E0010", tok.span, message: "end marker '{text}' does not directly follow a block it can close")
+    else if prev.kind = TargetKind.Closes then
+        if m.keyword <> prev.keyword or (isSome(m.name) and get(m.name) <> prev.name) then
+            var correct := "# end {prev.keyword}"
+            if prev.name <> "" and isSome(m.name) then
+                correct := "{correct} {prev.name}"
+            let what := if prev.name <> "" then "{prev.keyword} '{prev.name}'" else "'{prev.keyword}' block"
+            reportWith(
+                p,
+                "E0010",
+                tok.span,
+                message: "end marker '{text}' does not match the {what} it closes; expected '{correct}'",
+                fixes: [Fix(description: "correct the end marker", edits: [Edit(span: tok.span, text: correct)])],
+            )
+        else if prev.hasMarker then
+            report(p, "E0010", tok.span, message: "the block already has an end marker")
+        else
+            result := Some(tok.span)
+    skipOver(p, TokenKind.Newline)
+    return result
+
+function target(kind: TargetKind): Target
+    return Target(kind: kind, keyword: "", name: "", hasMarker: false)
+
+function closes(keyword: String, name: String, endMarker: Option[Span]): Target
+    return Target(kind: TargetKind.Closes, keyword: keyword, name: name, hasMarker: isSome(endMarker))
+
+# Statements.
+
+function stmtTarget(s: Stmt): Target
+    case s of
+        If(x): return closes("if", name: "", endMarker: x.endMarker)
+        While(x): return closes("while", name: "", endMarker: x.endMarker)
+        ForRange(x): return closes("for", name: "", endMarker: x.endMarker)
+        ForIn(x): return closes("for", name: "", endMarker: x.endMarker)
+        Case(x): return closes("case", name: "", endMarker: x.endMarker)
+        Defer(x):
+            case x.body of
+                Block(_): return closes("defer", name: "", endMarker: x.endMarker)
+                Stmt(_): return target(TargetKind.NoTarget)
+        Repeat(_): return target(TargetKind.RepeatBlock)
+        ErrorStmt(_): return target(TargetKind.Broken)
+        else: return target(TargetKind.NoTarget)
+
+function markStmt(s: Stmt, at: Span): Stmt
+    case s of
+        If(x):
+            var y := x
+            y.endMarker := Some(at)
+            return y
+        While(x):
+            var y := x
+            y.endMarker := Some(at)
+            return y
+        ForRange(x):
+            var y := x
+            y.endMarker := Some(at)
+            return y
+        ForIn(x):
+            var y := x
+            y.endMarker := Some(at)
+            return y
+        Case(x):
+            var y := x
+            y.endMarker := Some(at)
+            return y
+        Defer(x):
+            var y := x
+            y.endMarker := Some(at)
+            return y
+        else: return s
+
+function stmtLine(p: ref State): Parsed[Option[Stmt]]
+    return Ok(Some(try stmt(p)))
+
+function errorStmt(s: Span): Stmt
+    return ErrorStmt(span: s)
+
+function stmtLines(): Lines[Stmt]
+    return Lines(one: stmtLine, onError: Some(errorStmt), marks: Some(Marks(target: stmtTarget, mark: markStmt)))
+
+# Top-level items.
+
+function declTarget(d: Decl): Target
+    case d of
+        Routine(r): return closes(if r.sig.isFunction then "function" else "procedure", name: r.sig.name.name, endMarker: r.endMarker)
+        TestBlock(t): return closes("test", name: "", endMarker: t.endMarker)
+        ExternBlock(e): return closes("extern", name: "", endMarker: e.endMarker)
+        else: return target(TargetKind.NoTarget)
+
+function topTarget(t: TopItem): Target
+    case t of
+        Decl(d): return declTarget(d)
+        Stmt(s): return stmtTarget(s)
+
+function markDecl(d: Decl, at: Span): Decl
+    case d of
+        Routine(x):
+            var y := x
+            y.endMarker := Some(at)
+            return y
+        TestBlock(x):
+            var y := x
+            y.endMarker := Some(at)
+            return y
+        ExternBlock(x):
+            var y := x
+            y.endMarker := Some(at)
+            return y
+        else: return d
+
+function markTop(t: TopItem, at: Span): TopItem
+    case t of
+        Decl(d): return markDecl(d, at: at)
+        Stmt(s): return markStmt(s, at: at)
+
+function errorTop(s: Span): TopItem
+    let e: Stmt := ErrorStmt(span: s)
+    return e
+
+function topLines(): Lines[TopItem]
+    return Lines(one: topItem, onError: Some(errorTop), marks: Some(Marks(target: topTarget, mark: markTop)))
+
+# Type declarations, members.
+
+function typeDeclTarget(d: TypeDecl): Target
+    case d.body of
+        RecordType(_): return closes("record", name: d.name.name, endMarker: d.endMarker)
+        TraitType(_): return closes("trait", name: d.name.name, endMarker: d.endMarker)
+        else: return target(TargetKind.NoTarget)
+
+function markTypeDecl(d: TypeDecl, at: Span): TypeDecl
+    var y := d
+    y.endMarker := Some(at)
+    return y
+
+function typeDeclLine(p: ref State): Parsed[Option[TypeDecl]]
+    return Ok(Some(try typeDecl(p)))
+
+function typeDeclLines(): Lines[TypeDecl]
+    return Lines(one: typeDeclLine, onError: None, marks: Some(Marks(target: typeDeclTarget, mark: markTypeDecl)))
+
+function recordMember(p: ref State): Parsed[Option[Member]]
+    return Ok(Some(try member(p, inTrait: false)))
+
+function traitMember(p: ref State): Parsed[Option[Member]]
+    return Ok(Some(try member(p, inTrait: true)))
+
+function memberLines(inTrait: Boolean): Lines[Member]
+    return Lines(
+        one: if inTrait then traitMember else recordMember,
+        onError: None,
+        marks: None,
+    )
+
+# The other lists.
+
+function constLine(p: ref State): Parsed[Option[ConstDecl]]
+    return Ok(Some(try constDecl(p)))
+
+function constLines(): Lines[ConstDecl]
+    return Lines(one: constLine, onError: None, marks: None)
+
+function externLine(p: ref State): Parsed[Option[ExternItem]]
+    return Ok(Some(try externDecl(p)))
+
+function externLines(): Lines[ExternItem]
+    return Lines(one: externLine, onError: None, marks: None)
+
+function caseArmLine(p: ref State): Parsed[Option[CaseArm]]
+    return Ok(Some(try caseArm(p)))
+
+function caseArmLines(): Lines[CaseArm]
+    return Lines(one: caseArmLine, onError: None, marks: None)
+
+function caseExprArmLine(p: ref State): Parsed[Option[CaseExprArm]]
+    return Ok(Some(try caseExprArm(p)))
+
+function caseExprArmLines(): Lines[CaseExprArm]
+    return Lines(one: caseExprArmLine, onError: None, marks: None)
+
+## The `##` comment directly above `start`, without the `## ` prefixes.
+function doc(p: ref State, start: Span): Option[String]
+    var lines: List[String] := []
+    var line := start.line - 1
+    while line in p.docs do
+        let full := p.docs[line]
+        let text := slice(full, 2, byteLen(full))
+        add(var lines, if startsWith(text, prefix: " ") then slice(text, 1, byteLen(text)) else text)
+        line := line - 1
+    if len(lines) = 0 then
+        return None
+    var ordered: List[String] := []
+    var i := len(lines) - 1
+    while i >= 0 do
+        add(var ordered, lines[i])
+        i := i - 1
+    return Some(join(ordered, sep: "\n"))
+
+# --------------------------------------------------------------------------- names
+
+function ident(p: ref State, what: String): Parsed[Ident]
+    let tok := peek(p)
+    if tok.kind = TokenKind.Ident then
+        step(p)
+        return Ok(Ident(span: tok.span, name: tok.text))
+    if tok.kind = TokenKind.Underscore then
+        return fail(p, "E0040", tok.span, message: "expected {what}; names starting with '_' are discards")
+    return fail(p, "E0040", tok.span, message: "expected {what}, found {describe(tok)}")
+
+## A string literal without placeholders (library, symbol, and test names).
+function stringConst(p: ref State, what: String): Parsed[String]
+    if at(p, TokenKind.StringLit) then
+        return Ok(textValue(advance(p)))
+    if at(p, TokenKind.StringBegin) then
+        let e := try primary(p)
+        report(p, "E0040", exprSpan(e), message: "{what} may not contain placeholders; write '\\\{'")
+        return Ok("")
+    return fail(p, "E0040", peek(p).span, message: "expected {what} (a string), found {describe(peek(p))}")
+
+# ---------------------------------------------------------------------------- file
+
+function parseFile(p: ref State): SourceFile
+    let start := peek(p).span
+    var name := Ident(span: point(start), name: "")
+    if at(p, TokenKind.KwProgram) or at(p, TokenKind.KwUnit) then
+        p.kind := advance(p).text
+        case ident(p, "{p.kind} name") of
+            Ok(n):
+                name := n.value
+                if isErr(endLine(p)) then
+                    sync(p)
+            Err(_):
+                sync(p)
+    else
+        report(p, "E0045", point(start), message: "a file must start with 'program Name' or 'unit Name'")
+    if at(p, TokenKind.KwUses) then
+        usesClause(p)
+    let items := lineList(p, how: topLines())
+    return SourceFile(span: finish(p, start), kind: p.kind, name: name, units: p.units, items: items)
+
+procedure usesClause(p: ref State)
+    if isErr(unitNames(p)) then
+        sync(p)
+
+function unitNames(p: ref State): Parsed[Boolean]
+    step(p)
+    let first := try ident(p, "unit name")
+    add(var p.units, first)
+    while accept(p, TokenKind.Comma) do
+        let next := try ident(p, "unit name")
+        add(var p.units, next)
+    try endLine(p)
+    return Ok(true)
+
+function topItem(p: ref State): Parsed[Option[TopItem]]
+    let tok := peek(p)
+    if tok.kind = TokenKind.KwUses then
+        report(p, "E0044", tok.span, message: "'uses' must come directly after the header, at most once")
+        usesClause(p)
+        return Ok(None)
+    if tok.kind = TokenKind.KwProgram or tok.kind = TokenKind.KwUnit then
+        return fail(p, "E0045", tok.span, message: "unexpected '{tok.text}': a file has exactly one header")
+    if isDeclStart(tok.kind) then
+        let d: TopItem := try decl(p)
+        return Ok(Some(d))
+    let s: Stmt := try stmt(p)
+    if p.kind = "unit" then
+        report(p, "E0101", stmtSpan(s), message: "a unit can't contain top-level statements; move it into a function")
+    let t: TopItem := s
+    return Ok(Some(t))
+
+function decl(p: ref State): Parsed[Decl]
+    let start := peek(p).span
+    if at(p, TokenKind.KwType) then
+        let s := try typeSection(p)
+        return Ok(s)
+    if at(p, TokenKind.KwConst) then
+        let s := try constSection(p)
+        return Ok(s)
+    if at(p, TokenKind.KwExtern) then
+        let e := try externBlock(p)
+        return Ok(e)
+    if at(p, TokenKind.KwTest) then
+        let t := try testBlock(p)
+        return Ok(t)
+    let exported := accept(p, TokenKind.KwExport)
+    if exported and (at(p, TokenKind.KwType) or at(p, TokenKind.KwConst)) then
+        report(p, "E0048", peek(p).span, message: "'export' goes on each declaration inside a '{peek(p).text}' section")
+        return decl(p)
+    if at(p, TokenKind.KwUnsafe) or at(p, TokenKind.KwFunction) or at(p, TokenKind.KwProcedure) then
+        let r := try routine(p, exported, start: start)
+        return Ok(r)
+    return fail(p, "E0040", peek(p).span, message: "expected 'function' or 'procedure' after 'export', found {describe(peek(p))}")
+
+# --------------------------------------------------------------------------- types
+
+function typeSection(p: ref State): Parsed[TypeSection]
+    let start := advance(p).span
+    let decls := try indented(p, how: typeDeclLines(), what: "list of type declarations")
+    return Ok(TypeSection(span: finish(p, start), decls: decls))
+
+function typeDecl(p: ref State): Parsed[TypeDecl]
+    let start := peek(p).span
+    let exported := accept(p, TokenKind.KwExport)
+    let name := try ident(p, "type name")
+    var params: List[TypeParam] := []
+    if at(p, TokenKind.Lbracket) then
+        params := try typeParams(p)
+    try expect(p, TokenKind.Eq, what: "'=' after the type name")
+    let body := try typeBody(p)
+    return Ok(TypeDecl(span: finish(p, start), exported: exported, name: name, params: params, body: body, doc: doc(p, start), endMarker: None))
+
+function typeBody(p: ref State): Parsed[TypeBody]
+    let start := peek(p).span
+    if accept(p, TokenKind.KwRecord) then
+        let members := try indented(p, how: memberLines(false), what: "list of fields", optional: true)
+        return Ok(RecordType(span: finish(p, start), fields: fieldsOf(members), c: false))
+    if accept(p, TokenKind.KwTrait) then
+        let members := try indented(p, how: memberLines(true), what: "list of trait members", optional: true)
+        var routines: List[Signature] := []
+        for m in members do
+            case m of
+                Signature(s): add(var routines, s)
+                FieldDecl(_): continue
+        return Ok(TraitType(span: finish(p, start), fields: fieldsOf(members), routines: routines))
+    if accept(p, TokenKind.Lparen) then
+        var members: List[Ident] := [try ident(p, "enum member")]
+        while accept(p, TokenKind.Comma) do
+            if at(p, TokenKind.Rparen) then
+                break
+            add(var members, try ident(p, "enum member"))
+        try expect(p, TokenKind.Rparen, what: "')' to close the enum")
+        try endLine(p)
+        return Ok(EnumType(span: finish(p, start), members: members))
+
+    var variants: List[TypeExpr] := []
+    if isTypeOnlyStart(peek(p).kind) then
+        add(var variants, try typeExpr(p))
+    else
+        let low := try expr(p)
+        if accept(p, TokenKind.Dotdot) then
+            let high := try expr(p)
+            try endLine(p)
+            return Ok(SubrangeType(span: finish(p, start), low: low, high: high))
+        case exprToType(low) of
+            Some(t): add(var variants, nameType(t.value))
+            None: return fail(p, "E0040", exprSpan(low), message: "expected a type, a subrange 'a..b', or 'record'/'trait'")
+    while accept(p, TokenKind.Pipe) do
+        add(var variants, try typeExpr(p))
+    try endLine(p)
+    if len(variants) > 1 then
+        return Ok(UnionType(span: finish(p, start), variants: variants))
+    return Ok(variants[0])
+
+function fieldsOf(members: List[Member]): List[FieldDecl]
+    var fields: List[FieldDecl] := []
+    for m in members do
+        case m of
+            FieldDecl(f): add(var fields, f)
+            Signature(_): continue
+    return fields
+
+function member(p: ref State, inTrait: Boolean): Parsed[Member]
+    let start := peek(p).span
+    if inTrait and (at(p, TokenKind.KwFunction) or at(p, TokenKind.KwProcedure)) then
+        var sig := try signature(p)
+        try endLine(p)
+        sig.doc := doc(p, start)
+        return Ok(sig)
+    var exported := accept(p, TokenKind.KwExport)
+    if exported and inTrait then
+        report(p, "E0048", start, message: "trait members are exported with the trait")
+        exported := false
+    let name := try ident(p, "field name")
+    try expect(p, TokenKind.Colon, what: "':' and the field type")
+    let declType := try typeExpr(p)
+    let default := try defaultValue(p)
+    try endLine(p)
+    return Ok(FieldDecl(span: finish(p, start), exported: exported, name: name, declType: declType, default: default, doc: doc(p, start)))
+
+## `:= value`, if there is one.
+function defaultValue(p: ref State): Parsed[Option[Expr]]
+    if accept(p, TokenKind.Assign) then
+        return Ok(Some(try expr(p)))
+    return Ok(None)
+
+function typeParams(p: ref State): Parsed[List[TypeParam]]
+    step(p)
+    var params: List[TypeParam] := []
+    while true do
+        let start := peek(p).span
+        let name := try ident(p, "type parameter")
+        var bounds: List[TypeExpr] := []
+        if accept(p, TokenKind.Colon) then
+            add(var bounds, try typeExpr(p))
+            while accept(p, TokenKind.Plus) do
+                add(var bounds, try typeExpr(p))
+        add(var params, TypeParam(span: finish(p, start), name: name, bounds: bounds))
+        if not accept(p, TokenKind.Comma) or at(p, TokenKind.Rbracket) then
+            break
+    try expect(p, TokenKind.Rbracket, what: "']' to close the type parameters")
+    return Ok(params)
+
+function typeExpr(p: ref State): Parsed[TypeExpr]
+    let start := peek(p).span
+    if accept(p, TokenKind.KwRef) then
+        let span := finish(p, start)
+        let inner := try typeExpr(p)
+        return Ok(RefType(span: span, target: inner))
+    if at(p, TokenKind.KwFunction) or at(p, TokenKind.KwProcedure) then
+        let isFunction := advance(p).kind = TokenKind.KwFunction
+        try expect(p, TokenKind.Lparen, what: "'(' and the parameter types")
+        var params: List[TypeExpr] := []
+        while not at(p, TokenKind.Rparen) do
+            add(var params, try typeExpr(p))
+            if not accept(p, TokenKind.Comma) then
+                break
+        try expect(p, TokenKind.Rparen, what: "')'")
+        var result: Option[TypeExpr] := None
+        if isFunction then
+            try expect(p, TokenKind.Colon, what: "':' and the result type")
+            result := Some(try typeExpr(p))
+        return Ok(FuncType(span: finish(p, start), isFunction: isFunction, params: params, result: result))
+    if accept(p, TokenKind.KwThisType) then
+        return Ok(TypeName(span: start, parts: ["This"], args: [], partSpans: [start]))
+    if not at(p, TokenKind.Ident) then
+        return fail(p, "E0040", start, message: "expected a type, found {describe(peek(p))}")
+    let first := advance(p)
+    var parts: List[String] := [first.text]
+    var spans: List[Span] := [first.span]
+    while at(p, TokenKind.Dot) and peek(p, 1).kind = TokenKind.Ident do
+        step(p)
+        let tok := advance(p)
+        add(var parts, tok.text)
+        add(var spans, tok.span)
+    var args: List[TypeOrExpr] := []
+    if at(p, TokenKind.Lbracket) then
+        args := try bracketItems(p, asTypes: true)
+    return Ok(TypeName(span: finish(p, start), parts: parts, args: args, partSpans: spans))
+
+## `[a, b]` after a name: type arguments, or (in expressions) index items.
+##
+## In an expression `f[Integer]` and `a[i]` look the same, so names stay expressions
+## there and the checker decides. Items that can only be types (`ref T`,
+## `function(...)`, `This`) are parsed as types either way.
+function bracketItems(p: ref State, asTypes: Boolean): Parsed[List[TypeOrExpr]]
+    step(p)
+    var items: List[TypeOrExpr] := []
+    while not at(p, TokenKind.Rbracket) do
+        if isTypeOnlyStart(peek(p).kind) then
+            add(var items, typeItem(try typeExpr(p)))
+        else
+            let e := try expr(p)
+            add(var items, if asTypes then asType(exprItem(e)) else exprItem(e))
+        if not accept(p, TokenKind.Comma) then
+            break
+    try expect(p, TokenKind.Rbracket, what: "']'")
+    return Ok(items)
+
+## A type argument: an expression that names a type becomes that type.
+function asType(x: TypeOrExpr): TypeOrExpr
+    case x of
+        TypeExpr(_): return x
+        Expr(e):
+            case exprToType(e) of
+                Some(t): return typeItem(nameType(t.value))
+                None: return x
+
+## Reinterprets a name expression (`List[T]`, `Geometry.Shape`) as a type.
+function exprToType(e: Expr): Option[TypeName]
+    case e of
+        Name(n):
+            return Some(TypeName(span: n.span, parts: [n.name], args: [], partSpans: [n.span]))
+        FieldAccess(f):
+            case exprToType(f.target) of
+                Some(inner):
+                    if len(inner.value.args) = 0 then
+                        return Some(TypeName(
+                            span: f.span,
+                            parts: concat(inner.value.parts, [f.name.name]),
+                            args: [],
+                            partSpans: concat(inner.value.partSpans, [f.name.span]),
+                        ))
+                    return None
+                None: return None
+        Index(x):
+            case exprToType(x.target) of
+                Some(inner):
+                    if len(inner.value.args) = 0 then
+                        var args: List[TypeOrExpr] := []
+                        for item in x.items do
+                            add(var args, asType(item))
+                        return Some(TypeName(span: x.span, parts: inner.value.parts, args: args, partSpans: inner.value.partSpans))
+                    return None
+                None: return None
+        else: return None
+
+# ------------------------------------------------------------ constants, routines
+
+function constSection(p: ref State): Parsed[ConstSection]
+    let start := advance(p).span
+    let decls := try indented(p, how: constLines(), what: "list of constant declarations")
+    return Ok(ConstSection(span: finish(p, start), decls: decls))
+
+function constDecl(p: ref State): Parsed[ConstDecl]
+    let start := peek(p).span
+    let exported := accept(p, TokenKind.KwExport)
+    let name := try ident(p, "constant name")
+    if at(p, TokenKind.Assign) then
+        let tok := advance(p)
+        reportWith(
+            p,
+            "E0040",
+            tok.span,
+            message: "constants are declared with '=', not ':='",
+            fixes: [Fix(description: "use '='", edits: [Edit(span: tok.span, text: "=")])],
+        )
+    else
+        try expect(p, TokenKind.Eq, what: "'=' after the constant name")
+    let value := try expr(p)
+    try endLine(p)
+    return Ok(ConstDecl(span: finish(p, start), exported: exported, name: name, value: value, doc: doc(p, start)))
+
+function routine(p: ref State, exported: Boolean, start: Span): Parsed[Routine]
+    let isUnsafe := accept(p, TokenKind.KwUnsafe)
+    if at(p, TokenKind.KwExport) then
+        return fail(p, "E0040", peek(p).span, message: "write 'export unsafe', not 'unsafe export'")
+    let sig := try signature(p)
+    var pre: List[Expr] := []
+    var post: List[Expr] := []
+    var stmts: List[Stmt] := []
+    try endLine(p)
+    if not at(p, TokenKind.Indent) then
+        report(p, "E0042", point(peek(p).span), message: "expected the body of '{sig.name.name}'")
+    else
+        let indent := advance(p)
+        while at(p, TokenKind.KwRequires) or at(p, TokenKind.KwEnsures) do
+            let tok := advance(p)
+            if isErr(contract(p, tok, var pre, var post)) then
+                sync(p)
+        stmts := lineList(p, how: stmtLines())
+        skipOver(p, TokenKind.Dedent)
+        if len(stmts) = 0 then
+            report(p, "E0042", indent.span, message: "expected statements in the body of '{sig.name.name}'")
+    let body := Block(span: blockSpan(stmts, fallback: sig.span), stmts: stmts)
+    return Ok(Routine(
+        span: finish(p, start),
+        exported: exported,
+        isUnsafe: isUnsafe,
+        sig: sig,
+        pre: pre,
+        post: post,
+        body: body,
+        doc: doc(p, start),
+        endMarker: None,
+    ))
+
+## A `requires` or `ensures` clause, after its keyword `tok`.
+function contract(p: ref State, tok: Token, var pre, post: List[Expr]): Parsed[Boolean]
+    if tok.kind = TokenKind.KwRequires and len(post) > 0 then
+        report(p, "E0040", tok.span, message: "'requires' must come before 'ensures'")
+    let e := try expr(p)
+    if tok.kind = TokenKind.KwRequires then
+        add(var pre, e)
+    else
+        add(var post, e)
+    try endLine(p)
+    return Ok(true)
+
+function signature(p: ref State): Parsed[Signature]
+    let start := peek(p).span
+    let isFunction := advance(p).kind = TokenKind.KwFunction
+    let kw := if isFunction then "function" else "procedure"
+    let name := try ident(p, "{kw} name")
+    var tps: List[TypeParam] := []
+    if at(p, TokenKind.Lbracket) then
+        tps := try typeParams(p)
+    try expect(p, TokenKind.Lparen, what: "'(' and the parameter list")
+    var params: List[Param] := []
+    while not at(p, TokenKind.Rparen) do
+        add(var params, try param(p))
+        if not accept(p, TokenKind.Comma) then
+            break
+    try expect(p, TokenKind.Rparen, what: "')' to close the parameter list")
+    var result: Option[TypeExpr] := None
+    if accept(p, TokenKind.Colon) then
+        result := Some(try typeExpr(p))
+    if isFunction and isNone(result) then
+        report(
+            p,
+            "E0040",
+            point(p.last.span, atEnd: true),
+            message: "function '{name.name}' needs a result type ': T'; a routine without a result is a 'procedure'",
+        )
+    else if not isFunction and isSome(result) then
+        report(p, "E0040", typeSpan(get(result)), message: "procedure '{name.name}' can't have a result type; use 'function'")
+    return Ok(Signature(
+        span: finish(p, start),
+        isFunction: isFunction,
+        name: name,
+        typeParams: tps,
+        params: params,
+        result: result,
+        doc: None,
+    ))
+
+function param(p: ref State): Parsed[Param]
+    let start := peek(p).span
+    if accept(p, TokenKind.Ellipsis) then
+        return Ok(Param(span: start, isVar: false, names: [], declType: None, default: None, isThis: false, isVarargs: true))
+    let isVar := accept(p, TokenKind.KwVar)
+    if at(p, TokenKind.KwThis) then
+        let tok := advance(p)
+        return Ok(Param(
+            span: finish(p, start),
+            isVar: isVar,
+            names: [Ident(span: tok.span, name: "this")],
+            declType: None,
+            default: None,
+            isThis: true,
+            isVarargs: false,
+        ))
+    var names: List[Ident] := [try ident(p, "parameter name")]
+    while (
+        at(p, TokenKind.Comma)
+        and peek(p, 1).kind = TokenKind.Ident
+        and (peek(p, 2).kind = TokenKind.Comma or peek(p, 2).kind = TokenKind.Colon)
+    ) do
+        step(p)
+        add(var names, try ident(p, "parameter name"))
+    try expect(p, TokenKind.Colon, what: "':' and the parameter type")
+    let declType := try typeExpr(p)
+    let default := try defaultValue(p)
+    return Ok(Param(
+        span: finish(p, start),
+        isVar: isVar,
+        names: names,
+        declType: Some(declType),
+        default: default,
+        isThis: false,
+        isVarargs: false,
+    ))
+
+function externBlock(p: ref State): Parsed[ExternBlock]
+    let start := advance(p).span
+    let library := try stringConst(p, "library name")
+    let decls := try indented(p, how: externLines(), what: "list of extern declarations")
+    return Ok(ExternBlock(span: finish(p, start), library: library, decls: decls, endMarker: None))
+
+function externDecl(p: ref State): Parsed[ExternItem]
+    let start := peek(p).span
+    if at(p, TokenKind.KwType) then
+        let s := try cRecords(p)
+        return Ok(s)
+    let exported := accept(p, TokenKind.KwExport)
+    if not (at(p, TokenKind.KwFunction) or at(p, TokenKind.KwProcedure)) then
+        return fail(p, "E0040", start, message: "expected 'function' or 'procedure', found {describe(peek(p))}")
+    let sig := try signature(p)
+    var symbol: Option[String] := None
+    if accept(p, TokenKind.KwAs) then
+        symbol := Some(try stringConst(p, "C symbol name"))
+    try endLine(p)
+    return Ok(ExternDecl(span: finish(p, start), id: newId(p), exported: exported, sig: sig, symbol: symbol, doc: doc(p, start)))
+
+## A type section in an extern block: C records (SPEC §10.5), whose fields are all
+## exported.
+function cRecords(p: ref State): Parsed[TypeSection]
+    let section := try typeSection(p)
+    var decls: List[TypeDecl] := []
+    for d in section.decls do
+        case d.body of
+            RecordType(r):
+                if len(d.params) > 0 then
+                    report(p, "E0903", d.params[0].span, message: "a C record can't be generic")
+                var fields: List[FieldDecl] := []
+                for f in r.fields do
+                    var g := f
+                    g.exported := true
+                    if isSome(f.default) then
+                        report(p, "E0903", exprSpan(get(f.default)), message: "a C record field can't have a default")
+                    add(var fields, g)
+                var c := d
+                c.body := RecordType(span: r.span, fields: fields, c: true)
+                add(var decls, c)
+            else:
+                report(p, "E0903", d.name.span, message: "only records can be declared in an extern block")
+                add(var decls, d)
+    return Ok(TypeSection(span: section.span, decls: decls))
+
+function testBlock(p: ref State): Parsed[TestBlock]
+    let start := advance(p).span
+    let name := try stringConst(p, "test name")
+    let body := try block(p)
+    return Ok(TestBlock(span: finish(p, start), name: name, body: body, endMarker: None))
+
+# ---------------------------------------------------------------------- statements
+
+function blockSpan(stmts: List[Stmt], fallback: Span): Span
+    if len(stmts) = 0 then
+        return point(fallback, atEnd: true)
+    return join(stmtSpan(stmts[0]), b: stmtSpan(stmts[len(stmts) - 1]))
+
+function block(p: ref State): Parsed[Block]
+    let start := peek(p).span
+    if not at(p, TokenKind.Newline) and not prevWasDedent(p) then
+        report(p, "E0049", start, message: "a block must start on a new line, indented by 4 spaces")
+        let s := try stmt(p)
+        return Ok(Block(span: stmtSpan(s), stmts: [s]))
+    let stmts := try indented(p, how: stmtLines(), what: "block")
+    return Ok(Block(span: blockSpan(stmts, fallback: start), stmts: stmts))
+
+## An indented block, or one statement on the same line.
+function armBody(p: ref State): Parsed[ArmBody]
+    if at(p, TokenKind.Newline) then
+        let b := try block(p)
+        return Ok(b)
+    let s := try stmt(p)
+    return Ok(s)
+
+function stmt(p: ref State): Parsed[Stmt]
+    let tok := peek(p)
+    let k := tok.kind
+    let start := tok.span
+
+    if isDeclStart(k) then
+        # The line list skips the rest of the declaration, body included.
+        if k = TokenKind.KwConst then
+            return fail(p, "E0202", start, message: "'const' is only allowed at top level; use 'let' here")
+        return fail(p, "E0048", start, message: "'{tok.text}' declarations are only allowed at top level")
+    if k = TokenKind.KwVar or k = TokenKind.KwLet then
+        let v := try varDecl(p)
+        return Ok(v)
+    if k = TokenKind.KwIf then
+        let s := try ifStmt(p)
+        return Ok(s)
+    if k = TokenKind.KwWhile then
+        step(p)
+        let cond := try expr(p)
+        try expect(p, TokenKind.KwDo, what: "'do'")
+        let body := try block(p)
+        return Ok(While(span: finish(p, start), cond: cond, body: body, endMarker: None))
+    if k = TokenKind.KwRepeat then
+        step(p)
+        let body := try block(p)
+        try expect(p, TokenKind.KwUntil, what: "'until' to close the 'repeat' block")
+        let cond := try expr(p)
+        try endLine(p)
+        return Ok(Repeat(span: finish(p, start), body: body, cond: cond))
+    if k = TokenKind.KwFor then
+        return forStmt(p)
+    if k = TokenKind.KwCase then
+        step(p)
+        let subject := try expr(p)
+        try expect(p, TokenKind.KwOf, what: "'of'")
+        let arms := try indented(p, how: caseArmLines(), what: "list of case arms")
+        return Ok(Case(span: finish(p, start), subject: subject, arms: arms, endMarker: None))
+    if k = TokenKind.KwDefer then
+        step(p)
+        let body := try armBody(p)
+        return Ok(Defer(span: finish(p, start), body: body, endMarker: None))
+    if k = TokenKind.KwBreak or k = TokenKind.KwContinue then
+        step(p)
+        try endLine(p)
+        if k = TokenKind.KwBreak then
+            return Ok(Break(span: start))
+        return Ok(Continue(span: start))
+    if k = TokenKind.KwReturn then
+        step(p)
+        if at(p, TokenKind.Newline) then
+            step(p)
+            return Ok(Return(span: start, value: None))
+        let value := try rhs(p)
+        return Ok(Return(span: finish(p, start), value: Some(value)))
+    if k = TokenKind.KwAssert then
+        step(p)
+        let cond := try expr(p)
+        var message: Option[Expr] := None
+        if accept(p, TokenKind.Comma) then
+            message := Some(try expr(p))
+        try endLine(p)
+        return Ok(Assert(span: finish(p, start), cond: cond, message: message))
+    if k = TokenKind.Underscore and peek(p, 1).kind = TokenKind.Assign then
+        step(p)
+        step(p)
+        let value := try rhs(p)
+        return Ok(Discard(span: finish(p, start), name: tok.text, value: value))
+    if k = TokenKind.KwRequires or k = TokenKind.KwEnsures then
+        return fail(p, "E0040", start, message: "'{tok.text}' must be at the start of a function body")
+    if k = TokenKind.KwElse then
+        return fail(p, "E0040", start, message: "'else' without a matching 'if'")
+    if k = TokenKind.KwUntil then
+        return fail(p, "E0040", start, message: "'until' without a matching 'repeat'")
+
+    let e := try expr(p)
+    if at(p, TokenKind.Assign) then
+        if not isAssignable(e) then
+            report(p, "E0046", exprSpan(e), message: "can't assign to this expression")
+        step(p)
+        let value := try rhs(p)
+        return Ok(Assign(span: finish(p, start), target: e, value: value))
+    if not isCallOrError(tryOperand(e)) then
+        let eq := equalsSign(e)
+        if isSome(eq) then
+            reportWith(
+                p,
+                "E0047",
+                exprSpan(e),
+                message: "this expression is not a statement; only calls and assignments are; did you mean ':='?",
+                fixes: [Fix(description: "assign with ':='", edits: [Edit(span: get(eq), text: ":=")])],
+            )
+        else
+            report(p, "E0047", exprSpan(e), message: "this expression is not a statement; only calls and assignments are")
+    try endLine(p)
+    return Ok(ExprStmt(span: finish(p, start), expr: e))
+
+function isAssignable(e: Expr): Boolean
+    case e of
+        Name(_): return true
+        FieldAccess(_): return true
+        Index(_): return true
+        Deref(_): return true
+        ErrorExpr(_): return true
+        else: return false
+
+## The operand of `try e`, or `e`.
+function tryOperand(e: Expr): Expr
+    case e of
+        Unary(u): return if u.op = "try" then u.operand else e
+        else: return e
+
+function isCallOrError(e: Expr): Boolean
+    case e of
+        Call(_): return true
+        ErrorExpr(_): return true
+        else: return false
+
+## The span of the operator, if `e` is `a = b`.
+function equalsSign(e: Expr): Option[Span]
+    case e of
+        Binary(b): return if b.op = "=" then Some(b.opSpan) else None
+        else: return None
+
+## The right side of `:=` / `var` / `let`, or the operand of `return`. Ends the line.
+function rhs(p: ref State): Parsed[Expr]
+    if at(p, TokenKind.KwCase) then
+        let c := try caseExpr(p)
+        return Ok(c)
+    let e := try expr(p)
+    try endLine(p)
+    return Ok(e)
+
+function varDecl(p: ref State): Parsed[VarDecl]
+    let start := peek(p).span
+    let mutable := advance(p).kind = TokenKind.KwVar
+    if at(p, TokenKind.Underscore) then
+        return fail(p, "E0040", peek(p).span, message: "to discard a value, write '_ := expr' without 'var'")
+    let name := try ident(p, "variable name")
+    var declType: Option[TypeExpr] := None
+    if accept(p, TokenKind.Colon) then
+        declType := Some(try typeExpr(p))
+    if not at(p, TokenKind.Assign) then
+        let kw := if mutable then "var" else "let"
+        return fail(p, "E0201", point(peek(p).span), message: "'{name.name}' must be initialized: '{kw} {name.name} := value'")
+    step(p)
+    let value := try rhs(p)
+    return Ok(VarDecl(span: finish(p, start), mutable: mutable, name: name, declType: declType, value: value))
+
+function ifStmt(p: ref State): Parsed[If]
+    let start := advance(p).span
+    let cond := try expr(p)
+    try expect(p, TokenKind.KwThen, what: "'then'")
+    let body := try block(p)
+    var branches: List[CondBlock] := [CondBlock(span: join(exprSpan(cond), b: body.span), cond: cond, body: body)]
+    var elseBody: Option[Block] := None
+    while accept(p, TokenKind.KwElse) do
+        if accept(p, TokenKind.KwIf) then
+            let c := try expr(p)
+            try expect(p, TokenKind.KwThen, what: "'then'")
+            let b := try block(p)
+            add(var branches, CondBlock(span: join(exprSpan(c), b: b.span), cond: c, body: b))
+        else
+            elseBody := Some(try block(p))
+            break
+    return Ok(If(span: finish(p, start), branches: branches, elseBody: elseBody, endMarker: None))
+
+function loopVar(p: ref State): Parsed[Ident]
+    let tok := peek(p)
+    if tok.kind = TokenKind.Ident or tok.kind = TokenKind.Underscore then
+        step(p)
+        return Ok(Ident(span: tok.span, name: tok.text))
+    return fail(p, "E0040", tok.span, message: "expected a loop variable, found {describe(tok)}")
+
+function forStmt(p: ref State): Parsed[Stmt]
+    let start := advance(p).span
+    let first := try loopVar(p)
+    if accept(p, TokenKind.Assign) then
+        if startsWith(first.name, prefix: "_") then
+            report(p, "E0040", first.span, message: "a counting loop needs a named variable")
+        let low := try expr(p)
+        if not (at(p, TokenKind.KwTo) or at(p, TokenKind.KwDownto)) then
+            return fail(p, "E0040", peek(p).span, message: "expected 'to' or 'downto', found {describe(peek(p))}")
+        let down := advance(p).kind = TokenKind.KwDownto
+        let high := try expr(p)
+        try expect(p, TokenKind.KwDo, what: "'do'")
+        let body := try block(p)
+        return Ok(ForRange(span: finish(p, start), variable: first, start: low, stop: high, down: down, body: body, endMarker: None))
+    var vars: List[Ident] := [first]
+    if accept(p, TokenKind.Comma) then
+        add(var vars, try loopVar(p))
+    try expect(p, TokenKind.KwIn, what: "'in' or ':='")
+    let iterable := try expr(p)
+    try expect(p, TokenKind.KwDo, what: "'do'")
+    let body := try block(p)
+    return Ok(ForIn(span: finish(p, start), vars: vars, iterable: iterable, body: body, endMarker: None))
+
+# ---------------------------------------------------------------------------- case
+
+function labels(p: ref State): Parsed[List[Label]]
+    var out: List[Label] := []
+    if accept(p, TokenKind.KwElse) then
+        return Ok(out)
+    add(var out, try label(p))
+    while accept(p, TokenKind.Comma) do
+        add(var out, try label(p))
+    return Ok(out)
+
+function label(p: ref State): Parsed[Label]
+    let start := peek(p).span
+    if at(p, TokenKind.Ident) and peek(p, 1).kind = TokenKind.Lparen then
+        let name := advance(p)
+        step(p)
+        if not (at(p, TokenKind.Ident) or at(p, TokenKind.Underscore)) then
+            return fail(p, "E0040", peek(p).span, message: "expected a name for the variant value, or '_'")
+        let binding := try loopVar(p)
+        try expect(p, TokenKind.Rparen, what: "')'")
+        let variant := TypeName(span: name.span, parts: [name.text], args: [], partSpans: [name.span])
+        return Ok(VariantLabel(span: finish(p, start), variant: variant, binding: binding))
+    let low := try expr(p)
+    if accept(p, TokenKind.Dotdot) then
+        let high := try expr(p)
+        return Ok(RangeLabel(span: finish(p, start), low: low, high: high))
+    return Ok(ValueLabel(span: exprSpan(low), value: low))
+
+function caseArm(p: ref State): Parsed[CaseArm]
+    let start := peek(p).span
+    let ls := try labels(p)
+    try expect(p, TokenKind.Colon, what: "':' after the case label")
+    let body := try armBody(p)
+    return Ok(CaseArm(span: finish(p, start), labels: ls, body: body))
+
+function caseExpr(p: ref State): Parsed[CaseExpr]
+    let start := advance(p).span
+    let subject := try expr(p)
+    try expect(p, TokenKind.KwOf, what: "'of'")
+    let arms := try indented(p, how: caseExprArmLines(), what: "list of case arms")
+    return Ok(CaseExpr(span: finish(p, start), id: newId(p), subject: subject, arms: arms))
+
+function caseExprArm(p: ref State): Parsed[CaseExprArm]
+    let start := peek(p).span
+    let ls := try labels(p)
+    try expect(p, TokenKind.Colon, what: "':' after the case label")
+    if at(p, TokenKind.Newline) then
+        return fail(p, "E0040", peek(p).span, message: "an arm of a case expression takes one expression on the same line")
+    let value := try expr(p)
+    try endLine(p)
+    return Ok(CaseExprArm(span: finish(p, start), labels: ls, value: value))
+
+# --------------------------------------------------------------------- expressions
+
+function expr(p: ref State): Parsed[Expr]
+    if at(p, TokenKind.KwIf) then
+        let e := try ifExpr(p)
+        return Ok(e)
+    return orExpr(p)
+
+function ifExpr(p: ref State): Parsed[IfExpr]
+    let start := advance(p).span
+    var branches: List[CondExpr] := []
+    while true do
+        let condStart := peek(p).span
+        let cond := try expr(p)
+        try expect(p, TokenKind.KwThen, what: "'then'")
+        let value := try expr(p)
+        add(var branches, CondExpr(span: finish(p, condStart), cond: cond, value: value))
+        if at(p, TokenKind.KwElse) and peek(p, 1).kind = TokenKind.KwIf then
+            step(p)
+            step(p)
+            continue
+        break
+    if accept(p, TokenKind.KwElse) then
+        let elseValue := try expr(p)
+        return Ok(IfExpr(span: finish(p, start), id: newId(p), branches: branches, elseValue: elseValue))
+    let here := point(p.last.span, atEnd: true)
+    report(p, "E0801", here, message: "an 'if' expression needs an 'else' branch")
+    let missing: Expr := ErrorExpr(span: here, id: newId(p))
+    return Ok(IfExpr(span: finish(p, start), id: newId(p), branches: branches, elseValue: missing))
+
+## Left-associative operators: `operand (op operand)*`.
+function binary(p: ref State, operand: function(ref State): Parsed[Expr], isOp: function(TokenKind): Boolean): Parsed[Expr]
+    var left := try operand(p)
+    while isOp(peek(p).kind) do
+        let op := advance(p)
+        let right := try operand(p)
+        left := Binary(span: join(exprSpan(left), b: exprSpan(right)), id: newId(p), op: op.text, left: left, right: right, opSpan: op.span)
+    return Ok(left)
+
+function orExpr(p: ref State): Parsed[Expr]
+    return binary(p, operand: andExpr, isOp: isOr)
+
+function andExpr(p: ref State): Parsed[Expr]
+    return binary(p, operand: notExpr, isOp: isAnd)
+
+function notExpr(p: ref State): Parsed[Expr]
+    if at(p, TokenKind.KwNot) then
+        let start := advance(p).span
+        let operand := try notExpr(p)
+        return Ok(Unary(span: join(start, b: exprSpan(operand)), id: newId(p), op: "not", operand: operand))
+    return comparison(p)
+
+function comparison(p: ref State): Parsed[Expr]
+    var left := try additive(p)
+    var chained := false
+    while isComparison(peek(p).kind) do
+        let op := advance(p)
+        if chained then
+            report(p, "E0043", op.span, message: "comparisons can't be chained; write 'a < b and b < c'")
+        let right := try additive(p)
+        left := Binary(span: join(exprSpan(left), b: exprSpan(right)), id: newId(p), op: op.text, left: left, right: right, opSpan: op.span)
+        chained := true
+    return Ok(left)
+
+function additive(p: ref State): Parsed[Expr]
+    return binary(p, operand: multiplicative, isOp: isAdditive)
+
+function multiplicative(p: ref State): Parsed[Expr]
+    return binary(p, operand: unary, isOp: isMultiplicative)
+
+function unary(p: ref State): Parsed[Expr]
+    if at(p, TokenKind.Minus) or at(p, TokenKind.KwTry) or at(p, TokenKind.KwNot) then
+        # `not` belongs one level above comparisons; it's accepted here too, since an
+        # operand position (`x = not y`) leaves no ambiguity.
+        let op := advance(p)
+        let operand := try unary(p)
+        return Ok(Unary(span: join(op.span, b: exprSpan(operand)), id: newId(p), op: op.text, operand: operand))
+    let e := try primary(p)
+    return postfix(p, e)
+
+function postfix(p: ref State, start: Expr): Parsed[Expr]
+    var e := start
+    while true do
+        if at(p, TokenKind.Lparen) then
+            let args := try callArgs(p)
+            e := Call(span: join(exprSpan(e), b: p.last.span), id: newId(p), callee: e, args: args)
+        else if at(p, TokenKind.Lbracket) then
+            let items := try bracketItems(p, asTypes: false)
+            e := Index(span: join(exprSpan(e), b: p.last.span), id: newId(p), target: e, items: items)
+        else if at(p, TokenKind.Dot) then
+            step(p)
+            let name := try ident(p, "field or function name after '.'")
+            e := FieldAccess(span: join(exprSpan(e), b: name.span), id: newId(p), target: e, name: name)
+        else
+            return Ok(e)
+    return Ok(e)
+
+function callArgs(p: ref State): Parsed[List[Arg]]
+    step(p)
+    var args: List[Arg] := []
+    var namedSeen := false
+    while not at(p, TokenKind.Rparen) do
+        let start := peek(p).span
+        var name: Option[Ident] := None
+        if at(p, TokenKind.Ident) and peek(p, 1).kind = TokenKind.Colon then
+            name := Some(try ident(p, "argument name"))
+            step(p)
+            namedSeen := true
+        else if namedSeen then
+            report(p, "E0040", start, message: "positional arguments must come before named arguments")
+        let isVar := accept(p, TokenKind.KwVar)
+        let value := try expr(p)
+        add(var args, Arg(span: finish(p, start), id: newId(p), name: name, isVar: isVar, value: value))
+        if not accept(p, TokenKind.Comma) then
+            break
+    try expect(p, TokenKind.Rparen, what: "')' to close the argument list")
+    return Ok(args)
+
+function primary(p: ref State): Parsed[Expr]
+    let tok := peek(p)
+    let k := tok.kind
+    if k = TokenKind.IntLit then
+        step(p)
+        return Ok(IntLit(span: tok.span, id: newId(p), value: intValue(tok)))
+    if k = TokenKind.RealLit then
+        step(p)
+        return Ok(RealLit(span: tok.span, id: newId(p), digits: realDigits(tok)))
+    if k = TokenKind.CharLit then
+        step(p)
+        return Ok(CharLit(span: tok.span, id: newId(p), value: charValue(tok)))
+    if k = TokenKind.StringLit then
+        step(p)
+        return Ok(StringLit(span: tok.span, id: newId(p), value: textValue(tok)))
+    if k = TokenKind.StringBegin then
+        let s := try interpolation(p)
+        return Ok(s)
+    if k = TokenKind.KwTrue or k = TokenKind.KwFalse then
+        step(p)
+        return Ok(BoolLit(span: tok.span, id: newId(p), value: k = TokenKind.KwTrue))
+    if k = TokenKind.Ident or k = TokenKind.KwThis or k = TokenKind.KwThisType then
+        step(p)
+        return Ok(Name(span: tok.span, id: newId(p), name: tok.text))
+    if k = TokenKind.Underscore then
+        step(p)
+        report(p, "E0104", tok.span, message: "'{tok.text}' is a discard and can't be read")
+        return Ok(ErrorExpr(span: tok.span, id: newId(p)))
+    if k = TokenKind.Lparen then
+        step(p)
+        let inner := try expr(p)
+        try expect(p, TokenKind.Rparen, what: "')'")
+        return Ok(Paren(span: finish(p, tok.span), id: newId(p), inner: inner))
+    if k = TokenKind.Lbracket then
+        step(p)
+        var items: List[Expr] := []
+        while not at(p, TokenKind.Rbracket) do
+            add(var items, try expr(p))
+            if not accept(p, TokenKind.Comma) then
+                break
+        try expect(p, TokenKind.Rbracket, what: "']' to close the list")
+        return Ok(ListLit(span: finish(p, tok.span), id: newId(p), items: items))
+    if k = TokenKind.Lbrace then
+        return braces(p)
+    if k = TokenKind.KwDeref then
+        step(p)
+        try expect(p, TokenKind.Lparen, what: "'(' after 'deref'")
+        let inner := try expr(p)
+        try expect(p, TokenKind.Rparen, what: "')'")
+        return Ok(Deref(span: finish(p, tok.span), id: newId(p), target: inner))
+    if k = TokenKind.KwIf then
+        let e := try ifExpr(p)
+        reportWith(
+            p,
+            "E0803",
+            e.span,
+            message: "an 'if' expression used as an operand must be in parentheses",
+            fixes: [Fix(
+                description: "add parentheses",
+                edits: [Edit(span: point(e.span), text: "("), Edit(span: point(e.span, atEnd: true), text: ")")],
+            )],
+        )
+        return Ok(e)
+    if k = TokenKind.KwCase then
+        report(
+            p,
+            "E0804",
+            tok.span,
+            message: "a 'case' expression must be the whole right side of ':=', 'var', 'let', or 'return'",
+        )
+        let c := try caseExpr(p)
+        return Ok(c)
+    return fail(p, "E0040", tok.span, message: "expected an expression, found {describe(tok)}")
+
+function interpolation(p: ref State): Parsed[InterpString]
+    let first := advance(p)
+    var parts: List[InterpPart] := []
+    if textValue(first) <> "" then
+        add(var parts, textPart(textValue(first)))
+    while true do
+        let e := try expr(p)
+        add(var parts, exprPart(e))
+        if at(p, TokenKind.StringMid) or at(p, TokenKind.StringEnd) then
+            let tok := advance(p)
+            if textValue(tok) <> "" then
+                add(var parts, textPart(textValue(tok)))
+            if tok.kind = TokenKind.StringEnd then
+                break
+        else
+            return fail(p, "E0040", peek(p).span, message: "expected '}' to close the placeholder, found {describe(peek(p))}")
+    return Ok(InterpString(span: finish(p, first.span), id: newId(p), parts: parts))
+
+function braces(p: ref State): Parsed[Expr]
+    let start := advance(p).span
+    if accept(p, TokenKind.Rbrace) then
+        return Ok(EmptyBraces(span: finish(p, start), id: newId(p)))
+    let first := try expr(p)
+    if accept(p, TokenKind.Colon) then
+        let value := try expr(p)
+        var entries: List[MapEntry] := [MapEntry(span: join(exprSpan(first), b: exprSpan(value)), key: first, value: value)]
+        while accept(p, TokenKind.Comma) do
+            if at(p, TokenKind.Rbrace) then
+                break
+            let key := try expr(p)
+            try expect(p, TokenKind.Colon, what: "':' between key and value")
+            let v := try expr(p)
+            add(var entries, MapEntry(span: join(exprSpan(key), b: exprSpan(v)), key: key, value: v))
+        try expect(p, TokenKind.Rbrace, what: "'}' to close the map")
+        return Ok(MapLit(span: finish(p, start), id: newId(p), entries: entries))
+    var items: List[Expr] := [first]
+    while accept(p, TokenKind.Comma) do
+        if at(p, TokenKind.Rbrace) then
+            break
+        add(var items, try expr(p))
+    try expect(p, TokenKind.Rbrace, what: "'}' to close the set")
+    return Ok(SetLit(span: finish(p, start), id: newId(p), items: items))

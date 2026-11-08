@@ -2043,6 +2043,17 @@ class TypeChecker:
         return subst(m.result, m.s)
 
     def match(self, c: Cand, args: list[CArg], explicit, expected, span: Span):
+        """Matches the arguments against a candidate. With an expected type, type
+        parameters are first inferred from it, so that a variant argument is injected
+        (`Ok(Circle(...))` as a `Result[Shape, E]`); if that fails, from the arguments
+        alone."""
+        if explicit is None and expected is not None and not has_error(expected):
+            m = self.match_with(c, args, explicit, expected, span, early=True)
+            if isinstance(m, Match):
+                return m
+        return self.match_with(c, args, explicit, expected, span, early=False)
+
+    def match_with(self, c: Cand, args: list[CArg], explicit, expected, span: Span, early: bool):
         sig = c.sig
         pre = c.pre
         params = [replace(p, type=subst(p.type, pre)) for p in sig.params] if pre else sig.params
@@ -2087,6 +2098,14 @@ class TypeChecker:
         if missing:
             names = ", ".join(f"'{n}'" for n in missing)
             return Fail("E0511", span, f"missing argument{'s' if len(missing) > 1 else ''} {names} for '{sig.name}'", False)
+        if early and params_in(result) & vars:
+            for target in [expected] + self.env.variants(expected):
+                s2 = dict(s)
+                if unify(result, target, s2, vars):
+                    s = s2
+                    break
+            else:
+                return Fail("E0300", span, "", False)
         # Types.
         tier = 0
         flex = []

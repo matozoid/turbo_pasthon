@@ -602,6 +602,45 @@ class Records(unittest.TestCase):
 
 class Generics(unittest.TestCase):
     @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_inference_from_the_expected_type(self):
+        """`Ok(variant)` and `Some(variant)` take their type argument from the expected
+        union type, and inject the variant."""
+        p = run_program("""
+            type
+                A = record
+                    x: Integer
+                B = record
+                    y: Integer
+                AB = A | B
+
+            function make(n: Integer): Result[AB, String]
+                if n = 0 then
+                    return Err("zero")
+                if n < 0 then
+                    return Ok(B(y: n))
+                return Ok(A(x: n))
+
+            function show(r: Result[AB, String]): String
+                case r of
+                    Ok(v):
+                        case v.value of
+                            A(a):
+                                return "A {a.x}"
+                            B(b):
+                                return "B {b.y}"
+                    Err(e):
+                        return e.error
+
+            writeln(show(make(0)))
+            writeln(show(make(5)))
+            writeln(show(make(-2)))
+            let o: Option[AB] := Some(B(y: 7))
+            writeln(o = Some(B(y: 7)))
+            """, under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))  # fmt: skip
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(p.stdout, b"zero\nA 5\nB -2\ntrue\n")
+
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
     def test_instances(self):
         """Generic routines over records, unions and strings; bound members are found
         where the type argument became concrete (`area` lives in Main, not Geo)."""

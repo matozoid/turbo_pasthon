@@ -1,0 +1,436 @@
+program AstDump
+
+## Prints the syntax tree and diagnostics of a source file in a canonical form, to
+## compare the parser with the Python one (tests/test_port.py).
+##
+## One node per line, indented by depth: `label Kind where scalars`. Kinds and field
+## names are the Python ones.
+
+uses IO, OS, Strings, Source, Diagnostics, Ast, Parser
+
+## `n` in hexadecimal, upper case.
+function hex(n: Integer): String
+    let digits := "0123456789ABCDEF"
+    var out := slice(digits, n mod 16, n mod 16 + 1)
+    var v := n div 16
+    while v > 0 do
+        out := "{slice(digits, v mod 16, v mod 16 + 1)}{out}"
+        v := v div 16
+    return out
+
+## `s` in double quotes, with `\`, `"` and control characters escaped.
+function quote(s: String): String
+    var parts: List[String] := ["\""]
+    for c in s do
+        if c = '\\' then
+            add(var parts, "\\\\")
+        else if c = '"' then
+            add(var parts, "\\\"")
+        else if c = '\n' then
+            add(var parts, "\\n")
+        else if ord(c) < 32 or ord(c) = 127 then
+            add(var parts, "\\u\{{hex(ord(c))}}")
+        else
+            add(var parts, toString(c))
+    add(var parts, "\"")
+    return join(parts)
+
+function where(s: Span): String
+    return "{s.line}:{s.col}-{s.endLine}:{s.endCol}"
+
+# ------------------------------------------------------------------------- scalars
+
+function str(field, value: String): String
+    return " {field}={quote(value)}"
+
+function flag(field: String, value: Boolean): String
+    return " {field}={value}"
+
+function optStr(field: String, value: Option[String]): String
+    case value of
+        Some(v): return str(field, value: v.value)
+        None: return ""
+
+function optSpan(field: String, value: Option[Span]): String
+    case value of
+        Some(v): return " {field}={where(v.value)}"
+        None: return ""
+
+procedure line(depth: Integer, label, kind: String, span: Span, scalars: String)
+    writeln("{indent(depth)}{label}{kind} {where(span)}{scalars}")
+
+function indent(depth: Integer): String
+    var out := ""
+    for k := 1 to depth do
+        out := "{out}  "
+    return out
+
+function item(field: String, i: Integer): String
+    return "{field}[{i}]: "
+
+function one(field: String): String
+    return "{field}: "
+
+# ----------------------------------------------------------------- names and types
+
+procedure ident(x: Ident, d: Integer, label: String)
+    line(d, label, kind: "Ident", span: x.span, scalars: str("name", value: x.name))
+
+procedure idents(xs: List[Ident], d: Integer, field: String)
+    for i := 0 to len(xs) - 1 do
+        ident(xs[i], d, label: item(field, i))
+
+procedure typeName(t: TypeName, d: Integer, label: String)
+    var parts: List[String] := []
+    for p in t.parts do
+        add(var parts, quote(p))
+    var spans: List[String] := []
+    for s in t.partSpans do
+        add(var spans, where(s))
+    var scalars := " parts=[{join(parts, sep: ",")}]"
+    if len(spans) > 0 then
+        scalars := "{scalars} part_spans=[{join(spans, sep: ",")}]"
+    line(d, label, kind: "TypeName", span: t.span, scalars: scalars)
+    for i := 0 to len(t.args) - 1 do
+        typeOrExpr(t.args[i], d + 1, label: item("args", i))
+
+procedure typeExpr(t: TypeExpr, d: Integer, label: String)
+    case t of
+        TypeName(x): typeName(x, d, label: label)
+        RefType(x):
+            line(d, label, kind: "RefType", span: x.span, scalars: "")
+            typeExpr(x.target, d + 1, label: one("target"))
+        FuncType(x):
+            line(d, label, kind: "FuncType", span: x.span, scalars: flag("is_function", value: x.isFunction))
+            typeExprs(x.params, d + 1, field: "params")
+            optType(x.result, d + 1, label: one("result"))
+
+procedure typeExprs(ts: List[TypeExpr], d: Integer, field: String)
+    for i := 0 to len(ts) - 1 do
+        typeExpr(ts[i], d, label: item(field, i))
+
+procedure optType(t: Option[TypeExpr], d: Integer, label: String)
+    if isSome(t) then
+        typeExpr(get(t), d, label: label)
+
+procedure typeOrExpr(x: TypeOrExpr, d: Integer, label: String)
+    case x of
+        TypeExpr(t): typeExpr(t, d, label: label)
+        Expr(e): expr(e, d, label: label)
+
+procedure typeParams(ps: List[TypeParam], d: Integer, field: String)
+    for i := 0 to len(ps) - 1 do
+        let p := ps[i]
+        line(d, item(field, i), kind: "TypeParam", span: p.span, scalars: "")
+        ident(p.name, d + 1, label: one("name"))
+        typeExprs(p.bounds, d + 1, field: "bounds")
+
+# --------------------------------------------------------------------- expressions
+
+procedure exprs(es: List[Expr], d: Integer, field: String)
+    for i := 0 to len(es) - 1 do
+        expr(es[i], d, label: item(field, i))
+
+procedure optExpr(e: Option[Expr], d: Integer, label: String)
+    if isSome(e) then
+        expr(get(e), d, label: label)
+
+procedure expr(e: Expr, d: Integer, label: String)
+    let c := d + 1
+    case e of
+        Name(x): line(d, label, kind: "Name", span: x.span, scalars: str("name", value: x.name))
+        IntLit(x): line(d, label, kind: "IntLit", span: x.span, scalars: " value={x.value}")
+        RealLit(x): line(d, label, kind: "RealLit", span: x.span, scalars: " value={x.digits}")
+        CharLit(x): line(d, label, kind: "CharLit", span: x.span, scalars: " value={ord(x.value)}")
+        BoolLit(x): line(d, label, kind: "BoolLit", span: x.span, scalars: flag("value", value: x.value))
+        StringLit(x): line(d, label, kind: "StringLit", span: x.span, scalars: str("value", value: x.value))
+        InterpString(x):
+            line(d, label, kind: "InterpString", span: x.span, scalars: "")
+            for i := 0 to len(x.parts) - 1 do
+                case x.parts[i] of
+                    TextPart(t):
+                        writeln("{indent(c)}{item("parts", i)}Text {quote(t.text)}")
+                    Expr(p): expr(p, c, label: item("parts", i))
+        ListLit(x):
+            line(d, label, kind: "ListLit", span: x.span, scalars: "")
+            exprs(x.items, c, field: "items")
+        MapLit(x):
+            line(d, label, kind: "MapLit", span: x.span, scalars: "")
+            for i := 0 to len(x.entries) - 1 do
+                let m := x.entries[i]
+                line(c, item("entries", i), kind: "MapEntry", span: m.span, scalars: "")
+                expr(m.key, c + 1, label: one("key"))
+                expr(m.value, c + 1, label: one("value"))
+        SetLit(x):
+            line(d, label, kind: "SetLit", span: x.span, scalars: "")
+            exprs(x.items, c, field: "items")
+        EmptyBraces(x): line(d, label, kind: "EmptyBraces", span: x.span, scalars: "")
+        Paren(x):
+            line(d, label, kind: "Paren", span: x.span, scalars: "")
+            expr(x.inner, c, label: one("inner"))
+        Unary(x):
+            line(d, label, kind: "Unary", span: x.span, scalars: str("op", value: x.op))
+            expr(x.operand, c, label: one("operand"))
+        Binary(x):
+            line(d, label, kind: "Binary", span: x.span, scalars: "{str("op", value: x.op)} op_span={where(x.opSpan)}")
+            expr(x.left, c, label: one("left"))
+            expr(x.right, c, label: one("right"))
+        Call(x):
+            line(d, label, kind: "Call", span: x.span, scalars: "")
+            expr(x.callee, c, label: one("callee"))
+            for i := 0 to len(x.args) - 1 do
+                let a := x.args[i]
+                line(c, item("args", i), kind: "Arg", span: a.span, scalars: flag("is_var", value: a.isVar))
+                if isSome(a.name) then
+                    ident(get(a.name), c + 1, label: one("name"))
+                expr(a.value, c + 1, label: one("value"))
+        Index(x):
+            line(d, label, kind: "Index", span: x.span, scalars: "")
+            expr(x.target, c, label: one("target"))
+            for i := 0 to len(x.items) - 1 do
+                typeOrExpr(x.items[i], c, label: item("items", i))
+        FieldAccess(x):
+            line(d, label, kind: "FieldAccess", span: x.span, scalars: "")
+            expr(x.target, c, label: one("target"))
+            ident(x.name, c, label: one("name"))
+        Deref(x):
+            line(d, label, kind: "Deref", span: x.span, scalars: "")
+            expr(x.target, c, label: one("target"))
+        IfExpr(x):
+            line(d, label, kind: "IfExpr", span: x.span, scalars: "")
+            for i := 0 to len(x.branches) - 1 do
+                let b := x.branches[i]
+                line(c, item("branches", i), kind: "CondExpr", span: b.span, scalars: "")
+                expr(b.cond, c + 1, label: one("cond"))
+                expr(b.value, c + 1, label: one("value"))
+            expr(x.elseValue, c, label: one("else_value"))
+        CaseExpr(x):
+            line(d, label, kind: "CaseExpr", span: x.span, scalars: "")
+            expr(x.subject, c, label: one("subject"))
+            for i := 0 to len(x.arms) - 1 do
+                let a := x.arms[i]
+                line(c, item("arms", i), kind: "CaseExprArm", span: a.span, scalars: "")
+                labels(a.labels, c + 1)
+                expr(a.value, c + 1, label: one("value"))
+        ErrorExpr(x): line(d, label, kind: "ErrorExpr", span: x.span, scalars: "")
+
+procedure labels(ls: List[Label], d: Integer)
+    for i := 0 to len(ls) - 1 do
+        let label := item("labels", i)
+        case ls[i] of
+            ValueLabel(x):
+                line(d, label, kind: "ValueLabel", span: x.span, scalars: "")
+                expr(x.value, d + 1, label: one("value"))
+            RangeLabel(x):
+                line(d, label, kind: "RangeLabel", span: x.span, scalars: "")
+                expr(x.low, d + 1, label: one("low"))
+                expr(x.high, d + 1, label: one("high"))
+            VariantLabel(x):
+                line(d, label, kind: "VariantLabel", span: x.span, scalars: "")
+                typeName(x.variant, d + 1, label: one("variant"))
+                ident(x.binding, d + 1, label: one("binding"))
+
+# ---------------------------------------------------------------------- statements
+
+procedure block(b: Block, d: Integer, label: String)
+    line(d, label, kind: "Block", span: b.span, scalars: "")
+    for i := 0 to len(b.stmts) - 1 do
+        stmt(b.stmts[i], d + 1, label: item("stmts", i))
+
+procedure armBody(b: ArmBody, d: Integer, label: String)
+    case b of
+        Block(x): block(x, d, label: label)
+        Stmt(x): stmt(x, d, label: label)
+
+procedure stmt(s: Stmt, d: Integer, label: String)
+    let c := d + 1
+    case s of
+        VarDecl(x):
+            line(d, label, kind: "VarDecl", span: x.span, scalars: flag("mutable", value: x.mutable))
+            ident(x.name, c, label: one("name"))
+            optType(x.declType, c, label: one("type"))
+            expr(x.value, c, label: one("value"))
+        Assign(x):
+            line(d, label, kind: "Assign", span: x.span, scalars: "")
+            expr(x.target, c, label: one("target"))
+            expr(x.value, c, label: one("value"))
+        Discard(x):
+            line(d, label, kind: "Discard", span: x.span, scalars: str("name", value: x.name))
+            expr(x.value, c, label: one("value"))
+        ExprStmt(x):
+            line(d, label, kind: "ExprStmt", span: x.span, scalars: "")
+            expr(x.expr, c, label: one("expr"))
+        If(x):
+            line(d, label, kind: "If", span: x.span, scalars: optSpan("end_marker", value: x.endMarker))
+            for i := 0 to len(x.branches) - 1 do
+                let b := x.branches[i]
+                line(c, item("branches", i), kind: "CondBlock", span: b.span, scalars: "")
+                expr(b.cond, c + 1, label: one("cond"))
+                block(b.body, c + 1, label: one("body"))
+            if isSome(x.elseBody) then
+                block(get(x.elseBody), c, label: one("else_body"))
+        While(x):
+            line(d, label, kind: "While", span: x.span, scalars: optSpan("end_marker", value: x.endMarker))
+            expr(x.cond, c, label: one("cond"))
+            block(x.body, c, label: one("body"))
+        Repeat(x):
+            line(d, label, kind: "Repeat", span: x.span, scalars: "")
+            block(x.body, c, label: one("body"))
+            expr(x.cond, c, label: one("cond"))
+        ForRange(x):
+            let scalars := "{flag("down", value: x.down)}{optSpan("end_marker", value: x.endMarker)}"
+            line(d, label, kind: "ForRange", span: x.span, scalars: scalars)
+            ident(x.variable, c, label: one("var"))
+            expr(x.start, c, label: one("start"))
+            expr(x.stop, c, label: one("stop"))
+            block(x.body, c, label: one("body"))
+        ForIn(x):
+            line(d, label, kind: "ForIn", span: x.span, scalars: optSpan("end_marker", value: x.endMarker))
+            idents(x.vars, c, field: "vars")
+            expr(x.iterable, c, label: one("iterable"))
+            block(x.body, c, label: one("body"))
+        Case(x):
+            line(d, label, kind: "Case", span: x.span, scalars: optSpan("end_marker", value: x.endMarker))
+            expr(x.subject, c, label: one("subject"))
+            for i := 0 to len(x.arms) - 1 do
+                let a := x.arms[i]
+                line(c, item("arms", i), kind: "CaseArm", span: a.span, scalars: "")
+                labels(a.labels, c + 1)
+                armBody(a.body, c + 1, label: one("body"))
+        Defer(x):
+            line(d, label, kind: "Defer", span: x.span, scalars: optSpan("end_marker", value: x.endMarker))
+            armBody(x.body, c, label: one("body"))
+        Break(x): line(d, label, kind: "Break", span: x.span, scalars: "")
+        Continue(x): line(d, label, kind: "Continue", span: x.span, scalars: "")
+        Return(x):
+            line(d, label, kind: "Return", span: x.span, scalars: "")
+            optExpr(x.value, c, label: one("value"))
+        Assert(x):
+            line(d, label, kind: "Assert", span: x.span, scalars: "")
+            expr(x.cond, c, label: one("cond"))
+            optExpr(x.message, c, label: one("message"))
+        ErrorStmt(x): line(d, label, kind: "ErrorStmt", span: x.span, scalars: "")
+
+# -------------------------------------------------------------------- declarations
+
+procedure fieldDecls(fs: List[FieldDecl], d: Integer)
+    for i := 0 to len(fs) - 1 do
+        let f := fs[i]
+        let scalars := "{flag("exported", value: f.exported)}{optStr("doc", value: f.doc)}"
+        line(d, item("fields", i), kind: "FieldDecl", span: f.span, scalars: scalars)
+        ident(f.name, d + 1, label: one("name"))
+        typeExpr(f.declType, d + 1, label: one("type"))
+        optExpr(f.default, d + 1, label: one("default"))
+
+procedure signature(s: Signature, d: Integer, label: String)
+    let scalars := "{flag("is_function", value: s.isFunction)}{optStr("doc", value: s.doc)}"
+    line(d, label, kind: "Signature", span: s.span, scalars: scalars)
+    let c := d + 1
+    ident(s.name, c, label: one("name"))
+    typeParams(s.typeParams, c, field: "type_params")
+    for i := 0 to len(s.params) - 1 do
+        let p := s.params[i]
+        let flags := "{flag("is_var", value: p.isVar)}{flag("is_this", value: p.isThis)}{flag("is_varargs", value: p.isVarargs)}"
+        line(c, item("params", i), kind: "Param", span: p.span, scalars: flags)
+        idents(p.names, c + 1, field: "names")
+        optType(p.declType, c + 1, label: one("type"))
+        optExpr(p.default, c + 1, label: one("default"))
+    optType(s.result, c, label: one("result"))
+
+procedure typeBody(b: TypeBody, d: Integer, label: String)
+    let c := d + 1
+    case b of
+        TypeExpr(t): typeExpr(t, d, label: label)
+        EnumType(x):
+            line(d, label, kind: "EnumType", span: x.span, scalars: "")
+            idents(x.members, c, field: "members")
+        SubrangeType(x):
+            line(d, label, kind: "SubrangeType", span: x.span, scalars: "")
+            expr(x.low, c, label: one("low"))
+            expr(x.high, c, label: one("high"))
+        UnionType(x):
+            line(d, label, kind: "UnionType", span: x.span, scalars: "")
+            typeExprs(x.variants, c, field: "variants")
+        RecordType(x):
+            line(d, label, kind: "RecordType", span: x.span, scalars: flag("c", value: x.c))
+            fieldDecls(x.fields, c)
+        TraitType(x):
+            line(d, label, kind: "TraitType", span: x.span, scalars: "")
+            fieldDecls(x.fields, c)
+            for i := 0 to len(x.routines) - 1 do
+                signature(x.routines[i], c, label: item("routines", i))
+
+procedure typeSection(s: TypeSection, d: Integer, label: String)
+    line(d, label, kind: "TypeSection", span: s.span, scalars: "")
+    let c := d + 1
+    for i := 0 to len(s.decls) - 1 do
+        let t := s.decls[i]
+        let scalars := "{flag("exported", value: t.exported)}{optStr("doc", value: t.doc)}{optSpan("end_marker", value: t.endMarker)}"
+        line(c, item("decls", i), kind: "TypeDecl", span: t.span, scalars: scalars)
+        ident(t.name, c + 1, label: one("name"))
+        typeParams(t.params, c + 1, field: "params")
+        typeBody(t.body, c + 1, label: one("body"))
+
+procedure decl(x: Decl, d: Integer, label: String)
+    let c := d + 1
+    case x of
+        TypeSection(s): typeSection(s, d, label: label)
+        ConstSection(s):
+            line(d, label, kind: "ConstSection", span: s.span, scalars: "")
+            for i := 0 to len(s.decls) - 1 do
+                let k := s.decls[i]
+                let scalars := "{flag("exported", value: k.exported)}{optStr("doc", value: k.doc)}"
+                line(c, item("decls", i), kind: "ConstDecl", span: k.span, scalars: scalars)
+                ident(k.name, c + 1, label: one("name"))
+                expr(k.value, c + 1, label: one("value"))
+        Routine(r):
+            let scalars := "{flag("exported", value: r.exported)}{flag("unsafe", value: r.isUnsafe)}{optStr("doc", value: r.doc)}{optSpan("end_marker", value: r.endMarker)}"
+            line(d, label, kind: "Routine", span: r.span, scalars: scalars)
+            signature(r.sig, c, label: one("sig"))
+            exprs(r.pre, c, field: "requires")
+            exprs(r.post, c, field: "ensures")
+            block(r.body, c, label: one("body"))
+        ExternBlock(b):
+            let scalars := "{str("library", value: b.library)}{optSpan("end_marker", value: b.endMarker)}"
+            line(d, label, kind: "ExternBlock", span: b.span, scalars: scalars)
+            for i := 0 to len(b.decls) - 1 do
+                case b.decls[i] of
+                    ExternDecl(e):
+                        let es := "{flag("exported", value: e.exported)}{optStr("symbol", value: e.symbol)}{optStr("doc", value: e.doc)}"
+                        line(c, item("decls", i), kind: "ExternDecl", span: e.span, scalars: es)
+                        signature(e.sig, c + 1, label: one("sig"))
+                    TypeSection(s): typeSection(s, c, label: item("decls", i))
+        TestBlock(t):
+            let scalars := "{str("name", value: t.name)}{optSpan("end_marker", value: t.endMarker)}"
+            line(d, label, kind: "TestBlock", span: t.span, scalars: scalars)
+            block(t.body, c, label: one("body"))
+
+procedure dump(text: String, file: String)
+    let r := parse(text, file: file)
+    let f := r.file
+    line(0, "", kind: "File", span: f.span, scalars: str("kind", value: f.kind))
+    ident(f.name, 1, label: one("name"))
+    idents(f.units, 1, field: "uses")
+    for i := 0 to len(f.items) - 1 do
+        case f.items[i] of
+            Decl(x): decl(x, 1, label: item("items", i))
+            Stmt(x): stmt(x, 1, label: item("items", i))
+    for g in r.diagnostics do
+        writeln("{name(g.severity)} {g.code} {where(g.span)} {quote(g.message)}")
+        for fix in g.fixes do
+            writeln("  fix {quote(fix.description)}")
+            for e in fix.edits do
+                writeln("    edit {where(e.span)} {quote(e.text)}")
+
+for path in args() do
+    case open(path) of
+        Ok(f):
+            case readAll(f.value) of
+                Ok(t):
+                    dump(t.value, file: path)
+                Err(e):
+                    writelnErr(e.error)
+                    exit(1)
+        Err(e):
+            writelnErr(e.error)
+            exit(1)

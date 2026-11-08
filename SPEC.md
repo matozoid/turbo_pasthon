@@ -863,6 +863,11 @@ A discard can't be read (`E0104`), only assigned. Discards appear in exactly thr
   point at the generic's definition or the call site, never deep inside an instantiation.
 - Type arguments are inferred from value arguments where possible. Otherwise write them
   explicitly: `parse[Integer](s)`.
+- Where the expected type is known (a declared variable, a field, a `return`), type
+  arguments are first inferred from it, so a variant argument is injected into the union:
+  `return Ok(Circle(r: 1.0))` in a function returning `Result[Shape, String]` gives an
+  `Ok[Shape]`. If that doesn't fit the arguments, inference falls back to the arguments
+  alone.
 - Constant parameters may be used in type expressions and as values: `Array[T, N * 2]`, `for i := 0 to N - 1 do`.
 - Recursive instantiation depth is limited to 64 (`E0720`, reported when the program is
   built): `function f[T](x: T)` calling `f(Box(item: x))` would never end.

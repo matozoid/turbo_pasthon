@@ -1,0 +1,470 @@
+unit Ast
+
+## Abstract syntax tree (SPEC §16).
+##
+## Every node has a `span` covering its source text (SPEC §15.6). Declarations carry their
+## `##` doc comment in `doc`; nodes that can be closed by an end marker (SPEC §2.4) record
+## its span in `endMarker`.
+##
+## The parser never stops at an error. Broken statements and expressions become
+## `ErrorStmt` / `ErrorExpr` nodes, so the tree is always complete.
+##
+## Expressions and arguments carry an `id`, unique within a parse, that later stages use
+## to attach facts (types, chosen overloads) to them.
+
+uses Source
+
+type
+    # ---------------------------------------------------------------- names, types
+
+    export Ident = record
+        export span: Span
+        export name: String
+
+    ## `Integer`, `List[T]`, `Geometry.Shape`, `Array[T, N * 2]`.
+    ##
+    ## `args` holds type expressions, or plain expressions for constant arguments. A bare
+    ## name may also turn out to be a constant (`N` in `Array[T, N]`); the checker decides.
+    export TypeName = record
+        export span: Span
+        export parts: List[String]
+        export args: List[TypeOrExpr]
+        ## One per part.
+        export partSpans: List[Span]
+
+    export RefType = record
+        export span: Span
+        export target: TypeExpr
+
+    export FuncType = record
+        export span: Span
+        export isFunction: Boolean
+        export params: List[TypeExpr]
+        export result: Option[TypeExpr]
+
+    export TypeExpr = TypeName | RefType | FuncType
+
+    ## A type argument or index item: a type, or an expression.
+    export TypeOrExpr = TypeExpr | Expr
+
+    export TypeParam = record
+        export span: Span
+        export name: Ident
+        ## Traits, or the type of a constant parameter (`N: Integer`).
+        export bounds: List[TypeExpr]
+
+    # ----------------------------------------------------------------- expressions
+
+    export Name = record
+        export span: Span
+        export id: Integer
+        export name: String
+
+    export IntLit = record
+        export span: Span
+        export id: Integer
+        export value: UInt64
+
+    ## The value is kept as its digits, without `_`.
+    export RealLit = record
+        export span: Span
+        export id: Integer
+        export digits: String
+
+    export CharLit = record
+        export span: Span
+        export id: Integer
+        export value: Char
+
+    export BoolLit = record
+        export span: Span
+        export id: Integer
+        export value: Boolean
+
+    export StringLit = record
+        export span: Span
+        export id: Integer
+        export value: String
+
+    ## The text between placeholders.
+    export TextPart = record
+        export text: String
+
+    export InterpPart = TextPart | Expr
+
+    ## A string with placeholders: text parts and expressions, in order.
+    export InterpString = record
+        export span: Span
+        export id: Integer
+        export parts: List[InterpPart]
+
+    export ListLit = record
+        export span: Span
+        export id: Integer
+        export items: List[Expr]
+
+    export MapEntry = record
+        export span: Span
+        export key: Expr
+        export value: Expr
+
+    export MapLit = record
+        export span: Span
+        export id: Integer
+        export entries: List[MapEntry]
+
+    export SetLit = record
+        export span: Span
+        export id: Integer
+        export items: List[Expr]
+
+    ## `{}`: an empty map or set, decided by the expected type.
+    export EmptyBraces = record
+        export span: Span
+        export id: Integer
+
+    export Paren = record
+        export span: Span
+        export id: Integer
+        export inner: Expr
+
+    export Unary = record
+        export span: Span
+        export id: Integer
+        ## `-`, `not`, `try`.
+        export op: String
+        export operand: Expr
+
+    export Binary = record
+        export span: Span
+        export id: Integer
+        ## `+`, `div`, `and`, `<=`, `in`, ...
+        export op: String
+        export left: Expr
+        export right: Expr
+        export opSpan: Span
+
+    export Arg = record
+        export span: Span
+        export id: Integer
+        ## A named argument.
+        export name: Option[Ident]
+        ## `var x` at the call site.
+        export isVar: Boolean
+        export value: Expr
+
+    export Call = record
+        export span: Span
+        export id: Integer
+        export callee: Expr
+        export args: List[Arg]
+
+    ## `a[i]` or `f[Integer]`: indexing and explicit instantiation look the same, so the
+    ## checker decides (SPEC §16). Items may be type expressions.
+    export Index = record
+        export span: Span
+        export id: Integer
+        export target: Expr
+        export items: List[TypeOrExpr]
+
+    export FieldAccess = record
+        export span: Span
+        export id: Integer
+        export target: Expr
+        export name: Ident
+
+    export Deref = record
+        export span: Span
+        export id: Integer
+        export target: Expr
+
+    export CondExpr = record
+        export span: Span
+        export cond: Expr
+        export value: Expr
+
+    export IfExpr = record
+        export span: Span
+        export id: Integer
+        export branches: List[CondExpr]
+        export elseValue: Expr
+
+    export ErrorExpr = record
+        export span: Span
+        export id: Integer
+
+    # ----------------------------------------------------------------- case labels
+
+    ## A constant, or a bare name: an enum member or a variant without binding.
+    export ValueLabel = record
+        export span: Span
+        export value: Expr
+
+    export RangeLabel = record
+        export span: Span
+        export low: Expr
+        export high: Expr
+
+    ## `Circle(c)` / `Circle(_)`: a union variant with a binding.
+    export VariantLabel = record
+        export span: Span
+        export variant: TypeName
+        ## The name starts with `_` for a discard.
+        export binding: Ident
+
+    export Label = ValueLabel | RangeLabel | VariantLabel
+
+    export CaseExprArm = record
+        export span: Span
+        ## Empty for `else`.
+        export labels: List[Label]
+        export value: Expr
+
+    export CaseExpr = record
+        export span: Span
+        export id: Integer
+        export subject: Expr
+        export arms: List[CaseExprArm]
+
+    export Expr = Name | IntLit | RealLit | CharLit | BoolLit | StringLit | InterpString | ListLit | MapLit | SetLit | EmptyBraces | Paren | Unary | Binary | Call | Index | FieldAccess | Deref | IfExpr | CaseExpr | ErrorExpr
+
+    # ------------------------------------------------------------------ statements
+
+    export Block = record
+        export span: Span
+        export stmts: List[Stmt]
+
+    export VarDecl = record
+        export span: Span
+        ## `var` or `let`.
+        export mutable: Boolean
+        export name: Ident
+        export declType: Option[TypeExpr]
+        export value: Expr
+
+    export Assign = record
+        export span: Span
+        export target: Expr
+        export value: Expr
+
+    export Discard = record
+        export span: Span
+        ## `_` or `_name`.
+        export name: String
+        export value: Expr
+
+    export ExprStmt = record
+        export span: Span
+        export expr: Expr
+
+    export CondBlock = record
+        export span: Span
+        export cond: Expr
+        export body: Block
+
+    export If = record
+        export span: Span
+        ## `if` and every `else if`.
+        export branches: List[CondBlock]
+        export elseBody: Option[Block]
+        export endMarker: Option[Span]
+
+    export While = record
+        export span: Span
+        export cond: Expr
+        export body: Block
+        export endMarker: Option[Span]
+
+    export Repeat = record
+        export span: Span
+        export body: Block
+        export cond: Expr
+
+    export ForRange = record
+        export span: Span
+        export variable: Ident
+        export start: Expr
+        export stop: Expr
+        export down: Boolean
+        export body: Block
+        export endMarker: Option[Span]
+
+    export ForIn = record
+        export span: Span
+        ## One, or key and value for maps; names may be discards.
+        export vars: List[Ident]
+        export iterable: Expr
+        export body: Block
+        export endMarker: Option[Span]
+
+    ## An indented block, or one statement on the arm's line.
+    export ArmBody = Block | Stmt
+
+    export CaseArm = record
+        export span: Span
+        ## Empty for `else`.
+        export labels: List[Label]
+        export body: ArmBody
+
+    export Case = record
+        export span: Span
+        export subject: Expr
+        export arms: List[CaseArm]
+        export endMarker: Option[Span]
+
+    export Defer = record
+        export span: Span
+        export body: ArmBody
+        export endMarker: Option[Span]
+
+    export Break = record
+        export span: Span
+
+    export Continue = record
+        export span: Span
+
+    export Return = record
+        export span: Span
+        export value: Option[Expr]
+
+    export Assert = record
+        export span: Span
+        export cond: Expr
+        export message: Option[Expr]
+
+    export ErrorStmt = record
+        export span: Span
+
+    export Stmt = VarDecl | Assign | Discard | ExprStmt | If | While | Repeat | ForRange | ForIn | Case | Defer | Break | Continue | Return | Assert | ErrorStmt
+
+    # ---------------------------------------------------------------- declarations
+
+    export FieldDecl = record
+        export span: Span
+        export exported: Boolean
+        export name: Ident
+        export declType: TypeExpr
+        export default: Option[Expr]
+        export doc: Option[String]
+
+    ## One parameter group: `a, b: T`, `var x: T := d`, `this`, `var this`, or `...`.
+    export Param = record
+        export span: Span
+        export isVar: Boolean
+        ## Several for a group; `this` for a `this` parameter.
+        export names: List[Ident]
+        ## None for `this` and `...`.
+        export declType: Option[TypeExpr]
+        export default: Option[Expr]
+        export isThis: Boolean
+        export isVarargs: Boolean
+
+    export Signature = record
+        export span: Span
+        export isFunction: Boolean
+        export name: Ident
+        export typeParams: List[TypeParam]
+        export params: List[Param]
+        export result: Option[TypeExpr]
+        export doc: Option[String]
+
+    export EnumType = record
+        export span: Span
+        export members: List[Ident]
+
+    export SubrangeType = record
+        export span: Span
+        export low: Expr
+        export high: Expr
+
+    export UnionType = record
+        export span: Span
+        export variants: List[TypeExpr]
+
+    export RecordType = record
+        export span: Span
+        export fields: List[FieldDecl]
+        ## Declared in an extern block: a C record (SPEC §10.5).
+        export c: Boolean
+
+    export TraitType = record
+        export span: Span
+        export fields: List[FieldDecl]
+        export routines: List[Signature]
+
+    export TypeBody = TypeExpr | EnumType | SubrangeType | UnionType | RecordType | TraitType
+
+    export TypeDecl = record
+        export span: Span
+        export exported: Boolean
+        export name: Ident
+        export params: List[TypeParam]
+        export body: TypeBody
+        export doc: Option[String]
+        export endMarker: Option[Span]
+
+    export TypeSection = record
+        export span: Span
+        export decls: List[TypeDecl]
+
+    export ConstDecl = record
+        export span: Span
+        export exported: Boolean
+        export name: Ident
+        export value: Expr
+        export doc: Option[String]
+
+    export ConstSection = record
+        export span: Span
+        export decls: List[ConstDecl]
+
+    export Routine = record
+        export span: Span
+        export exported: Boolean
+        export isUnsafe: Boolean
+        export sig: Signature
+        ## `requires` clauses.
+        export pre: List[Expr]
+        ## `ensures` clauses.
+        export post: List[Expr]
+        export body: Block
+        export doc: Option[String]
+        export endMarker: Option[Span]
+
+    export ExternDecl = record
+        export span: Span
+        export id: Integer
+        export exported: Boolean
+        export sig: Signature
+        ## `as "symbol"`.
+        export symbol: Option[String]
+        export doc: Option[String]
+
+    ## Type sections in an extern block declare C records.
+    export ExternItem = ExternDecl | TypeSection
+
+    export ExternBlock = record
+        export span: Span
+        export library: String
+        export decls: List[ExternItem]
+        export endMarker: Option[Span]
+
+    export TestBlock = record
+        export span: Span
+        export name: String
+        export body: Block
+        export endMarker: Option[Span]
+
+    export Decl = TypeSection | ConstSection | Routine | ExternBlock | TestBlock
+
+    ## Statements appear only in programs.
+    export TopItem = Decl | Stmt
+
+    export SourceFile = record
+        export span: Span
+        ## `program` or `unit`.
+        export kind: String
+        export name: Ident
+        export units: List[Ident]
+        ## In source order.
+        export items: List[TopItem]
