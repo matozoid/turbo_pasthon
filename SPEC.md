@@ -181,7 +181,8 @@ in the file. No `forward` declarations are needed. Mutual recursion works.
 
 ### 3.5 Exports and imports
 - A declaration prefixed with `export` is visible to units/programs that `uses` this unit.
-- Exporting a record or trait type exports all of its fields/members.
+- Exporting a record type exports only the fields marked `export` (§4.4). Exporting a
+  trait exports all of its members.
 - Enum members are exported with their enum.
 - `uses Strings` makes exported names available both qualified (`Strings.split`) and unqualified (`split`).
 - If an unqualified name is ambiguous between units, using it is an error (`E0110`); qualify it.
@@ -204,7 +205,7 @@ All type declarations live in `type` sections and have the form `Name = <type-ex
 | `Real32` | IEEE-754 32-bit |
 | `Boolean` | `true` / `false`, 1 byte |
 | `Char` | Unicode scalar value, 32-bit |
-| `String` | immutable UTF-8 text, refcounted |
+| `String` | immutable UTF-8 text, refcounted; iterated, not indexed (§4.5.1) |
 
 An integer literal's type is `Integer` unless the expected type is another integer type
 and the value fits.
@@ -248,6 +249,24 @@ type
   fields are all C-compatible is layout-identical to the C struct.
 - Records cannot contain functions. Behavior is provided by free functions (§6.6).
 
+**Field visibility.** Fields are private to the declaring unit unless marked `export`:
+
+```pascal
+type
+    export SortedList = record
+        export count: Integer        # readable and writable from other units
+        items: List[Integer]         # only this unit's functions can touch it
+```
+
+- Outside the unit, private fields can't be read, written, or named.
+- A record with any private field can only be **constructed** inside its unit. Other
+  units go through an exported function (e.g. `newSortedList()`), so the unit can protect
+  invariants.
+- `=` still compares all fields, private ones included.
+
+**Resource records.** A record whose unit declares `procedure destroy(var r: R)` for it is a
+*resource record*. It exists only behind `ref` (§11.1).
+
 ### 4.5 Arrays, lists, maps, sets
 
 | Type | Semantics |
@@ -258,6 +277,19 @@ type
 | `Set[T]` | `T` must be an ordinal type with at most 256 values; stored as a bitset |
 
 All indexing is 0-based and bounds-checked in checked builds (panic `P0001`).
+
+#### 4.5.1 Strings are iterated, not indexed
+Indexing syntax promises O(1) access, which UTF-8 text can't provide, so `s[i]` doesn't
+exist on `String` (`E0310`, with a fix suggesting `chars`, `bytes`, or `slice`).
+
+- `for c in s do` / `chars(s)` iterate over `Char`s (§4.14).
+- `charCount(s)` is the number of `Char`s, computed once when the string is created (O(1)).
+  `byteLen(s)` is the UTF-8 size. There is no `len(s)`. `len` is only for collections
+  with O(1) indexing.
+- `bytes(s)` returns the UTF-8 bytes as a `List[Byte]` (O(1), shares the buffer), with real
+  O(1) indexing for parsers.
+- **Positions are byte offsets.** `find(s, sub): Option[Integer]` returns one, and
+  `slice(s, from, to)` takes them. An offset that isn't on a `Char` boundary panics (`P0006`).
 
 ### 4.6 Value semantics everywhere (except `ref`)
 `String`, `List`, `Map` behave as **values**: assignment and parameter passing
@@ -352,9 +384,12 @@ type
   exists whose first parameter is `X` (or `var X`) and whose remaining signature matches
   after substituting `This := X`. No `implements` declaration exists.
 - Combined bounds: `[T: Measurable + Named]`.
+- **Generic traits** take type parameters: `Iterator[T]`. In a bound they are applied like
+  types: `[T, I: Iterator[T]]`. A type argument used only in a bound (here `T`) is inferred
+  from the signatures of the satisfying type (here, from `next`'s return type).
 
-Built-in traits in `System`: `Equatable` (`=`), `Ordered` (`<` etc.), `Hashable`,
-`Printable` (`toString(this): String`), `Copyable`.
+Built-in traits in `System`: `Iterator[T]` (§4.14), `Sendable` (§11.2), `Equatable` (`=`), `Ordered` (`<` etc.), `Hashable`,
+`Printable` (`toString(this): String`).
 
 ### 4.11 Function types
 
@@ -395,6 +430,80 @@ Available from the `C` unit:
 
 `Ptr`/`Pointer` are unmanaged and can be dereferenced (`deref(p)`, same form as for `ref`) only inside functions marked `unsafe` (§10.4).
 
+### 4.14 Iterators
+```pascal
+type
+    Iterator[T] = trait                       # in System
+        function next(var this): Option[T]
+```
+
+- An iterator is an ordinary record holding its state, plus a `next` function. Satisfaction
+  is structural, as for every trait.
+- A type is **iterable** if a visible function `iter(c: C): I` exists where `I` satisfies
+  `Iterator[T]`. Every iterator is iterable as itself.
+- `for x in e do <body>` means:
+  ```pascal
+  var it := iter(e)          # or a copy of e, if e is already an Iterator
+  while true do
+      case next(var it) of
+          Some(x): <body>    # x is a fresh let binding
+          None:    break
+  ```
+  Each loop is instantiated for its concrete iterator type, so `next` is a direct call.
+- `for _ in e do` iterates without binding.
+- `for k, v in m do` works on `Map`: it iterates `entries(m)`, which yields
+  `Entry[K, V]` (fields `key`, `value`) and binds the two fields.
+- **Snapshot semantics.** An iterator holds its own copy of the collection. With
+  copy-on-write (§4.6) this is O(1). Mutating the collection inside the loop copies the
+  buffer, and the loop keeps iterating the original contents. Iterators never dangle and
+  never observe concurrent modification.
+- Generic code accepts iterators, not collections: `count(iter(xs))`.
+
+```pascal
+type
+    CharIter = record
+        text: String        # refcounted copy, O(1)
+        pos: Integer        # byte offset
+
+function iter(s: String): CharIter
+    return CharIter(text: s, pos: 0)
+
+function next(var it: CharIter): Option[Char]
+    if it.pos >= byteLen(it.text) then
+        return None
+    let c := decodeUtf8At(it.text, it.pos)
+    it.pos := it.pos + utf8Width(c)
+    return Some(c)
+
+function count[T, I: Iterator[T]](it: I): Integer
+    var n := 0
+    for _ in it do
+        inc(n)
+    return n
+```
+
+**Built-in iterables:** `List`, `Array`, `Set`, `Map` (keys), `String` (Chars), enum types
+(all members in order). Integer ranges use `for i := a to b do` (§7.5), the only way to
+loop over integers.
+
+**Adapters in `System`.** Each one is a generic iterator record plus `next`, so loops over
+them compile to direct calls with no allocation:
+
+| Adapter | Yields |
+|---|---|
+| `map(it, f)` | `f(x)` for each `x` |
+| `filter(it, pred)` | `x` where `pred(x)` |
+| `take(it, n)` / `skip(it, n)` | first `n` / all but first `n` |
+| `zip(a, b)` | `Pair[A, B]` (fields `first`, `second`) until either ends |
+| `enumerate(it)` | `Indexed[T]` (fields `index`, `value`) |
+| `chars(s)` | `Char`s of a string |
+
+**Consumers:** `collect(it): List[T]`, `count`, `sum`, `any(it, pred)`, `all(it, pred)`,
+`find(it, pred): Option[T]`.
+
+In v0.1, `f` and `pred` are named functions (`map(xs, double)`). v0.2 lambdas (§18a) make
+them inline: `map(xs, x => x * 2)`.
+
 ---
 
 ## 5. Declarations
@@ -407,6 +516,7 @@ const
     Origin = Point(x: 0.0, y: 0.0)
 ```
 The value must be computable at compile time. The type is inferred.
+`const` sections are only allowed at top level, never inside functions (`E0202`). Use `let` there.
 
 ### 5.2 Local variables
 ```pascal
@@ -441,6 +551,9 @@ procedure name[TypeParams](params)
 - `x: T`: by value, immutable inside the body.
 - `var x: T`: by reference, mutable; the caller sees changes.
 - Default values: `sep: String := ", "`. Only trailing parameters may have defaults.
+- **Parameter groups** (Pascal style): `a, b: T` declares several parameters with one type.
+  Grouping declares them *interchangeable in role*, which affects named arguments (§6.4):
+  `function max[T: Ordered](a, b: T): T`, `procedure swap[T](var a, b: T)`.
 
 ### 6.3 Call-site `var`
 An argument passed to a `var` parameter must be marked `var` at the call site:
@@ -457,6 +570,21 @@ Every call that may mutate an argument shows `var` at that argument.
 - Any argument may be passed by name: `restock(item, amount: 5)`.
 - Positional arguments must come before named ones.
 - Each parameter is bound exactly once.
+- **Required names for same-typed parameters.** If several parameters have the same type
+  but are declared **separately** (not in one group), every one of them except the first
+  must be passed by name (`E0530`, with a fix inserting the names):
+
+  ```pascal
+  procedure copyFile(src: String, dst: String)
+  copyFile("a.txt", dst: "b.txt")     # ok
+  copyFile("a.txt", "b.txt")          # E0530: 'dst' has the same type as 'src'; name it
+
+  function max[T: Ordered](a, b: T): T
+  max(x, y)                           # ok: a and b are grouped, so interchangeable
+  ```
+- "Same type" is decided on the declared parameter types, before generic substitution.
+  The first argument of a dot call (§6.6) counts as positional.
+- A named argument to a `var` parameter is written `name: var expr`.
 
 ### 6.5 Contracts
 - `requires` checks run on entry; `ensures` checks run on every return.
@@ -528,12 +656,13 @@ for i := 0 to n - 1 do        # inclusive bounds, step +1
     ...
 for i := n - 1 downto 0 do    # inclusive bounds, step -1
     ...
-for item in items do          # List, Array, Set, Map (yields keys), String (yields Char), enum type
+for item in items do          # any iterable (§4.14)
     ...
 for key, value in map do      # Map only
     ...
 ```
-- The loop variable is a fresh `let` binding scoped to the body.
+- The loop variable is a fresh `let` binding scoped to the body. `for ... in` is defined by
+  the iterator protocol (§4.14).
 - The bounds of `to`/`downto` are evaluated once.
 
 ### 7.6 case
@@ -593,7 +722,7 @@ and can also appear as a `case` binding: `Circle(_): ...`.
   explicitly: `parse[Integer](s)`.
 - Constant parameters may be used in type expressions and as values: `Array[T, N * 2]`, `for i := 0 to N - 1 do`.
 - Recursive instantiation depth is limited to 64 (`E0720`).
-- An unbounded `T` supports only copying, assignment, passing to parameters of type `T`,
+- Resource records can't be type arguments (use `ref R`, §11.1). An unbounded `T` supports only copying, assignment, passing to parameters of type `T`,
   and storing in generic containers. Everything else (`=`, `<`, `toString`, calls,
   fields) needs a bound that provides it.
 
@@ -773,6 +902,52 @@ function requires no marker. Unsafe code is greppable, not contagious.
 - **No cycle collector.** Strong cycles leak, so use `Weak[T]`.
 - Records, arrays, enums, unions, and primitives live inline (stack or embedded).
 - Heap allocation goes through libc `malloc`/`free`.
+- Refcounts are **not atomic**. Every heap object belongs to exactly one thread (§11.2).
+
+### 11.1 Destroy hooks and resource records
+```pascal
+type
+    export File = record
+        fd: CInt
+
+procedure destroy(var f: File)
+    _ := close(f.fd)
+
+export function open(path: String): Result[ref File, String]
+    let fd := try sysOpen(path)
+    return Ok(new(File(fd: fd)))
+```
+
+- A record whose unit declares `procedure destroy(var r: R)` for it is a **resource record**.
+  `destroy` must be in the same unit as the record, with exactly this signature. It is
+  called automatically and can never be called explicitly (`E1101`).
+- **Resource records exist only behind `ref`.** A value of type `R` itself can't be stored
+  in a variable, parameter, field, list, or return value (`E1103`). Only `ref R` can.
+  - The constructor `R(...)` may appear only as the direct argument of `new(...)`.
+  - `deref(r)` on a `ref R` is an error (it would copy). Field access `r.fd` works.
+  - `R` can't be a generic type argument, but `ref R` can: `List[ref File]`.
+- `ref R` copies freely (refcount +1). Cleanup is deterministic: `destroy` runs exactly once,
+  when the last strong reference goes away. Then the memory is freed.
+- If a record holds `ref R` fields, releasing the record releases them, which may trigger
+  their `destroy`.
+- There are **no moves** and no move tracking. Ownership is always the refcount.
+- Destroy does not run on panic or `halt`. The process exits and the OS reclaims resources.
+
+### 11.2 Concurrency (reserved design, not implemented in v0.1)
+v0.1 is single-threaded, but the design is fixed now so v0.1 doesn't rule it out:
+
+- **Threads share nothing.** Each thread has its own heap. Refcounts stay non-atomic and fast.
+- There are no mutable globals (§3.3), so no shared state can exist by accident.
+- Communication is by **message passing** only, through the `Threads` unit:
+  `spawn(worker, arg): Task[T]`, `join(t): T`, `Channel[T]`, `send(var ch, value)`,
+  `receive(var ch): Option[T]`.
+- Only `Sendable` values cross threads: types containing no `ref`, `Weak`, `Ptr`, or
+  `Pointer`. Sending transfers the value (a runtime operation, not compile-time move tracking). Buffers with refcount 1 are handed over in O(1),
+  shared buffers are deep-copied, so the receiver always gets an object it owns alone.
+- `spawn` takes a named top-level function (or a v0.2 lambda that only captures `Sendable`
+  values).
+- v0.1 implementation constraint: the runtime must not rely on any global mutable state
+  of its own (allocator caches, string tables) without being made per-thread.
 
 ---
 
@@ -788,6 +963,7 @@ function requires no marker. Unsafe code is greppable, not contagious.
 | `P0003` | subrange violation |
 | `P0004` | division by zero |
 | `P0005` | `get` on `None` / `Err` |
+| `P0006` | string byte offset not on a `Char` boundary |
 | `P0010` | `requires` violated |
 | `P0011` | `ensures` violated |
 | `P0020` | `assert` failed |
@@ -812,12 +988,13 @@ test "largest of empty list is None"
 
 | Unit | Contents |
 |---|---|
-| `System` (implicit) | core types, `Option`, `Result`, `len`, `add`, `concat`, `remove`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, conversions, `halt`, `assert` support |
+| `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters and consumers (§4.14), `len`, `add`, `concat`, `remove`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, conversions, `halt`, `assert` support |
 | `IO` | `write`, `writeln`, `readln`, files: `open`, `close`, `readAll`, `writeAll` returning `Result` |
-| `Strings` | `split`, `join`, `trim`, `find`, `replace`, `startsWith`, `parseInt`, `parseReal` |
+| `Strings` | `chars`, `bytes`, `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `parseInt`, `parseReal` |
 | `Math` | `Pi`, `sqrt`, `sin`, `cos`, `abs`, `min`, `max`, `floor`, `ceil` |
 | `Bits` | `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, `popCount` on all integer types (compiler intrinsics) |
 | `OS` | `args(): List[String]`, `env(name): Option[String]`, `exit` |
+| `Threads` | reserved for §11.2; not in v0.1 |
 | `C` | C interop types, `toCString`, `fromCString` |
 
 ---
@@ -1017,7 +1194,8 @@ field       = IDENT ":" typeExpr [":=" constExpr] NEWLINE ;
 typeExpr    = IDENT [typeArgs] | "ref" typeExpr
             | ("function" | "procedure") "(" [typeExpr {"," typeExpr}] ")" [":" typeExpr] ;
 typeParams  = "[" typeParam { "," typeParam } "]" ;
-typeParam   = IDENT [":" IDENT { "+" IDENT }] ;
+typeParam   = IDENT [":" bound { "+" bound }] ;
+bound       = IDENT [typeArgs] ;
 typeArgs    = "[" (typeExpr | constExpr) { "," (typeExpr | constExpr) } "]" ;
 
 constSect   = "const" NEWLINE INDENT { ["export"] IDENT "=" expr NEWLINE } DEDENT ;
@@ -1025,7 +1203,7 @@ constSect   = "const" NEWLINE INDENT { ["export"] IDENT "=" expr NEWLINE } DEDEN
 routine     = ["export"] ["unsafe"] signature routineBody ;
 signature   = ("function" | "procedure") IDENT [typeParams]
               "(" [param { "," param }] ")" [":" typeExpr] ;
-param       = ["var"] ( "this" | IDENT ":" typeExpr [":=" expr] ) | "..." ;
+param       = ["var"] ( "this" | IDENT { "," IDENT } ":" typeExpr [":=" expr] ) | "..." ;
 routineBody = NEWLINE INDENT { "requires" expr NEWLINE } { "ensures" expr NEWLINE }
               stmt { stmt } DEDENT ;
 
@@ -1071,12 +1249,24 @@ runtime trait objects (use unions).
 
 ## 18. Open questions
 
-1. **Closures/lambdas**: would make `map`/`filter` practical. They need captured environments, which are refcounted, so this fits the memory model. Defer to v0.2?
-2. **Field privacy**: currently exported types export all fields. Add per-field `export`?
-3. **Destructors**: should records holding C resources get a `destroy` hook called at last release, or is `defer` enough?
-4. **Concurrency**: out of scope for v0.1.
-5. **Named-argument enforcement**: require names when several parameters share a type (e.g. `copy(src, dst)`)? Right now this is optional.
-6. **Strings**: `s[i]` returns `Byte` (UTF-8 unit) while `for c in s` yields `Char`. Is that acceptable, or should indexing be removed in favor of explicit `bytes(s)[i]`?
+None at the moment.
+
+## 18a. Planned for v0.2
+
+**Lambdas**, restricted so that the common, safe cases work and the classic bugs can't happen:
+
+```pascal
+let doubled := map(xs, x => x * 2)
+let adults := filter(people, p => p.age >= 18)
+sort(var people, key: p => p.name)
+```
+
+- The body is a single expression, never a block.
+- Captures are **by value**: a frozen copy taken when the lambda is created. There is no
+  shared loop-variable bug, and captured variables can't be mutated.
+- Parameter types are inferred from the expected function type. Lambdas can't appear where
+  no function type is expected.
+- A lambda is `Sendable` if all its captures are.
 
 ---
 
