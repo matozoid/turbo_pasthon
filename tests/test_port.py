@@ -679,4 +679,127 @@ class Check(_Differential):
         )
 
 
+def asm_dump(script: str) -> str:
+    """Runs an assembler script (see ``compiler/AsmDump.pst``) and prints what AsmDump prints."""
+    from pst import elf, x86
+
+    a = x86.Assembler()
+    names: dict[str, str] = {}
+    out: list[str] = []
+
+    def arg(w: str):
+        w = names.get(w, w)
+        if w in ("true", "false"):
+            return w == "true"
+        return int(w) if re.fullmatch(r"-?\d+", w) else w
+
+    for line in script.splitlines():
+        if not line:
+            continue
+        op, *ws = line.split(" ")
+        if op == "data":
+            value = bytes(int(b) & 0xFF for b in ws[2].split(",")) if ws[2] != "-" else b""
+            names[ws[0]] = a.data(value, int(ws[1]))
+        elif op == "new_label":
+            names[ws[0]] = a.new_label(ws[1])
+        elif op == "track":
+            a.stack = []
+        elif op == "untrack":
+            a.stack = None
+        elif op == "own":
+            a.stack[-1] = True
+        elif op == "sub_imm32_fixed":
+            out.append(f"fixed {a.sub_imm32_fixed(*map(arg, ws))}")
+        else:
+            getattr(a, op)(*map(arg, ws))
+        if a.stack is not None:
+            out.append(f"stack [{''.join('1' if o else '0' for o in a.stack)}]")
+    needed = (elf.LIBC,)
+    code = a.finish(elf.rodata_offset(len(a.code)), elf.got_offset(len(a.code), len(a.rodata), a.imports, needed))
+
+    def dump(title: str, bs: bytes) -> None:
+        out.append(f"{title} {len(bs)}")
+        out.extend(bs[i : i + 32].hex() for i in range(0, len(bs), 32))
+
+    dump("code", code)
+    dump("rodata", bytes(a.rodata))
+    out.append(f"imports {' '.join(a.imports)}")
+    out.append(f"globals {' '.join(a.globals)}")
+    dump("executable", elf.executable(code, bytes(a.rodata), 0, a.imports, needed, len(a.globals)))
+    return "".join(line + "\n" for line in out)
+
+
+def asm_script() -> str:
+    """A script that calls every assembler instruction with registers, displacements
+    and immediates at the edges of each encoding."""
+    regs = range(16)
+    bases = (0, 3, 4, 5, 7, 8, 12, 13, 15)
+    disps = (0, 8, -8, 127, 128, -128, -129, 4096, -100000)
+    imms = (0, 1, -1, 127, 128, -128, -129, 2**31 - 1, -(2**31))
+    lines = ["new_label top L", "label top", "data msg 1 104,105,0", "data msg2 1 104,105,0",
+             "data tbl 8 0,0,0,0,0,0,0,0,1", "data empty 1 -", "new_label fwd X"]
+    for d in regs:
+        for s in regs:
+            lines += [f"{op} {d} {s}" for op in ("mov", "add", "xor", "or_", "and_", "sub", "cmp", "test",
+                                                  "test32", "imul", "popcnt", "movzx8", "xor32")]
+        for op in ("neg", "not_", "shl_cl", "shr_cl", "mul", "div", "idiv", "inc", "dec", "push", "pop",
+                   "call_reg"):
+            lines.append(f"{op} {d}")
+        for v in (0, 1, 255, 2**32 - 1, 2**32, -1, -(2**31), -(2**31) - 1, 2**63 - 1, -(2**63)):
+            lines.append(f"mov_imm {d} {v}")
+        for v in imms:
+            lines += [f"{op} {d} {v}" for op in ("add_imm", "sub_imm", "cmp_imm", "and_imm")]
+        lines += [f"xor_imm32 {d} 1", f"or32_imm {d} 65535", f"and32_imm {d} -1", f"shr_imm {d} 3",
+                  f"shl_imm {d} 63", f"sub_imm32_fixed {d}", f"lea_data {d} msg", f"lea_code {d} top",
+                  f"load_global {d} argv", f"store_global argc {d}"]
+        for bits in (8, 16, 32, 64):
+            lines += [f"extend {d} {bits} true", f"extend {d} {bits} false"]
+        for cc in ("o", "no", "b", "ae", "e", "ne", "be", "a", "s", "ns", "l", "ge", "le", "g"):
+            lines.append(f"setcc {cc} {d}")
+        for b in bases:
+            for disp in disps:
+                lines += [f"load {d} {b} {disp}", f"store {b} {disp} {d}", f"store8 {b} {disp} {d}",
+                          f"load8 {d} {b} {disp}", f"lea {d} {b} {disp}", f"cmp_mem {d} {b} {disp}"]
+                for bits in (8, 16, 32, 64):
+                    lines += [f"load_w {d} {b} {disp} {bits} true", f"load_w {d} {b} {disp} {bits} false",
+                              f"store_w {b} {disp} {d} {bits}"]
+    for b in bases:
+        for disp in disps:
+            lines += [f"store8_imm {b} {disp} 200", f"store_imm {b} {disp} -5", f"inc_mem {b} {disp}",
+                      f"dec_mem {b} {disp}", f"cmp_mem_imm {b} {disp} -1"]
+    for cc in ("o", "e", "ne", "l", "g", "ae"):
+        lines += [f"jcc {cc} top", f"jcc {cc} fwd"]
+    lines += ["jmp top", "jmp fwd", "call top", "call fwd", "call_import malloc", "call_import free",
+              "call_import malloc", "emit 144 15 11", "cqo", "leave", "ret", "patch32 3 -2",
+              "code_ref tbl 0 fwd", "label fwd"]
+    lines += ["track", "push 0", "own", "push 8", "push 3", "own", "pop 1", "add_imm 4 8",
+              "push 2", "push 2", "add_imm 4 16", "sub_imm 4 8", "untrack", "push 0", "pop 0", "ret"]
+    return "".join(line + "\n" for line in lines)
+
+
+class Asm(unittest.TestCase):
+    """The assembler and ELF writer, run on the same instruction script."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.exe = build_tool("AsmDump")
+
+    def compare(self, script: str):
+        path = Path(_TMP.name, "asm.txt")
+        path.write_text(script)
+        r = subprocess.run([self.exe, str(path)], capture_output=True, timeout=120)
+        self.assertEqual(r.returncode, 0, r.stderr.decode())
+        got, want = r.stdout.decode().splitlines(), asm_dump(script).splitlines()
+        for i, (a, b) in enumerate(zip(got, want)):
+            if a != b:
+                self.fail(f"line {i + 1}:\n  port:   {a}\n  python: {b}")
+        self.assertEqual(len(got), len(want))
+
+    def test_instructions(self):
+        self.compare(asm_script())
+
+    def test_empty(self):
+        self.compare("")
+
+
 del _Differential

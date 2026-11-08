@@ -1,0 +1,256 @@
+program AsmDump
+
+## Runs an assembler script and prints the finished code, the read-only data and the
+## executable in hex, to compare the assembler and the ELF writer with the Python ones
+## (tests/test_port.py).
+##
+## Usage: `AsmDump SCRIPT`. Each line of the script is an assembler call: its name as the
+## Python assembler spells it, then its arguments, separated by spaces. Integers are
+## decimal, Booleans `true` or `false`. `data NAME ALIGN BYTES` and `new_label NAME HINT`
+## bind NAME to the label they return (BYTES is comma-separated, or `-` for none); a later
+## argument NAME stands for it. `track` and `untrack` start and stop tracking the stack.
+
+uses IO, OS, Strings, X86, Elf
+
+function hex(bs: List[Byte]): List[String]
+    let digits := "0123456789abcdef"
+    var lines: List[String] := []
+    var parts: List[String] := []
+    for b in bs do
+        let v := Integer(b)
+        add(var parts, slice(digits, v div 16, stop: v div 16 + 1))
+        add(var parts, slice(digits, v mod 16, stop: v mod 16 + 1))
+        if len(parts) = 64 then
+            add(var lines, join(parts))
+            parts := []
+    if len(parts) > 0 then
+        add(var lines, join(parts))
+    return lines
+
+procedure dump(title: String, bs: List[Byte])
+    writeln("{title} {len(bs)}")
+    for line in hex(bs) do
+        writeln(line)
+
+function int(s: String): Integer
+    case parseInt(s) of
+        Ok(v):
+            return v.value
+        Err(e):
+            writelnErr(e.error)
+            exit(1)
+            return 0
+
+function bytesOf(s: String): List[Byte]
+    var out: List[Byte] := []
+    if s <> "-" then
+        for part in split(s, sep: ",") do
+            add(var out, byte(int(part)))
+    return out
+
+procedure run(a: ref Assembler, var names: Map[String, String], w: List[String])
+    let op := w[0]
+    var args: List[String] := []
+    for i := 1 to len(w) - 1 do
+        case get(names, w[i]) of
+            Some(n):
+                add(var args, n.value)
+            None:
+                add(var args, w[i])
+    var x: List[Integer] := []  # the arguments as integers; 0 for the others
+    for s in args do
+        if s = "true" then
+            add(var x, 1)
+        else
+            case parseInt(s) of
+                Ok(v):
+                    add(var x, v.value)
+                Err(_):
+                    add(var x, 0)
+    if op = "data" then
+        names[w[1]] := data(a, bytesOf(w[3]), align: int(w[2]))
+    else if op = "new_label" then
+        names[w[1]] := newLabel(a, w[2])
+    else if op = "track" then
+        a.tracked := true
+        a.stack := []
+    else if op = "untrack" then
+        a.tracked := false
+        a.stack := []
+    else if op = "own" then  # marks the top word as an owned reference
+        a.stack[len(a.stack) - 1] := true
+    else if op = "label" then
+        label(a, args[0])
+    else if op = "code_ref" then
+        codeRef(a, args[0], offset: x[1], label: args[2])
+    else if op = "emit" then
+        emit(a, x)
+    else if op = "mov" then
+        mov(a, x[0], x[1])
+    else if op = "mov_imm" then
+        movImm(a, x[0], value: x[1])
+    else if op = "load" then
+        load(a, x[0], x[1], disp: x[2])
+    else if op = "store" then
+        store(a, x[0], disp: x[1], src: x[2])
+    else if op = "store8" then
+        store8(a, x[0], disp: x[1], src: x[2])
+    else if op = "store8_imm" then
+        store8Imm(a, x[0], disp: x[1], value: x[2])
+    else if op = "store_imm" then
+        storeImm(a, x[0], disp: x[1], value: x[2])
+    else if op = "load8" then
+        load8(a, x[0], x[1], disp: x[2])
+    else if op = "load_w" then
+        loadW(a, x[0], x[1], disp: x[2], bits: x[3], signed: x[4] = 1)
+    else if op = "store_w" then
+        storeW(a, x[0], disp: x[1], src: x[2], bits: x[3])
+    else if op = "extend" then
+        extend(a, x[0], bits: x[1], signed: x[2] = 1)
+    else if op = "inc_mem" then
+        incMem(a, x[0], disp: x[1])
+    else if op = "dec_mem" then
+        decMem(a, x[0], disp: x[1])
+    else if op = "cmp_mem_imm" then
+        cmpMemImm(a, x[0], disp: x[1], value: x[2])
+    else if op = "lea" then
+        lea(a, x[0], x[1], disp: x[2])
+    else if op = "lea_data" then
+        leaData(a, x[0], label: args[1])
+    else if op = "load_global" then
+        loadGlobal(a, x[0], name: args[1])
+    else if op = "store_global" then
+        storeGlobal(a, args[0], src: x[1])
+    else if op = "lea_code" then
+        leaCode(a, x[0], label: args[1])
+    else if op = "add" then
+        add(a, x[0], x[1])
+    else if op = "xor" then
+        xor(a, x[0], x[1])
+    else if op = "or_" then
+        orR(a, x[0], x[1])
+    else if op = "and_" then
+        andR(a, x[0], x[1])
+    else if op = "sub" then
+        sub(a, x[0], x[1])
+    else if op = "cmp" then
+        cmp(a, x[0], x[1])
+    else if op = "cmp_mem" then
+        cmpMem(a, x[0], x[1], disp: x[2])
+    else if op = "test" then
+        testR(a, x[0], x[1])
+    else if op = "test32" then
+        test32(a, x[0], x[1])
+    else if op = "imul" then
+        imul(a, x[0], x[1])
+    else if op = "neg" then
+        neg(a, x[0])
+    else if op = "not_" then
+        notR(a, x[0])
+    else if op = "shl_cl" then
+        shlCl(a, x[0])
+    else if op = "shr_cl" then
+        shrCl(a, x[0])
+    else if op = "popcnt" then
+        popcnt(a, x[0], x[1])
+    else if op = "mul" then
+        mul(a, x[0])
+    else if op = "div" then
+        divR(a, x[0])
+    else if op = "idiv" then
+        idiv(a, x[0])
+    else if op = "cqo" then
+        cqo(a)
+    else if op = "inc" then
+        incR(a, x[0])
+    else if op = "dec" then
+        decR(a, x[0])
+    else if op = "setcc" then
+        setcc(a, args[0], r: x[1])
+    else if op = "movzx8" then
+        movzx8(a, x[0], x[1])
+    else if op = "xor_imm32" then
+        xorImm32(a, x[0], value: x[1])
+    else if op = "or32_imm" then
+        or32Imm(a, x[0], value: x[1])
+    else if op = "and32_imm" then
+        and32Imm(a, x[0], value: x[1])
+    else if op = "shr_imm" then
+        shrImm(a, x[0], n: x[1])
+    else if op = "shl_imm" then
+        shlImm(a, x[0], n: x[1])
+    else if op = "sub_imm32_fixed" then
+        writeln("fixed {subImm32Fixed(a, x[0])}")
+    else if op = "patch32" then
+        patch32(a, x[0], value: x[1])
+    else if op = "leave" then
+        leave(a)
+    else if op = "xor32" then
+        xor32(a, x[0], x[1])
+    else if op = "add_imm" then
+        addImm(a, x[0], value: x[1])
+    else if op = "sub_imm" then
+        subImm(a, x[0], value: x[1])
+    else if op = "cmp_imm" then
+        cmpImm(a, x[0], value: x[1])
+    else if op = "and_imm" then
+        andImm(a, x[0], value: x[1])
+    else if op = "push" then
+        push(a, x[0])
+    else if op = "pop" then
+        pop(a, x[0])
+    else if op = "call" then
+        call(a, args[0])
+    else if op = "call_reg" then
+        callReg(a, x[0])
+    else if op = "call_import" then
+        callImport(a, args[0])
+    else if op = "jmp" then
+        jmp(a, args[0])
+    else if op = "jcc" then
+        jcc(a, args[0], label: args[1])
+    else if op = "ret" then
+        ret(a)
+    else
+        writelnErr("unknown op {op}")
+        exit(1)
+    if a.tracked then
+        var marks: List[String] := []
+        for owned in a.stack do
+            if owned then
+                add(var marks, "1")
+            else
+                add(var marks, "0")
+        writeln("stack [{join(marks)}]")
+
+procedure main(text: String)
+    let a := newAssembler()
+    var names: Map[String, String] := {}
+    for line in split(text, sep: "\n") do
+        if line <> "" then
+            run(a, var names, w: split(line, sep: " "))
+    let needed := [Libc]
+    let ro := rodataOffset(len(a.code))
+    let got := gotOffset(len(a.code), len(a.rodata), a.imports, needed: needed)
+    finish(a, ro, gotOffset: got)
+    dump("code", a.code)
+    dump("rodata", a.rodata)
+    writeln("imports {join(a.imports, sep: " ")}")
+    writeln("globals {join(a.globals, sep: " ")}")
+    dump("executable", executable(a.code, a.rodata, 0, a.imports, needed: needed, globals: len(a.globals)))
+
+let a := args()
+if len(a) <> 1 then
+    writelnErr("usage: AsmDump SCRIPT")
+    exit(2)
+case open(a[0]) of
+    Ok(f):
+        case readAll(f.value) of
+            Ok(t):
+                main(t.value)
+            Err(e):
+                writelnErr(e.error)
+                exit(1)
+    Err(e):
+        writelnErr(e.error)
+        exit(1)
