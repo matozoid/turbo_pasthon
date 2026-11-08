@@ -4,7 +4,7 @@ unit System
 ##
 ## Provided by the compiler, not declared here: the primitive types Int8, Int16, Int32,
 ## Int64, UInt8, UInt16, UInt32, UInt64, Real32, Real64, Boolean, Char, String; the
-## generic types List[T], Map[K, V], Set[T], Array[T, N], Weak[T]; and the traits
+## generic types List[T], Set[T], Array[T, N], Weak[T]; and the traits
 ## Equatable, Ordered, Hashable, Sendable. Routines in `extern "pst"` blocks are
 ## implemented by the compiler.
 
@@ -53,6 +53,26 @@ type
         export key: K
         export value: V
 
+    ## A hash map (SPEC §4.5), written `{k: v}`. Entry `i` is `keys[i]`, `values[i]` and
+    ## `hashes[i]`, in insertion order. A removed entry stays, with hash -1 and its key
+    ## and value emptied, until `rehash` drops it. `slots` is the hash table: open
+    ## addressing with linear probing over a power-of-2 length; 0 is a free slot, any
+    ## other `s` refers to entry `s - 1`.
+    export Map[K: Hashable, V] = record
+        keys: List[K]
+        values: List[V]
+        hashes: List[Integer]
+        slots: List[Integer]
+        count: Integer  # entries not removed
+
+    export KeyIter[K: Hashable, V] = record
+        source: Map[K, V]
+        pos: Integer
+
+    export EntryIter[K: Hashable, V] = record
+        source: Map[K, V]
+        pos: Integer
+
     export ListIter[T] = record
         items: List[T]
         pos: Integer
@@ -92,18 +112,13 @@ type
 extern "pst"
     ## Number of elements.
     export function len[T](xs: List[T]): Integer
-    export function len[K, V](m: Map[K, V]): Integer
     export function len[T](s: Set[T]): Integer
     export function len[T, N: Integer](a: Array[T, N]): Integer
 
     ## Adds `x` to the set.
     export procedure add[T](var s: Set[T], x: T)
-    ## Removes `key` from the map, if present.
-    export procedure remove[K, V](var m: Map[K, V], key: K)
     ## Removes `x` from the set, if present.
     export procedure remove[T](var s: Set[T], x: T)
-    ## The entries of a map, in insertion order.
-    export function entries[K, V](m: Map[K, V]): ListIter[Entry[K, V]]
 
     ## Adds 1 (or `n`) to an integer or enum variable.
     export procedure inc[T](var x: T)
@@ -137,14 +152,18 @@ extern "pst"
     ## Exits immediately with status `code`. Deferred statements do not run.
     export procedure halt(code: Integer)
 
-    ## Panics with `P0005`.
-    function getFailed[T](what: String): T
+    ## Panics with `message`, which starts with the panic code.
+    function fail[T](message: String): T
     function byteLen(s: String): Integer
     function decodeUtf8At(s: String, pos: Integer): Char
     function utf8Width(c: Char): Integer
     ## Makes `xs` unshared and `n` long (`n >= 0`). New elements are empty, not values
     ## of `T`: the caller must fill them in before anything reads them.
     procedure resize[T](var xs: List[T], n: Integer)
+    ## Makes `xs` unshared and element `i` empty, releasing its value.
+    procedure vacate[T](var xs: List[T], i: Integer)
+    ## A hash of `x`, not negative. Equal values have equal hashes.
+    function hash[T: Hashable](x: T): Integer
 
 # ------------------------------------------------------------------------ lists
 
@@ -178,6 +197,121 @@ function contains[T: Equatable](x: T, xs: List[T]): Boolean
             return true
     return false
 
+# ------------------------------------------------------------------------- maps
+
+## Number of entries.
+export function len[K: Hashable, V](m: Map[K, V]): Integer
+    return m.count
+
+## The value of `key`, if present.
+export function get[K: Hashable, V](m: Map[K, V], key: K): Option[V]
+    let e := find(m, key)
+    if e < 0 then
+        return None
+    return Some(m.values[e])
+
+## The value of `key`, or `default` if it is missing.
+export function getOr[K: Hashable, V](m: Map[K, V], key: K, default: V): V
+    let e := find(m, key)
+    if e < 0 then
+        return default
+    return m.values[e]
+
+## Removes `key` from the map, if present.
+export procedure remove[K: Hashable, V](var m: Map[K, V], key: K)
+    let e := find(m, key)
+    if e < 0 then
+        return
+    m.hashes[e] := -1
+    vacate(var m.keys, e)
+    vacate(var m.values, e)
+    dec(var m.count)
+
+## `{}`.
+function emptyMap[K: Hashable, V](): Map[K, V]
+    return Map(keys: [], values: [], hashes: [], slots: [], count: 0)
+
+## `m[key] := value`.
+procedure put[K: Hashable, V](var m: Map[K, V], key: K, value: V)
+    m.values[entryOf(var m, key, true)] := value
+
+## `key in m`.
+function containsKey[K: Hashable, V](key: K, m: Map[K, V]): Boolean
+    return find(m, key) >= 0
+
+## The entry of `key`, or -1.
+function find[K: Hashable, V](m: Map[K, V], key: K): Integer
+    if m.count = 0 then
+        return -1
+    return m.slots[slotOf(m, key, hash(key))] - 1  # a free slot (0) gives -1
+
+## The entry of `key`. If there is none: -1, or with `insert` a new entry whose value is
+## empty, for the caller to fill in.
+function entryOf[K: Hashable, V](var m: Map[K, V], key: K, insert: Boolean): Integer
+    let h := hash(key)
+    if m.count > 0 then
+        let s := m.slots[slotOf(m, key, h)]
+        if s > 0 or not insert then
+            return s - 1
+    else if not insert then
+        return -1
+    if (len(m.keys) + 1) * 4 > len(m.slots) * 3 then
+        rehash(var m)
+    let e := len(m.keys)
+    add(var m.keys, key)
+    add(var m.hashes, h)
+    resize(var m.values, e + 1)
+    m.slots[slotOf(m, key, h)] := e + 1
+    inc(var m.count)
+    return e
+
+## The slot of `key`, whose hash is `h`: the one referring to its entry, or else the free
+## one where probing for it stops. A removed entry's slot stays taken, so probing goes
+## on past it; its hash (-1) matches no key's.
+function slotOf[K: Hashable, V](m: Map[K, V], key: K, h: Integer): Integer
+    let n := len(m.slots)
+    var i := h mod n
+    while m.slots[i] <> 0 do
+        let e := m.slots[i] - 1
+        if m.hashes[e] = h and m.keys[e] = key then
+            return i
+        i := (i + 1) mod n
+    return i
+
+## Drops the removed entries, and rebuilds the table at most 3/8 full, so that it can
+## grow by as many entries again before the next rehash (at 3/4 full).
+procedure rehash[K: Hashable, V](var m: Map[K, V])
+    var keys: List[K] := []
+    var values: List[V] := []
+    var hashes: List[Integer] := []
+    for e := 0 to len(m.keys) - 1 do
+        if m.hashes[e] >= 0 then
+            add(var keys, m.keys[e])
+            add(var values, m.values[e])
+            add(var hashes, m.hashes[e])
+    var n := 8
+    while n * 3 < (len(keys) + 1) * 8 do
+        n := n * 2
+    var slots: List[Integer] := []
+    resize(var slots, n)  # all 0: free
+    for e := 0 to len(keys) - 1 do
+        var i := hashes[e] mod n
+        while slots[i] <> 0 do
+            i := (i + 1) mod n
+        slots[i] := e + 1
+    m := Map(keys: keys, values: values, hashes: hashes, slots: slots, count: len(keys))
+
+## `a = b`: the same keys, with equal values, in any order. Called by the runtime's `=`.
+function mapEquals[K: Hashable, V: Equatable](a, b: Map[K, V]): Boolean
+    if a.count <> b.count then
+        return false
+    for e := 0 to len(a.keys) - 1 do
+        if a.hashes[e] >= 0 then
+            let f := find(b, a.keys[e])
+            if f < 0 or b.values[f] <> a.values[e] then
+                return false
+    return true
+
 # ------------------------------------------------------------ Option and Result
 
 export function isSome[T](o: Option[T]): Boolean
@@ -200,13 +334,13 @@ export function isErr[T, E](r: Result[T, E]): Boolean
 export function get[T](o: Option[T]): T
     return case o of
         Some(s): s.value
-        None: getFailed[T]("get on None")
+        None: fail[T]("P0005: get on None")
 
 ## The value; panics with `P0005` on `Err`.
 export function get[T, E](r: Result[T, E]): T
     return case r of
         Ok(v): v.value
-        Err(_): getFailed[T]("get on Err")
+        Err(_): fail[T]("P0005: get on Err")
 
 ## The value, or `default` on `None`.
 export function getOr[T](o: Option[T], default: T): T
@@ -241,6 +375,29 @@ export function next[T, N: Integer](var it: ArrayIter[T, N]): Option[T]
     let x := it.items[it.pos]
     inc(var it.pos)
     return Some(x)
+
+## The keys of a map, in insertion order.
+export function iter[K: Hashable, V](m: Map[K, V]): KeyIter[K, V]
+    return KeyIter(source: m, pos: 0)
+
+export function next[K: Hashable, V](var it: KeyIter[K, V]): Option[K]
+    while it.pos < len(it.source.keys) do
+        inc(var it.pos)
+        if it.source.hashes[it.pos - 1] >= 0 then
+            return Some(it.source.keys[it.pos - 1])
+    return None
+
+## The entries of a map, in insertion order.
+export function entries[K: Hashable, V](m: Map[K, V]): EntryIter[K, V]
+    return EntryIter(source: m, pos: 0)
+
+export function next[K: Hashable, V](var it: EntryIter[K, V]): Option[Entry[K, V]]
+    while it.pos < len(it.source.keys) do
+        inc(var it.pos)
+        let e := it.pos - 1
+        if it.source.hashes[e] >= 0 then
+            return Some(Entry(key: it.source.keys[e], value: it.source.values[e]))
+    return None
 
 ## The characters of a string.
 export function chars(s: String): CharIter

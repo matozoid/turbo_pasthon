@@ -31,7 +31,7 @@ from .types import (
     TypeValue, has_error, is_integer, is_numeric, is_real, params_in, show, subst, unify,
 )  # fmt: skip
 
-_ARITY = {"List": 1, "Set": 1, "Weak": 1, "Ptr": 1, "Map": 2, "Array": 2}
+_ARITY = {"List": 1, "Set": 1, "Weak": 1, "Ptr": 1, "Array": 2}
 _INT_RANGE = {
     "Int8": (-(2**7), 2**7 - 1), "Int16": (-(2**15), 2**15 - 1),
     "Int32": (-(2**31), 2**31 - 1), "Int64": (-(2**63), 2**63 - 1),
@@ -224,6 +224,9 @@ class Env:
         self._busy: set = set()
         self.sat_cache: dict = {}
         self.owner: dict[Symbol, Symbol] = {}  # enum members, fields, trait routines
+        # Generic types written in type expressions, (file, span) -> type: their bounds
+        # are checked once every declaration is known (check_bounds).
+        self.written: dict[tuple, Named] = {}
         for u in units:
             for item in u.tree.items:
                 if isinstance(item, A.TypeSection):
@@ -257,6 +260,24 @@ class Env:
         u = self.units.get("System")
         syms = u.top.get(name) if u is not None and u.std else None
         return syms[0] if syms else None
+
+    def check_bounds(self) -> None:
+        """`Map[Real, V]`: each type argument of a written generic type must satisfy
+        its parameter's bounds (E0700)."""
+        for (file, span), t in self.written.items():
+            d = self.decl(t.sym)
+            s = dict(zip(d.params, t.args))
+            chk = self.checker(self.by_file[file])
+            for p in d.params:
+                for b in self.bounds(p):
+                    if isinstance(b, TraitT) and not chk.satisfies(s[p], subst(b, s)):
+                        msg = f"{show(s[p])} doesn't satisfy {show(subst(b, s))}, required by '{t.sym.name}'"
+                        self.error(file, "E0700", span, msg)
+                        break
+
+    def is_map(self, t) -> bool:
+        """Whether ``t`` is a `Map[K, V]`: a record of System's, with literals of its own."""
+        return isinstance(t, Named) and t.sym is self.sys("Map") and t.sym is not None
 
     # ----------------------------------------------------------- type expressions
 
@@ -297,6 +318,8 @@ class Env:
                 return self.trait_type(TraitT(sym, args), file, t.span, value)
             if d.kind == "alias":
                 return subst(d.alias, dict(zip(d.params, args)))
+            if args:
+                self.written[(file, t.span)] = Named(sym, args)
             return Named(sym, args)
         if sym.kind is Kind.BUILTIN_TRAIT:
             return self.trait_type(TraitT(sym, args), file, t.span, value)
@@ -843,7 +866,7 @@ class TypeChecker:
             t = self.as_value(t, e)
         if has_error(t):
             return bad
-        if isinstance(t, Builtin) and t.name == "Map":
+        if self.env.is_map(t):
             return list(t.args) if n == 2 else [t.args[0]]
         if n == 2:
             self.error("E0350", e.span, f"two loop variables ('for k, v in m') need a Map, not {show(t)}")
@@ -1199,7 +1222,7 @@ class TypeChecker:
         return Builtin("Set", (first,))
 
     def e_MapLit(self, e, expected):
-        if isinstance(expected, Builtin) and expected.name == "Map":
+        if self.env.is_map(expected):
             k, v = expected.args
         else:
             first = e.entries[0]
@@ -1210,14 +1233,14 @@ class TypeChecker:
             for entry in rest:
                 self.check(entry.key, k)
                 self.check(entry.value, v)
-            return Builtin("Map", (k, v))
+            return Named(self.env.sys("Map"), (k, v))
         for entry in e.entries:
             self.check(entry.key, k)
             self.check(entry.value, v)
         return expected
 
     def e_EmptyBraces(self, e, expected):
-        if isinstance(expected, Builtin) and expected.name in ("Map", "Set"):
+        if self.env.is_map(expected) or isinstance(expected, Builtin) and expected.name == "Set":
             return expected
         self.error("E0301", e.span, "the type of '{}' isn't known here; declare it: 'var m: Map[K, V] := {}'")
         return ERROR
@@ -1482,7 +1505,7 @@ class TypeChecker:
 
     def in_op(self, e):
         rt = self.value(e.right)
-        if isinstance(rt, Builtin) and rt.name in ("Set", "List", "Map"):
+        if isinstance(rt, Builtin) and rt.name in ("Set", "List") or self.env.is_map(rt):
             self.check(e.left, rt.args[0])
         else:
             self.value(e.left)
@@ -1573,7 +1596,7 @@ class TypeChecker:
             if not has_error(it) and not is_integer(self.base(it)):
                 self.error("E0300", item.span, f"an index must be an integer, not {show(it)}")
             return b.args[0]
-        if isinstance(b, Builtin) and b.name == "Map":
+        if self.env.is_map(b):
             self.check(item, b.args[0])
             return b.args[1]
         self.value(item)
@@ -1734,6 +1757,10 @@ class TypeChecker:
             self.error("E0306", e.callee.span, f"'{sym.name}' is {'an' if d.kind in ('enum', 'alias') else 'a'} {d.kind}; {what.get(d.kind, 'it has no values')}")
             return ERROR
         private = [f.name for f in d.fields if not f.exported]
+        if target is self.env.sys("Map") and target.unit != self.unit.name:
+            self.prepare(e.args)
+            self.error("E0306", e.callee.span, "'Map' values are written as literals: '{k: v}', or '{}' where the type is known")
+            return ERROR
         if target.unit != self.unit.name and private:
             self.prepare(e.args)
             self.error(
@@ -1989,7 +2016,7 @@ class TypeChecker:
         if k == EMPTY_LIST:
             return 0 if isinstance(want, Builtin) and want.name == "List" else None
         if k == EMPTY_BRACES:
-            return 0 if isinstance(want, Builtin) and want.name in ("Map", "Set") else None
+            return 0 if self.env.is_map(want) or isinstance(want, Builtin) and want.name == "Set" else None
         if isinstance(k, Overloads) and isinstance(want, FuncT):
             fits = []
             for sym in k.syms:

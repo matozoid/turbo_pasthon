@@ -36,6 +36,7 @@ class Assembler:
         self.labels: dict[str, int] = {}  # code labels -> offset in code
         self.data_labels: dict[str, int] = {}  # -> offset in rodata
         self._fixups: list[tuple[int, str, str]] = []  # (position of rel32, label, kind)
+        self._code_refs: list[tuple[str, int, str]] = []  # (data label, offset, code label)
         self._strings: dict[bytes, str] = {}
         self.imports: list[str] = []  # imported C functions, in GOT order
         self._n = 0
@@ -63,6 +64,11 @@ class Assembler:
         self._strings[value] = name
         return name
 
+    def code_ref(self, data: str, offset: int, label: str) -> None:
+        """Makes the 8 bytes at ``offset`` in data ``data`` hold the distance from the
+        start of ``data`` to code label ``label``."""
+        self._code_refs.append((data, offset, label))
+
     def _rel32(self, label: str, kind: str = "code") -> None:
         self._fixups.append((len(self.code), label, kind))
         self.code += b"\0\0\0\0"
@@ -80,6 +86,10 @@ class Assembler:
                     raise ValueError(f"undefined label {label}")
                 target = self.labels[label]
             self.code[pos : pos + 4] = _i32(target - (pos + 4))
+        for data, offset, label in self._code_refs:
+            at = self.data_labels[data]
+            distance = self.labels[label] - (rodata_offset + at)
+            self.rodata[at + offset : at + offset + 8] = distance.to_bytes(8, "little", signed=True)
         return bytes(self.code)
 
     # ------------------------------------------------------------ instructions
@@ -218,6 +228,9 @@ class Assembler:
 
     def add(self, dst: int, src: int) -> None:
         self._rr(0x01, dst, src)
+
+    def xor(self, dst: int, src: int) -> None:
+        self._rr(0x31, dst, src)
 
     def or_(self, dst: int, src: int) -> None:
         self._rr(0x09, dst, src)

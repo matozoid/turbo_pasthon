@@ -993,6 +993,106 @@ class Lists(unittest.TestCase):
 
 
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class Maps(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_operations(self):
+        """Literals, `m[k]` (reading, assigning, as a `var` place), `in`, `remove`,
+        insertion order, keys of several types, growth and removal over many entries,
+        copy-on-write, `=` in any order (nested too), `get`/`getOr`; every block is
+        freed once."""
+        p = run_program("""
+            type
+                Color = (Red, Green, Blue)
+                Point = record
+                    x: Integer
+                    y: Integer
+                Box = record
+                    name: String
+                    tags: Map[String, Integer]
+
+            function total(m: Map[String, Integer]): Integer
+                var t := 0
+                for _, v in m do
+                    t := t + v
+                return t
+
+            procedure bump(var n: Integer)
+                inc(var n, 10)
+
+            var m := {"one": 1, "two": 2, "three": 3}
+            m["two"] := 22
+            m["four"] := 4
+            remove(var m, "one")
+            remove(var m, "missing")
+            for k, v in m do
+                write("{k}={v} ")
+            writeln("{len(m)} {total(m)}")
+            let copy := m
+            m["five"] := 5
+            inc(var m["two"])
+            bump(var m["three"])
+            writeln("{len(copy)} {len(m)} {copy["two"]} {m["two"]} {m["three"]}")
+            for k in m do
+                write("{k},")
+            writeln()
+            var colors: Map[Color, String] := {}
+            colors[Color.Blue] := "sky"
+            colors[Color.Red] := "rose"
+            var points: Map[Point, Char] := {Point(x: 1, y: 2): 'a'}
+            points[Point(x: 3, y: 4)] := 'b'
+            write("{colors[Color.Red]} {colors[Color.Blue]} {Color.Green in colors} ")
+            writeln("{points[Point(x: 1, y: 2)]} {points[Point(x: 3, y: 4)]} {Point(x: 2, y: 1) in points}")
+            var big: Map[Integer, Integer] := {}
+            for i := 0 to 9999 do
+                big[i * 1024] := i
+            for i := 0 to 9999 do
+                if i mod 3 <> 0 then
+                    remove(var big, i * 1024)
+            var sum := 0
+            for _, v in big do
+                sum := sum + v
+            writeln("{len(big)} {sum} {big[9999 * 1024]}")
+            let a := {"x": 1, "y": 2}
+            let b := {"y": 2, "x": 1}
+            let c := {"x": 1, "y": 3}
+            var nested := {"p": a, "q": c}
+            let nested2 := {"q": c, "p": b}
+            writeln("{a = b} {a = c} {a <> c} {nested = nested2}")
+            nested["p"]["x"] := 100
+            writeln("{nested["p"]["x"]} {a["x"]} {nested = nested2}")
+            var box := Box(name: "b", tags: {"k": 1})
+            box.tags["j"] := 2
+            writeln("{box = Box(name: "b", tags: {"j": 2, "k": 1})} {len(box.tags)}")
+            var lists: Map[String, List[Integer]] := {"a": [1]}
+            add(var lists["a"], 2)
+            lists["a"][0] := 7
+            writeln("{lists["a"][0]} {lists["a"][1]} {len(lists["a"])}")
+            var words: Map[String, Integer] := {}
+            for w in ["a", "b", "a", "c", "a", "b"] do
+                words[w] := getOr(words, w, 0) + 1
+            for w, n in words do
+                write("{w}:{n} ")
+            let e: Map[String, String] := {}
+            writeln("{get(get(m, "two"))} {isNone(get(m, "zzz"))} {len(e)} {e = {}} {"" in e}")
+            """, under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))  # fmt: skip
+        self.assertEqual((p.returncode, p.stderr), (0, b""))
+        self.assertEqual(
+            p.stdout.decode(),
+            "two=22 three=3 four=4 3 29\n3 4 22 23 13\ntwo,three,four,five,\n"
+            "rose sky false a b false\n3334 16668333 9999\ntrue false true true\n"
+            "100 1 false\ntrue 2\n7 2 2\na:3 b:2 c:1 23 true 0 true false\n",
+        )
+
+    def test_missing_key(self):
+        for body in ['let m := {"a": 1}\nwriteln(m["b"])', 'var m := {"a": 1}\ninc(var m["b"])']:
+            with self.subTest(body):
+                p = run_program(body)
+                self.assertEqual(p.returncode, 70, p.stdout)
+                self.assertIn(b"panic P0008: missing map key\n    at ", p.stderr)
+                self.assertIn(b".pst:6:", p.stderr)  # where the program indexed the map
+
+
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
 class Iterators(unittest.TestCase):
     @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
     def test_loops_and_adapters(self):

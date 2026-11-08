@@ -12,6 +12,9 @@ Supported so far:
 - C interop (SPEC §10): calls into shared libraries, callbacks, `Ptr[T]`/`Pointer`/
   `CString`, `deref`, pointer arithmetic, `cast`, `addr`, C records,
   `toCString`/`fromCString`, `isNull`;
+- lists (literals, indexing, `len`, `resize`) and maps (literals, `m[k]`, `in`, `hash`),
+  with the rest of both written in Pasthon in System; `for ... in` over lists, strings,
+  enums and any `Iterator`, and `for k, v in` over maps;
 - statements: `var`/`let`, assignment (to fields too), `if`, `case`, `while`, `repeat`,
   `for ... to/downto`, `break`, `continue`, `return`, `assert`, `_ := e`, calls;
 - routines (up to 6 parameters), with defaults, named arguments, dot calls, and
@@ -33,9 +36,11 @@ blocks. Every block starts with a refcount and a descriptor:
     union:  refcount | descriptor | the variant's value
 
 A descriptor (read-only data) gives the number of fields, the block size, a number that
-makes it unique, and per field whether it holds a reference. A union value has its own
-block, whose descriptor says which variant it holds; `case` compares descriptors. So one
-release, one copy, and one equality routine serve every type.
+makes it unique, an equality routine (0: compare field by field), and per field whether
+it holds a reference. A union value has its own block, whose descriptor says which
+variant it holds; `case` compares descriptors. So one release, one copy, and one equality
+routine serve every type. Only `Map` has an equality routine of its own: System's
+`mapEquals`, as its entries may be in any order.
 
 String literals live in read-only data with refcount -1, which retain and release ignore.
 Reference counting follows one rule: every expression produces an *owned* reference.
@@ -99,9 +104,11 @@ _FIELDS = 16
 # A list block: the header, the element count, the capacity, then the elements.
 _COUNT, _CAP, _ELEMS = 16, 24, 32
 # Descriptor layout: then one word per field, 1 if it holds a reference. A list's
-# descriptor has count _LIST and one kind word, for all its elements.
-_D_COUNT, _D_SIZE, _D_ID, _D_KINDS = 0, 8, 16, 24
+# descriptor has count _LIST and one kind word, for all its elements. _D_EQ is 0, or the
+# distance from the descriptor to the code of the type's equality routine.
+_D_COUNT, _D_SIZE, _D_ID, _D_EQ, _D_KINDS = 0, 8, 16, 24, 32
 _LIST = -1
+_FNV_OFFSET, _FNV_PRIME = 0xCBF29CE484222325, 0x100000001B3
 
 
 @dataclass
@@ -272,20 +279,23 @@ class Emitter:
         s = dict(zip(d.params, t.args))
         return [(f.name, subst(f.type, s)) for f in d.fields]
 
-    def descriptor(self, key, parts: list) -> str:
-        """The data label of the descriptor for blocks of ``key`` holding ``parts``."""
+    def descriptor(self, key, parts: list, eq: str | None = None) -> str:
+        """The data label of the descriptor for blocks of ``key`` holding ``parts``, with
+        equality routine ``eq`` (a code label) if given."""
         if key not in self._descs:
-            words = [len(parts), _FIELDS + 8 * len(parts), len(self._descs)]
+            words = [len(parts), _FIELDS + 8 * len(parts), len(self._descs), 0]
             words += [int(self.managed(p)) for p in parts]
             self._descs[key] = self.asm.data(struct.pack(f"<{len(words)}q", *words), align=8)
+            if eq is not None:
+                self.asm.code_ref(self._descs[key], _D_EQ, eq)
         return self._descs[key]
 
     def list_desc(self, t) -> str:
         """The descriptor of lists of type ``t``."""
         key = ("list", t.args[0])
         if key not in self._descs:
-            words = [_LIST, _ELEMS, len(self._descs), int(self.managed(t.args[0]))]
-            self._descs[key] = self.asm.data(struct.pack("<4q", *words), align=8)
+            words = [_LIST, _ELEMS, len(self._descs), 0, int(self.managed(t.args[0]))]
+            self._descs[key] = self.asm.data(struct.pack("<5q", *words), align=8)
         return self._descs[key]
 
     def new_block(self, desc: str) -> None:
@@ -541,7 +551,7 @@ class Emitter:
             t = self.type(s.target)
             self.coerce(s.value, t)
             a.push(RAX)
-            self.address(s.target)
+            self.address(s.target, insert=True)
             a.pop(RCX)
             self.store_at(s.target, t)
         elif isinstance(s, A.Discard):
@@ -664,7 +674,7 @@ class Emitter:
         a = self.asm
         t = self.type(s.iterable)
         if len(s.vars) != 1:
-            self.unsupported(s.iterable, f"a loop over {show(t)}")
+            return self.for_iterator(s, t)
         if isinstance(t, TypeValue):
             return self.for_enum(s, t.type)
         if not _is_list(t):
@@ -728,16 +738,18 @@ class Emitter:
     def for_iterator(self, s: A.ForIn, t) -> None:
         """`for x in e` by the iterator protocol (SPEC §4.14): `e` itself if it is an
         Iterator, else `iter(e)`, then `next` until it returns `None`. `iter` and `next`
-        are found where the iterable's type became concrete, as bound members are."""
+        are found where the iterable's type became concrete, as bound members are.
+        `for k, v in m` iterates `entries(m)`, binding the two fields of each entry."""
         a = self.asm
         generic = self.types.get(id(s.iterable))
         outer = [p for p in params_in(generic) if p in self.f.sites]
         site = self.f.sites[outer[0]] if outer else self.f.file
         chk = self.env._checkers[site]
         it_t, make = t, None
-        item = chk.iterator_item(t)
+        pair = len(s.vars) == 2
+        item = None if pair else chk.iterator_item(t)
         if item is None:
-            for f in chk.lookup_routines("iter"):
+            for f in chk.lookup_routines("entries" if pair else "iter"):
                 fs = self.env.sig(f)
                 sf: dict = {}
                 if len(fs.params) == 1 and isinstance(f.node, A.Routine) and unify(fs.params[0].type, t, sf, set(fs.tparams)):
@@ -757,7 +769,12 @@ class Emitter:
         option = subst(self.env.sig(f).result, sf)
         variants = self.env.variants(option)
         none = next(i for i, v in enumerate(variants) if _head(v) is self.env.sys("None"))
-        managed = self.managed(item)
+        if pair and make is None:
+            self.unsupported(s.iterable, f"a loop over {show(t)}")
+        # (variable, offset of its value in the item, its type)
+        bound = [(s.vars[0], 0, item)]
+        if pair:
+            bound = [(v, _FIELDS + 8 * i, ft) for i, (v, (_, ft)) in enumerate(zip(s.vars, self.fields(item)))]
         depth = len(self.f.scopes)
         self.f.scopes.append([])
         self.expr(s.iterable)
@@ -768,10 +785,12 @@ class Emitter:
         a.store(RBP, it, RAX)
         if self.managed(it_t):
             self.f.scopes[-1].append(it)
-        var = self.local(s.vars[0].span)
-        a.store_imm(RBP, var, 0)
-        if managed:
-            self.f.scopes[-1].append(var)
+        slots = []
+        for v, _, vt in bound:
+            slots.append(self.local(v.span))
+            a.store_imm(RBP, slots[-1], 0)
+            if self.managed(vt):
+                self.f.scopes[-1].append(slots[-1])
         top, done, end = a.new_label("for"), a.new_label("none"), a.new_label("rof")
         a.label(top)
         a.lea(RDI, RBP, it)
@@ -781,12 +800,17 @@ class Emitter:
         a.jcc("e", done)
         a.push(RAX)
         a.load(RAX, RAX, _FIELDS)  # the Some
-        a.load(RAX, RAX, _FIELDS)  # its value
-        if managed:
-            self.retain()
-            a.load(RDI, RBP, var)
-            self.release(RDI)  # the previous value
-        a.store(RBP, var, RAX)
+        a.load(RCX, RAX, _FIELDS)  # its value
+        for (_, offset, vt), slot in zip(bound, slots):
+            if offset:
+                a.load(RAX, RCX, offset)
+            else:
+                a.mov(RAX, RCX)
+            if self.managed(vt):
+                self.retain()
+                a.load(RDI, RBP, slot)
+                self.release(RDI)  # the previous value
+            a.store(RBP, slot, RAX)
         self.drop(1)
         self.loop(s.body, end, top)
         a.jmp(top)
@@ -891,11 +915,13 @@ class Emitter:
             a.load(RCX, RBP, slot)
             a.cmp(RCX, RAX)
 
-    def address(self, e) -> None:
+    def address(self, e, insert: bool = False) -> None:
         """Puts the address of the place ``e`` in rax. A field's record is made unique
-        first, so the write doesn't show through other copies."""
+        first, so the write doesn't show through other copies. ``m[k]`` with `k` not in
+        map `m` panics (P0008), or with ``insert`` adds an entry with an empty value, for
+        the caller to store into."""
         if isinstance(e, A.Paren):
-            return self.address(e.inner)
+            return self.address(e.inner, insert)
         if self.is_cplace(e):
             return self.cplace(e)
         if isinstance(e, A.FieldAccess) and self.kind(self.type(e.target)) == "record":
@@ -905,6 +931,8 @@ class Emitter:
             self.asm.call(self.runtime("rt_unique"))
             self.asm.add_imm(RAX, _FIELDS + 8 * names.index(e.name.name))
             return
+        if isinstance(e, A.Index) and self.env.is_map(self.type(e.target)):
+            return self.map_entry(e, insert)
         if isinstance(e, A.Index) and _is_list(self.type(e.target)):
             self.expr(e.items[0])
             self.asm.push(RAX)
@@ -923,6 +951,34 @@ class Emitter:
                     self.asm.lea(RAX, RBP, self.f.slots[sym])
                 return
         self.unsupported(e, "changing this kind of place")
+
+    def map_entry(self, e: A.Index, insert: bool) -> None:
+        """rax := the address of the value of ``e``, `m[k]`, in a map made unique. Its
+        entry is found (or added) by System's `entryOf`."""
+        a = self.asm
+        t = self.type(e.target)
+        self.coerce(e.items[0], t.args[0])
+        a.push(RAX)  # the key, for entryOf
+        self.address(e.target)
+        a.push(RAX)
+        a.mov(RDI, RAX)
+        a.load(RSI, RSP, 8)
+        a.mov_imm(RDX, int(insert))
+        a.call(self.sys_label(e, "entryOf", t.args))
+        if not insert:
+            a.test(RAX, RAX)
+            a.jcc("l", self.panic("P0008", "missing map key", e.span))
+        a.pop(RDI)
+        a.pop(RCX)
+        a.push(RAX)
+        a.call(self.runtime("rt_unique"))
+        a.lea(RDI, RAX, _FIELDS + 8 * self.field_index(t, "values"))
+        a.call(self.runtime("rt_unique"))
+        a.pop(RCX)
+        self.element(RAX, RCX, e)
+
+    def field_index(self, t, name: str) -> int:
+        return [n for n, _ in self.fields(t)].index(name)
 
     def is_cplace(self, e) -> bool:
         """Whether the place ``e`` is in C memory: `deref(p)`, or a field of a C record."""
@@ -1130,9 +1186,35 @@ class Emitter:
             a.pop(RCX)
             a.store(RAX, _ELEMS + 8 * i, RCX)
 
+    def e_MapLit(self, e) -> None:
+        """`{k: v, ...}`: an empty map, then `put` for each entry, in order."""
+        a = self.asm
+        t = self.type(e)
+        self.sys_call(e, "emptyMap", [], t.args)
+        tmp = self.f.alloc(object())
+        a.store(RBP, tmp, RAX)
+        put = self.sys_label(e, "put", t.args)
+        for entry in e.entries:
+            self.coerce(entry.key, t.args[0])
+            a.push(RAX)
+            self.coerce(entry.value, t.args[1])
+            a.mov(RDX, RAX)
+            a.pop(RSI)
+            a.lea(RDI, RBP, tmp)
+            a.call(put)
+        a.load(RAX, RBP, tmp)
+
+    def e_EmptyBraces(self, e) -> None:
+        t = self.type(e)
+        if not self.env.is_map(t):
+            self.unsupported(e, f"'{{}}' as {show(t)}")
+        self.sys_call(e, "emptyMap", [], t.args)
+
     def e_Index(self, e) -> None:
         a = self.asm
         t = self.type(e.target)
+        if self.env.is_map(t):
+            return self.map_value(e, t)
         if not _is_list(t):
             self.unsupported(e, f"indexing {show(t)}")
         self.expr(e.target)
@@ -1143,6 +1225,28 @@ class Emitter:
         self.element(RAX, RCX, e)
         a.load(RAX, RAX)
         if self.managed(t.args[0]):
+            self.retain()
+        self.drop(1)
+
+    def map_value(self, e, t) -> None:
+        """`m[k]`: the value, found by System's `find`; panics (P0008) if `k` is missing."""
+        a = self.asm
+        self.expr(e.target)
+        a.push(RAX)
+        self.retain()  # for find, which owns its arguments
+        a.push(RAX)
+        self.coerce(e.items[0], t.args[0])
+        a.mov(RSI, RAX)
+        a.pop(RDI)
+        a.call(self.sys_label(e, "find", t.args))
+        a.test(RAX, RAX)
+        a.jcc("l", self.panic("P0008", "missing map key", e.span))
+        a.mov(RCX, RAX)
+        a.load(RAX, RSP)
+        a.load(RAX, RAX, _FIELDS + 8 * self.field_index(t, "values"))
+        self.element(RAX, RCX, e)
+        a.load(RAX, RAX)
+        if self.managed(t.args[1]):
             self.retain()
         self.drop(1)
 
@@ -1232,6 +1336,8 @@ class Emitter:
             return
         if op == "in":
             t = self.type(e.right)
+            if self.env.is_map(t):
+                return self.sys_call(e, "containsKey", [(e.left, t.args[0]), (e.right, t)], t.args)
             if not _is_list(t):
                 self.unsupported(e, f"'in' on {show(t)}")
             return self.sys_call(e, "contains", [(e.left, t.args[0]), (e.right, t)], (t.args[0],))
@@ -1631,14 +1737,18 @@ class Emitter:
     def sys_call(self, e, name: str, args: list, targs: tuple) -> None:
         """Calls the System routine ``name`` (not overloaded), instantiated for ``targs``,
         with ``args``: (expression, parameter type) in parameter order."""
-        sym = self.env.sys(name)
         for x, t in args:
             self.coerce(x, t)
             self.asm.push(RAX)
         for i in reversed(range(len(args))):
             self.asm.pop(_ARG_REGS[i])
+        self.asm.call(self.sys_label(e, name, targs))
+
+    def sys_label(self, e, name: str, targs: tuple) -> str:
+        """The label of System routine ``name`` (not overloaded) for ``targs``."""
+        sym = self.env.sys(name)
         sites = {tp: self.f.file for tp in self.env.sig(sym).tparams}
-        self.asm.call(self.label_of(e, sym, targs, sites))
+        return self.label_of(e, sym, targs, sites)
 
     def construct(self, e, m) -> None:
         """`Point(x: 1, y: 2)`: the field values are pushed, then moved into a new block."""
@@ -1657,7 +1767,10 @@ class Emitter:
                 self.store_c(ft, e)
                 a.pop(RAX)
             return
-        self.new_block(self.descriptor(t, [ft for _, ft in self.fields(t)]))
+        eq = None
+        if self.env.is_map(t) and self.env._checkers[self.f.file].builtin_trait(t.args[1], "Equatable"):
+            eq = self.sys_label(e, "mapEquals", t.args)
+        self.new_block(self.descriptor(t, [ft for _, ft in self.fields(t)], eq))
         for i in reversed(range(len(m.params))):
             a.pop(RCX)
             a.store(RAX, _FIELDS + 8 * i, RCX)
@@ -1722,14 +1835,35 @@ class Emitter:
                 a.jcc("b", done)
                 a.inc(RAX)
                 a.label(done)
-        elif name == ("System", "getFailed"):
-            self.string_of(["panic P0005: ", args[0], f"\n    at {self.where(e.span)}\n"])
+        elif name == ("System", "fail"):
+            self.string_of(["panic ", args[0], f"\n    at {self.where(e.span)}\n"])
             a.lea(RSI, RAX, _BYTES)
             a.load(RDX, RAX, _LEN)
             a.mov_imm(RDI, 2)
             a.call(self.runtime("rt_write"))
             a.mov_imm(RDI, _PANIC_STATUS)
             self.exit()
+        elif name == ("System", "hash"):
+            t = self.sub(m.s.get(m.sig.tparams[0]))
+            self.expr(args[0])
+            if self.managed(t):
+                a.push(RAX)
+                a.mov(RDI, RAX)
+                a.call(self.runtime("rt_hash"))
+                self.drop(1)
+            a.call(self.runtime("rt_mix"))
+        elif name == ("System", "vacate"):
+            self.expr(args[1])
+            a.push(RAX)
+            self.address(args[0])
+            a.mov(RDI, RAX)
+            a.call(self.runtime("rt_unique"))
+            a.pop(RCX)
+            self.element(RAX, RCX, e)
+            if self.managed(self.sub(m.s.get(m.sig.tparams[0]))):
+                a.load(RDI, RAX)
+                a.store_imm(RAX, 0, 0)
+                self.release(RDI)
         elif name == ("System", "resize"):
             self.expr(args[1])
             a.push(RAX)
@@ -1901,9 +2035,12 @@ class Emitter:
         self.exit()
 
     def rt_retain(self) -> None:
-        """Adds a reference to the block rax (not to literals). Preserves registers."""
+        """Adds a reference to the block rax (not to literals, nor to an empty slot).
+        Preserves registers."""
         a = self.asm
         done = a.new_label("r")
+        a.test(RAX, RAX)
+        a.jcc("e", done)
         a.cmp_mem_imm(RAX, _RC, 0)
         a.jcc("l", done)
         a.inc_mem(RAX, _RC)
@@ -2126,9 +2263,10 @@ class Emitter:
 
     def rt_eq(self) -> None:
         """rax := whether the blocks rdi and rsi hold equal values: the same string, or
-        records (union values, lists) of the same descriptor whose slots are equal."""
+        records (union values, lists) of the same descriptor whose slots are equal, or
+        that its equality routine says are equal."""
         a = self.asm
-        record, same, loop, plain, nxt, yes, no, done = (a.new_label("q") for _ in range(8))
+        record, fields, same, loop, plain, nxt, yes, no, done = (a.new_label("q") for _ in range(9))
         saved = (RBX, R12, R13, R14, R15)
         for r in saved:
             a.push(r)
@@ -2143,6 +2281,17 @@ class Emitter:
         a.jcc("ne", no)
         a.jmp(yes)
         a.label(record)
+        a.load(RCX, RAX, _D_EQ)
+        a.test(RCX, RCX)
+        a.jcc("e", fields)
+        a.add(RCX, RAX)  # the routine, which owns its arguments
+        a.mov(RAX, RDI)
+        self.retain()
+        a.mov(RAX, RSI)
+        self.retain()
+        a.call_reg(RCX)
+        a.jmp(done)
+        a.label(fields)
         a.mov(R13, RAX)
         self.walk(RDI, R13, R14, RBX, R15)
         a.load(RCX, RAX, _D_COUNT)
@@ -2184,6 +2333,78 @@ class Emitter:
         a.label(done)
         for r in reversed(saved):
             a.pop(r)
+        a.ret()
+
+    def rt_hash(self) -> None:
+        """rax := a hash of the value of block rdi: FNV-1a over a string's bytes, or over
+        a record's descriptor number and fields (each field's own hash if it holds a
+        reference). Equal values hash alike."""
+        a = self.asm
+        string, loop, plain, done = (a.new_label("h") for _ in range(4))
+        a.mov_imm(RAX, _FNV_OFFSET)
+        a.mov_imm(R11, _FNV_PRIME)
+        a.load(RDX, RDI, _DESC)
+        a.test(RDX, RDX)
+        a.jcc("e", string)
+        saved = (RBX, R12, R13, R14, R15)
+        for r in saved:
+            a.push(r)
+        a.mov(RBX, RAX)  # the hash so far
+        a.load(RCX, RDX, _D_ID)
+        a.xor(RBX, RCX)
+        a.imul(RBX, R11)
+        a.mov(R13, RDX)
+        self.walk(RDI, R13, R12, R14, R15)
+        a.label(loop)  # r12 slots left; r13 their kinds; r14 their values
+        a.test(R12, R12)
+        a.jcc("e", done)
+        a.load(RAX, R14)
+        a.cmp_mem_imm(R13, 0, 0)
+        a.jcc("e", plain)
+        a.mov(RDI, RAX)
+        a.call(self.runtime("rt_hash"))
+        a.label(plain)
+        a.xor(RBX, RAX)
+        a.mov_imm(R11, _FNV_PRIME)
+        a.imul(RBX, R11)
+        a.add(R13, R15)
+        a.add_imm(R14, 8)
+        a.dec(R12)
+        a.jmp(loop)
+        a.label(done)
+        a.mov(RAX, RBX)
+        for r in reversed(saved):
+            a.pop(r)
+        a.ret()
+        a.label(string)
+        end = a.new_label("h")
+        a.load(RCX, RDI, _LEN)
+        a.lea(RSI, RDI, _BYTES)
+        top = a.new_label("h")
+        a.label(top)
+        a.test(RCX, RCX)
+        a.jcc("e", end)
+        a.load8(RDX, RSI)
+        a.xor(RAX, RDX)
+        a.imul(RAX, R11)
+        a.inc(RSI)
+        a.dec(RCX)
+        a.jmp(top)
+        a.label(end)
+        a.ret()
+
+    def rt_mix(self) -> None:
+        """rax := rax with its bits mixed (the SplitMix64 finalizer), then made
+        non-negative: a hash whose low bits are all useful to a table."""
+        a = self.asm
+        for shift, factor in ((30, 0xBF58476D1CE4E5B9), (27, 0x94D049BB133111EB), (31, None)):
+            a.mov(RCX, RAX)
+            a.shr_imm(RCX, shift)
+            a.xor(RAX, RCX)
+            if factor is not None:
+                a.mov_imm(RCX, factor)
+                a.imul(RAX, RCX)
+        a.shr_imm(RAX, 1)
         a.ret()
 
     def rt_enum_name(self) -> None:

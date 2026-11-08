@@ -170,6 +170,18 @@ class Errors(unittest.TestCase):
             _ := biggest(Point(x: 1.0), Point(x: 2.0))
             """), [("E0710", 9, 14), ("E0700", 11, 6)])
 
+    def test_map_keys(self):
+        """A Map's key type must be Hashable, and maps are written, not constructed."""
+        self.assertEqual(errs("""
+            function size[K, V](m: Map[K, V]): Integer
+                return 0
+
+            var m: Map[Real, Integer] := {}
+            m[1.5] := 1
+            let n: Map[String, Integer] := Map(keys: [])
+            writeln("{len(n)} {size(n)}")
+            """), [("E0700", 1, 24), ("E0700", 4, 8), ("E0306", 6, 32)])
+
     def test_overloads(self):
         self.assertEqual(errs("""
             function f(x: Int32): Integer

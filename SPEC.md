@@ -335,7 +335,7 @@ type
 |---|---|
 | `Array[T, N]` | fixed length `N` (compile-time constant), inline value, C-compatible |
 | `List[T]` | growable, 0-based |
-| `Map[K, V]` | hash map; `K` must satisfy `Hashable` |
+| `Map[K, V]` | hash map in insertion order; `K` must satisfy `Hashable` |
 | `Set[T]` | `T` must be an ordinal type with at most 256 values; stored as a bitset |
 
 All indexing is 0-based and bounds-checked in checked builds (panic `P0001`).
@@ -362,6 +362,21 @@ A `List` is one block holding its length, its capacity and its elements; the com
 provides only that block, indexing, `len` and an internal `resize`. `add`, `remove`,
 `concat` and `in` are ordinary Pasthon routines in System, built on those. Growing at
 least doubles the capacity, so `add` is amortized O(1).
+
+A `Map` is a record in System holding lists of keys, values and hashes, in insertion
+order, plus an open-addressing slot table that points into them. The compiler provides
+only the `{k: v}` and `{}` literals, `m[k]`, `k in m`, and an internal `hash`; everything
+else is Pasthon in System. `Map(...)` can't be written outside System (`E0306`).
+
+- `m[k]` reads a value and panics `P0008` if the key is missing; `m[k] := v` inserts or
+  overwrites; `m[k]` is also a `var` argument (`inc(var m[k])`), which panics `P0008`
+  for a missing key.
+- `k in m`, `len(m)`, `remove(var m, k)` (no-op for a missing key), `get(m, k): Option[V]`,
+  `getOr(m, k, default)`. All are O(1) on average.
+- Iterating gives keys (`for k in m`) or entries (`for k, v in m`) in insertion order;
+  overwriting keeps a key's place, removing and re-adding moves it to the end.
+- `=` compares contents regardless of order.
+- `remove` leaves a tombstone; the table is rebuilt (and compacted) when it is 3/4 full.
 
 The only aliasing in the language comes from `ref T` (§4.9).
 
@@ -534,8 +549,9 @@ type
   ```
   Each loop is instantiated for its concrete iterator type, so `next` is a direct call.
 - `for _ in e do` iterates without binding.
-- `List`, `Array`, `Set`, `Map` (keys), `String` (chars) and enum types (`for c in Color do`,
-  all members in order) are iterated directly by the compiler, without `iter`.
+- `List`, `Array`, `Set`, `String` (chars) and enum types (`for c in Color do`,
+  all members in order) are iterated directly by the compiler, without `iter`. `Map` has
+  an `iter` in System that yields its keys.
 - `for k, v in m do` works on `Map`: it iterates `entries(m)`, which yields
   `Entry[K, V]` (fields `key`, `value`) and binds the two fields.
 - **Snapshot semantics.** An iterator holds its own copy of the collection. With
@@ -1159,6 +1175,7 @@ v0.1 is single-threaded, but the design is fixed now so v0.1 doesn't rule it out
 | `P0005` | `get` on `None` / `Err` |
 | `P0006` | string byte offset not on a `Char` boundary |
 | `P0007` | `fromCString` of a null pointer |
+| `P0008` | missing map key (check with `k in m`, or use `get`/`getOr`) |
 | `P0010` | `requires` violated |
 | `P0011` | `ensures` violated |
 | `P0020` | `assert` failed |
