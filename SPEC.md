@@ -831,8 +831,10 @@ As usual. `break`/`continue` apply to the innermost loop (`continue` not in `rep
 let f := try open(path)
 defer close(var f)
 ```
-Runs at scope exit in reverse order, on every path, including `return` and `try`
-propagation (not on panic). Takes a single statement or an indented block.
+Runs at scope exit in reverse order, on every path, including `return`, `break`,
+`continue` and `try` propagation (not on panic). Takes a single statement or an indented
+block. A deferred statement runs at the scope's exit, so it can't leave itself: no
+`return` or `try` in it, and no `break` or `continue` of a loop outside it (`E0507`).
 
 ### 7.9 Discarding results
 `_ := expr` evaluates and drops a value. Required for ignored function results.
@@ -1540,6 +1542,7 @@ already has a lexical error are not reported.
 | `E0504` | `break` / `continue` outside a loop |
 | `E0505` | `try` on a non-Option/Result, or in a function not returning a matching Option/Result |
 | `E0506` | `continue` in a `repeat` loop (§7.4) |
+| `E0507` | `return`, `try`, or a `break`/`continue` of an outer loop in a deferred statement (§7.8) |
 | `E0510` | ambiguous overloaded call |
 | `E0511` | no overload matches (argument count, names, or types) |
 | `E0520` | dot call of a routine whose first parameter is `var` (fix: `f(var a, ...)`) |

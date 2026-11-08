@@ -1254,6 +1254,101 @@ class Refs(unittest.TestCase):
         )
 
 
+class DeferAndTry(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_defer_and_try(self):
+        """Deferred statements run in reverse order as their block is left: at its end,
+        by `return`, `break`, `continue` and a failing `try`. A failing `try` releases
+        the temporaries of the expressions around it (in a string, a list, a map) and
+        returns the `Err` or `None` in the function's own result type."""
+        p = run_program("""
+
+            function parse(s: String): Result[Integer, String]
+                if s = "bad" then
+                    return Err("not a number: {s}")
+                return Ok(byteLen(s))
+
+            function half(n: Integer): Option[Integer]
+                if n mod 2 = 1 then
+                    return None
+                return Some(n div 2)
+
+            function both(a: String, b: String): Result[String, String]
+                defer writeln("  both done")
+                let label := "{a}+{b}"
+                defer
+                    writeln("  leaving {label}")
+                let parts := [label, "{try parse(a)}", "{try parse(b)}"]
+                return Ok("{parts[0]}={len(parts)}")
+
+            function pick(xs: List[String], n: Integer): Option[String]
+                defer writeln("  pick done")
+                let m := {"x": xs[0], "y": "{try half(n)}"}
+                return Some("{m["x"]}{m["y"]}")
+
+            function sum(xs: List[String]): Result[Integer, String]
+                var total := 0
+                for x in xs do
+                    defer write("[{x}]")
+                    if x = "skip" then
+                        continue
+                    if x = "stop" then
+                        break
+                    total := total + try parse(x)
+                writeln("")
+                return Ok(total)
+
+            function check(s: String): Result[Integer, String]
+                defer writeln("  check done")
+                try parse(s)
+                return Ok(1)
+
+            procedure show(r: Result[Integer, String])
+                case r of
+                    Ok(v): writeln("ok {v.value}")
+                    Err(x): writeln("err {x.error}")
+
+            procedure showS(r: Result[String, String])
+                case r of
+                    Ok(v): writeln("ok {v.value}")
+                    Err(x): writeln("err {x.error}")
+
+            procedure showO(r: Option[String])
+                case r of
+                    Some(v): writeln("some {v.value}")
+                    None: writeln("none")
+
+            procedure order()
+                defer writeln("  first")
+                defer writeln("  second")
+                if true then
+                    defer writeln("  inner")
+                    writeln("  body")
+                writeln("  end")
+
+            order()
+            showS(both("ab", b: "cde"))
+            showS(both("ab", b: "bad"))
+            showS(both("bad", b: "x"))
+            showO(pick(["p"], 4))
+            showO(pick(["p"], 3))
+            show(sum(["a", "skip", "bc", "stop", "zzz"]))
+            show(sum(["a", "bad", "bc"]))
+            show(check("bad"))
+            show(check("ok"))
+            """, uses="IO, Strings", under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))  # fmt: skip
+        self.assertEqual((p.returncode, p.stderr), (0, b""))
+        self.assertEqual(p.stdout.decode(), (
+            "  body\n  inner\n  end\n  second\n  first\n"
+            "  leaving ab+cde\n  both done\nok ab+cde=3\n"
+            "  leaving ab+bad\n  both done\nerr not a number: bad\n"
+            "  leaving bad+x\n  both done\nerr not a number: bad\n"
+            "  pick done\nsome p2\n  pick done\nnone\n"
+            "[a][skip][bc][stop]\nok 3\n[a][bad]err not a number: bad\n"
+            "  check done\nerr not a number: bad\n  check done\nok 1\n"
+        ))
+
+
 class Iterators(unittest.TestCase):
     @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
     def test_loops_and_adapters(self):
@@ -1335,6 +1430,27 @@ class Unsupported(unittest.TestCase):
         self.assertEqual(
             [(d.code, d.span.line, d.span.col) for d in built.diagnostics],
             [("E0990", 5, 5), ("E0990", 6, 9), ("E0990", 7, 6)],
+        )
+
+    def test_try_after_moved_var_argument(self):
+        """A failing `try` would leave the moved-out place empty."""
+        built, _ = compile_program("""
+            type
+                Box = record
+                    items: List[String]
+
+            procedure put(var xs: List[String], n: Integer)
+                add(var xs, "{n}")
+
+            function f(n: Option[Integer]): Option[Integer]
+                var b := Box(items: [])
+                put(var b.items, try n)
+                return Some(len(b.items))
+
+            writeln(isSome(f(Some(1))))
+            """)
+        self.assertEqual(
+            [(d.code, d.span.line, d.span.col) for d in built.diagnostics], [("E0990", 14, 22)]
         )
 
     def test_only_programs(self):

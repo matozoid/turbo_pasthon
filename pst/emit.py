@@ -18,7 +18,8 @@ Supported so far:
   sets (literals, `in`, `bitOf`/`ofBit`), with the rest written in Pasthon in System;
   `for ... in` over lists, strings, enums and any `Iterator`, and `for k, v in` over maps;
 - statements: `var`/`let`, assignment (to fields too), `if`, `case`, `while`, `repeat`,
-  `for ... to/downto`, `break`, `continue`, `return`, `assert`, `_ := e`, calls;
+  `for ... to/downto`, `break`, `continue`, `return`, `defer`, `assert`, `_ := e`, calls;
+- `try` on Option and Result (SPEC §9.2);
 - routines (up to 6 parameters), with defaults, named arguments, dot calls, and
   contracts; a generic routine is compiled once per instance (SPEC §8), with calls to
   bound members resolved where its type arguments became concrete;
@@ -56,8 +57,14 @@ outlives both.
 String literals live in read-only data with refcount -1, which retain and release ignore.
 Reference counting follows one rule: every expression produces an *owned* reference.
 Reading a variable retains; whoever consumes a value releases it or stores it. Callees
-own their arguments and release them on exit. Locals are released when their block ends
-(or a `return`, `break` or `continue` leaves it).
+own their arguments and release them on exit. Locals are released, and `defer`
+statements run (compiled in place, once per way out), when their block ends or a `return`,
+`break`, `continue` or failing `try` leaves it.
+
+A failing `try` can leave in the middle of an expression, while enclosing expressions
+have values pushed. The assembler tracks the pushed words in code order, and the emitter
+marks the owned references among them (`save`), so the failure path releases exactly
+those before it returns.
 
 Records are values: a copy shares the block, and writing a field first makes the block
 unique (copying it if it is shared). A `var` argument that is a whole variable is passed
@@ -175,6 +182,7 @@ class _Frame:
     sites: dict = field(default_factory=dict)
     depth: int = 0  # instances that led to this one
     keep: dict = field(default_factory=dict)  # id(toCString call) -> slot keeping its string
+    no_try: int = 0  # while > 0, a `try` can't return: a call has moved values out (`call`)
 
     def alloc(self, key) -> int:
         self.size += 8
@@ -361,9 +369,13 @@ class Emitter:
         have = self.type(e)
         if want is None or have == want or self.kind(want) != "union":
             return
+        self.wrap(have, want, e)
+
+    def wrap(self, have, want, node) -> None:
+        """Puts the variant in rax, of type ``have``, into a new block of union ``want``."""
         variants = self.env.variants(want)
         if have not in variants:
-            self.unsupported(e, f"converting {show(have)} to {show(want)}")
+            self.unsupported(node, f"converting {show(have)} to {show(want)}")
         self.asm.push(RAX)
         self.new_block(self.descriptor((want, variants.index(have)), [have]))
         self.asm.pop(RCX)
@@ -414,11 +426,24 @@ class Emitter:
             self.asm.pop(RDI)
             self.release(RDI)
 
+    def save(self, t) -> None:
+        """Pushes rax, a value of type ``t``. If it is reference counted, the word is
+        marked as an owned reference: one that a failing `try` releases."""
+        self.asm.push(RAX)
+        if self.managed(t):
+            self.asm.stack[-1] = True
+
     def release_scopes(self, depth: int) -> None:
-        """Releases the variables of the blocks above ``depth``, innermost first."""
+        """Leaves the blocks above ``depth``, innermost first: releases their variables
+        and runs their `defer` statements, in reverse order. Keeps rax."""
         keep = set(self.f.keep.values())
         for scope in reversed(self.f.scopes[depth:]):
             for slot in reversed(scope):
+                if isinstance(slot, A.Defer):
+                    self.asm.push(RAX)
+                    self.block(slot.body)
+                    self.asm.pop(RAX)
+                    continue
                 self.asm.load(RDI, RBP, slot)
                 self.release(RDI)
                 if slot in keep:  # the scope may be entered again without reaching toCString
@@ -438,6 +463,7 @@ class Emitter:
         a.label("_start")
         a.mov(RBP, RSP)
         size_at = a.sub_imm32_fixed(RSP)
+        a.stack = []
         body = [i for i in self.main.tree.items if not isinstance(i, _DECLS)]
         self.keep_alive(body)
         self.block(A.Block(self.main.tree.span, body))
@@ -448,6 +474,7 @@ class Emitter:
         while self._queue:
             self.routine(*self._queue.pop())
         self.f = None
+        a.stack = None
         for thunk in self._thunks:
             self.thunk(*thunk)
         for drop in self._drops:
@@ -494,6 +521,7 @@ class Emitter:
         a.push(RBP)
         a.mov(RBP, RSP)
         size_at = a.sub_imm32_fixed(RSP)
+        a.stack = []
         try:
             self.keep_alive([*node.requires, *node.ensures, node.body])
             for i, p in enumerate(sig.params):
@@ -572,11 +600,13 @@ class Emitter:
     # ---------------------------------------------------------------- statements
 
     def stmts(self, stmts: list) -> None:
+        depth = len(self.asm.stack)
         for s in stmts:
             try:
                 self.stmt(s)
+                assert len(self.asm.stack) == depth, "unbalanced pushes"
             except _Unsupported:
-                pass
+                del self.asm.stack[depth:]
 
     def block(self, body) -> None:
         """Compiles a block; its variables are released at its end."""
@@ -603,7 +633,7 @@ class Emitter:
         elif isinstance(s, A.Assign):
             t = self.type(s.target)
             self.coerce(s.value, t)
-            a.push(RAX)
+            self.save(t)
             self.address(s.target, insert=True)
             a.pop(RCX)
             self.store_at(s.target, t)
@@ -612,9 +642,16 @@ class Emitter:
             if self.managed(self.type(s.value)):
                 self.release()
         elif isinstance(s, A.ExprStmt):
-            if not isinstance(s.expr, A.Call):
+            if isinstance(s.expr, A.Unary) and s.expr.op == "try":  # `try f()`
+                self.expr(s.expr)
+                if self.managed(self.type(s.expr)):
+                    self.release()
+            elif isinstance(s.expr, A.Call):
+                self.call(s.expr)
+            else:
                 self.unsupported(s, "this statement")
-            self.call(s.expr)
+        elif isinstance(s, A.Defer):  # runs when its block is left (release_scopes)
+            self.f.scopes[-1].append(s)
         elif isinstance(s, A.If):
             end = a.new_label("fi")
             for b in s.branches:
@@ -1016,7 +1053,7 @@ class Emitter:
         a = self.asm
         t = self.type(e.target)
         self.coerce(e.items[0], t.args[0])
-        a.push(RAX)  # the key, for entryOf
+        self.save(t.args[0])  # the key, for entryOf
         self.address(e.target)
         a.push(RAX)
         a.mov(RDI, RAX)
@@ -1253,7 +1290,7 @@ class Emitter:
             self.unsupported(e, f"a literal of {show(t)}")
         for x in e.items:
             self.coerce(x, t.args[0])
-            a.push(RAX)
+            self.save(t.args[0])
         a.lea_data(RDI, self.list_desc(t))
         a.mov_imm(RSI, len(e.items))
         a.call(self.runtime("rt_list_new"))
@@ -1266,33 +1303,31 @@ class Emitter:
         a = self.asm
         t = self.type(e)
         self.sys_call(e, "emptyMap", [], t.args)
-        tmp = self.f.alloc(object())
-        a.store(RBP, tmp, RAX)
+        self.save(t)  # the map, on the stack
         put = self.sys_label(e, "put", t.args)
         for entry in e.entries:
             self.coerce(entry.key, t.args[0])
-            a.push(RAX)
+            self.save(t.args[0])
             self.coerce(entry.value, t.args[1])
             a.mov(RDX, RAX)
             a.pop(RSI)
-            a.lea(RDI, RBP, tmp)
+            a.mov(RDI, RSP)
             a.call(put)
-        a.load(RAX, RBP, tmp)
+        a.pop(RAX)
 
     def e_SetLit(self, e) -> None:
         """`{a, b, ...}`: an empty set, then `include` for each element."""
         a = self.asm
         t = self.type(e)
         self.sys_call(e, "emptySet", [], t.args)
-        tmp = self.f.alloc(object())
-        a.store(RBP, tmp, RAX)
+        self.save(t)  # the set, on the stack
         include = self.sys_label(e, "include", t.args)
         for x in e.items:
             self.coerce(x, t.args[0])
             a.mov(RSI, RAX)
-            a.lea(RDI, RBP, tmp)
+            a.mov(RDI, RSP)
             a.call(include)
-        a.load(RAX, RBP, tmp)
+        a.pop(RAX)
 
     def e_EmptyBraces(self, e) -> None:
         t = self.type(e)
@@ -1308,7 +1343,7 @@ class Emitter:
         if not _is_list(t):
             self.unsupported(e, f"indexing {show(t)}")
         self.expr(e.target)
-        a.push(RAX)
+        self.save(t)
         self.expr(e.items[0])
         a.mov(RCX, RAX)
         a.load(RAX, RSP)
@@ -1322,9 +1357,9 @@ class Emitter:
         """`m[k]`: the value, found by System's `find`; panics (P0008) if `k` is missing."""
         a = self.asm
         self.expr(e.target)
-        a.push(RAX)
+        self.save(t)
         self.retain()  # for find, which owns its arguments
-        a.push(RAX)
+        self.save(t)
         self.coerce(e.items[0], t.args[0])
         a.mov(RSI, RAX)
         a.pop(RDI)
@@ -1410,8 +1445,46 @@ class Emitter:
             a.neg(RAX)  # sets CF unless the operand is 0
             t = self.type(e)
             self.fit(t, e.span, "b" if t == _UINT64 else "o")
+        elif e.op == "try":
+            self.try_(e)
         else:
             self.unsupported(e, f"'{e.op}'")
+
+    def try_(self, e) -> None:
+        """`try x` (SPEC §9.2): the value in an `Ok` or `Some`. An `Err` or `None` is
+        returned at once, put into the routine's result type, after releasing the owned
+        references on the stack (pushed by the enclosing expressions) and leaving the
+        open blocks, which runs their defers."""
+        a = self.asm
+        if self.f.sym is None:
+            self.unsupported(e, "'try' outside a function")
+        if self.f.no_try:
+            self.unsupported(e, "'try' in a call after a 'var' argument that isn't a whole variable")
+        t = self.type(e.operand)
+        good, bad = self.env.variants(t)
+        ok = a.new_label("ok")
+        self.expr(e.operand)
+        a.lea_data(RCX, self.descriptor((t, 0), [good]))
+        a.cmp_mem(RCX, RAX, _DESC)
+        a.jcc("e", ok)
+        a.mov(RDI, RAX)
+        a.load(RAX, RAX, _FIELDS)  # the Err or None
+        self.retain()
+        self.release(RDI)
+        for i, owned in enumerate(reversed(a.stack)):
+            if owned:
+                a.load(RDI, RSP, 8 * i)
+                self.release(RDI)
+        self.wrap(bad, self.sub(self.env.sig(self.f.sym).result), e)
+        self.release_scopes(1)
+        a.jmp(self.f.exit)
+        a.label(ok)
+        a.push(RAX)
+        a.load(RAX, RAX, _FIELDS)  # the Ok or Some
+        a.load(RAX, RAX, _FIELDS)  # its value
+        if self.managed(self.type(e)):
+            self.retain()
+        self.drop(1)
 
     def overflow(self, span) -> None:
         if self.checked:
@@ -1443,7 +1516,7 @@ class Emitter:
         if self.kind(self.type(e.right)) == "union":
             t = self.type(e.right)  # comparing a variant with a union
         self.coerce(e.left, t)
-        a.push(RAX)
+        self.save(t)
         self.coerce(e.right, t)
         if self.managed(t) and t != STRING:  # `=` or `<>`
             a.push(RAX)
@@ -1567,7 +1640,7 @@ class Emitter:
                 a.lea_data(RAX, self.literal(p))
             else:
                 self.to_string(p)
-            a.push(RAX)
+            self.save(STRING)
         a.mov(RDI, RSP)
         a.lea(RSI, RSP, 8 * len(parts))
         a.call(self.runtime("rt_concat"))
@@ -1624,36 +1697,45 @@ class Emitter:
             self.unsupported(e, f"calling {target.describe()}")
         if m.extra or len(m.params) > len(_ARG_REGS):
             self.unsupported(e, f"a call with more than {len(_ARG_REGS)} arguments")
-        copies = []  # (place, temporary) of `var` arguments that aren't whole variables
-        for p, slot in zip(m.params, m.slots):
-            place = _unparen(slot.expr) if slot is not None and p.is_var else None
-            if isinstance(place, A.Name):
-                self.address(place)
-            elif place is not None:
-                if self.movable(place, [x.expr for x in m.slots if x is not None and x is not slot]):
-                    self.address(place)  # moved out, so the callee's copy isn't shared
-                    a.mov(RCX, RAX)
-                    a.load(RAX, RCX)
-                    a.store_imm(RCX, 0, 0)
+        # (place, temporary) of `var` arguments that aren't whole variables. Until they
+        # are stored back, a `try` can't return: it would leave the places empty.
+        copies = []
+        outer = self.f.no_try
+        try:
+            for p, slot in zip(m.params, m.slots):
+                place = _unparen(slot.expr) if slot is not None and p.is_var else None
+                if isinstance(place, A.Name):
+                    self.address(place)
+                    a.push(RAX)
+                elif place is not None:
+                    if self.movable(place, [x.expr for x in m.slots if x is not None and x is not slot]):
+                        self.address(place)  # moved out, so the callee's copy isn't shared
+                        a.mov(RCX, RAX)
+                        a.load(RAX, RCX)
+                        a.store_imm(RCX, 0, 0)
+                    else:
+                        self.expr(place)
+                    tmp = self.f.alloc(object())
+                    a.store(RBP, tmp, RAX)
+                    a.lea(RAX, RBP, tmp)
+                    a.push(RAX)
+                    copies.append((place, tmp))
+                    self.f.no_try = outer + 1
                 else:
-                    self.expr(place)
-                tmp = self.f.alloc(object())
-                a.store(RBP, tmp, RAX)
-                a.lea(RAX, RBP, tmp)
-                copies.append((place, tmp))
-            else:
-                self.argument(p, slot, m, sym.file)
-            a.push(RAX)
-        for i in reversed(range(len(m.params))):
-            a.pop(_ARG_REGS[i])
-        a.call(self.label_of(e, target, targs, sites))
-        if copies:
-            a.push(RAX)
-            for place, tmp in copies:
-                self.address(place)
-                a.load(RCX, RBP, tmp)
-                self.store_at(place, self.type(place))
-            a.pop(RAX)
+                    self.argument(p, slot, m, sym.file)
+                    self.save(self.sub(subst(p.type, m.s)))
+            for i in reversed(range(len(m.params))):
+                a.pop(_ARG_REGS[i])
+            a.call(self.label_of(e, target, targs, sites))
+            if copies:
+                a.push(RAX)
+                for place, tmp in copies:
+                    self.address(place)
+                    a.load(RCX, RBP, tmp)
+                    self.store_at(place, self.type(place))
+                a.pop(RAX)
+        finally:
+            self.f.no_try = outer
 
     def call_value(self, e, m) -> None:
         """Calls a function value: `f(x)` with `f: function(T): U`."""
@@ -1664,7 +1746,7 @@ class Emitter:
         a.push(RAX)
         for p, slot in zip(m.params, m.slots):
             self.argument(p, slot, m, self.f.file)
-            a.push(RAX)
+            self.save(self.sub(subst(p.type, m.s)))
         for i in reversed(range(len(m.params))):
             a.pop(_ARG_REGS[i])
         a.pop(R11)
@@ -1726,6 +1808,8 @@ class Emitter:
             else:
                 self.argument(p, slot, m, sym.file)
             a.push(RAX)
+            if self.is_c_record(t) and not p.is_var:  # released after the call
+                a.stack[-1] = True
             args.append((t, self.is_c_record(t) and not p.is_var))
         for x in m.extra:
             self.expr(x.expr)
@@ -1835,7 +1919,7 @@ class Emitter:
         with ``args``: (expression, parameter type) in parameter order."""
         for x, t in args:
             self.coerce(x, t)
-            self.asm.push(RAX)
+            self.save(t)
         for i in reversed(range(len(args))):
             self.asm.pop(_ARG_REGS[i])
         self.asm.call(self.sys_label(e, name, targs))
@@ -1853,7 +1937,7 @@ class Emitter:
         self.value_type(t, e)
         for p, slot in zip(m.params, m.slots):
             self.argument(p, slot, m, m.sig.sym.file)
-            a.push(RAX)
+            self.save(self.sub(subst(p.type, m.s)))
         if self.is_c_record(t):
             self.new_c_block(t, e)
             for name, ft, offset in reversed(self.c_struct(t, e)[0]):
@@ -1915,7 +1999,7 @@ class Emitter:
             self.drop(1)
         elif name == ("System", "decodeUtf8At"):
             self.expr(args[0])
-            a.push(RAX)
+            self.save(STRING)
             self.expr(args[1])
             a.load(RDI, RSP)
             a.mov(RSI, RAX)
@@ -2046,7 +2130,7 @@ class Emitter:
             self.drop(1)
         elif name == ("Strings", "startsWith"):
             self.expr(args[0])
-            a.push(RAX)
+            self.save(STRING)
             self.expr(args[1])
             a.push(RAX)
             a.load(RDI, RSP, 8)
@@ -2101,7 +2185,7 @@ class Emitter:
         a = self.asm
         for arg in args:
             self.expr(arg)
-            a.push(RAX)
+            self.save(self.type(arg))
         a.pop(RDX)  # stop
         a.pop(RSI)  # start
         a.load(RDI, RSP)  # the string stays on the stack until released
@@ -2156,6 +2240,8 @@ class Emitter:
         a.xor32(RAX, RAX)
         a.call_import(name)
         a.leave()
+        if a.stack is not None:  # `leave` popped rbp
+            a.stack.pop()
 
     def exit(self) -> None:
         """Ends the program with status rdi. `exit`, not `_exit`: C code may have output

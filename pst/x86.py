@@ -40,6 +40,9 @@ class Assembler:
         self._strings: dict[bytes, str] = {}
         self.imports: list[str] = []  # imported C functions, in GOT order
         self._n = 0
+        # While tracked (not None): a word per value pushed and not yet popped, in code
+        # order, True for an owned reference (see Emitter.save).
+        self.stack: list[bool] | None = None
 
     # ------------------------------------------------------------------ labels
 
@@ -367,6 +370,8 @@ class Assembler:
 
     def add_imm(self, dst: int, value: int) -> None:
         self._alu_imm(0, dst, value)
+        if dst == RSP and self.stack is not None:  # drops pushed words
+            del self.stack[len(self.stack) - value // 8 :]
 
     def sub_imm(self, dst: int, value: int) -> None:
         self._alu_imm(5, dst, value)
@@ -381,11 +386,15 @@ class Assembler:
         if r >= 8:
             self.emit(0x41)
         self.emit(0x50 + (r & 7))
+        if self.stack is not None:
+            self.stack.append(False)
 
     def pop(self, r: int) -> None:
         if r >= 8:
             self.emit(0x41)
         self.emit(0x58 + (r & 7))
+        if self.stack is not None:
+            self.stack.pop()
 
     def call(self, label: str) -> None:
         self.emit(0xE8)

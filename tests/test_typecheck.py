@@ -330,6 +330,23 @@ class Errors(unittest.TestCase):
             until done
             """), [("E0506", 8, 9)])
 
+    def test_defer_cannot_leave_itself(self):
+        self.assertEqual(errs("""
+            function half(x: Integer): Option[Integer]
+                return Some(x)
+
+            function f(x: Integer): Option[Integer]
+                for i := 1 to 3 do
+                    defer
+                        if i = 2 then
+                            break
+                        for j := 1 to 3 do
+                            continue
+                        _ := try half(x)
+                        return None
+                return None
+            """), [("E0507", 8, 17), ("E0507", 11, 18), ("E0507", 12, 13)])
+
     def test_var_arguments_must_not_overlap(self):
         self.assertEqual(errs("""
             type

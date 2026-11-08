@@ -132,6 +132,8 @@ ERROR_CODES: dict[str, str] = {
     "kind (and, for Result, the same error type).",
     "E0506": "'continue' inside 'repeat' (it would skip declarations the 'until' condition "
     "can see). Use 'while' instead.",
+    "E0507": "A deferred statement can't leave itself with 'return', 'try', 'break' or "
+    "'continue'.",
     "E0510": "Ambiguous call: several overloads match equally well.",
     "E0511": "No overload matches the arguments (count, names, or types).",
     "E0520": "A routine whose first parameter is 'var' can't be called with a dot.",

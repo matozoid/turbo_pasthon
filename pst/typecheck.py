@@ -622,6 +622,7 @@ class TypeChecker:
         self.in_unsafe = False
         self.tparams: list[Symbol] = []
         self.loops: list[dict] = []
+        self.in_defer = False
         self.in_ensures = False
         self._new_args: set[int] = set()  # id(argument of a `new` call), for resources()
 
@@ -942,11 +943,16 @@ class TypeChecker:
             self.for_in(s)
         elif isinstance(s, A.Case):
             return self.case_stmt(s)
-        elif isinstance(s, A.Defer):
+        elif isinstance(s, A.Defer):  # runs as its block is left, so can't leave itself
+            outer = self.loops, self.in_defer
+            self.loops, self.in_defer = [], True
             self.block(s.body)
+            self.loops, self.in_defer = outer
         elif isinstance(s, (A.Break, A.Continue)):
             word = "break" if isinstance(s, A.Break) else "continue"
-            if not self.loops:
+            if not self.loops and self.in_defer:
+                self.error("E0507", s.span, f"'{word}' can't leave a deferred statement")
+            elif not self.loops:
                 self.error("E0504", s.span, f"'{word}' outside a loop")
             elif isinstance(s, A.Break):
                 self.loops[-1]["broke"] = True
@@ -976,6 +982,8 @@ class TypeChecker:
             )  # fmt: skip
 
     def return_stmt(self, s: A.Return) -> None:
+        if self.in_defer:
+            self.error("E0507", s.span, "'return' can't leave a deferred statement")
         if s.value is None:
             if self.is_function:
                 self.error("E0503", s.span, f"missing return value of type {show(self.result)}")
@@ -1578,6 +1586,9 @@ class TypeChecker:
         if not isinstance(t, Named) or t.sym not in (opt, res):
             self.error("E0505", e.span, f"'try' needs an Option or a Result, not {show(t)}")
             return ERROR
+        if self.in_defer:
+            self.error("E0507", e.span, "'try' can't leave a deferred statement")
+            return t.args[0]
         r = self.result if self.is_function else None
         want = "an Option" if t.sym is opt else f"a Result[..., {show(t.args[1])}]"
         if r is None:
