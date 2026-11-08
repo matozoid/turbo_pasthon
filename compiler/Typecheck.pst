@@ -574,7 +574,7 @@ function newTC(env: ref Env, u: ref Unit): ref TC
         c: env.c,
         home: u,
         file: u.path,
-        src: textOf(u.text),
+        src: u.src,
         resolver: None,
         types: {},
         calls: {},

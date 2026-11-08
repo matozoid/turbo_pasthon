@@ -1019,7 +1019,8 @@ class Lists(unittest.TestCase):
 
     def test_bounds(self):
         for body in ["let xs := [1]\nwriteln(xs[1])", "var xs := [1]\nxs[-1] := 2",
-                     "var xs: List[Integer] := []\nremove(var xs, 0)"]:
+                     "var xs: List[Integer] := []\nremove(var xs, 0)",
+                     "var xs: List[Integer] := []\nremoveLast(var xs)"]:
             with self.subTest(body):
                 p = run_program(body)
                 self.assertEqual(p.returncode, 70, p.stdout)
@@ -1027,20 +1028,33 @@ class Lists(unittest.TestCase):
 
     def test_growing_a_field(self):
         """`add(var b.items, x)` moves the list out of the field for the call, so it isn't
-        copied each time."""
+        copied each time; the other arguments are computed first, so they may use `b`.
+        A place in a box is moved too, unless an argument can reach the box."""
         p = run_program("""
             type
                 Bag = record
                     items: List[Integer]
             procedure addLen(var xs: List[Integer], b: Bag)
                 add(var xs, len(b.items))
+            procedure addSeen(var xs: List[Integer], r: ref Bag)
+                add(var xs, len(r.items))
             var b := Bag(items: [])
             for i := 1 to 100000 do
-                add(var b.items, i)
-            addLen(var b.items, b)  # `b` is used again, so `b.items` is copied, not moved
+                add(var b.items, len(b.items) + 1)
+            addLen(var b.items, b)
             writeln("{b.items[99999]} {b.items[100000]}")
+            for i := 1 to 50000 do
+                remove(var b.items, len(b.items) - 1)
+            for i := 1 to 50000 do
+                removeLast(var b.items)
+            writeln(len(b.items))
+            let r := new(Bag(items: []))
+            for i := 1 to 100000 do
+                add(var r.items, i)
+            addSeen(var r.items, r)  # `r` can see `r.items`, so it is copied
+            writeln("{len(r.items)} {r.items[100000]}")
             """)
-        self.assertEqual(p.stdout, b"100000 100000\n")
+        self.assertEqual(p.stdout, b"100000 100000\n1\n100001 100000\n")
 
 
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
@@ -1656,24 +1670,27 @@ class Unsupported(unittest.TestCase):
         )
 
     def test_try_after_moved_var_argument(self):
-        """A failing `try` would leave the moved-out place empty."""
+        """A failing `try` in a later `var` place would leave the moved-out place empty."""
         built, _ = compile_program("""
             type
                 Box = record
                     items: List[String]
+                    lists: List[List[String]]
 
-            procedure put(var xs: List[String], n: Integer)
-                add(var xs, "{n}")
+            procedure put(var xs: List[String], var ys: List[String])
+                add(var xs, "x")
 
             function f(n: Option[Integer]): Option[Integer]
-                var b := Box(items: [])
-                put(var b.items, try n)
+                let none: List[String] := []
+                var b := Box(items: [], lists: [none])
+                var c := b
+                put(var b.items, ys: var c.lists[try n])
                 return Some(len(b.items))
 
-            writeln(isSome(f(Some(1))))
+            writeln(isSome(f(Some(0))))
             """)
         self.assertEqual(
-            [(d.code, d.span.line, d.span.col) for d in built.diagnostics], [("E0990", 14, 22)]
+            [(d.code, d.span.line, d.span.col) for d in built.diagnostics], [("E0990", 17, 38)]
         )
 
     def test_only_programs(self):

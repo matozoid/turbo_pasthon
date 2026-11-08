@@ -360,8 +360,8 @@ with **copy-on-write**, so copies are O(1) until mutated.
 
 A `List` is one block holding its length, its capacity and its elements; the compiler
 provides only that block, indexing, `len` and an internal `resize`. `add`, `remove`,
-`concat` and `in` are ordinary Pasthon routines in System, built on those. Growing at
-least doubles the capacity, so `add` is amortized O(1).
+`removeLast`, `concat` and `in` are ordinary Pasthon routines in System, built on those.
+Growing at least doubles the capacity, so `add` is amortized O(1).
 
 A `Map` is a record in System holding lists of keys, values and hashes, in insertion
 order, plus an open-addressing slot table that points into them. The compiler provides
@@ -686,11 +686,17 @@ There are no exceptions to this rule. Because dot syntax can't carry a `var` mar
 functions whose first parameter is `var` can't be called with dot syntax (§6.6).
 Every call that may mutate an argument shows `var` at that argument.
 
+- Arguments are evaluated in two rounds: first the value arguments, left to right; then the
+  `var` places, left to right. So in `add(var p.items, len(p.items))` the length is read
+  before `p.items` is bound.
 - A `var` argument that is a whole variable is passed by reference. Any other place (a
-  field `p.x`, an element `xs[i]`) is copied in before the call and copied back after it,
-  left to right. When nothing else in the call uses its variable, the compiler *moves* the
-  value out instead of copying it, which no program can tell apart; so
-  `add(var p.items, x)` is O(1), not a copy of the list.
+  field `p.x`, an element `xs[i]`) is copied in before the call and copied back after it.
+  Where no program can tell the difference, the compiler *moves* the value out instead
+  of copying it. That is unless another `var` place of the call uses its variable, or
+  the place is in a box (`r.items` with `r: ref T`) that the callee may reach through
+  an argument: one whose type can hold a `ref` or `Weak` to that box's type. Without
+  mutable globals, arguments are the only way in. So `add(var p.items, x)` and
+  `add(var p.items, Item(at: len(p.items)))` are O(1), not a copy of the list.
 - The `var` arguments of one call must be separate places: not the same variable, field
   or element, and not one inside the other (`E0523`): `swap(var p, var p.x)` is an error.
   The check is at compile time, so it assumes the worst where it can't know:
@@ -1228,7 +1234,7 @@ test "largest of empty list is None"
 
 | Unit | Contents |
 |---|---|
-| `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters (including `chars`) and consumers (§4.14), `len`, `add`, `concat`, `remove`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, conversions, `halt`, `assert` support |
+| `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters (including `chars`) and consumers (§4.14), `len`, `add`, `concat`, `remove`, `removeLast`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, conversions, `halt`, `assert` support |
 | `IO` | `write`, `writeln` (standard output), `writeErr`, `writelnErr` (standard error), `readln(): Option[String]`; files: `open` (reading), `create(path, mode := 0o644)` (writing; creates or empties), `close`, `readAll`, `readBytes`, `writeAll`, `writeBytes` returning `Result[_, String]` with C's error message. A `File` closes when its last reference goes away. Written in Pasthon on libc's `open`, `read`, `write`, `close` |
 | `Strings` | `bytes`, `fromBytes` (invalid UTF-8 becomes U+FFFD), `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `endsWith`, `parseInt`, `parseReal`. `split` and `replace` require a non-empty separator. Written in Pasthon on libc's `memmem` and `memcpy`, except `charCount`, `byteLen`, `slice` and `startsWith` (compiler intrinsics) |
 | `Math` | `Pi`, `sqrt`, `sin`, `cos`, `abs`, `min`, `max`, `floor`, `ceil` |

@@ -892,4 +892,23 @@ class Build(unittest.TestCase):
         )
 
 
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class Bootstrap(unittest.TestCase):
+    """The port compiles itself: the Python-built compiler and the compilers it builds
+    are the same executable, byte for byte."""
+
+    def test_fixpoint(self):
+        stage0 = build_tool("Build")
+        source = str(COMPILER / "Build.pst")
+        previous = Path(stage0).read_bytes()
+        compiler = stage0
+        for stage in (1, 2):
+            out = os.path.join(_TMP.name, f"Build{stage}")
+            r = subprocess.run([compiler, STD_DIR, source, out], capture_output=True, timeout=600)
+            self.assertEqual((r.returncode, r.stderr.decode()), (0, ""))
+            got = Path(out).read_bytes()
+            self.assertTrue(got == previous, f"stage {stage} differs from stage {stage - 1}")
+            previous, compiler = got, out
+
+
 del _Differential

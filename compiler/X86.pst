@@ -146,8 +146,7 @@ export procedure codeRef(a: ref Assembler, data: String, offset: Integer, label:
     add(var a.codeRefs, CodeRef(data: data, offset: offset, label: label))
 
 procedure rel32(a: ref Assembler, label: String, kind: String := "code")
-    let item := Fixup(pos: len(a.code), label: label, kind: kind)
-    add(var a.fixups, item)
+    add(var a.fixups, Fixup(pos: len(a.code), label: label, kind: kind))
     putLE(var a.code, 0, n: 4)
 
 ## Resolves labels. `rodataOffset` and `gotOffset` are where the data and the GOT start,
@@ -487,8 +486,7 @@ export procedure addImm(a: ref Assembler, dst: Integer, value: Integer)
     if dst = Rsp and a.tracked then  # drops pushed words
         var n := value div 8
         while n > 0 and len(a.stack) > 0 do
-            let at := len(a.stack) - 1
-            remove(var a.stack, at)
+            removeLast(var a.stack)
             n := n - 1
 
 export procedure subImm(a: ref Assembler, dst: Integer, value: Integer)
@@ -512,8 +510,7 @@ export procedure pop(a: ref Assembler, r: Integer)
         emit(a, [0x41])
     emit(a, [0x58 + low(r)])
     if a.tracked then
-        let at := len(a.stack) - 1
-        remove(var a.stack, at)
+        removeLast(var a.stack)
 
 export procedure call(a: ref Assembler, label: String)
     emit(a, [0xE8])

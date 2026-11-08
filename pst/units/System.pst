@@ -196,6 +196,12 @@ export procedure remove[T](var xs: List[T], index: Integer)
         xs[i] := xs[i + 1]
     resize(var xs, n - 1)
 
+## Removes the last element (`P0001` if there is none).
+export procedure removeLast[T](var xs: List[T])
+    let n := len(xs)
+    _ := xs[n - 1]  # P0001 if there is no such element
+    resize(var xs, n - 1)
+
 ## A new list: `a` followed by `b`.
 export function concat[T](a, b: List[T]): List[T]
     var out := a

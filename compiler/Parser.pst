@@ -20,6 +20,8 @@ type
         export tokens: List[Token]
         export comments: List[Comment]
         export diagnostics: List[Diagnostic]
+        ## The decoded source.
+        export src: Text
 
     ## A syntax error that unwinds to the nearest line list; it is already reported.
     Failed = record
@@ -121,6 +123,7 @@ export function parse(text: String, file: String := "<input>"): ParseResult
         tokens: lexed.tokens,
         comments: lexed.comments,
         diagnostics: sorted(concat(lexed.diagnostics, p.diags)),
+        src: lexed.src,
     )
 
 ## The diagnostics by position, stably.
@@ -321,8 +324,7 @@ procedure reportWith(p: ref State, code: String, span: Span, message: String, fi
     if key in p.reported then
         return
     p.reported[key] := true
-    let item := Diagnostic(file: p.file, span: span, severity: Severity.Error, code: code, message: message, fixes: fixes)
-    add(var p.diags, item)
+    add(var p.diags, Diagnostic(file: p.file, span: span, severity: Severity.Error, code: code, message: message, fixes: fixes))
 
 procedure report(p: ref State, code: String, span: Span, message: String)
     reportWith(p, code, span, message: message, fixes: [])

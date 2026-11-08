@@ -1728,13 +1728,25 @@ class Emitter:
         copies = []
         outer = self.f.no_try
         try:
-            for p, slot in zip(m.params, m.slots):
-                place = _unparen(slot.expr) if slot is not None and p.is_var else None
+            # The other arguments first, then the `var` places (SPEC §6.3): nothing that
+            # runs after a place is bound sees it emptied by a move.
+            pushed = []
+            for i, (p, slot) in enumerate(zip(m.params, m.slots)):
+                if not p.is_var or slot is None:
+                    self.argument(p, slot, m, sym.file)
+                    self.save(self.sub(subst(p.type, m.s)))
+                    pushed.append(i)
+            places = [_unparen(x.expr) for p, x in zip(m.params, m.slots) if p.is_var and x is not None]
+            types = [self.sub(subst(p.type, m.s)) for p in m.params]
+            for i, (p, slot) in enumerate(zip(m.params, m.slots)):
+                if not p.is_var or slot is None:
+                    continue
+                place = _unparen(slot.expr)
                 if isinstance(place, A.Name):
                     self.address(place)
                     a.push(RAX)
-                elif place is not None:
-                    if self.movable(place, [x.expr for x in m.slots if x is not None and x is not slot]):
+                else:
+                    if self.movable(place, [x for x in places if x is not place], types):
                         self.address(place)  # moved out, so the callee's copy isn't shared
                         a.mov(RCX, RAX)
                         a.load(RAX, RCX)
@@ -1747,10 +1759,8 @@ class Emitter:
                     a.push(RAX)
                     copies.append((place, tmp))
                     self.f.no_try = outer + 1
-                else:
-                    self.argument(p, slot, m, sym.file)
-                    self.save(self.sub(subst(p.type, m.s)))
-            for i in reversed(range(len(m.params))):
+                pushed.append(i)
+            for i in reversed(pushed):
                 a.pop(_ARG_REGS[i])
             a.call(self.label_of(e, target, targs, sites))
             if copies:
@@ -1778,19 +1788,30 @@ class Emitter:
         a.pop(R11)
         a.call_reg(R11)
 
-    def movable(self, place, others: list) -> bool:
+    def movable(self, place, others: list, types: list) -> bool:
         """Whether a `var` argument that isn't a whole variable can be moved out of its
-        place for the call, instead of copied: when it is managed, so a copy would be
-        shared and the callee's changes would copy it again, and its variable isn't used
-        anywhere else in the call (SPEC §6.3), so nothing sees the place empty."""
+        place for the call, instead of copied (SPEC §6.3): when it is managed, so a copy
+        would be shared and the callee's changes would copy it again; when no other `var`
+        place ``others`` of the call uses its variable, so none of them sees it empty;
+        and when the callee can't reach a box the place is in. Without mutable globals,
+        it can only do that through an argument, so through a value of one of the
+        parameter types ``types``."""
         if not self.managed(self.type(place)) or self.is_cplace(place):
             return False
+        boxes = set()
         root = place
         while isinstance(root, (A.Paren, A.FieldAccess, A.Index)):
             root = root.inner if isinstance(root, A.Paren) else root.target
+            t = self.type(root)
+            if isinstance(t, RefT):
+                boxes.add(t.target)
         sym = self.ref(root.span) if isinstance(root, A.Name) else None
         if sym is None:
             return False
+        if boxes:
+            seen: set = set()
+            if any(self.reaches(t, boxes, seen) for t in types):
+                return False
         uses = 0
         todo = [place, *others]
         while todo:
@@ -1798,6 +1819,26 @@ class Emitter:
             uses += isinstance(n, A.Name) and self.ref(n.span) is sym
             todo.extend(_children(n))
         return uses == 1
+
+    def reaches(self, t, boxes: set, seen: set) -> bool:
+        """Whether a value of type ``t`` can hold a `ref` or `Weak` to one of the types
+        ``boxes``. ``seen``: the types already visited. A function value can't: it is a
+        top-level routine, which holds nothing."""
+        if t in seen:
+            return False
+        seen.add(t)
+        if isinstance(t, RefT):
+            return t.target in boxes or self.reaches(t.target, boxes, seen)
+        if _is_weak(t) and t.args[0] in boxes:
+            return True
+        if isinstance(t, Builtin) and not _is_pointer(t):
+            return any(self.reaches(u, boxes, seen) for u in t.args)
+        kind = self.kind(t)
+        if kind == "record":
+            return any(self.reaches(u, boxes, seen) for _, u in self.fields(t))
+        if kind == "union":
+            return any(self.reaches(u, boxes, seen) for u in self.env.variants(t))
+        return False
 
     def convert(self, e) -> None:
         """`Int32(x)`: converts between integer types, panicking (in checked builds) if

@@ -221,7 +221,6 @@ type
         calls: Map[String, Map[Integer, Match]]
         f: ref Frame
         ## Source text per file, for `text`.
-        texts: Map[String, Text]
         bad: Boolean
 
 # ------------------------------------------------------------------------ helpers
@@ -401,8 +400,7 @@ procedure unsupported(g: ref Em, span: Span, what: String)
     let k := "{g.f.file}|{span.start}|{span.end}|{message}"
     if not (k in g.reported) then
         g.reported[k] := true
-        let item := Diagnostic(file: g.f.file, span: span, severity: Severity.Error, code: "E0990", message: message, fixes: [])
-        add(var g.diagnostics, item)
+        add(var g.diagnostics, Diagnostic(file: g.f.file, span: span, severity: Severity.Error, code: "E0990", message: message, fixes: []))
     g.bad := true
 
 function rawType(g: ref Em, id: Integer): Type
@@ -707,9 +705,7 @@ procedure wrap(g: ref Em, have, want: Type, span: Span)
 function text(g: ref Em, span: Span): String
     if not (g.f.file in g.units) then
         return "?"
-    if not (g.f.file in g.texts) then
-        g.texts[g.f.file] := textOf(g.units[g.f.file].text)
-    return Source.sub(g.texts[g.f.file], span.start, end: span.end)
+    return Source.sub(g.units[g.f.file].src, span.start, end: span.end)
 
 function where(g: ref Em, span: Span): String
     var path := ""
@@ -863,7 +859,7 @@ export function build(result: Checked, checked: Boolean := true): Built
         env: env, index: r.checker.index, checked: checked, main: main, a: newAssembler(),
         diagnostics: [], reported: {}, runtime: [], used: {}, panics: [], labels: {}, queue: [],
         descs: {}, supportedCache: {}, thunks: [], drops: [], needed: [Libc], library: library,
-        units: units, types: types, calls: calls, f: newFrame(main.path, None, exit: ""), texts: {},
+        units: units, types: types, calls: calls, f: newFrame(main.path, None, exit: ""),
         bad: false,
     ))
     return run(g)
@@ -881,11 +877,10 @@ function run(g: ref Em): Built
     let a := g.a
     let file := g.main.parsed.file
     if file.kind <> "program" then
-        let item := Diagnostic(
+        add(var g.diagnostics, Diagnostic(
             file: g.main.path, span: file.name.span, severity: Severity.Error, code: "E0990",
             message: "only a program can be built; a unit is compiled with the program that uses it", fixes: [],
-        )
-        add(var g.diagnostics, item)
+        ))
         return Built(executable: None, diagnostics: g.diagnostics)
     g.f := newFrame(g.main.path, None, exit: newLabel(a, "exit"))
     label(a, "_start")
@@ -910,8 +905,7 @@ function run(g: ref Em): Built
     patch32(a, sizeAt, value: align(g.f.size, 16))
     while len(g.queue) > 0 do
         let inst := g.queue[len(g.queue) - 1]
-        let at := len(g.queue) - 1
-        remove(var g.queue, at)
+        removeLast(var g.queue)
         routine(g, inst)
     a.tracked := false
     var i := 0
@@ -944,12 +938,11 @@ function labelOf(g: ref Em, span: Span, sym: ref Symbol, targs: List[Type], site
         if len(targs) > 0 then
             depth := depth + 1
         if depth > MaxDepth then
-            let item := Diagnostic(
+            add(var g.diagnostics, Diagnostic(
                 file: g.f.file, span: span, severity: Severity.Error, code: "E0720",
                 message: "generic instances nest more than {MaxDepth} deep here: '{sym.name}' keeps instantiating itself with a bigger type",
                 fixes: [],
-            )
-            add(var g.diagnostics, item)
+            ))
             g.bad := true
             return "?"
         var name := sym.name
@@ -1258,8 +1251,7 @@ procedure stmts(g: ref Em, ss: List[Stmt])
         stmt(g, s)
         if g.bad then
             while len(g.a.stack) > depth do
-                let at := len(g.a.stack) - 1
-                remove(var g.a.stack, at)
+                removeLast(var g.a.stack)
             g.bad := false
         else
             assert len(g.a.stack) = depth, "unbalanced pushes"
@@ -1275,8 +1267,7 @@ procedure block(g: ref Em, body: ArmBody)
     releaseScopes(g, len(g.f.scopes) - 1)
     if g.bad then
         return
-    let at := len(g.f.scopes) - 1
-    remove(var g.f.scopes, at)
+    removeLast(var g.f.scopes)
 
 procedure stmt(g: ref Em, s: Stmt)
     let a := g.a
@@ -1423,13 +1414,11 @@ procedure stmt(g: ref Em, s: Stmt)
             unsupported(g, x.span, "the 'ErrorStmt' statement")
 
 procedure loop(g: ref Em, body: Block, brk, cont: String)
-    let item := LoopT(brk: brk, cont: cont, depth: len(g.f.scopes))
-    add(var g.f.loops, item)
+    add(var g.f.loops, LoopT(brk: brk, cont: cont, depth: len(g.f.scopes)))
     block(g, body)
     if g.bad then
         return
-    let at := len(g.f.loops) - 1
-    remove(var g.f.loops, at)
+    removeLast(var g.f.loops)
 
 ## The `until` condition sees the body's variables, so the body's block is released
 ## after it. (`continue` isn't allowed in `repeat`, SPEC §7.4.)
@@ -1442,15 +1431,14 @@ procedure repeatStmt(g: ref Em, s: Repeat)
     add(var g.f.scopes, [])
     add(var g.f.loops, LoopT(brk: fin, cont: fin, depth: depth))
     stmts(g, s.body.stmts)
-    let at := len(g.f.loops) - 1
-    remove(var g.f.loops, at)
+    removeLast(var g.f.loops)
     expr(g, s.cond)
     let was := g.bad
     g.bad := false
     releaseScopes(g, depth)  # keeps rax
     if g.bad then
         return
-    remove(var g.f.scopes, depth)  # the scope added above
+    removeLast(var g.f.scopes)
     g.bad := was
     if g.bad then
         return
@@ -1572,8 +1560,7 @@ procedure forIn(g: ref Em, s: ForIn)
     releaseScopes(g, depth)
     if g.bad then
         return
-    let at := len(g.f.scopes) - 1
-    remove(var g.f.scopes, at)
+    removeLast(var g.f.scopes)
 
 ## `for c in Color`: every member, in order.
 procedure forEnum(g: ref Em, s: ForIn, t: Type)
@@ -1746,8 +1733,7 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
     releaseScopes(g, depth)
     if g.bad then
         return
-    let at := len(g.f.scopes) - 1
-    remove(var g.f.scopes, at)
+    removeLast(var g.f.scopes)
 
 ## A `case` statement (`stmtArms`), or a `case` expression (`exprArms`) of type `result`,
 ## each arm's value then ending up in rax. The subject is kept in a slot of its own block.
@@ -1815,16 +1801,14 @@ procedure caseOf(g: ref Em, subject: Expr, stmtArms: List[CaseArm], exprArms: Li
         releaseScopes(g, len(g.f.scopes) - 1)  # keeps rax
         if g.bad then
             return
-        let at := len(g.f.scopes) - 1
-        remove(var g.f.scopes, at)
+        removeLast(var g.f.scopes)
         jmp(a, fin)
         label(a, nxt)
     label(a, fin)
     releaseScopes(g, depth)
     if g.bad then
         return
-    let at := len(g.f.scopes) - 1
-    remove(var g.f.scopes, at)
+    removeLast(var g.f.scopes)
 
 function labelSpan(lb: Label): Span
     case lb of
@@ -2914,30 +2898,41 @@ procedure callExpr(g: ref Em, c: Call)
 
 ## `var` arguments that aren't whole variables are copied to temporaries (`Copy`) and
 ## stored back after the call. Until they are, a `try` can't return: it would leave the
-## places empty.
+## places empty. The other arguments come first, then the `var` places (SPEC §6.3), so
+## nothing that runs after a place is bound sees it emptied by a move.
 procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
     let a := g.a
     let outer := g.f.noTry
     var copies: List[Copy] := []
+    var pushed: List[Integer] := []
     for i := 0 to len(m.params) - 1 do
         let p := m.params[i]
         let slot := m.slots[i]
-        var isPlace := false
-        var place := slotExpr(slot)
-        if slot.isSome() and p.isVar then
-            isPlace := true
-            place := unparen(place)
-        if isPlace and isName(place) then
+        if not p.isVar or slot.isNone() then
+            argument(g, p, slot, m, file: callee.sym.file)
+            if g.bad then
+                return
+            save(g, subT(g, subst(p.ty, m.s)))
+            add(var pushed, i)
+    for i := 0 to len(m.params) - 1 do
+        let slot := m.slots[i]
+        if not m.params[i].isVar or slot.isNone() then
+            continue
+        let place := unparen(slotExpr(slot))
+        if isName(place) then
             address(g, place)
             if g.bad then
                 return
             push(a, Rax)
-        else if isPlace then
+        else
             var others: List[Expr] := []
             for j := 0 to len(m.slots) - 1 do
-                if j <> i and m.slots[j].isSome() then
+                if j <> i and m.params[j].isVar and m.slots[j].isSome() then
                     add(var others, slotExpr(m.slots[j]))
-            if movable(g, place, others) then
+            var types: List[Type] := []
+            for p in m.params do
+                add(var types, subT(g, subst(p.ty, m.s)))
+            if movable(g, place, others, types) then
                 address(g, place)  # moved out, so the callee's copy isn't shared
                 if g.bad then
                     return
@@ -2954,13 +2949,9 @@ procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
             push(a, Rax)
             add(var copies, Copy(place: place, tmp: tmp))
             g.f.noTry := outer + 1
-        else
-            argument(g, p, slot, m, file: callee.sym.file)
-            if g.bad then
-                return
-            save(g, subT(g, subst(p.ty, m.s)))
-    for i := len(m.params) - 1 downto 0 do
-        pop(a, argReg(i))
+        add(var pushed, i)
+    for k := len(pushed) - 1 downto 0 do
+        pop(a, argReg(pushed[k]))
     let target := labelOf(g, c.span, callee.sym, callee.targs, sites: callee.sites)
     if g.bad then
         return
@@ -3014,11 +3005,67 @@ function countUses(g: ref Em, e: Expr, id: Integer): Integer
         n := n + countUses(g, k, id)
     return n
 
+## The keys of the types of the boxes that reaching the place `e` goes through.
+function boxesOf(g: ref Em, e: Expr): Map[String, Boolean]
+    var boxes: Map[String, Boolean] := {}
+    var r := unparen(e)
+    var going := true
+    while going do
+        case r of
+            FieldAccess(x):
+                r := unparen(x.target)
+            Index(x):
+                r := unparen(x.target)
+            else:
+                going := false
+        if going then
+            case typeOfExpr(g, r) of
+                RefT(b):
+                    boxes[key(b.target)] := true
+                else:
+                    pass()
+    return boxes
+
+## Whether a value of type `t` can hold a `ref` or `Weak` to one of the types `boxes`.
+## `seen`: the types already visited. A function value can't: it is a top-level routine,
+## which holds nothing.
+function reaches(g: ref Em, t: Type, boxes: Map[String, Boolean], var seen: Map[String, Boolean]): Boolean
+    let k := key(t)
+    if k in seen then
+        return false
+    seen[k] := true
+    case t of
+        RefT(r):
+            return key(r.target) in boxes or reaches(g, r.target, boxes, seen: var seen)
+        BuiltinT(b):
+            if isWeak(t) and key(b.args[0]) in boxes then
+                return true
+            if isPointer(t) then
+                return false
+            for u in b.args do
+                if reaches(g, u, boxes, seen: var seen) then
+                    return true
+            return false
+        else:
+            pass()
+    let kd := kind(g, t)
+    if kd = "record" then
+        for f in fields(g, t) do
+            if reaches(g, f.ty, boxes, seen: var seen) then
+                return true
+    else if kd = "union" then
+        for u in variants(g.env, t) do
+            if reaches(g, u, boxes, seen: var seen) then
+                return true
+    return false
+
 ## Whether a `var` argument that isn't a whole variable can be moved out of its place for
-## the call, instead of copied: when it is managed, so a copy would be shared and the
-## callee's changes would copy it again, and its variable isn't used anywhere else in the
-## call (SPEC §6.3), so nothing sees the place empty.
-function movable(g: ref Em, place: Expr, others: List[Expr]): Boolean
+## the call, instead of copied (SPEC §6.3): when it is managed, so a copy would be shared
+## and the callee's changes would copy it again; when no other `var` place `others` of the
+## call uses its variable, so none of them sees it empty; and when the callee can't reach
+## a box the place is in. Without mutable globals, it can only do that through an
+## argument, so through a value of one of the parameter types `types`.
+function movable(g: ref Em, place: Expr, others: List[Expr], types: List[Type]): Boolean
     if not managed(g, typeOfExpr(g, place)) or isCPlace(g, place) then
         return false
     var sym: Option[ref Symbol] := None
@@ -3029,6 +3076,12 @@ function movable(g: ref Em, place: Expr, others: List[Expr]): Boolean
             pass()
     if sym.isNone() then
         return false
+    let boxes := boxesOf(g, place)
+    if len(boxes) > 0 then
+        var seen: Map[String, Boolean] := {}
+        for t in types do
+            if reaches(g, t, boxes, seen: var seen) then
+                return false
     let id := sym.get().id
     var count := countUses(g, place, id)
     for o in others do
@@ -3781,8 +3834,7 @@ procedure ccall(g: ref Em, name: String)
     callImport(a, name)
     leave(a)
     if a.tracked then  # `leave` popped rbp
-        let at := len(a.stack) - 1
-        remove(var a.stack, at)
+        removeLast(var a.stack)
 
 ## Ends the program with status rdi. `exit`, not `_exit`: C code may have output waiting
 ## in stdio buffers.

@@ -26,6 +26,8 @@ type
         export used: List[ref Unit]
         ## The normalized source, for fixes that rewrite code.
         export text: String
+        ## The same, decoded.
+        export src: Text
 
     export Checker = record
         export stdDir: String
@@ -335,7 +337,8 @@ function load(c: ref Checker, path: String, std: Boolean, expected: String := ""
         symbol: symbol,
         top: {},
         used: [],
-        text: Source.normalize(text),
+        text: parsed.src.str,
+        src: parsed.src,
     ))
     if tree.name.name <> "" and tree.name.name <> stem then
         var fixes: List[Fix] := []
@@ -448,7 +451,7 @@ procedure visit(c: ref Checker, u: ref Unit, var state: Map[Integer, Integer], v
                     visit(c, v, state: var state, stack: var stack)
             None:
                 continue
-    remove(var stack, len(stack) - 1)
+    removeLast(var stack)
     state[u.id] := 2
 
 # --------------------------------------------------------------- declaration pass
@@ -853,8 +856,7 @@ procedure push(r: ref Resolver)
     add(var r.scopes, {})
 
 procedure pop(r: ref Resolver)
-    let at := len(r.scopes) - 1
-    remove(var r.scopes, at)
+    removeLast(var r.scopes)
 
 procedure define(r: ref Resolver, kind: Kind, ident: Ident, node: DeclNode, unusedFix: Option[Span] := None)
     if isDiscard(ident.name) or not r.hasCtx then
@@ -915,8 +917,7 @@ procedure pushTypeParams(r: ref Resolver, params: List[TypeParam])
     r.typeScopes[len(r.typeScopes) - 1] := scope
 
 procedure popTypeParams(r: ref Resolver)
-    let at := len(r.typeScopes) - 1
-    remove(var r.typeScopes, at)
+    removeLast(var r.typeScopes)
 
 # -------------------------------------------------------------------------- types
 
