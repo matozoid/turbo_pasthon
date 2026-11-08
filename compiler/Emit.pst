@@ -1,0 +1,4737 @@
+unit Emit
+
+## The emit pass: typed AST to an x86-64 executable (SPEC §15.2 steps 4–5), a port of
+## pst/emit.py that produces the same bytes.
+##
+## Scheme (SPEC §15.2: no IR, no optimizer): every expression leaves its value in rax;
+## binary operators push the left operand while the right one is computed. Each routine
+## has an rbp frame with one 8-byte slot per local. Calls follow System V: arguments in
+## rdi, rsi, rdx, rcx, r8, r9, result in rax. A `var` argument is passed as the address
+## of its place.
+##
+## Strings, records and unions (SPEC §4.6, §11) are pointers to reference-counted heap
+## blocks. Every block starts with a refcount and a descriptor:
+##
+##     string: refcount | 0          | byte length | char count | UTF-8 bytes | NUL
+##     record: refcount | descriptor | field 0 | field 1 | ...     (8 bytes per field)
+##     union:  refcount | descriptor | the variant's value
+##     ref T:  refcount | descriptor | the value | weak cell or 0
+##     cell:   refcount | descriptor | the box, or 0 once it is gone
+##
+## A descriptor (read-only data) gives the number of fields, the block size, a number
+## that makes it unique, an equality routine (0: compare field by field), a drop routine
+## (0: none), and per field whether it holds a reference. A union value has its own
+## block, whose descriptor says which variant it holds; `case` compares descriptors.
+##
+## String literals live in read-only data with refcount -1, which retain and release
+## ignore. Every expression produces an *owned* reference. Reading a variable retains;
+## whoever consumes a value releases it or stores it. Callees own their arguments and
+## release them on exit. Locals are released, and `defer` statements run, when their
+## block ends or a `return`, `break`, `continue` or failing `try` leaves it.
+##
+## A failing `try` can leave in the middle of an expression, while enclosing
+## expressions have values pushed. The assembler tracks the pushed words in code order,
+## and the emitter marks the owned references among them (`save`), so the failure path
+## releases exactly those before it returns.
+##
+## Anything the code generator can't compile is reported as `E0990`. The Python emitter
+## abandons the construct with an exception; here `unsupported` sets `bad`, which makes
+## the emitting routines return at once until the statement being compiled ends.
+
+uses Strings, Bits, Source, Diagnostics, Ast, Symbols, Resolve, Types, Typecheck, Paths, X86, Elf
+
+const
+    PanicStatus = 70
+    ## Nesting of generic instances (SPEC §8, E0720).
+    MaxDepth = 64
+    # Heap block layout: the header, then a string's parts or a record's fields.
+    Rc = 0
+    Desc = 8
+    Len = 16
+    Chars = 24
+    BytesAt = 32
+    Fields = 16
+    # A list block: the header, the element count, the capacity, then the elements.
+    Count = 16
+    Cap = 24
+    Elems = 32
+    # Descriptor layout, then one word per field, 1 if it holds a reference. A list's
+    # descriptor has count ListCount and one kind word, for all its elements. DEq is 0,
+    # or the distance from the descriptor to the code of the type's equality routine;
+    # DDrop the same for a routine called with the block in rdi when its last reference
+    # goes.
+    DCount = 0
+    DSize = 8
+    DId = 16
+    DEq = 24
+    DDrop = 32
+    DKinds = 40
+    # A `ref T` box: the header, the value, then its weak cell or 0. A cell: the header,
+    # then the box, or 0 once the box is gone.
+    Value = 16
+    Cell = 24
+    Target = 16
+    ListCount = -1
+    ## 0xCBF29CE484222325 and 0x100000001B3, as 64-bit words.
+    FnvOffset = -3750763034362895579
+    FnvPrime = 0x100000001B3
+
+type
+    LoopT = record
+        brk: String
+        cont: String
+        ## Scopes outside the loop's body.
+        depth: Integer
+
+    ## What a scope releases when it ends: a reference-counted slot, or a `defer` to run.
+    Entry = record
+        slot: Integer
+        deferred: Option[Defer]
+
+    ## The routine (or program body) being compiled.
+    Frame = record
+        file: String
+        sym: Option[ref Symbol]
+        ## The label of the epilogue.
+        exit: String
+        ## Symbol id -> rbp offset.
+        slots: Map[Integer, Integer]
+        size: Integer
+        ## Reference-counted slots per open block, innermost last. The first holds the
+        ## parameters and `old` values, released in the epilogue.
+        scopes: List[List[Entry]]
+        loops: List[LoopT]
+        resultSlot: Option[Integer]
+        posts: List[Expr]
+        ## File and id of an `old` call -> its slot.
+        old: Map[String, Integer]
+        ## A generic routine's instance: its type parameters' arguments, and per
+        ## parameter the file whose visibility resolves bound members (SPEC §8.2).
+        s: Subst
+        sites: Map[Integer, String]
+        ## Instances that led to this one.
+        depth: Integer
+        ## File and id of a toCString call -> the slot keeping its string.
+        keep: Map[String, Integer]
+        ## While > 0, a `try` can't return: a call has moved values out (`call`).
+        noTry: Integer
+
+    ## A routine instance to compile.
+    Inst = record
+        sym: ref Symbol
+        targs: List[Type]
+        sites: Map[Integer, String]
+        depth: Integer
+
+    ## A callback's thunk: its label, the routine's label, the parameter types.
+    Thunk = record
+        label: String
+        target: String
+        params: List[Type]
+
+    ## The drop routine of a box type, and the destroy hook it calls ("" for none).
+    BoxDrop = record
+        label: String
+        hook: String
+
+    PanicStub = record
+        label: String
+        message: List[Byte]
+
+    ## A field of a C record: its name, type and offset.
+    CField = record
+        name: String
+        ty: Type
+        offset: Integer
+
+    CStruct = record
+        fields: List[CField]
+        size: Integer
+        align: Integer
+
+    ## A field of a record type.
+    FieldT = record
+        name: String
+        ty: Type
+
+    ## An argument of a System call: the expression and the parameter type.
+    SysArg = record
+        e: Expr
+        ty: Type
+
+    ## The routine a call reaches, with its type arguments and their sites.
+    Callee = record
+        sym: ref Symbol
+        targs: List[Type]
+        sites: Map[Integer, String]
+
+    ## A `var` argument copied into a temporary.
+    Copy = record
+        place: Expr
+        tmp: Integer
+
+    ## A C argument: its type, and whether it is a C record passed by value.
+    CArgT = record
+        ty: Type
+        byValue: Boolean
+
+    ## A variable bound by a `for` over an iterator: its offset in the item and type.
+    Bound = record
+        name: Ident
+        offset: Integer
+        ty: Type
+
+    ## A part of an interpolated string: text, or an expression.
+    Part = record
+        text: String
+        e: Option[Expr]
+
+    export Built = record
+        ## None if there were errors.
+        export executable: Option[List[Byte]]
+        export diagnostics: List[Diagnostic]
+
+    Em = record
+        env: ref Env
+        index: ref SymbolIndex
+        checked: Boolean
+        main: ref Unit
+        a: ref Assembler
+        diagnostics: List[Diagnostic]
+        reported: Map[String, Boolean]
+        ## The runtime routines used, in order.
+        runtime: List[String]
+        used: Map[String, Boolean]
+        panics: List[PanicStub]
+        ## Routine and type arguments -> label.
+        labels: Map[String, String]
+        queue: List[Inst]
+        ## Type keys -> descriptor label.
+        descs: Map[String, String]
+        supportedCache: Map[String, Boolean]
+        thunks: List[Thunk]
+        drops: List[BoxDrop]
+        ## Shared libraries, in DT_NEEDED order.
+        needed: List[String]
+        ## File and id of an extern declaration -> its library.
+        library: Map[String, String]
+        units: Map[String, ref Unit]
+        ## Per file: expression id -> type, call id -> the overload chosen.
+        types: Map[String, Map[Integer, Type]]
+        calls: Map[String, Map[Integer, Match]]
+        f: ref Frame
+        ## Source text per file, for `text`.
+        texts: Map[String, Text]
+        bad: Boolean
+
+# ------------------------------------------------------------------------ helpers
+
+function argReg(i: Integer): Integer
+    return [Rdi, Rsi, Rdx, Rcx, R8, R9][i]
+
+function callerSaved(): List[Integer]
+    return [Rax, Rcx, Rdx, Rsi, Rdi, R8, R9, R10, R11]
+
+function compareCC(op: String): String
+    case op of
+        "=": return "e"
+        "<>": return "ne"
+        "<": return "l"
+        "<=": return "le"
+        ">": return "g"
+        else: return "ge"
+
+function unsignedCC(op: String): String
+    case op of
+        "=": return "e"
+        "<>": return "ne"
+        "<": return "b"
+        "<=": return "be"
+        ">": return "a"
+        else: return "ae"
+
+function isCompare(op: String): Boolean
+    return op = "=" or op = "<>" or op = "<" or op = "<=" or op = ">" or op = ">="
+
+## The type of an expression the checker didn't type.
+function noneT(): Type
+    return SpecialT(name: "<none>")
+
+function uint64T(): Type
+    return prim("UInt64")
+
+function newFrame(file: String, sym: Option[ref Symbol], exit: String): ref Frame
+    let first: List[Entry] := []
+    return new(Frame(
+        file: file, sym: sym, exit: exit, slots: {}, size: 0, scopes: [first], loops: [],
+        resultSlot: None, posts: [], old: {}, s: {}, sites: {}, depth: 0, keep: {}, noTry: 0,
+    ))
+
+function alloc(g: ref Em): Integer
+    g.f.size := g.f.size + 8
+    return -g.f.size
+
+function slotEntry(slot: Integer): Entry
+    return Entry(slot: slot, deferred: None)
+
+procedure own(g: ref Em, slot: Integer)
+    let n := len(g.f.scopes)
+    add(var g.f.scopes[n - 1], slotEntry(slot))
+
+procedure ownParam(g: ref Em, slot: Integer)
+    add(var g.f.scopes[0], slotEntry(slot))
+
+## Bits of an integer type (8, 16, 32, 64), or 0 for other types.
+function intBits(t: Type): Integer
+    case t of
+        PrimT(p):
+            case p.name of
+                "Int8", "UInt8": return 8
+                "Int16", "UInt16": return 16
+                "Int32", "UInt32": return 32
+                "Int64", "UInt64": return 64
+                else: return 0
+        else:
+            return 0
+
+function intSigned(t: Type): Boolean
+    case t of
+        PrimT(p):
+            return startsWith(p.name, prefix: "Int")
+        else:
+            return false
+
+function isInt(t: Type): Boolean
+    return intBits(t) > 0
+
+## `Ptr[T]`, `Pointer` or `CString`: an unmanaged address (SPEC §4.13).
+function isPointer(t: Type): Boolean
+    return t = prim("Pointer") or t = prim("CString") or isBuiltin(t, "Ptr")
+
+function isList(t: Type): Boolean
+    return isBuiltin(t, "List")
+
+function isWeak(t: Type): Boolean
+    return isBuiltin(t, "Weak")
+
+function isPtr(t: Type): Boolean
+    return isBuiltin(t, "Ptr")
+
+function isRef(t: Type): Boolean
+    case t of
+        RefT(_):
+            return true
+        else:
+            return false
+
+function isFunc(t: Type): Boolean
+    case t of
+        FuncT(_):
+            return true
+        else:
+            return false
+
+## `T` for `ref T`, else `t`.
+function unboxed(t: Type): Type
+    case t of
+        RefT(r):
+            return r.target
+        else:
+            return t
+
+function arg0(t: Type): Type
+    return argsOf(t)[0]
+
+## What a variant label names: a declared type's symbol id, a primitive's name, or "".
+function head(t: Type): String
+    case t of
+        NamedT(n):
+            return "#{n.sym.id}"
+        PrimT(p):
+            return p.name
+        else:
+            return ""
+
+function unparen(e: Expr): Expr
+    case e of
+        Paren(p):
+            return unparen(p.inner)
+        else:
+            return e
+
+## The span naming what a callee refers to: `f`, or the `f` of `Unit.f` or `f[T]`.
+function calleeSpan(c: Expr): Span
+    case c of
+        Index(x):
+            return calleeSpan(x.target)
+        FieldAccess(x):
+            return x.name.span
+        else:
+            return exprSpan(c)
+
+function isName(e: Expr): Boolean
+    case e of
+        Name(_):
+            return true
+        else:
+            return false
+
+function typesKey(ts: List[Type]): String
+    var parts: List[String] := []
+    for t in ts do
+        add(var parts, key(t))
+    return Strings.join(parts, sep: ",")
+
+function showTypes(ts: List[Type]): String
+    var parts: List[String] := []
+    for t in ts do
+        add(var parts, show(t))
+    return Strings.join(parts, sep: ", ")
+
+procedure word(var bs: List[Byte], v: Integer)
+    putLE(var bs, v, n: 8)
+
+function utf8(s: String): List[Byte]
+    return bytes(s)
+
+procedure unsupported(g: ref Em, span: Span, what: String)
+    if g.bad then
+        return
+    let message := "{what} is not supported by the code generator yet"
+    let k := "{g.f.file}|{span.start}|{span.end}|{message}"
+    if not (k in g.reported) then
+        g.reported[k] := true
+        add(var g.diagnostics, Diagnostic(file: g.f.file, span: span, severity: Severity.Error, code: "E0990", message: message, fixes: []))
+    g.bad := true
+
+function rawType(g: ref Em, id: Integer): Type
+    case get(g.types, g.f.file) of
+        Some(m):
+            return getOr(m.value, id, default: noneT())
+        None:
+            return noneT()
+
+## `t` in the instance being compiled: its type parameters replaced.
+function subT(g: ref Em, t: Type): Type
+    if t = noneT() then
+        return t
+    return subst(t, g.f.s)
+
+function typeOfExpr(g: ref Em, e: Expr): Type
+    return subT(g, rawType(g, exprId(e)))
+
+function callOf(g: ref Em, e: Call): Option[Match]
+    case get(g.calls, g.f.file) of
+        Some(m):
+            return get(m.value, e.id)
+        None:
+            return None
+
+## "record", "union", "enum", ... for a declared type.
+function kind(g: ref Em, t: Type): String
+    return kindOf(g.env, t)
+
+function isCRecord(g: ref Em, t: Type): Boolean
+    if kind(g, t) <> "record" then
+        return false
+    return decl(g.env, namedSym(t).get()).c
+
+function symType(g: ref Em, sym: ref Symbol): Type
+    return getOr(g.env.symTypes, sym.id, default: noneT())
+
+function refSym(g: ref Em, span: Span): Option[ref Symbol]
+    case lookup(g.index, g.f.file, span) of
+        Some(r):
+            if len(r.value.targets) = 1 then
+                return Some(r.value.targets[0])
+            return None
+        None:
+            return None
+
+function hasSlot(g: ref Em, sym: Option[ref Symbol]): Boolean
+    return sym.isSome() and sym.get().id in g.f.slots
+
+## A slot for the local declared at `span`.
+function local(g: ref Em, span: Span): Integer
+    let slot := alloc(g)
+    case refSym(g, span) of
+        Some(s):
+            g.f.slots[s.value.id] := slot
+        None:
+            pass()
+    return slot
+
+procedure pass()
+    return
+
+## Extends the low bits of a value of type `t` that C (or a cast) left in `reg`.
+procedure widen(g: ref Em, t: Type, reg: Integer := Rax)
+    if isInt(t) then
+        extend(g.a, reg, bits: intBits(t), signed: intSigned(t))
+    else if t = booleanT() then
+        movzx8(g.a, reg, reg)
+
+## After 64-bit arithmetic in rax: wraps the result to integer type `t`. A checked
+## build panics if it didn't fit (for 64-bit types: if flag `cc` is set).
+procedure fit(g: ref Em, t: Type, span: Span, cc: String := "o")
+    let a := g.a
+    var bits := 64
+    var signed := true
+    if isInt(t) then
+        bits := intBits(t)
+        signed := intSigned(t)
+    if bits = 64 then
+        if g.checked then
+            jcc(a, cc, label: panic(g, "P0002", "integer overflow", span: span))
+        return
+    if g.checked then
+        mov(a, Rdx, Rax)
+    extend(a, Rax, bits: bits, signed: signed)
+    if g.checked then
+        cmp(a, Rax, Rdx)
+        jcc(a, "ne", label: panic(g, "P0002", "integer overflow", span: span))
+
+## Whether values of type `t` are reference counted.
+function managed(g: ref Em, t: Type): Boolean
+    let k := kind(g, t)
+    return t = stringT() or k = "record" or k = "union" or isList(t) or isRef(t) or isWeak(t)
+
+## Whether the code generator handles values of type `t`: every type reachable from it
+## is.
+function supported(g: ref Em, t: Type): Boolean
+    let k := key(t)
+    if not (k in g.supportedCache) then
+        var seen: Map[String, Boolean] := {}
+        var done: List[String] := []
+        let ok := supportedIn(g, t, var seen, var done)
+        # Without a failure, everything visited is supported; after one, only `t` is
+        # known to be unsupported (a type visited inside a cycle may reach it too).
+        if ok then
+            for u in done do
+                g.supportedCache[u] := true
+        g.supportedCache[k] := ok
+    return g.supportedCache[k]
+
+function supportedAll(g: ref Em, ts: List[Type], var seen: Map[String, Boolean], var done: List[String]): Boolean
+    for p in ts do
+        if not supportedIn(g, p, var seen, var done) then
+            return false
+    return true
+
+## `seen`: the records and unions being visited; `done`: those visited.
+function supportedIn(g: ref Em, t: Type, var seen: Map[String, Boolean], var done: List[String]): Boolean
+    let k := key(t)
+    if t = integerT() or t = booleanT() or t = charT() or t = stringT() or hasError(t) then
+        return true
+    if k in seen or k in done or isInt(t) or isPointer(t) then
+        return true
+    if k in g.supportedCache then
+        return g.supportedCache[k]
+    if isList(t) or isWeak(t) then
+        return supportedIn(g, arg0(t), var seen, var done)
+    case t of
+        RefT(r):
+            return supportedIn(g, r.target, var seen, var done)
+        FuncT(f):  # a named top-level routine: its address
+            var parts: List[Type] := []
+            for p in f.params do
+                if p <> voidT() then
+                    add(var parts, p)
+            if f.result <> voidT() then
+                add(var parts, f.result)
+            return supportedAll(g, parts, var seen, var done)
+        else:
+            pass()
+    let kd := kind(g, t)
+    if kd = "enum" then
+        return true
+    if kd <> "record" and kd <> "union" then
+        return false
+    var parts: List[Type] := []
+    if kd = "record" then
+        for f in fields(g, t) do
+            add(var parts, f.ty)
+    else
+        parts := variants(g.env, t)
+    seen[k] := true
+    let ok := supportedAll(g, parts, var seen, var done)
+    remove(var seen, k)
+    if not (k in done) then
+        add(var done, k)
+    return ok
+
+## Checks that the code generator handles values of type `t`.
+procedure valueType(g: ref Em, t: Type, span: Span, what: String := "a value")
+    if not supported(g, t) then
+        unsupported(g, span, "{what} of type {show(t)}")
+
+## The fields of record type `t`.
+function fields(g: ref Em, t: Type): List[FieldT]
+    let d := decl(g.env, namedSym(t).get())
+    var s: Subst := {}
+    let targs := argsOf(t)
+    for i := 0 to len(d.params) - 1 do
+        if i < len(targs) then
+            s[d.params[i].id] := targs[i]
+    var out: List[FieldT] := []
+    for f in d.fields do
+        add(var out, FieldT(name: f.name, ty: subst(f.ty, s)))
+    return out
+
+function fieldTypes(g: ref Em, t: Type): List[Type]
+    var out: List[Type] := []
+    for f in fields(g, t) do
+        add(var out, f.ty)
+    return out
+
+function fieldIndex(g: ref Em, t: Type, name: String): Integer
+    let fs := fields(g, t)
+    for i := 0 to len(fs) - 1 do
+        if fs[i].name = name then
+            return i
+    return 0
+
+## The data label of the descriptor for blocks of `k` holding `parts`, with equality
+## routine `eq` and drop routine `drop` (code labels) if not "".
+function descriptor(g: ref Em, k: String, parts: List[Type], eq: String := "", drop: String := ""): String
+    if not (k in g.descs) then
+        var bs: List[Byte] := []
+        word(var bs, len(parts))
+        word(var bs, Fields + 8 * len(parts))
+        word(var bs, len(g.descs))
+        word(var bs, 0)
+        word(var bs, 0)
+        for p in parts do
+            if managed(g, p) then
+                word(var bs, 1)
+            else
+                word(var bs, 0)
+        let lbl := data(g.a, bs, align: 8)
+        g.descs[k] := lbl
+        if eq <> "" then
+            codeRef(g.a, lbl, offset: DEq, label: eq)
+        if drop <> "" then
+            codeRef(g.a, lbl, offset: DDrop, label: drop)
+    return g.descs[k]
+
+## The descriptor of union `t`'s blocks holding variant `i`.
+function variantDesc(g: ref Em, t: Type, i: Integer, v: Type): String
+    return descriptor(g, "{key(t)}/{i}", [v])
+
+## The descriptor of lists of type `t`.
+function listDesc(g: ref Em, t: Type): String
+    let k := "list/{key(arg0(t))}"
+    if not (k in g.descs) then
+        var bs: List[Byte] := []
+        word(var bs, ListCount)
+        word(var bs, Elems)
+        word(var bs, len(g.descs))
+        word(var bs, 0)
+        word(var bs, 0)
+        if managed(g, arg0(t)) then
+            word(var bs, 1)
+        else
+            word(var bs, 0)
+        g.descs[k] := data(g.a, bs, align: 8)
+    return g.descs[k]
+
+## The descriptor of `ref T` boxes (SPEC §4.9): `=` compares identity, and the drop
+## routine clears the weak cell and runs a resource record's destroy hook.
+function boxDesc(g: ref Em, t: Type, span: Span): String
+    let k := "ref/{key(t)}"
+    if not (k in g.descs) then
+        var hook := ""
+        case namedSym(t) of
+            Some(s):
+                case get(hooks(g.env), s.value.id) of
+                    Some(h):
+                        hook := labelOf(g, span, h.value, [], sites: {})
+                    None:
+                        pass()
+            None:
+                pass()
+        if g.bad then
+            return "?"
+        let dropLabel := newLabel(g.a, "drop")
+        add(var g.drops, BoxDrop(label: dropLabel, hook: hook))
+        _ := descriptor(g, k, [t, builtin("Weak", [t])], eq: runtime(g, "rt_ref_eq"), drop: dropLabel)
+    return g.descs[k]
+
+## The drop routine of a box type, for rt_release: rdi is the box.
+procedure boxDrop(g: ref Em, d: BoxDrop)
+    let a := g.a
+    let alone := newLabel(a, "d")
+    label(a, d.label)
+    load(a, Rax, Rdi, disp: Cell)
+    testR(a, Rax, Rax)
+    jcc(a, "e", label: alone)
+    storeImm(a, Rax, disp: Target, value: 0)  # weak references now get None
+    label(a, alone)
+    if d.hook <> "" then
+        addImm(a, Rdi, value: Value)  # destroy(var r): the address of the value
+        call(a, d.hook)
+    ret(a)
+
+## rax := a new block with descriptor `desc`; its fields are the caller's.
+procedure newBlock(g: ref Em, desc: String)
+    leaData(g.a, Rdi, label: desc)
+    call(g.a, runtime(g, "rt_new"))
+
+## Computes `e` into rax as a value of type `want`: a variant is put into its union
+## (SPEC §4.7, the only implicit conversion).
+procedure coerce(g: ref Em, e: Expr, want: Type)
+    expr(g, e)
+    if g.bad then
+        return
+    let have := typeOfExpr(g, e)
+    if want = noneT() or have = want or kind(g, want) <> "union" then
+        return
+    wrap(g, have, want: want, span: exprSpan(e))
+
+## Puts the variant in rax, of type `have`, into a new block of union `want`.
+procedure wrap(g: ref Em, have, want: Type, span: Span)
+    let vs := variants(g.env, want)
+    var i := -1
+    for j := 0 to len(vs) - 1 do
+        if i < 0 and vs[j] = have then
+            i := j
+    if i < 0 then
+        unsupported(g, span, "converting {show(have)} to {show(want)}")
+        return
+    push(g.a, Rax)
+    newBlock(g, variantDesc(g, want, i, v: have))
+    pop(g.a, Rcx)
+    store(g.a, Rax, disp: Fields, src: Rcx)
+
+function text(g: ref Em, span: Span): String
+    if not (g.f.file in g.units) then
+        return "?"
+    if not (g.f.file in g.texts) then
+        g.texts[g.f.file] := textOf(g.units[g.f.file].text)
+    return Source.sub(g.texts[g.f.file], span.start, end: span.end)
+
+function where(g: ref Em, span: Span): String
+    var path := ""
+    let u := get(g.units, g.f.file)
+    if u.isSome() and u.get().std then
+        path := basename(g.f.file)
+    else
+        path := relative(g.f.file, dirname(g.main.path))
+    return "{path}:{span.line}:{span.col}"
+
+## A label that panics with `code` at `span`.
+function panic(g: ref Em, code, message: String, span: Span): String
+    let lbl := newLabel(g.a, "panic")
+    let t := "panic {code}: {message}\n    at {where(g, span)}\n"
+    add(var g.panics, PanicStub(label: lbl, message: utf8(t)))
+    return lbl
+
+## The data label of an immortal string block holding `t`.
+function literal(g: ref Em, t: String): String
+    let bs := utf8(t)
+    var block: List[Byte] := []
+    word(var block, -1)
+    word(var block, 0)
+    word(var block, len(bs))
+    word(var block, charCount(t))
+    for b in bs do
+        add(var block, b)
+    add(var block, Byte(0))
+    return data(g.a, block, align: 8)
+
+## Adds a reference to the block in rax.
+procedure retain(g: ref Em)
+    call(g.a, runtime(g, "rt_retain"))
+
+## Drops a reference to the block in `reg`. Preserves every register.
+procedure release(g: ref Em, reg: Integer := Rax)
+    if reg <> Rdi then
+        mov(g.a, Rdi, reg)
+    call(g.a, runtime(g, "rt_release"))
+
+## Pops `n` owned references off the stack and releases them; keeps rax.
+procedure drop(g: ref Em, n: Integer)
+    for k := 1 to n do
+        pop(g.a, Rdi)
+        release(g, Rdi)
+
+## Pushes rax, a value of type `t`. If it is reference counted, the word is marked as
+## an owned reference: one that a failing `try` releases.
+procedure save(g: ref Em, t: Type)
+    push(g.a, Rax)
+    if managed(g, t) then
+        g.a.stack[len(g.a.stack) - 1] := true
+
+## Leaves the blocks above `depth`, innermost first: releases their variables and runs
+## their `defer` statements, in reverse order. Keeps rax.
+procedure releaseScopes(g: ref Em, depth: Integer)
+    var keep: Map[Integer, Boolean] := {}
+    for _, slot in g.f.keep do
+        keep[slot] := true
+    for i := len(g.f.scopes) - 1 downto depth do
+        let scope := g.f.scopes[i]
+        for j := len(scope) - 1 downto 0 do
+            let entry := scope[j]
+            case entry.deferred of
+                Some(d):
+                    push(g.a, Rax)
+                    block(g, d.value.body)
+                    if g.bad then
+                        return
+                    pop(g.a, Rax)
+                None:
+                    load(g.a, Rdi, Rbp, disp: entry.slot)
+                    release(g, Rdi)
+                    if entry.slot in keep then  # the scope may be entered again without reaching toCString
+                        storeImm(g.a, Rbp, disp: entry.slot, value: 0)
+
+
+## The key of a call or other expression in `Frame.keep` and `Frame.old`.
+function exprKey(g: ref Em, id: Integer): String
+    return "{g.f.file}:{id}"
+
+function noSpan(): Span
+    return Span(start: 0, end: 0, line: 0, col: 0, endLine: 0, endCol: 0)
+
+## The expression of an index item (a type there is a type argument).
+function itemExpr(t: TypeOrExpr): Expr
+    case t of
+        Expr(e):
+            return e
+        else:
+            return ErrorExpr(span: noSpan(), id: -1)
+
+function isVarParam(sym: ref Symbol): Boolean
+    if sym.kind <> Kind.ParamSym then
+        return false
+    case sym.node of
+        Param(p):
+            return p.isVar
+        else:
+            return false
+
+function isRoutineNode(sym: ref Symbol): Boolean
+    case sym.node of
+        Routine(_):
+            return true
+        else:
+            return false
+
+function hasCall(g: ref Em, id: Integer): Boolean
+    case get(g.calls, g.f.file) of
+        Some(m):
+            return id in m.value
+        None:
+            return false
+
+# ------------------------------------------------------------------------- driver
+
+## Compiles a checked program, which must have no errors. `checked` keeps the runtime
+## checks that `--unchecked` drops (overflow, bounds, contracts).
+export function build(result: Checked, checked: Boolean := true): Built
+    let r := result.resolved
+    let env := result.env.get()
+    let main := r.main.get()
+    var units: Map[String, ref Unit] := {}
+    for u in r.units do
+        units[u.path] := u
+    var types: Map[String, Map[Integer, Type]] := {}
+    var calls: Map[String, Map[Integer, Match]] := {}
+    for path, tc in env.checkers do
+        mergeChecker(var types, var calls, path, tc)
+    for path, tc in env.constCheckers do
+        mergeChecker(var types, var calls, path, tc)
+    var library: Map[String, String] := {}
+    for u in r.units do
+        for item in u.parsed.file.items do
+            case item of
+                Decl(d):
+                    case d of
+                        ExternBlock(b):
+                            for x in b.decls do
+                                case x of
+                                    ExternDecl(xd):
+                                        library["{u.path}:{xd.id}"] := b.library
+                                    else:
+                                        pass()
+                        else:
+                            pass()
+                else:
+                    pass()
+    let g := new(Em(
+        env: env, index: r.checker.index, checked: checked, main: main, a: newAssembler(),
+        diagnostics: [], reported: {}, runtime: [], used: {}, panics: [], labels: {}, queue: [],
+        descs: {}, supportedCache: {}, thunks: [], drops: [], needed: [Libc], library: library,
+        units: units, types: types, calls: calls, f: newFrame(main.path, None, exit: ""), texts: {},
+        bad: false,
+    ))
+    return run(g)
+
+procedure mergeChecker(var types: Map[String, Map[Integer, Type]], var calls: Map[String, Map[Integer, Match]], path: String, tc: ref TC)
+    if not (path in types) then
+        types[path] := {}
+        calls[path] := {}
+    for k, t in tc.types do
+        types[path][k] := t
+    for k, m in tc.calls do
+        calls[path][k] := m
+
+function run(g: ref Em): Built
+    let a := g.a
+    let file := g.main.parsed.file
+    if file.kind <> "program" then
+        add(var g.diagnostics, Diagnostic(
+            file: g.main.path, span: file.name.span, severity: Severity.Error, code: "E0990",
+            message: "only a program can be built; a unit is compiled with the program that uses it", fixes: [],
+        ))
+        return Built(executable: None, diagnostics: g.diagnostics)
+    g.f := newFrame(g.main.path, None, exit: newLabel(a, "exit"))
+    label(a, "_start")
+    storeGlobal(a, "args", src: Rsp)  # argc, then argv: SPEC §14 `OS.args`
+    mov(a, Rbp, Rsp)
+    let sizeAt := subImm32Fixed(a, Rsp)
+    a.tracked := true
+    a.stack := []
+    var body: List[Stmt] := []
+    for item in file.items do
+        case item of
+            Stmt(s):
+                add(var body, s)
+            else:
+                pass()
+    for s in body do
+        keepAliveStmt(g, s)
+    block(g, Block(span: file.span, stmts: body))
+    label(a, g.f.exit)
+    xor32(a, Rdi, Rdi)
+    exitProgram(g)
+    patch32(a, sizeAt, value: align(g.f.size, 16))
+    while len(g.queue) > 0 do
+        let inst := g.queue[len(g.queue) - 1]
+        remove(var g.queue, len(g.queue) - 1)
+        routine(g, inst)
+    a.tracked := false
+    var i := 0
+    while i < len(g.thunks) do
+        thunk(g, g.thunks[i])
+        i := i + 1
+    i := 0
+    while i < len(g.drops) do
+        boxDrop(g, g.drops[i])
+        i := i + 1
+    for p in g.panics do
+        label(a, p.label)
+        leaData(a, Rsi, label: data(a, p.message))
+        movImm(a, Rdx, value: len(p.message))
+        jmp(a, runtime(g, "rt_panic"))
+    emitRuntime(g)
+    if len(g.diagnostics) > 0 then
+        return Built(executable: None, diagnostics: g.diagnostics)
+    let got := gotOffset(len(a.code), len(a.rodata), a.imports, needed: g.needed)
+    finish(a, rodataOffset(len(a.code)), gotOffset: got)
+    let exe := executable(a.code, a.rodata, a.labels["_start"], a.imports, needed: g.needed, globals: len(a.globals))
+    return Built(executable: Some(exe), diagnostics: [])
+
+## The label of a routine, or of a generic routine's instance for `targs`. An instance is
+## compiled once, however many places use it (SPEC §8.1).
+function labelOf(g: ref Em, span: Span, sym: ref Symbol, targs: List[Type], sites: Map[Integer, String]): String
+    let k := "{sym.id}|{typesKey(targs)}"
+    if not (k in g.labels) then
+        var depth := g.f.depth
+        if len(targs) > 0 then
+            depth := depth + 1
+        if depth > MaxDepth then
+            add(var g.diagnostics, Diagnostic(
+                file: g.f.file, span: span, severity: Severity.Error, code: "E0720",
+                message: "generic instances nest more than {MaxDepth} deep here: '{sym.name}' keeps instantiating itself with a bigger type",
+                fixes: [],
+            ))
+            g.bad := true
+            return "?"
+        var name := sym.name
+        if len(targs) > 0 then
+            name := "{sym.name}[{showTypes(targs)}]"
+        g.labels[k] := "{sym.unitName}.{name}#{len(g.labels)}"
+        add(var g.queue, Inst(sym: sym, targs: targs, sites: sites, depth: depth))
+    return g.labels[k]
+
+procedure routine(g: ref Em, inst: Inst)
+    case inst.sym.node of
+        Routine(r):
+            routineOf(g, inst, r)
+        else:
+            assert false, "not a routine"
+
+procedure routineOf(g: ref Em, inst: Inst, node: Routine)
+    let a := g.a
+    let sym := inst.sym
+    let sg := sig(g.env, sym)
+    var s: Subst := {}
+    for i := 0 to len(sg.tparams) - 1 do
+        if i < len(inst.targs) then
+            s[sg.tparams[i].id] := inst.targs[i]
+    let f := newFrame(sym.file, Some(sym), exit: newLabel(a, "ret"))
+    f.s := s
+    f.sites := inst.sites
+    f.depth := inst.depth
+    g.f := f
+    label(a, g.labels["{sym.id}|{typesKey(inst.targs)}"])
+    push(a, Rbp)
+    mov(a, Rbp, Rsp)
+    let sizeAt := subImm32Fixed(a, Rsp)
+    a.tracked := true
+    a.stack := []
+    routineBody(g, node, sg)
+    if g.bad then
+        if not (f.exit in a.labels) then
+            label(a, f.exit)
+        g.bad := false
+    leave(a)
+    ret(a)
+    patch32(a, sizeAt, value: align(f.size, 16))
+
+procedure routineBody(g: ref Em, node: Routine, sg: Sig)
+    let a := g.a
+    let f := g.f
+    for e in node.pre do
+        keepAliveExpr(g, e)
+    for e in node.post do
+        keepAliveExpr(g, e)
+    for s in node.body.stmts do
+        keepAliveStmt(g, s)
+    for i := 0 to len(sg.params) - 1 do
+        let p := sg.params[i]
+        if p.sym.isNone() then
+            unsupported(g, node.sig.span, "this kind of parameter")
+            return
+        valueType(g, subT(g, p.ty), node.sig.name.span, what: "parameter '{p.name}'")
+        if g.bad then
+            return
+        let slot := alloc(g)
+        f.slots[p.sym.get().id] := slot
+        store(a, Rbp, disp: slot, src: argReg(i))
+        if managed(g, subT(g, p.ty)) and not p.isVar then
+            ownParam(g, slot)
+    if sg.isFunction then
+        var span := node.sig.span
+        case node.sig.result of
+            Some(r):
+                span := typeSpan(r.value)
+            None:
+                pass()
+        valueType(g, subT(g, sg.result), span, what: "a result")
+        if g.bad then
+            return
+    if g.checked then
+        for e in node.pre do
+            expr(g, e)
+            if g.bad then
+                return
+            testR(a, Rax, Rax)
+            jcc(a, "e", label: panic(g, "P0010", "requires violated: {text(g, exprSpan(e))}", span: exprSpan(e)))
+        if len(node.post) > 0 then
+            f.posts := node.post
+            f.resultSlot := Some(alloc(g))
+            for e in node.post do
+                saveOld(g, e)
+                if g.bad then
+                    return
+    block(g, node.body)
+    label(a, f.exit)
+    if len(f.posts) > 0 then
+        let rs := f.resultSlot.get()
+        store(a, Rbp, disp: rs, src: Rax)
+        for e in f.posts do
+            expr(g, e)
+            if g.bad then
+                return
+            testR(a, Rax, Rax)
+            jcc(a, "e", label: panic(g, "P0011", "ensures violated: {text(g, exprSpan(e))}", span: exprSpan(e)))
+        load(a, Rax, Rbp, disp: rs)
+    releaseScopes(g, 0)
+
+# ------------------------------------------------------------------------ walkers
+
+## The expressions directly inside `e`, in source order. Types are skipped.
+function exprKids(e: Expr): List[Expr]
+    var out: List[Expr] := []
+    case e of
+        InterpString(x):
+            for p in x.parts do
+                case p of
+                    Expr(pe):
+                        add(var out, pe)
+                    else:
+                        pass()
+        ListLit(x):
+            out := x.items
+        SetLit(x):
+            out := x.items
+        MapLit(x):
+            for en in x.entries do
+                add(var out, en.key)
+                add(var out, en.value)
+        Paren(x):
+            add(var out, x.inner)
+        Unary(x):
+            add(var out, x.operand)
+        Binary(x):
+            add(var out, x.left)
+            add(var out, x.right)
+        Call(x):
+            add(var out, x.callee)
+            for arg in x.args do
+                add(var out, arg.value)
+        Index(x):
+            add(var out, x.target)
+            for it in x.items do
+                case it of
+                    Expr(ie):
+                        add(var out, ie)
+                    else:
+                        pass()
+        FieldAccess(x):
+            add(var out, x.target)
+        Deref(x):
+            add(var out, x.target)
+        IfExpr(x):
+            for b in x.branches do
+                add(var out, b.cond)
+                add(var out, b.value)
+            add(var out, x.elseValue)
+        CaseExpr(x):
+            add(var out, x.subject)
+            for arm in x.arms do
+                for lb in arm.labels do
+                    labelExprs(var out, lb)
+                add(var out, arm.value)
+        else:
+            pass()
+    return out
+
+procedure labelExprs(var out: List[Expr], lb: Label)
+    case lb of
+        ValueLabel(v):
+            add(var out, v.value)
+        RangeLabel(r):
+            add(var out, r.low)
+            add(var out, r.high)
+        VariantLabel(_):
+            pass()
+
+## Gives each `toCString` call in `e` a slot, cleared on entry, that keeps its string
+## alive until the end of the enclosing block (SPEC §10.2).
+procedure keepAliveExpr(g: ref Em, e: Expr)
+    case e of
+        Call(c):
+            if isC(g, c, "toCString") then
+                let slot := alloc(g)
+                storeImm(g.a, Rbp, disp: slot, value: 0)
+                g.f.keep[exprKey(g, c.id)] := slot
+        else:
+            pass()
+    for k in exprKids(e) do
+        keepAliveExpr(g, k)
+
+procedure keepAliveBody(g: ref Em, body: ArmBody)
+    case body of
+        Block(b):
+            for s in b.stmts do
+                keepAliveStmt(g, s)
+        Stmt(s):
+            keepAliveStmt(g, s)
+
+procedure keepAliveBlock(g: ref Em, b: Block)
+    for s in b.stmts do
+        keepAliveStmt(g, s)
+
+procedure keepAliveStmt(g: ref Em, s: Stmt)
+    case s of
+        VarDecl(x):
+            keepAliveExpr(g, x.value)
+        Assign(x):
+            keepAliveExpr(g, x.target)
+            keepAliveExpr(g, x.value)
+        Discard(x):
+            keepAliveExpr(g, x.value)
+        ExprStmt(x):
+            keepAliveExpr(g, x.expr)
+        If(x):
+            for b in x.branches do
+                keepAliveExpr(g, b.cond)
+                keepAliveBlock(g, b.body)
+            case x.elseBody of
+                Some(eb):
+                    keepAliveBlock(g, eb.value)
+                None:
+                    pass()
+        While(x):
+            keepAliveExpr(g, x.cond)
+            keepAliveBlock(g, x.body)
+        Repeat(x):
+            keepAliveBlock(g, x.body)
+            keepAliveExpr(g, x.cond)
+        ForRange(x):
+            keepAliveExpr(g, x.start)
+            keepAliveExpr(g, x.stop)
+            keepAliveBlock(g, x.body)
+        ForIn(x):
+            keepAliveExpr(g, x.iterable)
+            keepAliveBlock(g, x.body)
+        Case(x):
+            keepAliveExpr(g, x.subject)
+            for arm in x.arms do
+                var es: List[Expr] := []
+                for lb in arm.labels do
+                    labelExprs(var es, lb)
+                for le in es do
+                    keepAliveExpr(g, le)
+                keepAliveBody(g, arm.body)
+        Defer(x):
+            keepAliveBody(g, x.body)
+        Return(x):
+            case x.value of
+                Some(v):
+                    keepAliveExpr(g, v.value)
+                None:
+                    pass()
+        Assert(x):
+            keepAliveExpr(g, x.cond)
+            case x.message of
+                Some(m):
+                    keepAliveExpr(g, m.value)
+                None:
+                    pass()
+        else:
+            pass()
+
+## Whether `c` calls the routine `name` of unit C.
+function isC(g: ref Em, c: Call, name: String): Boolean
+    var sym: Option[ref Symbol] := None
+    case callOf(g, c) of
+        Some(m):
+            sym := m.value.sig.sym
+        None:
+            sym := refSym(g, calleeSpan(c.callee))
+    if sym.isNone() then
+        return false
+    let s := sym.get()
+    return s.unitName = "C" and s.name = name and s.isExtern
+
+function isOld(g: ref Em, c: Call): Boolean
+    case c.callee of
+        Name(n):
+            return n.name = "old" and not hasCall(g, c.id) and lookup(g.index, g.f.file, n.span).isNone()
+        else:
+            return false
+
+## Evaluates the `old(x)` calls of an `ensures` on entry.
+procedure saveOld(g: ref Em, e: Expr)
+    case e of
+        Call(c):
+            if isOld(g, c) then
+                expr(g, c.args[0].value)
+                if g.bad then
+                    return
+                let slot := alloc(g)
+                store(g.a, Rbp, disp: slot, src: Rax)
+                g.f.old[exprKey(g, c.id)] := slot
+                if managed(g, typeOfExpr(g, e)) then
+                    ownParam(g, slot)
+                return
+        else:
+            pass()
+    for k in exprKids(e) do
+        saveOld(g, k)
+        if g.bad then
+            return
+
+# --------------------------------------------------------------------- statements
+
+procedure stmts(g: ref Em, ss: List[Stmt])
+    let depth := len(g.a.stack)
+    for s in ss do
+        stmt(g, s)
+        if g.bad then
+            while len(g.a.stack) > depth do
+                remove(var g.a.stack, len(g.a.stack) - 1)
+            g.bad := false
+        else
+            assert len(g.a.stack) = depth, "unbalanced pushes"
+
+## Compiles a block; its variables are released at its end.
+procedure block(g: ref Em, body: ArmBody)
+    add(var g.f.scopes, [])
+    case body of
+        Block(b):
+            stmts(g, b.stmts)
+        Stmt(s):
+            stmts(g, [s])
+    releaseScopes(g, len(g.f.scopes) - 1)
+    if g.bad then
+        return
+    remove(var g.f.scopes, len(g.f.scopes) - 1)
+
+procedure stmt(g: ref Em, s: Stmt)
+    let a := g.a
+    case s of
+        VarDecl(x):
+            var t := noneT()
+            case refSym(g, x.name.span) of
+                Some(sym):
+                    t := subT(g, symType(g, sym.value))
+                None:
+                    pass()
+            valueType(g, t, x.name.span, what: "variable '{x.name.name}'")
+            if g.bad then
+                return
+            coerce(g, x.value, t)
+            if g.bad then
+                return
+            let slot := local(g, x.name.span)
+            store(a, Rbp, disp: slot, src: Rax)
+            if managed(g, t) then
+                own(g, slot)
+        Assign(x):
+            let t := typeOfExpr(g, x.target)
+            coerce(g, x.value, t)
+            if g.bad then
+                return
+            save(g, t)
+            address(g, x.target, insert: true)
+            if g.bad then
+                return
+            pop(a, Rcx)
+            storeAt(g, x.target, t)
+        Discard(x):
+            expr(g, x.value)
+            if g.bad then
+                return
+            if managed(g, typeOfExpr(g, x.value)) then
+                release(g)
+        ExprStmt(x):
+            case x.expr of
+                Unary(u):
+                    if u.op = "try" then  # `try f()`
+                        expr(g, x.expr)
+                        if g.bad then
+                            return
+                        if managed(g, typeOfExpr(g, x.expr)) then
+                            release(g)
+                        return
+                Call(c):
+                    callExpr(g, c)
+                    return
+                else:
+                    pass()
+            unsupported(g, x.span, "this statement")
+        Defer(x):  # runs when its block is left (releaseScopes)
+            let n := len(g.f.scopes)
+            add(var g.f.scopes[n - 1], Entry(slot: 0, deferred: Some(x)))
+        If(x):
+            let fin := newLabel(a, "fi")
+            for b in x.branches do
+                let nxt := newLabel(a, "elif")
+                expr(g, b.cond)
+                if g.bad then
+                    return
+                testR(a, Rax, Rax)
+                jcc(a, "e", label: nxt)
+                block(g, b.body)
+                if g.bad then
+                    return
+                jmp(a, fin)
+                label(a, nxt)
+            case x.elseBody of
+                Some(eb):
+                    block(g, eb.value)
+                    if g.bad then
+                        return
+                None:
+                    pass()
+            label(a, fin)
+        While(x):
+            let top := newLabel(a, "while")
+            let fin := newLabel(a, "wend")
+            label(a, top)
+            expr(g, x.cond)
+            if g.bad then
+                return
+            testR(a, Rax, Rax)
+            jcc(a, "e", label: fin)
+            loop(g, x.body, fin, cont: top)
+            if g.bad then
+                return
+            jmp(a, top)
+            label(a, fin)
+        Repeat(x):
+            repeatStmt(g, x)
+        ForRange(x):
+            forRange(g, x)
+        ForIn(x):
+            forIn(g, x)
+        Case(x):
+            caseOf(g, x.subject, x.arms, exprArms: [], result: noneT(), isExpr: false)
+        Break(_):
+            let lp := g.f.loops[len(g.f.loops) - 1]
+            releaseScopes(g, lp.depth)
+            if g.bad then
+                return
+            jmp(a, lp.brk)
+        Continue(_):
+            let lp := g.f.loops[len(g.f.loops) - 1]
+            releaseScopes(g, lp.depth)
+            if g.bad then
+                return
+            jmp(a, lp.cont)
+        Return(x):
+            case x.value of
+                Some(v):
+                    coerce(g, v.value, subT(g, sig(g.env, g.f.sym.get()).result))
+                    if g.bad then
+                        return
+                None:
+                    pass()
+            releaseScopes(g, 1)  # the parameters are released after `ensures`
+            if g.bad then
+                return
+            jmp(a, g.f.exit)
+        Assert(x):
+            var message := "assertion failed: {text(g, exprSpan(x.cond))}"
+            case x.message of
+                Some(m):
+                    case m.value of
+                        StringLit(sl):
+                            message := "{message}: {sl.value}"
+                        else:
+                            unsupported(g, exprSpan(m.value), "an assert message other than a string literal")
+                            return
+                None:
+                    pass()
+            expr(g, x.cond)
+            if g.bad then
+                return
+            testR(a, Rax, Rax)
+            jcc(a, "e", label: panic(g, "P0020", message, span: x.span))
+        ErrorStmt(x):
+            unsupported(g, x.span, "the 'ErrorStmt' statement")
+
+procedure loop(g: ref Em, body: Block, brk, cont: String)
+    add(var g.f.loops, LoopT(brk: brk, cont: cont, depth: len(g.f.scopes)))
+    block(g, body)
+    if g.bad then
+        return
+    remove(var g.f.loops, len(g.f.loops) - 1)
+
+## The `until` condition sees the body's variables, so the body's block is released
+## after it. (`continue` isn't allowed in `repeat`, SPEC §7.4.)
+procedure repeatStmt(g: ref Em, s: Repeat)
+    let a := g.a
+    let top := newLabel(a, "repeat")
+    let fin := newLabel(a, "rend")
+    let depth := len(g.f.scopes)
+    label(a, top)
+    add(var g.f.scopes, [])
+    add(var g.f.loops, LoopT(brk: fin, cont: fin, depth: depth))
+    stmts(g, s.body.stmts)
+    remove(var g.f.loops, len(g.f.loops) - 1)
+    expr(g, s.cond)
+    let was := g.bad
+    g.bad := false
+    releaseScopes(g, depth)  # keeps rax
+    if g.bad then
+        return
+    remove(var g.f.scopes, len(g.f.scopes) - 1)
+    g.bad := was
+    if g.bad then
+        return
+    testR(a, Rax, Rax)
+    jcc(a, "e", label: top)
+    label(a, fin)
+
+procedure forRange(g: ref Em, s: ForRange)
+    let a := g.a
+    var t := noneT()
+    case refSym(g, s.variable.span) of
+        Some(sym):
+            t := subT(g, symType(g, sym.value))
+        None:
+            pass()
+    let known := t <> noneT()
+    if known and t <> charT() and not isInt(t) and kind(g, t) <> "enum" then
+        unsupported(g, s.variable.span, "a loop over {show(t)}")
+        return
+    let unsigned := known and isInt(t) and not intSigned(t)
+    let v := local(g, s.variable.span)
+    let stopSlot := alloc(g)
+    let top := newLabel(a, "for")
+    let cont := newLabel(a, "next")
+    let fin := newLabel(a, "rof")
+    expr(g, s.start)
+    if g.bad then
+        return
+    store(a, Rbp, disp: v, src: Rax)
+    expr(g, s.stop)
+    if g.bad then
+        return
+    store(a, Rbp, disp: stopSlot, src: Rax)
+    mov(a, Rcx, Rax)
+    load(a, Rax, Rbp, disp: v)
+    cmp(a, Rax, Rcx)
+    var cc := "g"
+    if unsigned then
+        cc := "a"
+        if s.down then
+            cc := "b"
+    else if s.down then
+        cc := "l"
+    jcc(a, cc, label: fin)
+    label(a, top)
+    loop(g, s.body, fin, cont: cont)
+    if g.bad then
+        return
+    label(a, cont)
+    load(a, Rax, Rbp, disp: v)  # the counter can't overflow: it stops at `stop`
+    load(a, Rcx, Rbp, disp: stopSlot)
+    cmp(a, Rax, Rcx)
+    jcc(a, "e", label: fin)
+    if s.down then
+        decR(a, Rax)
+    else
+        incR(a, Rax)
+    store(a, Rbp, disp: v, src: Rax)
+    jmp(a, top)
+    label(a, fin)
+
+## `for x in xs` over a list: the loop runs over the list as it was when the loop started
+## (a copy, SPEC §4.14), kept in a slot of its own block.
+procedure forIn(g: ref Em, s: ForIn)
+    let a := g.a
+    let t := typeOfExpr(g, s.iterable)
+    if len(s.vars) <> 1 then
+        forIterator(g, s, t)
+        return
+    case t of
+        TypeValueT(tv):
+            forEnum(g, s, tv.inner)
+            return
+        else:
+            pass()
+    if not isList(t) then
+        forIterator(g, s, t)
+        return
+    let mg := managed(g, arg0(t))
+    let depth := len(g.f.scopes)
+    add(var g.f.scopes, [])
+    expr(g, s.iterable)
+    if g.bad then
+        return
+    let items := alloc(g)
+    let pos := alloc(g)
+    store(a, Rbp, disp: items, src: Rax)
+    own(g, items)
+    let v := local(g, s.vars[0].span)
+    storeImm(a, Rbp, disp: v, value: 0)
+    if mg then
+        own(g, v)
+    storeImm(a, Rbp, disp: pos, value: 0)
+    let top := newLabel(a, "for")
+    let cont := newLabel(a, "next")
+    let fin := newLabel(a, "rof")
+    label(a, top)
+    load(a, Rcx, Rbp, disp: pos)
+    load(a, Rax, Rbp, disp: items)
+    cmpMem(a, Rcx, Rax, disp: Count)
+    jcc(a, "ge", label: fin)
+    shlImm(a, Rcx, n: 3)
+    add(a, Rcx, Rax)
+    load(a, Rax, Rcx, disp: Elems)
+    if mg then
+        retain(g)
+        load(a, Rdi, Rbp, disp: v)
+        release(g, Rdi)  # the previous element
+    store(a, Rbp, disp: v, src: Rax)
+    loop(g, s.body, fin, cont: cont)
+    if g.bad then
+        return
+    label(a, cont)
+    load(a, Rax, Rbp, disp: pos)
+    incR(a, Rax)
+    store(a, Rbp, disp: pos, src: Rax)
+    jmp(a, top)
+    label(a, fin)
+    releaseScopes(g, depth)
+    if g.bad then
+        return
+    remove(var g.f.scopes, len(g.f.scopes) - 1)
+
+## `for c in Color`: every member, in order.
+procedure forEnum(g: ref Em, s: ForIn, t: Type)
+    let a := g.a
+    if kind(g, t) <> "enum" then
+        unsupported(g, exprSpan(s.iterable), "a loop over {show(t)}")
+        return
+    let v := local(g, s.vars[0].span)
+    let top := newLabel(a, "for")
+    let cont := newLabel(a, "next")
+    let fin := newLabel(a, "rof")
+    storeImm(a, Rbp, disp: v, value: 0)
+    label(a, top)
+    load(a, Rax, Rbp, disp: v)
+    cmpImm(a, Rax, value: len(decl(g.env, namedSym(t).get()).members))
+    jcc(a, "ge", label: fin)
+    loop(g, s.body, fin, cont: cont)
+    if g.bad then
+        return
+    label(a, cont)
+    load(a, Rax, Rbp, disp: v)
+    incR(a, Rax)
+    store(a, Rbp, disp: v, src: Rax)
+    jmp(a, top)
+    label(a, fin)
+
+## The file whose visibility resolves the bound members of `t`: where the first of its
+## type parameters that has a site became concrete, else this file.
+function siteOf(g: ref Em, t: Type): String
+    var ps: Vars := {}
+    paramsIn(t, var ps)
+    for id, _ in ps do
+        if id in g.f.sites then
+            return g.f.sites[id]
+    return g.f.file
+
+## `for x in e` by the iterator protocol (SPEC §4.14): `e` itself if it is an Iterator,
+## else `iter(e)`, then `next` until it returns `None`. `iter` and `next` are found where
+## the iterable's type became concrete, as bound members are. `for k, v in m` iterates
+## `entries(m)`, binding the two fields of each entry.
+procedure forIterator(g: ref Em, s: ForIn, t: Type)
+    let a := g.a
+    let site := siteOf(g, rawType(g, exprId(s.iterable)))
+    let chk := g.env.checkers[site]
+    var itT := t
+    var make := ""
+    let pair := len(s.vars) = 2
+    var item: Option[Type] := None
+    if not pair then
+        item := iteratorItem(chk, t)
+    if item.isNone() then
+        var name := "iter"
+        if pair then
+            name := "entries"
+        var chosen := false
+        for f in visibleRoutines(chk, name) do
+            if not chosen then
+                let fs := sig(g.env, f)
+                var sf: Subst := {}
+                var vars: Vars := {}
+                for tp in fs.tparams do
+                    vars[tp.id] := true
+                if len(fs.params) = 1 and isRoutineNode(f) and unify(fs.params[0].ty, t, var sf, vars: vars) then
+                    let made := subst(fs.result, sf)
+                    item := iteratorItem(chk, made)
+                    if item.isSome() then
+                        itT := made
+                        var targs: List[Type] := []
+                        var sites: Map[Integer, String] := {}
+                        for tp in fs.tparams do
+                            add(var targs, getOr(sf, tp.id, default: noneT()))
+                            sites[tp.id] := site
+                        make := labelOf(g, s.span, f, targs, sites: sites)
+                        if g.bad then
+                            return
+                        chosen := true
+    let tr := decl(g.env, sys(g.env, "Iterator").get())
+    var member := tr.routines[0]
+    for i := len(tr.routines) - 1 downto 0 do
+        if tr.routines[i].name = "next" then
+            member := tr.routines[i]
+    var found: Option[Found] := None
+    if item.isSome() then
+        var sub: Subst := {}
+        sub[tr.params[0].id] := item.get()
+        sub[ThisId] := itT
+        var s2: Subst := {}
+        found := provider(chk, itT, m: member, sub: sub, s: var s2, vars: {})
+    if found.isNone() then
+        unsupported(g, exprSpan(s.iterable), "a loop over {show(t)}")
+        return
+    let fd := found.get()
+    let fsig := sig(g.env, fd.f)
+    var targs: List[Type] := []
+    var sites: Map[Integer, String] := {}
+    for tp in fsig.tparams do
+        add(var targs, getOr(fd.sf, tp.id, default: noneT()))
+        sites[tp.id] := site
+    let step := labelOf(g, s.span, fd.f, targs, sites: sites)
+    if g.bad then
+        return
+    let option := subst(fsig.result, fd.sf)
+    let vs := variants(g.env, option)
+    let noneHead := "#{sys(g.env, "None").get().id}"
+    var none := 0
+    for i := len(vs) - 1 downto 0 do
+        if head(vs[i]) = noneHead then
+            none := i
+    if pair and make = "" then
+        unsupported(g, exprSpan(s.iterable), "a loop over {show(t)}")
+        return
+    var bound: List[Bound] := [Bound(name: s.vars[0], offset: 0, ty: item.get())]
+    if pair then
+        bound := []
+        let fs := fields(g, item.get())
+        var i := 0
+        while i < len(s.vars) and i < len(fs) do
+            add(var bound, Bound(name: s.vars[i], offset: Fields + 8 * i, ty: fs[i].ty))
+            i := i + 1
+    let depth := len(g.f.scopes)
+    add(var g.f.scopes, [])
+    expr(g, s.iterable)
+    if g.bad then
+        return
+    if make <> "" then
+        mov(a, Rdi, Rax)
+        call(a, make)
+    let it := alloc(g)
+    store(a, Rbp, disp: it, src: Rax)
+    if managed(g, itT) then
+        own(g, it)
+    var slots: List[Integer] := []
+    for b in bound do
+        let sl := local(g, b.name.span)
+        add(var slots, sl)
+        storeImm(a, Rbp, disp: sl, value: 0)
+        if managed(g, b.ty) then
+            own(g, sl)
+    let top := newLabel(a, "for")
+    let done := newLabel(a, "none")
+    let fin := newLabel(a, "rof")
+    label(a, top)
+    lea(a, Rdi, Rbp, disp: it)
+    call(a, step)
+    leaData(a, Rcx, label: variantDesc(g, option, none, v: vs[none]))
+    cmpMem(a, Rcx, Rax, disp: Desc)
+    jcc(a, "e", label: done)
+    push(a, Rax)
+    load(a, Rax, Rax, disp: Fields)  # the Some
+    load(a, Rcx, Rax, disp: Fields)  # its value
+    for i := 0 to len(bound) - 1 do
+        let b := bound[i]
+        if b.offset <> 0 then
+            load(a, Rax, Rcx, disp: b.offset)
+        else
+            mov(a, Rax, Rcx)
+        if managed(g, b.ty) then
+            retain(g)
+            load(a, Rdi, Rbp, disp: slots[i])
+            release(g, Rdi)  # the previous value
+        store(a, Rbp, disp: slots[i], src: Rax)
+    drop(g, 1)
+    loop(g, s.body, fin, cont: top)
+    if g.bad then
+        return
+    jmp(a, top)
+    label(a, done)
+    release(g)
+    label(a, fin)
+    releaseScopes(g, depth)
+    if g.bad then
+        return
+    remove(var g.f.scopes, len(g.f.scopes) - 1)
+
+## A `case` statement (`stmtArms`), or a `case` expression (`exprArms`) of type `result`,
+## each arm's value then ending up in rax. The subject is kept in a slot of its own block.
+procedure caseOf(g: ref Em, subject: Expr, stmtArms: List[CaseArm], exprArms: List[CaseExprArm], result: Type, isExpr: Boolean)
+    let a := g.a
+    let t := typeOfExpr(g, subject)
+    let depth := len(g.f.scopes)
+    add(var g.f.scopes, [])
+    expr(g, subject)
+    if g.bad then
+        return
+    let slot := alloc(g)
+    store(a, Rbp, disp: slot, src: Rax)
+    if managed(g, t) then
+        own(g, slot)
+    let fin := newLabel(a, "esac")
+    let n := len(stmtArms) + len(exprArms)
+    for ai := 0 to n - 1 do
+        var labels: List[Label] := []
+        if isExpr then
+            labels := exprArms[ai].labels
+        else
+            labels := stmtArms[ai].labels
+        let body := newLabel(a, "arm")
+        let nxt := newLabel(a, "arm")
+        for lb in labels do
+            caseLabel(g, t, slot, lb, target: body)
+            if g.bad then
+                return
+        if len(labels) > 0 then
+            jmp(a, nxt)
+        label(a, body)
+        add(var g.f.scopes, [])
+        var bound: List[VariantLabel] := []
+        for lb in labels do
+            case lb of
+                VariantLabel(vl):
+                    if refSym(g, vl.binding.span).isSome() then
+                        add(var bound, vl)
+                else:
+                    pass()
+        if len(bound) > 0 then
+            if len(labels) > 1 then
+                unsupported(g, bound[0].span, "a binding in an arm with several labels")
+                return
+            load(a, Rax, Rbp, disp: slot)
+            load(a, Rax, Rax, disp: Fields)
+            let bt := subT(g, symType(g, refSym(g, bound[0].binding.span).get()))
+            if managed(g, bt) then
+                retain(g)
+            let b := local(g, bound[0].binding.span)
+            store(a, Rbp, disp: b, src: Rax)
+            if managed(g, bt) then
+                own(g, b)
+        if isExpr then
+            coerce(g, exprArms[ai].value, result)
+            if g.bad then
+                return
+        else
+            case stmtArms[ai].body of
+                Block(bb):
+                    stmts(g, bb.stmts)
+                Stmt(st):
+                    stmts(g, [st])
+        releaseScopes(g, len(g.f.scopes) - 1)  # keeps rax
+        if g.bad then
+            return
+        remove(var g.f.scopes, len(g.f.scopes) - 1)
+        jmp(a, fin)
+        label(a, nxt)
+    label(a, fin)
+    releaseScopes(g, depth)
+    if g.bad then
+        return
+    remove(var g.f.scopes, len(g.f.scopes) - 1)
+
+function labelSpan(lb: Label): Span
+    case lb of
+        ValueLabel(v):
+            return v.span
+        RangeLabel(r):
+            return r.span
+        VariantLabel(v):
+            return v.span
+
+## Jumps to `target` if the subject in `slot` (of type `t`) matches.
+procedure caseLabel(g: ref Em, t: Type, slot: Integer, lb: Label, target: String)
+    let a := g.a
+    if kind(g, t) = "union" then
+        var span := labelSpan(lb)
+        case lb of
+            VariantLabel(v):
+                span := v.variant.span
+                let n := len(v.variant.partSpans)
+                if n > 0 then
+                    span := v.variant.partSpans[n - 1]
+            ValueLabel(v):
+                span := exprSpan(v.value)
+                case v.value of
+                    FieldAccess(fa):
+                        span := fa.name.span
+                    else:
+                        pass()
+            RangeLabel(r):
+                span := exprSpan(r.low)
+        var h := ""
+        case refSym(g, span) of
+            Some(sym):
+                let sy := sym.value
+                if sy.kind = Kind.TypeSym and decl(g.env, sy).kind = "alias" then
+                    h := head(decl(g.env, sy).alias)
+                else if sy.kind = Kind.BuiltinType then
+                    h := sy.name
+                else
+                    h := "#{sy.id}"
+            None:
+                pass()
+        let vs := variants(g.env, t)
+        var i := -1
+        if h <> "" then
+            for j := 0 to len(vs) - 1 do
+                if i < 0 and head(vs[j]) = h then
+                    i := j
+        if i < 0 then
+            unsupported(g, labelSpan(lb), "this label")
+            return
+        load(a, Rax, Rbp, disp: slot)
+        load(a, Rax, Rax, disp: Desc)
+        leaData(a, Rcx, label: variantDesc(g, t, i, v: vs[i]))
+        cmp(a, Rax, Rcx)
+        jcc(a, "e", label: target)
+        return
+    case lb of
+        RangeLabel(r):
+            let skip := newLabel(a, "range")
+            let unsigned := isInt(t) and not intSigned(t)
+            labelCompare(g, t, slot, r.low)
+            if g.bad then
+                return
+            if unsigned then
+                jcc(a, "b", label: skip)
+            else
+                jcc(a, "l", label: skip)
+            labelCompare(g, t, slot, r.high)
+            if g.bad then
+                return
+            if unsigned then
+                jcc(a, "be", label: target)
+            else
+                jcc(a, "le", label: target)
+            label(a, skip)
+        ValueLabel(v):
+            labelCompare(g, t, slot, v.value)
+            if g.bad then
+                return
+            jcc(a, "e", label: target)
+        VariantLabel(v):
+            unsupported(g, v.span, "this label")
+
+## Compares the subject in `slot` with the label value `e`, setting the flags.
+procedure labelCompare(g: ref Em, t: Type, slot: Integer, e: Expr)
+    let a := g.a
+    expr(g, e)
+    if g.bad then
+        return
+    if t = stringT() then
+        push(a, Rax)
+        mov(a, Rsi, Rax)
+        load(a, Rdi, Rbp, disp: slot)
+        call(a, runtime(g, "rt_str_cmp"))
+        drop(g, 1)
+        cmpImm(a, Rax, value: 0)
+    else
+        load(a, Rcx, Rbp, disp: slot)
+        cmp(a, Rcx, Rax)
+
+# ------------------------------------------------------------------------- places
+
+## Puts the address of the place `e` in rax. A field's record is made unique first, so
+## the write doesn't show through other copies. `m[k]` with `k` not in map `m` panics
+## (P0008), or with `insert` adds an entry with an empty value, for the caller to store
+## into.
+procedure address(g: ref Em, e: Expr, insert: Boolean := false)
+    let a := g.a
+    case e of
+        Paren(p):
+            address(g, p.inner, insert: insert)
+            return
+        else:
+            pass()
+    if isCPlace(g, e) then
+        cplace(g, e)
+        return
+    case e of
+        Deref(d):  # `deref(r)` of a ref: the box's value
+            boxValue(g, d.target)
+            return
+        FieldAccess(fa):
+            let t := typeOfExpr(g, fa.target)
+            if kind(g, unboxed(t)) = "record" then
+                if isRef(t) then
+                    boxValue(g, fa.target)
+                else
+                    address(g, fa.target)
+                if g.bad then
+                    return
+                mov(a, Rdi, Rax)
+                call(a, runtime(g, "rt_unique"))
+                addImm(a, Rax, value: Fields + 8 * fieldIndex(g, unboxed(t), fa.name.name))
+                return
+        Index(x):
+            let t := typeOfExpr(g, x.target)
+            if isMap(g.env, t) then
+                mapEntry(g, x, insert)
+                return
+            if isList(t) then
+                expr(g, itemExpr(x.items[0]))
+                if g.bad then
+                    return
+                push(a, Rax)
+                address(g, x.target)
+                if g.bad then
+                    return
+                mov(a, Rdi, Rax)
+                call(a, runtime(g, "rt_unique"))
+                pop(a, Rcx)
+                element(g, Rax, Rcx, span: x.span)
+                return
+        Name(n):
+            let sym := refSym(g, n.span)
+            if hasSlot(g, sym) then
+                let slot := g.f.slots[sym.get().id]
+                if isVarParam(sym.get()) then
+                    load(a, Rax, Rbp, disp: slot)
+                else
+                    lea(a, Rax, Rbp, disp: slot)
+                return
+        else:
+            pass()
+    unsupported(g, exprSpan(e), "changing this kind of place")
+
+## rax := the address of the value of `e`, `m[k]`, in a map made unique. Its entry is
+## found (or added) by System's `entryOf`.
+procedure mapEntry(g: ref Em, e: Index, insert: Boolean)
+    let a := g.a
+    let t := typeOfExpr(g, e.target)
+    coerce(g, itemExpr(e.items[0]), arg0(t))
+    if g.bad then
+        return
+    save(g, arg0(t))  # the key, for entryOf
+    address(g, e.target)
+    if g.bad then
+        return
+    push(a, Rax)
+    mov(a, Rdi, Rax)
+    load(a, Rsi, Rsp, disp: 8)
+    if insert then
+        movImm(a, Rdx, value: 1)
+    else
+        movImm(a, Rdx, value: 0)
+    let entryOf := sysLabel(g, e.span, "entryOf", argsOf(t))
+    if g.bad then
+        return
+    call(a, entryOf)
+    if not insert then
+        testR(a, Rax, Rax)
+        jcc(a, "l", label: panic(g, "P0008", "missing map key", span: e.span))
+    pop(a, Rdi)
+    pop(a, Rcx)
+    push(a, Rax)
+    call(a, runtime(g, "rt_unique"))
+    lea(a, Rdi, Rax, disp: Fields + 8 * fieldIndex(g, t, "values"))
+    call(a, runtime(g, "rt_unique"))
+    pop(a, Rcx)
+    element(g, Rax, Rcx, span: e.span)
+
+## The variable a place is in: `e` without its fields, indexes (and derefs, if
+## `throughDeref`) and parentheses.
+function placeRoot(e: Expr, throughDeref: Boolean): Expr
+    var r := unparen(e)
+    var going := true
+    while going do
+        case r of
+            FieldAccess(x):
+                r := unparen(x.target)
+            Index(x):
+                r := unparen(x.target)
+            Deref(x):
+                if throughDeref then
+                    r := unparen(x.target)
+                else
+                    going := false
+            else:
+                going := false
+    return r
+
+## rax := the address of the value in the box that ref `e` refers to. `e` must be rooted
+## in a variable, which keeps the box alive: so its reference is dropped at once, and the
+## box isn't made unique, as refs share it (SPEC §4.9).
+procedure boxValue(g: ref Em, e: Expr)
+    var ok := false
+    case placeRoot(e, throughDeref: true) of
+        Name(n):
+            ok := hasSlot(g, refSym(g, n.span))
+        else:
+            pass()
+    if not ok then
+        unsupported(g, exprSpan(e), "changing a value through a ref that isn't in a variable")
+        return
+    expr(g, e)
+    if g.bad then
+        return
+    release(g)
+    addImm(g.a, Rax, value: Value)
+
+## Whether the place `e` is in C memory: `deref(p)`, or a field of a C record.
+function isCPlace(g: ref Em, e: Expr): Boolean
+    case unparen(e) of
+        Deref(d):
+            return isPtr(typeOfExpr(g, d.target))
+        FieldAccess(fa):
+            return isCRecord(g, unboxed(typeOfExpr(g, fa.target)))
+        else:
+            return false
+
+## rax := the address of the C bytes of place `e`: `deref(p)`, a field of a C record, or
+## a C record held in a variable or a box (made unique first).
+procedure cplace(g: ref Em, e0: Expr)
+    let a := g.a
+    let e := unparen(e0)
+    case e of
+        Deref(d):
+            if isPtr(typeOfExpr(g, d.target)) then
+                expr(g, d.target)
+                return
+        FieldAccess(fa):
+            let t := unboxed(typeOfExpr(g, fa.target))
+            if isCRecord(g, t) then
+                cplace(g, fa.target)
+                if g.bad then
+                    return
+                let off := cOffset(g, t, fa.name.name, fa.span)
+                if g.bad then
+                    return
+                addImm(a, Rax, value: off)
+                return
+        else:
+            pass()
+    if isRef(typeOfExpr(g, e)) then
+        boxValue(g, e)
+    else
+        address(g, e)
+    if g.bad then
+        return
+    mov(a, Rdi, Rax)
+    call(a, runtime(g, "rt_unique"))
+    addImm(a, Rax, value: Fields)
+
+## Stores the owned value rcx of type `t` at address rax of `place`, releasing what it
+## replaces.
+procedure storeAt(g: ref Em, place: Expr, t: Type)
+    if isCPlace(g, place) then
+        storeC(g, t, exprSpan(place))
+        return
+    if managed(g, t) then
+        load(g.a, Rdi, Rax)
+        release(g, Rdi)
+    store(g.a, Rax, disp: 0, src: Rcx)
+
+## rax := the value of type `t` at address rax of `place` (owned).
+procedure loadAt(g: ref Em, place: Expr, t: Type)
+    if isCPlace(g, place) then
+        loadC(g, t, exprSpan(place))
+        return
+    load(g.a, Rax, Rax)
+    if managed(g, t) then
+        retain(g)
+
+# ----------------------------------------------------------------------- C memory
+# C records (SPEC §10.5) are blocks like other records, but their payload has the C
+# struct's layout. Its padding and tail are zeroed, so `=` compares it word by word.
+
+function cSize(size, al: Integer): CStruct
+    return CStruct(fields: [], size: size, align: al)
+
+## The size and alignment of type `t` in C memory.
+function cLayout(g: ref Em, t: Type, span: Span): CStruct
+    if isInt(t) then
+        return cSize(intBits(t) div 8, al: intBits(t) div 8)
+    if t = booleanT() then
+        return cSize(1, al: 1)
+    if isPointer(t) or isFunc(t) then
+        return cSize(8, al: 8)
+    if isCRecord(g, t) then
+        return cStruct(g, t, span)
+    unsupported(g, span, "{show(t)} in C memory")
+    return cSize(8, al: 8)
+
+## The fields of C record `t` with their offsets, its size and alignment.
+function cStruct(g: ref Em, t: Type, span: Span): CStruct
+    var out: List[CField] := []
+    var offset := 0
+    var al := 1
+    for f in fields(g, t) do
+        let l := cLayout(g, f.ty, span)
+        if g.bad then
+            return cSize(8, al: 8)
+        offset := align(offset, l.align)
+        add(var out, CField(name: f.name, ty: f.ty, offset: offset))
+        offset := offset + l.size
+        if l.align > al then
+            al := l.align
+    return CStruct(fields: out, size: align(offset, al), align: al)
+
+function cOffset(g: ref Em, t: Type, name: String, span: Span): Integer
+    for f in cStruct(g, t, span).fields do
+        if f.name = name then
+            return f.offset
+    return 0
+
+## rax := a new zeroed block for C record `t`.
+procedure newCBlock(g: ref Em, t: Type, span: Span)
+    let a := g.a
+    let words := (cStruct(g, t, span).size + 7) div 8
+    if g.bad then
+        return
+    var parts: List[Type] := []
+    for k := 1 to words do
+        add(var parts, integerT())
+    newBlock(g, descriptor(g, key(t), parts))
+    push(a, Rax)
+    lea(a, Rdi, Rax, disp: Fields)
+    xor32(a, Rsi, Rsi)
+    movImm(a, Rdx, value: 8 * words)
+    ccall(g, "memset")
+    pop(a, Rax)
+
+## rax := the value of type `t` in C memory at address rax (owned).
+procedure loadC(g: ref Em, t: Type, span: Span)
+    let a := g.a
+    if isInt(t) then
+        loadW(a, Rax, Rax, disp: 0, bits: intBits(t), signed: intSigned(t))
+    else if t = booleanT() then
+        load8(a, Rax, Rax)
+    else if isPointer(t) then
+        load(a, Rax, Rax)
+    else if isCRecord(g, t) then
+        push(a, Rax)
+        newCBlock(g, t, span)
+        if g.bad then
+            return
+        push(a, Rax)
+        lea(a, Rdi, Rax, disp: Fields)
+        load(a, Rsi, Rsp, disp: 8)
+        movImm(a, Rdx, value: cLayout(g, t, span).size)
+        ccall(g, "memcpy")
+        pop(a, Rax)
+        addImm(a, Rsp, value: 8)
+    else
+        unsupported(g, span, "reading {show(t)} from C memory")
+
+## Stores the owned value rcx of type `t` in C memory at address rax.
+procedure storeC(g: ref Em, t: Type, span: Span)
+    let a := g.a
+    if isInt(t) then
+        storeW(a, Rax, disp: 0, src: Rcx, bits: intBits(t))
+    else if t = booleanT() then
+        store8(a, Rax, disp: 0, src: Rcx)
+    else if isPointer(t) then
+        store(a, Rax, disp: 0, src: Rcx)
+    else if isCRecord(g, t) then
+        push(a, Rcx)
+        mov(a, Rdi, Rax)
+        lea(a, Rsi, Rcx, disp: Fields)
+        movImm(a, Rdx, value: cLayout(g, t, span).size)
+        ccall(g, "memcpy")
+        drop(g, 1)
+    else
+        unsupported(g, span, "writing {show(t)} to C memory")
+
+# -------------------------------------------------------------------- expressions
+
+## Computes `e` into rax (an owned reference, for a string).
+procedure expr(g: ref Em, e: Expr)
+    let t := typeOfExpr(g, e)
+    if t <> noneT() and t <> voidT() then
+        valueType(g, t, exprSpan(e))
+        if g.bad then
+            return
+    let a := g.a
+    case e of
+        IntLit(x):
+            if x.value < 4294967296 then
+                movImm(a, Rax, value: wrap(x.value))
+            else
+                movImm64(a, Rax, value: wrap(x.value))
+        BoolLit(x):
+            if x.value then
+                movImm(a, Rax, value: 1)
+            else
+                movImm(a, Rax, value: 0)
+        CharLit(x):
+            movImm(a, Rax, value: ord(x.value))
+        StringLit(x):
+            leaData(a, Rax, label: literal(g, x.value))
+        InterpString(x):
+            stringOf(g, x.parts)
+        Paren(x):
+            expr(g, x.inner)
+        Name(x):
+            case refSym(g, x.span) of
+                Some(sym):
+                    loadSym(g, sym.value, e)
+                None:
+                    unsupported(g, x.span, "this name")
+        FieldAccess(x):
+            eFieldAccess(g, x, e)
+        ListLit(x):
+            eListLit(g, x, e)
+        MapLit(x):
+            eMapLit(g, x, e)
+        SetLit(x):
+            eSetLit(g, x, e)
+        EmptyBraces(x):
+            if not (isMap(g.env, t) or isSet(g.env, t)) then
+                unsupported(g, x.span, "'\{}' as {show(t)}")
+                return
+            if isMap(g.env, t) then
+                sysCall(g, x.span, "emptyMap", [], targs: argsOf(t))
+            else
+                sysCall(g, x.span, "emptySet", [], targs: argsOf(t))
+        Index(x):
+            eIndex(g, x)
+        Deref(x):
+            let tt := typeOfExpr(g, x.target)
+            expr(g, x.target)
+            if g.bad then
+                return
+            if isPtr(tt) then
+                loadC(g, t, x.span)
+                return
+            push(a, Rax)
+            load(a, Rax, Rax, disp: Value)  # a copy of the box's value
+            if managed(g, unboxed(tt)) then
+                retain(g)
+            drop(g, 1)
+        Unary(x):
+            eUnary(g, x, e)
+        Binary(x):
+            eBinary(g, x, e)
+        IfExpr(x):
+            let fin := newLabel(a, "fi")
+            for b in x.branches do
+                let nxt := newLabel(a, "elif")
+                expr(g, b.cond)
+                if g.bad then
+                    return
+                testR(a, Rax, Rax)
+                jcc(a, "e", label: nxt)
+                coerce(g, b.value, t)
+                if g.bad then
+                    return
+                jmp(a, fin)
+                label(a, nxt)
+            coerce(g, x.elseValue, t)
+            if g.bad then
+                return
+            label(a, fin)
+        CaseExpr(x):
+            caseOf(g, x.subject, [], exprArms: x.arms, result: t, isExpr: true)
+        Call(x):
+            let k := exprKey(g, x.id)
+            if k in g.f.old then
+                load(a, Rax, Rbp, disp: g.f.old[k])
+                if managed(g, t) then
+                    retain(g)
+                return
+            callExpr(g, x)
+        else:
+            unsupported(g, exprSpan(e), "this expression")
+
+procedure eFieldAccess(g: ref Em, x: FieldAccess, e: Expr)
+    let a := g.a
+    var t := typeOfExpr(g, x.target)
+    var isTV := t = noneT()
+    case t of
+        TypeValueT(_):
+            isTV := true
+        else:
+            pass()
+    if isTV then  # `Color.Red`, `Unit.name`
+        case refSym(g, x.name.span) of
+            Some(sym):
+                loadSym(g, sym.value, e)
+            None:
+                unsupported(g, x.span, "this name")
+        return
+    let boxed := isRef(t)  # `r.x` reads the field of the value in the box
+    t := unboxed(t)
+    if kind(g, t) <> "record" then
+        unsupported(g, x.span, "a field of {show(t)}")
+        return
+    expr(g, x.target)
+    if g.bad then
+        return
+    push(a, Rax)
+    if boxed then
+        load(a, Rax, Rax, disp: Value)
+    if isCRecord(g, t) then
+        let off := cOffset(g, t, x.name.name, x.span)
+        if g.bad then
+            return
+        addImm(a, Rax, value: Fields + off)
+        loadC(g, typeOfExpr(g, e), x.span)
+        if g.bad then
+            return
+        drop(g, 1)
+        return
+    load(a, Rax, Rax, disp: Fields + 8 * fieldIndex(g, t, x.name.name))
+    if managed(g, typeOfExpr(g, e)) then
+        retain(g)
+    drop(g, 1)
+
+procedure eListLit(g: ref Em, x: ListLit, e: Expr)
+    let a := g.a
+    let t := typeOfExpr(g, e)
+    if not isList(t) then
+        unsupported(g, x.span, "a literal of {show(t)}")
+        return
+    for it in x.items do
+        coerce(g, it, arg0(t))
+        if g.bad then
+            return
+        save(g, arg0(t))
+    leaData(a, Rdi, label: listDesc(g, t))
+    movImm(a, Rsi, value: len(x.items))
+    call(a, runtime(g, "rt_list_new"))
+    for i := len(x.items) - 1 downto 0 do
+        pop(a, Rcx)
+        store(a, Rax, disp: Elems + 8 * i, src: Rcx)
+
+## `{k: v, ...}`: an empty map, then `put` for each entry, in order.
+procedure eMapLit(g: ref Em, x: MapLit, e: Expr)
+    let a := g.a
+    let t := typeOfExpr(g, e)
+    let targs := argsOf(t)
+    sysCall(g, x.span, "emptyMap", [], targs: targs)
+    if g.bad then
+        return
+    save(g, t)  # the map, on the stack
+    let put := sysLabel(g, x.span, "put", targs)
+    if g.bad then
+        return
+    for en in x.entries do
+        coerce(g, en.key, targs[0])
+        if g.bad then
+            return
+        save(g, targs[0])
+        coerce(g, en.value, targs[1])
+        if g.bad then
+            return
+        mov(a, Rdx, Rax)
+        pop(a, Rsi)
+        mov(a, Rdi, Rsp)
+        call(a, put)
+    pop(a, Rax)
+
+## `{a, b, ...}`: an empty set, then `include` for each element.
+procedure eSetLit(g: ref Em, x: SetLit, e: Expr)
+    let a := g.a
+    let t := typeOfExpr(g, e)
+    let targs := argsOf(t)
+    sysCall(g, x.span, "emptySet", [], targs: targs)
+    if g.bad then
+        return
+    save(g, t)  # the set, on the stack
+    let include := sysLabel(g, x.span, "include", targs)
+    if g.bad then
+        return
+    for it in x.items do
+        coerce(g, it, targs[0])
+        if g.bad then
+            return
+        mov(a, Rsi, Rax)
+        mov(a, Rdi, Rsp)
+        call(a, include)
+    pop(a, Rax)
+
+procedure eIndex(g: ref Em, x: Index)
+    let a := g.a
+    let t := typeOfExpr(g, x.target)
+    if isMap(g.env, t) then
+        mapValue(g, x, t)
+        return
+    if not isList(t) then
+        unsupported(g, x.span, "indexing {show(t)}")
+        return
+    expr(g, x.target)
+    if g.bad then
+        return
+    save(g, t)
+    expr(g, itemExpr(x.items[0]))
+    if g.bad then
+        return
+    mov(a, Rcx, Rax)
+    load(a, Rax, Rsp)
+    element(g, Rax, Rcx, span: x.span)
+    load(a, Rax, Rax)
+    if managed(g, arg0(t)) then
+        retain(g)
+    drop(g, 1)
+
+## `m[k]`: the value, found by System's `find`; panics (P0008) if `k` is missing.
+procedure mapValue(g: ref Em, x: Index, t: Type)
+    let a := g.a
+    let targs := argsOf(t)
+    expr(g, x.target)
+    if g.bad then
+        return
+    save(g, t)
+    retain(g)  # for find, which owns its arguments
+    save(g, t)
+    coerce(g, itemExpr(x.items[0]), targs[0])
+    if g.bad then
+        return
+    mov(a, Rsi, Rax)
+    pop(a, Rdi)
+    let find := sysLabel(g, x.span, "find", targs)
+    if g.bad then
+        return
+    call(a, find)
+    testR(a, Rax, Rax)
+    jcc(a, "l", label: panic(g, "P0008", "missing map key", span: x.span))
+    mov(a, Rcx, Rax)
+    load(a, Rax, Rsp)
+    load(a, Rax, Rax, disp: Fields + 8 * fieldIndex(g, t, "values"))
+    element(g, Rax, Rcx, span: x.span)
+    load(a, Rax, Rax)
+    if managed(g, targs[1]) then
+        retain(g)
+    drop(g, 1)
+
+## rax := the address of element `index` of the list `blk`. A checked build panics
+## (P0001) if there is no such element.
+procedure element(g: ref Em, blk, index: Integer, span: Span)
+    let a := g.a
+    if g.checked then
+        cmpMem(a, index, blk, disp: Count)
+        jcc(a, "ae", label: panic(g, "P0001", "index out of bounds", span: span))  # also < 0
+    shlImm(a, index, n: 3)
+    add(a, index, blk)
+    lea(a, Rax, index, disp: Elems)
+
+procedure loadSym(g: ref Em, sym: ref Symbol, e: Expr)
+    let a := g.a
+    let span := exprSpan(e)
+    if sym.kind = Kind.ConstSym then
+        case sym.node of
+            ConstDecl(cd):
+                let outer := g.f.file
+                g.f.file := sym.file
+                expr(g, cd.value)
+                g.f.file := outer
+            else:
+                unsupported(g, span, "this name")
+        return
+    let t := typeOfExpr(g, e)
+    if sym.kind = Kind.EnumMember then
+        let members := decl(g.env, g.env.owner[sym.id]).members
+        var i := 0
+        while members[i] <> sym.name do
+            i := i + 1
+        movImm(a, Rax, value: i)
+        return
+    if sym.kind = Kind.TypeSym and kind(g, t) = "record" then  # `None`
+        newBlock(g, descriptor(g, key(t), []))
+        return
+    if isRoutine(sym.kind) then
+        if not isRoutineNode(sym) or len(sig(g.env, sym).tparams) > 0 then
+            unsupported(g, span, "{describe(sym)} as a value")
+            return
+        let lbl := labelOf(g, span, sym, [], sites: {})
+        if g.bad then
+            return
+        leaCode(a, Rax, label: lbl)
+        return
+    if sym.kind = Kind.ResultSym and g.f.resultSlot.isSome() then
+        load(a, Rax, Rbp, disp: g.f.resultSlot.get())
+    else if sym.id in g.f.slots then
+        load(a, Rax, Rbp, disp: g.f.slots[sym.id])
+        if isVarParam(sym) then
+            load(a, Rax, Rax)
+        if isInt(t) then  # C may have written only the low bits (`addr`)
+            widen(g, t)
+    else
+        unsupported(g, span, "using {describe(sym)} as a value")
+        return
+    if managed(g, t) then
+        retain(g)
+
+## The 64-bit pattern of `v`.
+function wrap(v: UInt64): Integer
+    if v <= UInt64(9223372036854775807) then
+        return Integer(v)
+    return Integer(v - UInt64(9223372036854775807) - UInt64(1)) - 9223372036854775807 - 1
+
+## `-n` of a literal, as the 64-bit pattern of the negated value.
+function negated(v: UInt64): Integer
+    let i := wrap(v)
+    if i = -9223372036854775807 - 1 then
+        return i
+    return 0 - i
+
+procedure eUnary(g: ref Em, x: Unary, e: Expr)
+    let a := g.a
+    if x.op = "not" then
+        expr(g, x.operand)
+        if g.bad then
+            return
+        xorImm32(a, Rax, value: 1)
+    else if x.op = "-" then
+        case x.operand of
+            IntLit(lit):
+                if lit.value <= 2147483648 then
+                    movImm(a, Rax, value: negated(lit.value))
+                else
+                    movImm64(a, Rax, value: negated(lit.value))
+                return
+            else:
+                pass()
+        expr(g, x.operand)
+        if g.bad then
+            return
+        neg(a, Rax)  # sets CF unless the operand is 0
+        let t := typeOfExpr(g, e)
+        if t = uint64T() then
+            fit(g, t, x.span, cc: "b")
+        else
+            fit(g, t, x.span)
+    else if x.op = "try" then
+        tryOf(g, x, e)
+    else
+        unsupported(g, x.span, "'{x.op}'")
+
+## `try x` (SPEC §9.2): the value in an `Ok` or `Some`. An `Err` or `None` is returned at
+## once, put into the routine's result type, after releasing the owned references on the
+## stack (pushed by the enclosing expressions) and leaving the open blocks, which runs
+## their defers.
+procedure tryOf(g: ref Em, x: Unary, e: Expr)
+    let a := g.a
+    if g.f.sym.isNone() then
+        unsupported(g, x.span, "'try' outside a function")
+        return
+    if g.f.noTry > 0 then
+        unsupported(g, x.span, "'try' in a call after a 'var' argument that isn't a whole variable")
+        return
+    let t := typeOfExpr(g, x.operand)
+    let vs := variants(g.env, t)
+    let ok := newLabel(a, "ok")
+    expr(g, x.operand)
+    if g.bad then
+        return
+    leaData(a, Rcx, label: variantDesc(g, t, 0, v: vs[0]))
+    cmpMem(a, Rcx, Rax, disp: Desc)
+    jcc(a, "e", label: ok)
+    mov(a, Rdi, Rax)
+    load(a, Rax, Rax, disp: Fields)  # the Err or None
+    retain(g)
+    release(g, Rdi)
+    let n := len(a.stack)
+    for i := 0 to n - 1 do
+        if a.stack[n - 1 - i] then
+            load(a, Rdi, Rsp, disp: 8 * i)
+            release(g, Rdi)
+    wrap(g, vs[1], want: subT(g, sig(g.env, g.f.sym.get()).result), span: x.span)
+    if g.bad then
+        return
+    releaseScopes(g, 1)
+    if g.bad then
+        return
+    jmp(a, g.f.exit)
+    label(a, ok)
+    push(a, Rax)
+    load(a, Rax, Rax, disp: Fields)  # the Ok or Some
+    load(a, Rax, Rax, disp: Fields)  # its value
+    if managed(g, typeOfExpr(g, e)) then
+        retain(g)
+    drop(g, 1)
+
+procedure overflow(g: ref Em, span: Span)
+    if g.checked then
+        jcc(g.a, "o", label: panic(g, "P0002", "integer overflow", span: span))
+
+procedure eBinary(g: ref Em, x: Binary, e: Expr)
+    let a := g.a
+    let op := x.op
+    if op = "and" or op = "or" then
+        let fin := newLabel(a, op)
+        expr(g, x.left)
+        if g.bad then
+            return
+        testR(a, Rax, Rax)
+        if op = "and" then
+            jcc(a, "e", label: fin)
+        else
+            jcc(a, "ne", label: fin)
+        expr(g, x.right)
+        if g.bad then
+            return
+        label(a, fin)
+        return
+    if op = "in" then
+        let t := typeOfExpr(g, x.right)
+        let targs := argsOf(t)
+        if isMap(g.env, t) then
+            sysCall(g, x.span, "containsKey", [SysArg(e: x.left, ty: targs[0]), SysArg(e: x.right, ty: t)], targs: targs)
+            return
+        if isSet(g.env, t) then
+            sysCall(g, x.span, "includes", [SysArg(e: x.left, ty: targs[0]), SysArg(e: x.right, ty: t)], targs: targs)
+            return
+        if not isList(t) then
+            unsupported(g, x.span, "'in' on {show(t)}")
+            return
+        sysCall(g, x.span, "contains", [SysArg(e: x.left, ty: targs[0]), SysArg(e: x.right, ty: t)], targs: [targs[0]])
+        return
+    if isPtr(typeOfExpr(g, x.left)) and (op = "+" or op = "-") then
+        pointerArith(g, x)
+        return
+    var t := typeOfExpr(g, x.left)
+    if kind(g, typeOfExpr(g, x.right)) = "union" then
+        t := typeOfExpr(g, x.right)  # comparing a variant with a union
+    coerce(g, x.left, t)
+    if g.bad then
+        return
+    save(g, t)
+    coerce(g, x.right, t)
+    if g.bad then
+        return
+    if managed(g, t) and t <> stringT() then  # `=` or `<>`
+        push(a, Rax)
+        load(a, Rdi, Rsp, disp: 8)
+        mov(a, Rsi, Rax)
+        call(a, runtime(g, "rt_eq"))
+        drop(g, 2)
+        if op = "<>" then
+            xorImm32(a, Rax, value: 1)
+        return
+    if t = stringT() and isCompare(op) then
+        push(a, Rax)
+        load(a, Rdi, Rsp, disp: 8)
+        mov(a, Rsi, Rax)
+        call(a, runtime(g, "rt_str_cmp"))
+        drop(g, 2)
+        cmpImm(a, Rax, value: 0)
+        setcc(a, compareCC(op), Rax)
+        movzx8(a, Rax, Rax)
+        return
+    mov(a, Rcx, Rax)
+    pop(a, Rax)
+    if isCompare(op) then
+        cmp(a, Rax, Rcx)
+        if typeOfExpr(g, x.left) = uint64T() or typeOfExpr(g, x.right) = uint64T() then
+            setcc(a, unsignedCC(op), Rax)
+        else
+            setcc(a, compareCC(op), Rax)
+        movzx8(a, Rax, Rax)
+    else if op = "+" or op = "-" or op = "*" or op = "div" or op = "mod" then
+        arith(g, op, typeOfExpr(g, e), x.opSpan)
+    else
+        unsupported(g, x.span, "'{op}'")
+
+## rax := rax op rcx for integers of type `t`, checked for overflow.
+procedure arith(g: ref Em, op: String, t: Type, span: Span)
+    let a := g.a
+    if op = "div" or op = "mod" then
+        divide(g, op, t, span)
+        return
+    if t = uint64T() then
+        if op = "*" then
+            mul(a, Rcx)
+        else if op = "+" then
+            add(a, Rax, Rcx)
+        else
+            sub(a, Rax, Rcx)
+        fit(g, t, span, cc: "b")
+        return
+    if op = "+" then
+        add(a, Rax, Rcx)
+    else if op = "-" then
+        sub(a, Rax, Rcx)
+    else
+        imul(a, Rax, Rcx)
+    fit(g, t, span)
+
+## `p + n`, `p - n`: moves a `Ptr[T]` by `n` values of type T (SPEC §10.4).
+procedure pointerArith(g: ref Em, x: Binary)
+    let a := g.a
+    let size := cLayout(g, arg0(typeOfExpr(g, x.left)), x.span).size
+    if g.bad then
+        return
+    expr(g, x.left)
+    if g.bad then
+        return
+    push(a, Rax)
+    expr(g, x.right)
+    if g.bad then
+        return
+    movImm(a, Rcx, value: size)
+    imul(a, Rcx, Rax)
+    pop(a, Rax)
+    if x.op = "+" then
+        add(a, Rax, Rcx)
+    else
+        sub(a, Rax, Rcx)
+
+## rax div/mod rcx, truncating toward zero (the remainder takes the sign of the
+## dividend). Division by zero panics even in unchecked builds.
+procedure divide(g: ref Em, op: String, t: Type, span: Span)
+    let a := g.a
+    let normal := newLabel(a, "div")
+    let done := newLabel(a, "div")
+    testR(a, Rcx, Rcx)
+    jcc(a, "e", label: panic(g, "P0004", "division by zero", span: span))
+    var bits := 64
+    var signed := true
+    if isInt(t) then
+        bits := intBits(t)
+        signed := intSigned(t)
+    if not signed then
+        xor32(a, Rdx, Rdx)
+        divR(a, Rcx)
+        if op = "mod" then
+            mov(a, Rax, Rdx)
+        return
+    cmpImm(a, Rcx, value: -1)  # idiv traps on MIN div -1
+    jcc(a, "ne", label: normal)
+    if op = "div" then
+        neg(a, Rax)
+        overflow(g, span)
+    else
+        xor32(a, Rax, Rax)
+    jmp(a, done)
+    label(a, normal)
+    cqo(a)
+    idiv(a, Rcx)
+    if op = "mod" then
+        mov(a, Rax, Rdx)
+    label(a, done)
+    if bits < 64 then
+        fit(g, t, span)  # MIN div -1
+
+# ------------------------------------------------------------------------ strings
+
+## Builds a new string from text and Printable expressions, into rax.
+procedure stringOf(g: ref Em, parts: List[InterpPart])
+    let a := g.a
+    for p in parts do
+        case p of
+            TextPart(tp):
+                leaData(a, Rax, label: literal(g, tp.text))
+            Expr(pe):
+                toString(g, pe)
+                if g.bad then
+                    return
+        save(g, stringT())
+    mov(a, Rdi, Rsp)
+    lea(a, Rsi, Rsp, disp: 8 * len(parts))
+    call(a, runtime(g, "rt_concat"))
+    addImm(a, Rsp, value: 8 * len(parts))
+
+## Computes `e` and converts it to a String (`toString`). An enum member's string is
+## its name.
+procedure toString(g: ref Em, e: Expr)
+    let t := typeOfExpr(g, e)
+    let isEnum := kind(g, t) = "enum"
+    if t <> stringT() and t <> booleanT() and t <> charT() and not isEnum and not isInt(t) then
+        unsupported(g, exprSpan(e), "converting {show(t)} to a string")
+        return
+    expr(g, e)
+    if g.bad then
+        return
+    let a := g.a
+    if isInt(t) then
+        if intSigned(t) then
+            call(a, runtime(g, "rt_int_to_str"))
+        else
+            call(a, runtime(g, "rt_uint_to_str"))
+    else if t = booleanT() then
+        call(a, runtime(g, "rt_bool_to_str"))
+    else if t = charT() then
+        call(a, runtime(g, "rt_char_to_str"))
+    else if isEnum then
+        var names: List[Byte] := []
+        for m in decl(g.env, namedSym(t).get()).members do
+            for b in bytes(m) do
+                add(var names, b)
+            add(var names, Byte(0))
+        leaData(a, Rsi, label: data(a, names))
+        call(a, runtime(g, "rt_enum_name"))
+
+# -------------------------------------------------------------------------- calls
+
+## The expression of an argument slot, or an error expression for a missing one.
+function slotExpr(slot: Option[CArg]): Expr
+    case slot of
+        Some(c):
+            return c.value.expr
+        None:
+            return ErrorExpr(span: noSpan(), id: -1)
+
+## Calls a routine; a function's result is left in rax.
+procedure callExpr(g: ref Em, c: Call)
+    let mo := callOf(g, c)
+    if mo.isSome() and mo.get().sig.kind = "record" then
+        construct(g, c, mo.get())
+        return
+    if mo.isNone() and isC(g, c, "cast") then
+        expr(g, c.args[0].value)
+        if g.bad then
+            return
+        widen(g, typeOfExpr(g, c))  # truncates to a smaller integer type
+        return
+    if mo.isNone() and len(c.args) = 1 then
+        case refSym(g, calleeSpan(c.callee)) of
+            Some(sym):
+                if sym.value.kind = Kind.TypeSym or sym.value.kind = Kind.BuiltinType then
+                    convert(g, c)
+                    return
+            None:
+                pass()
+    if mo.isSome() and mo.get().sig.kind = "value" then
+        callValue(g, c, mo.get())
+        return
+    if mo.isNone() or mo.get().sig.kind <> "routine" or mo.get().sig.sym.isNone() then
+        unsupported(g, c.span, "this kind of call")
+        return
+    let m := mo.get()
+    let sym := m.sig.sym.get()
+    var callee := Callee(sym: sym, targs: [], sites: {})
+    case sym.node of
+        ExternDecl(xd):
+            if getOr(g.library, "{sym.file}:{xd.id}", default: "") = "pst" then
+                builtin(g, c, sym, m)
+            else
+                cCall(g, c, sym, m, xd)
+            return
+        Signature(_):
+            callee := boundMember(g, c, m)
+            if g.bad then
+                return
+        else:
+            callee := instance(g, sym, m.sig.tparams, m.s)
+    if not isRoutineNode(callee.sym) then
+        unsupported(g, c.span, "calling {describe(callee.sym)}")
+        return
+    if len(m.extra) > 0 or len(m.params) > 6 then
+        unsupported(g, c.span, "a call with more than 6 arguments")
+        return
+    let outer := g.f.noTry
+    callRoutine(g, c, m, callee)
+    g.f.noTry := outer
+
+## `var` arguments that aren't whole variables are copied to temporaries (`Copy`) and
+## stored back after the call. Until they are, a `try` can't return: it would leave the
+## places empty.
+procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
+    let a := g.a
+    let outer := g.f.noTry
+    var copies: List[Copy] := []
+    for i := 0 to len(m.params) - 1 do
+        let p := m.params[i]
+        let slot := m.slots[i]
+        var isPlace := false
+        var place := slotExpr(slot)
+        if slot.isSome() and p.isVar then
+            isPlace := true
+            place := unparen(place)
+        if isPlace and isName(place) then
+            address(g, place)
+            if g.bad then
+                return
+            push(a, Rax)
+        else if isPlace then
+            var others: List[Expr] := []
+            for j := 0 to len(m.slots) - 1 do
+                if j <> i and m.slots[j].isSome() then
+                    add(var others, slotExpr(m.slots[j]))
+            if movable(g, place, others) then
+                address(g, place)  # moved out, so the callee's copy isn't shared
+                if g.bad then
+                    return
+                mov(a, Rcx, Rax)
+                load(a, Rax, Rcx)
+                storeImm(a, Rcx, disp: 0, value: 0)
+            else
+                expr(g, place)
+                if g.bad then
+                    return
+            let tmp := alloc(g)
+            store(a, Rbp, disp: tmp, src: Rax)
+            lea(a, Rax, Rbp, disp: tmp)
+            push(a, Rax)
+            add(var copies, Copy(place: place, tmp: tmp))
+            g.f.noTry := outer + 1
+        else
+            argument(g, p, slot, m, file: callee.sym.file)
+            if g.bad then
+                return
+            save(g, subT(g, subst(p.ty, m.s)))
+    for i := len(m.params) - 1 downto 0 do
+        pop(a, argReg(i))
+    let target := labelOf(g, c.span, callee.sym, callee.targs, sites: callee.sites)
+    if g.bad then
+        return
+    call(a, target)
+    if len(copies) > 0 then
+        push(a, Rax)
+        for cp in copies do
+            address(g, cp.place)
+            if g.bad then
+                return
+            load(a, Rcx, Rbp, disp: cp.tmp)
+            storeAt(g, cp.place, typeOfExpr(g, cp.place))
+            if g.bad then
+                return
+        pop(a, Rax)
+
+## Calls a function value: `f(x)` with `f: function(T): U`.
+procedure callValue(g: ref Em, c: Call, m: Match)
+    let a := g.a
+    if len(m.extra) > 0 or len(m.params) > 6 then
+        unsupported(g, c.span, "a call with more than 6 arguments")
+        return
+    expr(g, c.callee)
+    if g.bad then
+        return
+    push(a, Rax)
+    for i := 0 to len(m.params) - 1 do
+        let p := m.params[i]
+        argument(g, p, m.slots[i], m, file: g.f.file)
+        if g.bad then
+            return
+        save(g, subT(g, subst(p.ty, m.s)))
+    for i := len(m.params) - 1 downto 0 do
+        pop(a, argReg(i))
+    pop(a, R11)
+    callReg(a, R11)
+
+function countUses(g: ref Em, e: Expr, id: Integer): Integer
+    var n := 0
+    case e of
+        Name(x):
+            case refSym(g, x.span) of
+                Some(s):
+                    if s.value.id = id then
+                        n := 1
+                None:
+                    pass()
+        else:
+            pass()
+    for k in exprKids(e) do
+        n := n + countUses(g, k, id)
+    return n
+
+## Whether a `var` argument that isn't a whole variable can be moved out of its place for
+## the call, instead of copied: when it is managed, so a copy would be shared and the
+## callee's changes would copy it again, and its variable isn't used anywhere else in the
+## call (SPEC §6.3), so nothing sees the place empty.
+function movable(g: ref Em, place: Expr, others: List[Expr]): Boolean
+    if not managed(g, typeOfExpr(g, place)) or isCPlace(g, place) then
+        return false
+    var sym: Option[ref Symbol] := None
+    case placeRoot(place, throughDeref: false) of
+        Name(n):
+            sym := refSym(g, n.span)
+        else:
+            pass()
+    if sym.isNone() then
+        return false
+    let id := sym.get().id
+    var count := countUses(g, place, id)
+    for o in others do
+        count := count + countUses(g, o, id)
+    return count = 1
+
+## `Int32(x)`: converts between integer types, panicking (in checked builds) if the
+## value doesn't fit. `Char(i)` converts a code point.
+procedure convert(g: ref Em, c: Call)
+    let a := g.a
+    let src := typeOfExpr(g, c.args[0].value)
+    let dst := typeOfExpr(g, c)
+    if dst = charT() and isInt(src) then  # `Char(i)`: checked in every build
+        expr(g, c.args[0].value)
+        if g.bad then
+            return
+        let bad := panic(g, "P0009", "not a Unicode scalar value", span: c.span)
+        cmpImm(a, Rax, value: 0x10FFFF)
+        jcc(a, "a", label: bad)  # negative values too, compared unsigned
+        mov(a, Rcx, Rax)
+        subImm(a, Rcx, value: 0xD800)
+        cmpImm(a, Rcx, value: 0x7FF)
+        jcc(a, "be", label: bad)  # a surrogate
+        return
+    if not (isInt(src) and isInt(dst)) then
+        unsupported(g, c.span, "converting {show(src)} to {show(dst)}")
+        return
+    expr(g, c.args[0].value)
+    if g.bad then
+        return
+    if src = dst then
+        return
+    if g.checked and (src = uint64T()) <> (dst = uint64T()) and (src = uint64T() or not intSigned(dst)) then
+        testR(a, Rax, Rax)  # UInt64 above Int64's range, or a negative value to UInt64
+        jcc(a, "s", label: panic(g, "P0002", "integer overflow", span: c.span))
+    fit(g, dst, c.span)
+
+## Calls a C function (SPEC §10.1) through the GOT, with the System V ABI. C records of
+## up to 16 bytes are passed and returned in registers.
+procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
+    let a := g.a
+    let lib := g.library["{sym.file}:{xd.id}"]
+    if not (lib in g.needed) then
+        add(var g.needed, lib)
+    var args: List[CArgT] := []  # whether each is a C record passed by value
+    for i := 0 to len(m.params) - 1 do
+        let p := m.params[i]
+        if p.varargs then
+            continue
+        let slot := m.slots[i]
+        let t := subT(g, subst(p.ty, m.s))
+        let place := unparen(slotExpr(slot))
+        if p.isVar then
+            if isCRecord(g, t) or isCPlace(g, place) then
+                cplace(g, place)
+            else
+                address(g, place)
+        else if isFunc(t) then
+            callback(g, place, t)
+        else
+            argument(g, p, slot, m, file: sym.file)
+        if g.bad then
+            return
+        push(a, Rax)
+        let byValue := isCRecord(g, t) and not p.isVar
+        if byValue then  # released after the call
+            a.stack[len(a.stack) - 1] := true
+        add(var args, CArgT(ty: t, byValue: byValue))
+    for x in m.extra do
+        expr(g, x.expr)
+        if g.bad then
+            return
+        push(a, Rax)
+        add(var args, CArgT(ty: typeOfExpr(g, x.expr), byValue: false))
+    var regs := 0
+    let n := len(args)
+    for i := 0 to n - 1 do
+        var words := 1
+        if args[i].byValue then
+            words := (cLayout(g, args[i].ty, c.span).size + 7) div 8
+            if g.bad then
+                return
+        if words > 2 then
+            unsupported(g, c.span, "passing a C record of more than 16 bytes")
+            return
+        if regs + words > 6 then
+            unsupported(g, c.span, "a C call needing more than 6 registers")
+            return
+        load(a, argReg(regs), Rsp, disp: 8 * (n - 1 - i))
+        if args[i].byValue then
+            mov(a, R11, argReg(regs))
+            for w := 0 to words - 1 do
+                load(a, argReg(regs + w), R11, disp: Fields + 8 * w)
+        regs := regs + words
+    ccall(g, getOr(xd.symbol, sym.name))
+    for i := 0 to n - 1 do
+        if args[i].byValue then
+            load(a, Rdi, Rsp, disp: 8 * (n - 1 - i))
+            release(g, Rdi)
+    if n > 0 then
+        addImm(a, Rsp, value: 8 * n)
+    let result := subT(g, subst(m.result, m.s))
+    if isCRecord(g, result) then
+        let size := cLayout(g, result, c.span).size
+        if g.bad then
+            return
+        if size > 16 then
+            unsupported(g, c.span, "returning a C record of more than 16 bytes")
+            return
+        push(a, Rdx)
+        push(a, Rax)
+        newCBlock(g, result, c.span)
+        if g.bad then
+            return
+        push(a, Rax)
+        lea(a, Rdi, Rax, disp: Fields)
+        lea(a, Rsi, Rsp, disp: 8)
+        movImm(a, Rdx, value: size)
+        ccall(g, "memcpy")
+        pop(a, Rax)
+        addImm(a, Rsp, value: 16)
+    else if m.sig.isFunction then
+        widen(g, result)  # C leaves the upper bits of small results undefined
+
+## rax := the address of a thunk through which C calls the routine named by `e`
+## (SPEC §10.3).
+procedure callback(g: ref Em, e: Expr, t: Type)
+    var sym: Option[ref Symbol] := None
+    case e of
+        Name(_):
+            sym := refSym(g, calleeSpan(e))
+        FieldAccess(_):
+            sym := refSym(g, calleeSpan(e))
+        else:
+            pass()
+    if sym.isNone() or not isRoutineNode(sym.get()) or len(sig(g.env, sym.get()).tparams) > 0 then
+        unsupported(g, exprSpan(e), "a callback other than the name of a top-level routine")
+        return
+    var params: List[Type] := []
+    case t of
+        FuncT(ft):
+            params := ft.params
+        else:
+            pass()
+    let k := "thunk|{sym.get().id}"
+    if not (k in g.labels) then
+        for p in params do
+            if managed(g, p) then
+                unsupported(g, exprSpan(e), "a callback taking {show(p)}")
+                return
+        let lbl := newLabel(g.a, "thunk")
+        g.labels[k] := lbl
+        let target := labelOf(g, exprSpan(e), sym.get(), [], sites: {})
+        if g.bad then
+            return
+        add(var g.thunks, Thunk(label: lbl, target: target, params: params))
+    leaCode(g.a, Rax, label: g.labels[k])
+
+## C passes small integers with undefined upper bits: extend them, then go on to the
+## routine.
+procedure thunk(g: ref Em, th: Thunk)
+    label(g.a, th.label)
+    var i := 0
+    while i < len(th.params) and i < 6 do
+        widen(g, th.params[i], reg: argReg(i))
+        i := i + 1
+    jmp(g.a, th.target)
+
+## The file whose visibility resolves the bound members of a type argument `t`: where it
+## became concrete (SPEC §8.2).
+function siteOfArg(g: ref Em, t: Type): String
+    if t = noneT() then
+        return g.f.file
+    return siteOf(g, t)
+
+## The type arguments of a call to a generic routine, and for each the file whose
+## visibility resolves its bound members: where it became concrete (SPEC §8.2).
+function instance(g: ref Em, sym: ref Symbol, tparams: List[ref Symbol], s: Subst): Callee
+    var targs: List[Type] := []
+    var sites: Map[Integer, String] := {}
+    for tp in tparams do
+        let t := getOr(s, tp.id, default: noneT())
+        sites[tp.id] := siteOfArg(g, t)
+        add(var targs, subT(g, t))
+    return Callee(sym: sym, targs: targs, sites: sites)
+
+## The routine called by `x.area()` for `x: T` with `T: Measurable`, in this instance:
+## found where `T` became concrete (SPEC §8.2), with its own type arguments and sites.
+function boundMember(g: ref Em, c: Call, m: Match): Callee
+    let member := m.sig.sym.get()
+    var sub: Subst := {}
+    for p, t in m.pre do
+        sub[p] := subT(g, t)
+    var site := g.f.file
+    case get(m.pre, ThisId) of
+        Some(th):
+            var id := -1
+            case th.value of
+                ParamT(x):
+                    id := x.sym.id
+                NamedT(x):
+                    id := x.sym.id
+                TraitT(x):
+                    id := x.sym.id
+                else:
+                    pass()
+            site := getOr(g.f.sites, id, default: g.f.file)
+        None:
+            pass()
+    var s2: Subst := {}
+    let found := provider(g.env.checkers[site], getOr(sub, ThisId, default: noneT()), m: member, sub: sub, s: var s2, vars: {})
+    if found.isNone() then
+        unsupported(g, c.span, "calling '{member.name}' here")
+        return Callee(sym: member, targs: [], sites: {})
+    let fd := found.get()
+    var targs: List[Type] := []
+    var sites: Map[Integer, String] := {}
+    for tp in sig(g.env, fd.f).tparams do
+        add(var targs, getOr(fd.sf, tp.id, default: noneT()))
+        sites[tp.id] := site
+    return Callee(sym: fd.f, targs: targs, sites: sites)
+
+## Computes an argument (or a record field) into rax: the one given, or the parameter's
+## default, which belongs to the declaring unit.
+procedure argument(g: ref Em, p: PInfo, slot: Option[CArg], m: Match, file: String)
+    let want := subT(g, subst(p.ty, m.s))
+    case slot of
+        Some(sl):
+            coerce(g, sl.value.expr, want)
+            return
+        None:
+            pass()
+    let outer := g.f.file
+    g.f.file := file
+    coerce(g, p.default.get(), want)
+    g.f.file := outer
+
+## Calls the System routine `name` (not overloaded), instantiated for `targs`, with
+## `args` in parameter order.
+procedure sysCall(g: ref Em, span: Span, name: String, args: List[SysArg], targs: List[Type])
+    for x in args do
+        coerce(g, x.e, x.ty)
+        if g.bad then
+            return
+        save(g, x.ty)
+    for i := len(args) - 1 downto 0 do
+        pop(g.a, argReg(i))
+    let lbl := sysLabel(g, span, name, targs)
+    if g.bad then
+        return
+    call(g.a, lbl)
+
+## The label of System routine `name` (not overloaded) for `targs`.
+function sysLabel(g: ref Em, span: Span, name: String, targs: List[Type]): String
+    let sym := sys(g.env, name).get()
+    var sites: Map[Integer, String] := {}
+    for tp in sig(g.env, sym).tparams do
+        sites[tp.id] := g.f.file
+    return labelOf(g, span, sym, targs, sites: sites)
+
+## `Point(x: 1, y: 2)`: the field values are pushed, then moved into a new block.
+procedure construct(g: ref Em, c: Call, m: Match)
+    let a := g.a
+    let t := subT(g, subst(m.result, m.s))
+    valueType(g, t, c.span)
+    if g.bad then
+        return
+    for i := 0 to len(m.params) - 1 do
+        let p := m.params[i]
+        argument(g, p, m.slots[i], m, file: m.sig.sym.get().file)
+        if g.bad then
+            return
+        save(g, subT(g, subst(p.ty, m.s)))
+    if isCRecord(g, t) then
+        newCBlock(g, t, c.span)
+        if g.bad then
+            return
+        let fs := cStruct(g, t, c.span).fields
+        for i := len(fs) - 1 downto 0 do
+            pop(a, Rcx)
+            push(a, Rax)
+            addImm(a, Rax, value: Fields + fs[i].offset)
+            storeC(g, fs[i].ty, c.span)
+            if g.bad then
+                return
+            pop(a, Rax)
+        return
+    var eq := ""
+    if isMap(g.env, t) and builtinTrait(g.env.checkers[g.f.file], argsOf(t)[1], "Equatable") then
+        eq := sysLabel(g, c.span, "mapEquals", argsOf(t))
+        if g.bad then
+            return
+    newBlock(g, descriptor(g, key(t), fieldTypes(g, t), eq: eq))
+    for i := len(m.params) - 1 downto 0 do
+        pop(a, Rcx)
+        store(a, Rax, disp: Fields + 8 * i, src: Rcx)
+
+# ----------------------------------------------------------------------- builtins
+
+## The first type argument of a call to a generic builtin, in this instance.
+function targ0(g: ref Em, m: Match): Type
+    if len(m.sig.tparams) = 0 then
+        return noneT()
+    return subT(g, getOr(m.s, m.sig.tparams[0].id, default: noneT()))
+
+## The pieces of a `write` argument: a literal's text, an interpolation's parts, or the
+## value.
+function writeParts(e: Expr): List[InterpPart]
+    case e of
+        StringLit(x):
+            return [TextPart(text: x.value)]
+        InterpString(x):
+            return x.parts
+        else:
+            return [e]
+
+function inScope(g: ref Em, slot: Integer): Boolean
+    for en in g.f.scopes[len(g.f.scopes) - 1] do
+        if en.deferred.isNone() and en.slot = slot then
+            return true
+    return false
+
+## Routines declared `extern "pst"`: implemented by the compiler.
+procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
+    let a := g.a
+    var args: List[Expr] := []
+    for sl in m.slots do
+        add(var args, slotExpr(sl))
+    let u := sym.unitName
+    let n := sym.name
+    let sysU := u = "System"
+    if u = "IO" and (n = "write" or n = "writeln" or n = "writeErr" or n = "writelnErr") then
+        var parts: List[InterpPart] := []
+        if len(args) > 0 then
+            parts := writeParts(args[0])
+        if startsWith(n, prefix: "writeln") then
+            add(var parts, TextPart(text: "\n"))
+        stringOf(g, parts)
+        if g.bad then
+            return
+        mov(a, Rdi, Rax)
+        if endsWith(n, suffix: "Err") then
+            movImm(a, Rsi, value: 2)
+        else
+            movImm(a, Rsi, value: 1)
+        call(a, runtime(g, "rt_write_str"))
+    else if sysU and n = "toString" then
+        toString(g, args[0])
+    else if sysU and n = "ord" and (typeOfExpr(g, args[0]) = charT() or kind(g, typeOfExpr(g, args[0])) = "enum") then
+        expr(g, args[0])
+    else if sysU and n = "halt" then
+        expr(g, args[0])
+        if g.bad then
+            return
+        mov(a, Rdi, Rax)
+        exitProgram(g)
+    else if sysU and (n = "inc" or n = "dec") then
+        let t := targ0(g, m)
+        if not isInt(t) then
+            unsupported(g, c.span, "'{n}' of {show(t)}")
+            return
+        if len(args) > 1 and m.slots[1].isSome() then
+            expr(g, args[1])
+            if g.bad then
+                return
+        else
+            movImm(a, Rax, value: 1)
+        push(a, Rax)
+        address(g, args[0])
+        if g.bad then
+            return
+        pop(a, Rcx)
+        push(a, Rax)
+        push(a, Rcx)
+        loadAt(g, args[0], t)
+        if g.bad then
+            return
+        pop(a, Rcx)
+        if n = "inc" then
+            arith(g, "+", t, c.span)
+        else
+            arith(g, "-", t, c.span)
+        mov(a, Rcx, Rax)
+        pop(a, Rax)
+        storeAt(g, args[0], t)
+    else if sysU and n = "len" and isList(typeOfExpr(g, args[0])) then
+        expr(g, args[0])
+        if g.bad then
+            return
+        push(a, Rax)
+        load(a, Rax, Rax, disp: Count)
+        drop(g, 1)
+    else if sysU and n = "decodeUtf8At" then
+        expr(g, args[0])
+        if g.bad then
+            return
+        save(g, stringT())
+        expr(g, args[1])
+        if g.bad then
+            return
+        load(a, Rdi, Rsp)
+        mov(a, Rsi, Rax)
+        call(a, runtime(g, "rt_decode_utf8"))
+        drop(g, 1)
+    else if sysU and n = "utf8Width" then
+        expr(g, args[0])
+        if g.bad then
+            return
+        mov(a, Rcx, Rax)
+        movImm(a, Rax, value: 1)
+        for top in [0x80, 0x800, 0x10000] do
+            let done := newLabel(a, "w")
+            cmpImm(a, Rcx, value: top)
+            jcc(a, "b", label: done)
+            incR(a, Rax)
+            label(a, done)
+    else if sysU and n = "fail" then
+        var parts: List[InterpPart] := [TextPart(text: "panic ")]
+        add(var parts, args[0])
+        add(var parts, TextPart(text: "\n    at {where(g, c.span)}\n"))
+        stringOf(g, parts)
+        if g.bad then
+            return
+        lea(a, Rsi, Rax, disp: BytesAt)
+        load(a, Rdx, Rax, disp: Len)
+        movImm(a, Rdi, value: 2)
+        call(a, runtime(g, "rt_write"))
+        movImm(a, Rdi, value: PanicStatus)
+        exitProgram(g)
+    else if sysU and n = "hash" then
+        let t := targ0(g, m)
+        expr(g, args[0])
+        if g.bad then
+            return
+        if managed(g, t) then
+            push(a, Rax)
+            mov(a, Rdi, Rax)
+            call(a, runtime(g, "rt_hash"))
+            drop(g, 1)
+        call(a, runtime(g, "rt_mix"))
+    else if sysU and n = "vacate" then
+        expr(g, args[1])
+        if g.bad then
+            return
+        push(a, Rax)
+        address(g, args[0])
+        if g.bad then
+            return
+        mov(a, Rdi, Rax)
+        call(a, runtime(g, "rt_unique"))
+        pop(a, Rcx)
+        element(g, Rax, Rcx, span: c.span)
+        if managed(g, targ0(g, m)) then
+            load(a, Rdi, Rax)
+            storeImm(a, Rax, disp: 0, value: 0)
+            release(g, Rdi)
+    else if sysU and (n = "bitOf" or n = "ofBit") then
+        let t := targ0(g, m)
+        let first := ordinalRange(g.env, t)
+        if first.isNone() then
+            unsupported(g, c.span, "a Set of {show(t)}")
+            return
+        expr(g, args[0])
+        if g.bad then
+            return
+        let lo := first.get().lo
+        if lo <> 0 then
+            if n = "bitOf" then
+                subImm(a, Rax, value: lo)
+            else
+                addImm(a, Rax, value: lo)
+    else if (sysU or u = "Bits") and (n = "band" or n = "bor" or n = "bxor" or n = "bnot" or n = "shl" or n = "shr" or n = "popCount") then
+        bitsOp(g, c, n, args, targ0(g, m))
+    else if sysU and n = "new" then
+        let t := targ0(g, m)
+        valueType(g, t, c.span)
+        if g.bad then
+            return
+        coerce(g, args[0], t)
+        if g.bad then
+            return
+        push(a, Rax)
+        let bd := boxDesc(g, t, c.span)
+        if g.bad then
+            return
+        newBlock(g, bd)
+        pop(a, Rcx)
+        store(a, Rax, disp: Value, src: Rcx)
+        storeImm(a, Rax, disp: Cell, value: 0)
+    else if sysU and n = "weak" then
+        let made := newLabel(a, "weak")
+        expr(g, args[0])
+        if g.bad then
+            return
+        push(a, Rax)
+        load(a, Rax, Rax, disp: Cell)
+        testR(a, Rax, Rax)
+        jcc(a, "ne", label: made)
+        newBlock(g, descriptor(g, "cell", [integerT()]))  # held by the box
+        load(a, Rcx, Rsp)
+        store(a, Rax, disp: Target, src: Rcx)
+        store(a, Rcx, disp: Cell, src: Rax)
+        label(a, made)
+        retain(g)
+        drop(g, 1)
+    else if sysU and (n = "alive" or n = "target") then
+        expr(g, args[0])
+        if g.bad then
+            return
+        push(a, Rax)
+        load(a, Rax, Rax, disp: Target)
+        if n = "alive" then
+            testR(a, Rax, Rax)
+            setcc(a, "ne", Rax)
+            movzx8(a, Rax, Rax)
+        else
+            retain(g)
+        drop(g, 1)
+    else if sysU and n = "resize" then
+        expr(g, args[1])
+        if g.bad then
+            return
+        push(a, Rax)
+        address(g, args[0])
+        if g.bad then
+            return
+        mov(a, Rdi, Rax)
+        pop(a, Rsi)
+        call(a, runtime(g, "rt_list_resize"))
+    else if u = "C" and n = "toCString" then
+        let k := exprKey(g, c.id)
+        if not (k in g.f.keep) then
+            unsupported(g, c.span, "'toCString' here")
+            return
+        let slot := g.f.keep[k]
+        expr(g, args[0])
+        if g.bad then
+            return
+        load(a, Rdi, Rbp, disp: slot)
+        release(g, Rdi)  # the string of the previous time round a loop
+        store(a, Rbp, disp: slot, src: Rax)
+        if not inScope(g, slot) then
+            own(g, slot)
+        addImm(a, Rax, value: BytesAt)
+    else if u = "C" and n = "isNull" then
+        expr(g, args[0])
+        if g.bad then
+            return
+        testR(a, Rax, Rax)
+        setcc(a, "e", Rax)
+        movzx8(a, Rax, Rax)
+    else if u = "C" and n = "fromCString" then
+        expr(g, args[0])
+        if g.bad then
+            return
+        testR(a, Rax, Rax)
+        jcc(a, "e", label: panic(g, "P0007", "null C string", span: c.span))
+        mov(a, Rdi, Rax)
+        call(a, runtime(g, "rt_from_cstring"))
+    else if u = "C" and n = "fromCBytes" then
+        expr(g, args[0])
+        if g.bad then
+            return
+        push(a, Rax)
+        expr(g, args[1])
+        if g.bad then
+            return
+        mov(a, Rsi, Rax)
+        pop(a, Rdi)
+        call(a, runtime(g, "rt_from_bytes"))
+    else if u = "OS" and n = "argv" then
+        loadGlobal(a, Rax, name: "args")
+        addImm(a, Rax, value: 8)  # past argc
+    else if u = "C" and n = "addr" then
+        let place := unparen(args[0])
+        if isCRecord(g, typeOfExpr(g, place)) or isCPlace(g, place) then
+            cplace(g, place)
+        else
+            address(g, place)
+    else if (n = "byteLen" or n = "charCount") and (sysU or u = "Strings") then
+        expr(g, args[0])
+        if g.bad then
+            return
+        push(a, Rax)
+        if n = "byteLen" then
+            load(a, Rax, Rax, disp: Len)
+        else
+            load(a, Rax, Rax, disp: Chars)
+        drop(g, 1)
+    else if u = "Strings" and n = "startsWith" then
+        expr(g, args[0])
+        if g.bad then
+            return
+        save(g, stringT())
+        expr(g, args[1])
+        if g.bad then
+            return
+        push(a, Rax)
+        load(a, Rdi, Rsp, disp: 8)
+        mov(a, Rsi, Rax)
+        call(a, runtime(g, "rt_starts_with"))
+        drop(g, 2)
+    else if u = "Strings" and n = "slice" then
+        sliceOf(g, c, args)
+    else
+        unsupported(g, c.span, "'{n}'")
+
+## The `Bits` operations, on the bits of `t`'s width: results wrap to the type, `shr`
+## shifts zeros in, and a shift by a count outside 0 to width - 1 gives 0.
+procedure bitsOp(g: ref Em, c: Call, op: String, args: List[Expr], t: Type)
+    let a := g.a
+    if not isInt(t) then
+        unsupported(g, c.span, "'{op}' on {show(t)}")
+        return
+    let width := intBits(t)
+    for x in args do
+        expr(g, x)
+        if g.bad then
+            return
+        push(a, Rax)
+    if len(args) = 2 then
+        pop(a, Rcx)
+    pop(a, Rax)
+    if op = "band" then
+        andR(a, Rax, Rcx)
+    else if op = "bor" then
+        orR(a, Rax, Rcx)
+    else if op = "bxor" then
+        xor(a, Rax, Rcx)
+    else if op = "bnot" then
+        notR(a, Rax)
+        widen(g, t)
+    else if op = "popCount" then
+        extend(a, Rax, bits: width, signed: false)
+        popcnt(a, Rax, Rax)
+    else
+        let zero := newLabel(a, "shift")
+        let done := newLabel(a, "shift")
+        cmpImm(a, Rcx, value: width)
+        jcc(a, "ae", label: zero)  # unsigned: negative counts too
+        if op = "shr" then
+            extend(a, Rax, bits: width, signed: false)
+            shrCl(a, Rax)
+        else
+            shlCl(a, Rax)
+        widen(g, t)
+        jmp(a, done)
+        label(a, zero)
+        xor32(a, Rax, Rax)
+        label(a, done)
+
+## `slice(s, start, stop)`: offsets out of range panic with `P0001` (in checked builds),
+## offsets inside a character with `P0006`.
+procedure sliceOf(g: ref Em, c: Call, args: List[Expr])
+    let a := g.a
+    for x in args do
+        expr(g, x)
+        if g.bad then
+            return
+        save(g, typeOfExpr(g, x))
+    pop(a, Rdx)  # stop
+    pop(a, Rsi)  # start
+    load(a, Rdi, Rsp)  # the string stays on the stack until released
+    if g.checked then
+        let bounds := panic(g, "P0001", "slice offsets out of bounds", span: c.span)
+        cmp(a, Rsi, Rdx)  # unsigned: a negative start is out of range too
+        jcc(a, "a", label: bounds)
+        load(a, Rcx, Rdi, disp: Len)
+        cmp(a, Rdx, Rcx)
+        jcc(a, "a", label: bounds)
+    let inside := panic(g, "P0006", "slice offset is not on a character boundary", span: c.span)
+    for reg in [Rsi, Rdx] do
+        let ok := newLabel(a, "ok")
+        load(a, Rcx, Rdi, disp: Len)
+        cmp(a, reg, Rcx)
+        jcc(a, "ae", label: ok)  # the end, or out of range in an unchecked build
+        mov(a, Rcx, Rdi)
+        add(a, Rcx, reg)
+        load8(a, Rcx, Rcx, disp: BytesAt)
+        and32Imm(a, Rcx, value: 0xC0)
+        cmpImm(a, Rcx, value: 0x80)  # a continuation byte
+        jcc(a, "e", label: inside)
+        label(a, ok)
+    call(a, runtime(g, "rt_slice"))
+    drop(g, 1)
+
+# ------------------------------------------------------------------------ runtime
+
+## Marks the runtime routine `name` as used.
+function runtime(g: ref Em, name: String): String
+    if not (name in g.used) then
+        g.used[name] := true
+        add(var g.runtime, name)
+    return name
+
+procedure emitRuntime(g: ref Em)
+    var done: Map[String, Boolean] := {}
+    var n := 0
+    while n < len(g.runtime) do  # a routine may use another
+        let names := g.runtime
+        for name in names do
+            if not (name in done) then
+                done[name] := true
+                n := n + 1
+                label(g.a, name)
+                runtimeRoutine(g, name)
+
+procedure runtimeRoutine(g: ref Em, name: String)
+    case name of
+        "rt_write": rtWrite(g)
+        "rt_write_str": rtWriteStr(g)
+        "rt_panic": rtPanic(g)
+        "rt_retain": rtRetain(g)
+        "rt_release": rtRelease(g)
+        "rt_ref_eq": rtRefEq(g)
+        "rt_new": rtNew(g)
+        "rt_list_new": rtListNew(g)
+        "rt_list_resize": rtListResize(g)
+        "rt_unique": rtUnique(g)
+        "rt_eq": rtEq(g)
+        "rt_hash": rtHash(g)
+        "rt_mix": rtMix(g)
+        "rt_enum_name": rtEnumName(g)
+        "rt_alloc": rtAlloc(g)
+        "rt_oom": rtOom(g)
+        "rt_str_new": rtStrNew(g)
+        "rt_str_from": rtStrFrom(g)
+        "rt_utf8_len": rtUtf8Len(g)
+        "rt_decode_utf8": rtDecodeUtf8(g)
+        "rt_from_cstring": rtFromCString(g)
+        "rt_from_bytes": rtFromBytes(g)
+        "rt_concat": rtConcat(g)
+        "rt_int_to_str": rtIntToStr(g, "%ld")
+        "rt_uint_to_str": rtIntToStr(g, "%lu")
+        "rt_bool_to_str": rtBoolToStr(g)
+        "rt_char_to_str": rtCharToStr(g)
+        "rt_str_cmp": rtStrCmp(g)
+        "rt_starts_with": rtStartsWith(g)
+        "rt_slice": rtSlice(g)
+        else: pass()  # every name is one of the above
+
+## Calls a libc function, with the stack aligned as the C ABI requires (and al = 0 for
+## variadic ones).
+procedure ccall(g: ref Em, name: String)
+    let a := g.a
+    push(a, Rbp)
+    mov(a, Rbp, Rsp)
+    andImm(a, Rsp, value: -16)
+    xor32(a, Rax, Rax)
+    callImport(a, name)
+    leave(a)
+    if a.tracked then  # `leave` popped rbp
+        remove(var a.stack, len(a.stack) - 1)
+
+## Ends the program with status rdi. `exit`, not `_exit`: C code may have output waiting
+## in stdio buffers.
+procedure exitProgram(g: ref Em)
+    ccall(g, "exit")
+
+procedure pushAll(a: ref Assembler, regs: List[Integer])
+    for r in regs do
+        push(a, r)
+
+procedure popAll(a: ref Assembler, regs: List[Integer])
+    var i := len(regs) - 1
+    while i >= 0 do
+        pop(a, regs[i])
+        i := i - 1
+
+function labels(a: ref Assembler, hint: String, n: Integer): List[String]
+    var out: List[String] := []
+    for k := 1 to n do
+        add(var out, newLabel(a, hint))
+    return out
+
+## Writes rdx bytes at rsi to file descriptor rdi, retrying partial writes. On an error
+## (a closed pipe), exits with status 1.
+procedure rtWrite(g: ref Em)
+    let a := g.a
+    let l := labels(a, "w", 3)
+    let saved := [Rbx, R12, R13]
+    pushAll(a, saved)
+    mov(a, Rbx, Rdi)
+    mov(a, R12, Rsi)
+    mov(a, R13, Rdx)
+    label(a, l[0])
+    testR(a, R13, R13)
+    jcc(a, "e", label: l[1])
+    mov(a, Rdi, Rbx)
+    mov(a, Rsi, R12)
+    mov(a, Rdx, R13)
+    ccall(g, "write")
+    testR(a, Rax, Rax)
+    jcc(a, "le", label: l[2])
+    add(a, R12, Rax)
+    sub(a, R13, Rax)
+    jmp(a, l[0])
+    label(a, l[2])
+    movImm(a, Rdi, value: 1)
+    exitProgram(g)
+    label(a, l[1])
+    popAll(a, saved)
+    ret(a)
+
+## Writes the string rdi to file descriptor rsi (stdout or stderr) and releases it.
+procedure rtWriteStr(g: ref Em)
+    let a := g.a
+    push(a, Rdi)
+    mov(a, Rcx, Rsi)
+    lea(a, Rsi, Rdi, disp: BytesAt)
+    load(a, Rdx, Rdi, disp: Len)
+    mov(a, Rdi, Rcx)
+    call(a, runtime(g, "rt_write"))
+    drop(g, 1)
+    ret(a)
+
+## Writes the message (rsi, rdx) to stderr and exits with status 70.
+procedure rtPanic(g: ref Em)
+    let a := g.a
+    movImm(a, Rdi, value: 2)
+    call(a, runtime(g, "rt_write"))
+    movImm(a, Rdi, value: PanicStatus)
+    exitProgram(g)
+
+## Adds a reference to the block rax (not to literals, nor to an empty slot). Preserves
+## registers.
+procedure rtRetain(g: ref Em)
+    let a := g.a
+    let done := newLabel(a, "r")
+    testR(a, Rax, Rax)
+    jcc(a, "e", label: done)
+    cmpMemImm(a, Rax, disp: Rc, value: 0)
+    jcc(a, "l", label: done)
+    incMem(a, Rax, disp: Rc)
+    label(a, done)
+    ret(a)
+
+## Sets up a loop over the slots of `block`, whose descriptor is in `desc`: `count` := how
+## many, `vals` := the first, `desc` := its kind word (the next is `step` bytes on: 8 for
+## a record's fields, 0 for a list's elements).
+procedure walk(g: ref Em, block, desc, count, vals, step: Integer)
+    let a := g.a
+    let go := newLabel(a, "k")
+    load(a, count, desc, disp: DCount)
+    addImm(a, desc, value: DKinds)
+    lea(a, vals, block, disp: Fields)
+    movImm(a, step, value: 8)
+    cmpImm(a, count, value: ListCount)
+    jcc(a, "ne", label: go)
+    load(a, count, block, disp: Count)
+    lea(a, vals, block, disp: Elems)
+    xor32(a, step, step)
+    label(a, go)
+
+## Drops a reference to the block rdi (if not 0). With the last one, runs its drop
+## routine, if it has one, releases the references its fields (or elements) hold and
+## frees it. Preserves registers.
+procedure rtRelease(g: ref Em)
+    let a := g.a
+    let l := labels(a, "r", 5)
+    let loop := l[0]
+    let skip := l[1]
+    let free := l[2]
+    let done := l[3]
+    let kept := l[4]
+    testR(a, Rdi, Rdi)  # an empty slot (toCString's, or a moved-out value)
+    jcc(a, "e", label: done)
+    cmpMemImm(a, Rdi, disp: Rc, value: 0)
+    jcc(a, "l", label: done)
+    decMem(a, Rdi, disp: Rc)
+    jcc(a, "ne", label: done)
+    pushAll(a, callerSaved())
+    mov(a, Rsi, Rdi)  # the block
+    load(a, Rdx, Rsi, disp: Desc)
+    testR(a, Rdx, Rdx)
+    jcc(a, "e", label: free)  # a string
+    load(a, R11, Rdx, disp: DDrop)
+    testR(a, R11, R11)
+    jcc(a, "e", label: kept)
+    add(a, R11, Rdx)
+    push(a, Rsi)
+    push(a, Rsi)
+    mov(a, Rdi, Rsi)
+    callReg(a, R11)
+    pop(a, Rsi)
+    pop(a, Rsi)
+    load(a, Rdx, Rsi, disp: Desc)
+    label(a, kept)
+    walk(g, Rsi, Rdx, Rcx, R8, R9)
+    label(a, loop)  # rcx slots left; rdx their kinds, r8 their values
+    testR(a, Rcx, Rcx)
+    jcc(a, "e", label: free)
+    load(a, Rax, Rdx)
+    testR(a, Rax, Rax)
+    jcc(a, "e", label: skip)
+    load(a, Rdi, R8)
+    call(a, runtime(g, "rt_release"))
+    label(a, skip)
+    add(a, Rdx, R9)
+    addImm(a, R8, value: 8)
+    decR(a, Rcx)
+    jmp(a, loop)
+    label(a, free)
+    mov(a, Rdi, Rsi)
+    ccall(g, "free")
+    popAll(a, callerSaved())
+    label(a, done)
+    ret(a)
+
+## The equality routine of boxes: rax := whether rdi and rsi are the same box. Like any
+## equality routine, it owns its arguments.
+procedure rtRefEq(g: ref Em)
+    let a := g.a
+    cmp(a, Rdi, Rsi)
+    setcc(a, "e", Rax)
+    movzx8(a, Rax, Rax)
+    call(a, runtime(g, "rt_release"))
+    mov(a, Rdi, Rsi)
+    call(a, runtime(g, "rt_release"))
+    ret(a)
+
+## rax := a new block with descriptor rdi and refcount 1. Its fields are the caller's to
+## fill in.
+procedure rtNew(g: ref Em)
+    let a := g.a
+    push(a, Rdi)
+    load(a, Rdi, Rdi, disp: DSize)
+    call(a, runtime(g, "rt_alloc"))
+    pop(a, Rcx)
+    storeImm(a, Rax, disp: Rc, value: 1)
+    store(a, Rax, disp: Desc, src: Rcx)
+    ret(a)
+
+## rax := a new list block with descriptor rdi and room for rsi elements, which it holds:
+## the caller fills them in.
+procedure rtListNew(g: ref Em)
+    let a := g.a
+    push(a, Rdi)
+    push(a, Rsi)
+    mov(a, Rdi, Rsi)
+    shlImm(a, Rdi, n: 3)
+    addImm(a, Rdi, value: Elems)
+    call(a, runtime(g, "rt_alloc"))
+    pop(a, Rsi)
+    pop(a, Rcx)
+    storeImm(a, Rax, disp: Rc, value: 1)
+    store(a, Rax, disp: Desc, src: Rcx)
+    store(a, Rax, disp: Count, src: Rsi)
+    store(a, Rax, disp: Cap, src: Rsi)
+    ret(a)
+
+## rdi is the address of a variable holding a list; rsi a length (not negative). Makes the
+## list unique and gives it rsi elements: dropped ones are released, new ones are 0, for
+## the caller to fill in. Growing at least doubles the capacity.
+procedure rtListResize(g: ref Em)
+    let a := g.a
+    let l := labels(a, "z", 5)
+    let big := l[0]
+    let fits := l[1]
+    let shrink := l[2]
+    let loop := l[3]
+    let done := l[4]
+    let saved := [Rbx, R12, R13, R14]
+    pushAll(a, saved)
+    mov(a, Rbx, Rdi)  # the variable
+    mov(a, R12, Rsi)  # the new length
+    call(a, runtime(g, "rt_unique"))
+    mov(a, R13, Rax)  # the list
+    load(a, Rcx, R13, disp: Cap)
+    cmp(a, R12, Rcx)
+    jcc(a, "le", label: fits)
+    mov(a, R14, Rcx)
+    add(a, R14, Rcx)
+    cmp(a, R14, R12)
+    jcc(a, "ge", label: big)
+    mov(a, R14, R12)
+    label(a, big)  # r14 := max(2 * cap, length)
+    mov(a, Rdi, R13)
+    mov(a, Rsi, R14)
+    shlImm(a, Rsi, n: 3)
+    addImm(a, Rsi, value: Elems)
+    ccall(g, "realloc")
+    testR(a, Rax, Rax)
+    jcc(a, "e", label: runtime(g, "rt_oom"))
+    mov(a, R13, Rax)
+    store(a, R13, disp: Cap, src: R14)
+    store(a, Rbx, disp: 0, src: R13)
+    label(a, fits)
+    load(a, Rcx, R13, disp: Count)
+    cmp(a, R12, Rcx)
+    jcc(a, "l", label: shrink)
+    mov(a, Rdi, Rcx)  # zero the new elements
+    shlImm(a, Rdi, n: 3)
+    add(a, Rdi, R13)
+    addImm(a, Rdi, value: Elems)
+    mov(a, Rdx, R12)
+    sub(a, Rdx, Rcx)
+    shlImm(a, Rdx, n: 3)
+    xor32(a, Rsi, Rsi)
+    ccall(g, "memset")
+    jmp(a, done)
+    label(a, shrink)
+    load(a, Rdx, R13, disp: Desc)
+    load(a, Rdx, Rdx, disp: DKinds)
+    testR(a, Rdx, Rdx)
+    jcc(a, "e", label: done)
+    mov(a, R14, R12)
+    label(a, loop)  # release elements r14 up to the old count
+    cmp(a, R14, Rcx)
+    jcc(a, "ge", label: done)
+    mov(a, Rax, R14)
+    shlImm(a, Rax, n: 3)
+    add(a, Rax, R13)
+    load(a, Rdi, Rax, disp: Elems)
+    release(g, Rdi)
+    incR(a, R14)
+    jmp(a, loop)
+    label(a, done)
+    store(a, R13, disp: Count, src: R12)
+    popAll(a, saved)
+    ret(a)
+
+## rdi is the address of a variable holding a record or list. If it is shared, the
+## variable gets a copy of its own. rax := the block, now unshared.
+procedure rtUnique(g: ref Em)
+    let a := g.a
+    let l := labels(a, "u", 6)
+    let copy := l[0]
+    let lst := l[1]
+    let copied := l[2]
+    let loop := l[3]
+    let skip := l[4]
+    let done := l[5]
+    load(a, Rax, Rdi)
+    cmpMemImm(a, Rax, disp: Rc, value: 1)
+    jcc(a, "ne", label: copy)
+    ret(a)
+    label(a, copy)
+    let saved := [Rbx, R12, R13]
+    pushAll(a, saved)
+    mov(a, Rbx, Rdi)  # the variable
+    mov(a, R12, Rax)  # the shared block
+    load(a, Rdi, Rax, disp: Desc)
+    cmpMemImm(a, Rdi, disp: DCount, value: ListCount)
+    jcc(a, "e", label: lst)
+    call(a, runtime(g, "rt_new"))
+    mov(a, R13, Rax)  # the copy
+    lea(a, Rdi, R13, disp: Fields)
+    lea(a, Rsi, R12, disp: Fields)
+    load(a, Rdx, R12, disp: Desc)
+    load(a, Rdx, Rdx, disp: DSize)
+    subImm(a, Rdx, value: Fields)
+    ccall(g, "memcpy")
+    jmp(a, copied)
+    label(a, lst)  # the same capacity; the count and the elements
+    load(a, Rsi, R12, disp: Cap)
+    call(a, runtime(g, "rt_list_new"))
+    mov(a, R13, Rax)
+    lea(a, Rdi, R13, disp: Count)
+    lea(a, Rsi, R12, disp: Count)
+    load(a, Rdx, R12, disp: Count)
+    shlImm(a, Rdx, n: 3)
+    addImm(a, Rdx, value: Elems - Count)
+    ccall(g, "memcpy")
+    label(a, copied)
+    load(a, Rdx, R13, disp: Desc)
+    walk(g, R13, Rdx, Rcx, R8, R9)
+    label(a, loop)  # the copy holds new references to what the slots refer to
+    testR(a, Rcx, Rcx)
+    jcc(a, "e", label: done)
+    load(a, Rax, Rdx)
+    testR(a, Rax, Rax)
+    jcc(a, "e", label: skip)
+    load(a, Rax, R8)
+    retain(g)
+    label(a, skip)
+    add(a, Rdx, R9)
+    addImm(a, R8, value: 8)
+    decR(a, Rcx)
+    jmp(a, loop)
+    label(a, done)
+    release(g, R12)  # not the last reference: the block was shared
+    store(a, Rbx, disp: 0, src: R13)
+    mov(a, Rax, R13)
+    popAll(a, saved)
+    ret(a)
+
+## rax := whether the blocks rdi and rsi hold equal values: the same string, or records
+## (union values, lists) of the same descriptor whose slots are equal, or that its
+## equality routine says are equal.
+procedure rtEq(g: ref Em)
+    let a := g.a
+    let l := labels(a, "q", 9)
+    let rec := l[0]
+    let fields := l[1]
+    let same := l[2]
+    let loop := l[3]
+    let plain := l[4]
+    let nxt := l[5]
+    let yes := l[6]
+    let no := l[7]
+    let done := l[8]
+    let saved := [Rbx, R12, R13, R14, R15]
+    pushAll(a, saved)
+    load(a, Rax, Rdi, disp: Desc)
+    load(a, Rcx, Rsi, disp: Desc)
+    cmp(a, Rax, Rcx)
+    jcc(a, "ne", label: no)
+    testR(a, Rax, Rax)
+    jcc(a, "ne", label: rec)
+    call(a, runtime(g, "rt_str_cmp"))
+    testR(a, Rax, Rax)
+    jcc(a, "ne", label: no)
+    jmp(a, yes)
+    label(a, rec)
+    load(a, Rcx, Rax, disp: DEq)
+    testR(a, Rcx, Rcx)
+    jcc(a, "e", label: fields)
+    add(a, Rcx, Rax)  # the routine, which owns its arguments
+    mov(a, Rax, Rdi)
+    retain(g)
+    mov(a, Rax, Rsi)
+    retain(g)
+    callReg(a, Rcx)
+    jmp(a, done)
+    label(a, fields)
+    mov(a, R13, Rax)
+    walk(g, Rdi, R13, R14, Rbx, R15)
+    load(a, Rcx, Rax, disp: DCount)
+    cmpImm(a, Rcx, value: ListCount)
+    jcc(a, "ne", label: same)
+    load(a, Rcx, Rsi, disp: Count)  # lists: the same length
+    cmp(a, R14, Rcx)
+    jcc(a, "ne", label: no)
+    label(a, same)
+    mov(a, R12, Rbx)  # the same slot of the other block
+    sub(a, R12, Rdi)
+    add(a, R12, Rsi)
+    label(a, loop)  # r14 slots left; r13 their kinds; rbx, r12 the two values
+    testR(a, R14, R14)
+    jcc(a, "e", label: yes)
+    load(a, Rdi, Rbx)
+    load(a, Rsi, R12)
+    load(a, Rax, R13)
+    testR(a, Rax, Rax)
+    jcc(a, "e", label: plain)
+    call(a, runtime(g, "rt_eq"))
+    testR(a, Rax, Rax)
+    jcc(a, "e", label: no)
+    jmp(a, nxt)
+    label(a, plain)
+    cmp(a, Rdi, Rsi)
+    jcc(a, "ne", label: no)
+    label(a, nxt)
+    addImm(a, Rbx, value: 8)
+    addImm(a, R12, value: 8)
+    add(a, R13, R15)
+    decR(a, R14)
+    jmp(a, loop)
+    label(a, yes)
+    movImm(a, Rax, value: 1)
+    jmp(a, done)
+    label(a, no)
+    xor32(a, Rax, Rax)
+    label(a, done)
+    popAll(a, saved)
+    ret(a)
+
+## rax := a hash of the value of block rdi: FNV-1a over a string's bytes, or over a
+## record's descriptor number and fields (each field's own hash if it holds a reference).
+## Equal values hash alike.
+procedure rtHash(g: ref Em)
+    let a := g.a
+    let l := labels(a, "h", 4)
+    let str := l[0]
+    let loop := l[1]
+    let plain := l[2]
+    let done := l[3]
+    movImm(a, Rax, value: FnvOffset)
+    movImm(a, R11, value: FnvPrime)
+    load(a, Rdx, Rdi, disp: Desc)
+    testR(a, Rdx, Rdx)
+    jcc(a, "e", label: str)
+    let saved := [Rbx, R12, R13, R14, R15]
+    pushAll(a, saved)
+    mov(a, Rbx, Rax)  # the hash so far
+    load(a, Rcx, Rdx, disp: DId)
+    xor(a, Rbx, Rcx)
+    imul(a, Rbx, R11)
+    mov(a, R13, Rdx)
+    walk(g, Rdi, R13, R12, R14, R15)
+    label(a, loop)  # r12 slots left; r13 their kinds; r14 their values
+    testR(a, R12, R12)
+    jcc(a, "e", label: done)
+    load(a, Rax, R14)
+    cmpMemImm(a, R13, disp: 0, value: 0)
+    jcc(a, "e", label: plain)
+    mov(a, Rdi, Rax)
+    call(a, runtime(g, "rt_hash"))
+    label(a, plain)
+    xor(a, Rbx, Rax)
+    movImm(a, R11, value: FnvPrime)
+    imul(a, Rbx, R11)
+    add(a, R13, R15)
+    addImm(a, R14, value: 8)
+    decR(a, R12)
+    jmp(a, loop)
+    label(a, done)
+    mov(a, Rax, Rbx)
+    popAll(a, saved)
+    ret(a)
+    label(a, str)
+    let fin := newLabel(a, "h")
+    load(a, Rcx, Rdi, disp: Len)
+    lea(a, Rsi, Rdi, disp: BytesAt)
+    let top := newLabel(a, "h")
+    label(a, top)
+    testR(a, Rcx, Rcx)
+    jcc(a, "e", label: fin)
+    load8(a, Rdx, Rsi)
+    xor(a, Rax, Rdx)
+    imul(a, Rax, R11)
+    incR(a, Rsi)
+    decR(a, Rcx)
+    jmp(a, top)
+    label(a, fin)
+    ret(a)
+
+## rax := rax with its bits mixed (the SplitMix64 finalizer), then made non-negative: a
+## hash whose low bits are all useful to a table.
+procedure rtMix(g: ref Em)
+    let a := g.a
+    let shifts := [30, 27, 31]
+    # 0xBF58476D1CE4E5B9 and 0x94D049BB133111EB, as 64-bit words
+    let factors := [-4658895280553007687, -7723592293110705685]
+    for i := 0 to 2 do
+        mov(a, Rcx, Rax)
+        shrImm(a, Rcx, n: shifts[i])
+        xor(a, Rax, Rcx)
+        if i < 2 then
+            movImm(a, Rcx, value: factors[i])
+            imul(a, Rax, Rcx)
+    shrImm(a, Rax, n: 1)
+    ret(a)
+
+## rax := the name of enum member rax, from the NUL-separated names at rsi.
+procedure rtEnumName(g: ref Em)
+    let a := g.a
+    let loop := newLabel(a, "n")
+    let found := newLabel(a, "n")
+    push(a, Rbx)
+    push(a, R12)
+    mov(a, Rbx, Rax)
+    mov(a, R12, Rsi)
+    label(a, loop)
+    mov(a, Rdi, R12)
+    ccall(g, "strlen")
+    testR(a, Rbx, Rbx)
+    jcc(a, "e", label: found)
+    add(a, R12, Rax)
+    incR(a, R12)
+    decR(a, Rbx)
+    jmp(a, loop)
+    label(a, found)
+    mov(a, Rdi, R12)
+    mov(a, Rsi, Rax)
+    call(a, runtime(g, "rt_str_from"))
+    pop(a, R12)
+    pop(a, Rbx)
+    ret(a)
+
+## rax := malloc(rdi). Running out of memory is fatal.
+procedure rtAlloc(g: ref Em)
+    let a := g.a
+    ccall(g, "malloc")
+    testR(a, Rax, Rax)
+    jcc(a, "e", label: runtime(g, "rt_oom"))
+    ret(a)
+
+procedure rtOom(g: ref Em)
+    let a := g.a
+    let message := utf8("panic: out of memory\n")
+    leaData(a, Rsi, label: data(a, message))
+    movImm(a, Rdx, value: len(message))
+    jmp(a, runtime(g, "rt_panic"))
+
+## rax := a new string block of rdi bytes, refcount 1, NUL-terminated. The bytes and the
+## char count are the caller's to fill in.
+procedure rtStrNew(g: ref Em)
+    let a := g.a
+    push(a, Rbx)
+    mov(a, Rbx, Rdi)
+    addImm(a, Rdi, value: BytesAt + 1)
+    call(a, runtime(g, "rt_alloc"))
+    storeImm(a, Rax, disp: Rc, value: 1)
+    storeImm(a, Rax, disp: Desc, value: 0)
+    store(a, Rax, disp: Len, src: Rbx)
+    lea(a, Rcx, Rax, disp: BytesAt)
+    add(a, Rcx, Rbx)
+    store8Imm(a, Rcx, disp: 0, value: 0)
+    pop(a, Rbx)
+    ret(a)
+
+## rax := a new string holding the rsi UTF-8 bytes at rdi.
+procedure rtStrFrom(g: ref Em)
+    let a := g.a
+    let loop := newLabel(a, "f")
+    let done := newLabel(a, "f")
+    let saved := [Rbx, R12, R13]
+    pushAll(a, saved)
+    mov(a, Rbx, Rdi)
+    mov(a, R12, Rsi)
+    mov(a, Rdi, Rsi)
+    call(a, runtime(g, "rt_str_new"))
+    mov(a, R13, Rax)
+    lea(a, Rdi, Rax, disp: BytesAt)
+    mov(a, Rsi, Rbx)
+    mov(a, Rdx, R12)
+    ccall(g, "memcpy")
+    xor32(a, Rax, Rax)  # chars: the bytes that don't continue a character
+    label(a, loop)
+    testR(a, R12, R12)
+    jcc(a, "e", label: done)
+    load8(a, Rcx, Rbx)
+    incR(a, Rbx)
+    decR(a, R12)
+    and32Imm(a, Rcx, value: 0xC0)
+    cmpImm(a, Rcx, value: 0x80)
+    jcc(a, "e", label: loop)
+    incR(a, Rax)
+    jmp(a, loop)
+    label(a, done)
+    store(a, R13, disp: Chars, src: Rax)
+    mov(a, Rax, R13)
+    popAll(a, saved)
+    ret(a)
+
+## rax := the length of the valid UTF-8 sequence at rdi, or 0 if there is none (no
+## overlong forms or surrogates). rsi (at least 1) bytes may be read. Uses rcx, rdx,
+## r8-r11.
+procedure rtUtf8Len(g: ref Em)
+    let a := g.a
+    let l := labels(a, "u8", 6)
+    let one := l[0]
+    let check := l[3]
+    let cont := l[4]
+    let bad := l[5]
+    load8(a, Rcx, Rdi)
+    cmpImm(a, Rcx, value: 0x80)
+    jcc(a, "b", label: one)
+    movImm(a, R9, value: 0x80)  # the range of the second byte
+    movImm(a, R10, value: 0xBF)
+    movImm(a, R8, value: 2)
+    cmpImm(a, Rcx, value: 0xC2)
+    jcc(a, "b", label: bad)
+    cmpImm(a, Rcx, value: 0xE0)
+    jcc(a, "b", label: check)
+    movImm(a, R8, value: 3)
+    cmpImm(a, Rcx, value: 0xF0)
+    jcc(a, "b", label: l[1])
+    movImm(a, R8, value: 4)
+    cmpImm(a, Rcx, value: 0xF5)
+    jcc(a, "b", label: l[2])
+    jmp(a, bad)
+    # E0: overlong below A0, ED: surrogates above 9F; F0: overlong below 90, F4: above
+    # U+10FFFF above 8F
+    let leads := [0xE0, 0xF0]
+    let lows := [0xA0, 0x90]
+    let highs := [0x9F, 0x8F]
+    let tops := [0xED, 0xF4]
+    for i := 0 to 1 do
+        let notLow := newLabel(a, "u8")
+        label(a, l[1 + i])
+        cmpImm(a, Rcx, value: leads[i])
+        jcc(a, "ne", label: notLow)
+        movImm(a, R9, value: lows[i])  # overlong
+        label(a, notLow)
+        cmpImm(a, Rcx, value: tops[i])
+        jcc(a, "ne", label: check)
+        movImm(a, R10, value: highs[i])
+        jmp(a, check)
+    label(a, check)
+    cmp(a, R8, Rsi)
+    jcc(a, "a", label: bad)  # the sequence doesn't fit
+    load8(a, Rdx, Rdi, disp: 1)
+    cmp(a, Rdx, R9)
+    jcc(a, "b", label: bad)
+    cmp(a, Rdx, R10)
+    jcc(a, "a", label: bad)
+    movImm(a, R11, value: 2)
+    label(a, cont)  # r11: the next byte
+    cmp(a, R11, R8)
+    jcc(a, "e", label: one)
+    mov(a, Rdx, Rdi)
+    add(a, Rdx, R11)
+    load8(a, Rdx, Rdx)
+    and32Imm(a, Rdx, value: 0xC0)
+    cmpImm(a, Rdx, value: 0x80)
+    jcc(a, "ne", label: bad)
+    incR(a, R11)
+    jmp(a, cont)
+    label(a, one)  # r8 = 1 isn't set for ASCII: return it here
+    cmpImm(a, Rcx, value: 0x80)
+    movImm(a, Rax, value: 1)
+    let done := newLabel(a, "u8")
+    jcc(a, "b", label: done)
+    mov(a, Rax, R8)
+    label(a, done)
+    ret(a)
+    label(a, bad)
+    xor32(a, Rax, Rax)
+    ret(a)
+
+## rax := the code point at byte offset rsi of the string rdi (valid UTF-8, and rsi on a
+## character boundary).
+procedure rtDecodeUtf8(g: ref Em)
+    let a := g.a
+    let l := labels(a, "d", 4)
+    let two := l[0]
+    let three := l[1]
+    let more := l[2]
+    let done := l[3]
+    add(a, Rsi, Rdi)
+    load8(a, Rax, Rsi, disp: BytesAt)
+    cmpImm(a, Rax, value: 0x80)
+    jcc(a, "b", label: done)
+    movImm(a, Rdx, value: 1)  # continuation bytes
+    cmpImm(a, Rax, value: 0xE0)
+    jcc(a, "b", label: two)
+    incR(a, Rdx)
+    cmpImm(a, Rax, value: 0xF0)
+    jcc(a, "b", label: three)
+    incR(a, Rdx)
+    and32Imm(a, Rax, value: 0x07)
+    jmp(a, more)
+    label(a, three)
+    and32Imm(a, Rax, value: 0x0F)
+    jmp(a, more)
+    label(a, two)
+    and32Imm(a, Rax, value: 0x1F)
+    label(a, more)
+    shlImm(a, Rax, n: 6)
+    incR(a, Rsi)
+    load8(a, Rcx, Rsi, disp: BytesAt)
+    and32Imm(a, Rcx, value: 0x3F)
+    orR(a, Rax, Rcx)
+    decR(a, Rdx)
+    jcc(a, "ne", label: more)
+    label(a, done)
+    ret(a)
+
+## rax := a new string copied from the C string rdi (see rt_from_bytes).
+procedure rtFromCString(g: ref Em)
+    let a := g.a
+    push(a, Rbx)
+    mov(a, Rbx, Rdi)
+    ccall(g, "strlen")
+    mov(a, Rdi, Rbx)
+    mov(a, Rsi, Rax)
+    pop(a, Rbx)
+    jmp(a, runtime(g, "rt_from_bytes"))
+
+## rax := a new string copied from the rsi bytes at rdi. Each byte that isn't part of
+## valid UTF-8 becomes U+FFFD.
+procedure rtFromBytes(g: ref Em)
+    let a := g.a
+    let saved := [Rbx, R12, R13, R14, R15]
+    pushAll(a, saved)
+    mov(a, Rbx, Rdi)
+    xor32(a, R12, R12)  # bytes
+    xor32(a, R13, R13)  # chars
+    mov(a, R14, Rdi)
+    mov(a, R15, Rdi)
+    add(a, R15, Rsi)  # the end
+    let l := labels(a, "fb", 3)
+    let count := l[0]
+    let invalid := l[1]
+    let alloc := l[2]
+    label(a, count)
+    cmp(a, R14, R15)
+    jcc(a, "ae", label: alloc)
+    incR(a, R13)
+    mov(a, Rdi, R14)
+    mov(a, Rsi, R15)
+    sub(a, Rsi, R14)
+    call(a, runtime(g, "rt_utf8_len"))
+    testR(a, Rax, Rax)
+    jcc(a, "e", label: invalid)
+    add(a, R12, Rax)
+    add(a, R14, Rax)
+    jmp(a, count)
+    label(a, invalid)
+    addImm(a, R12, value: 3)
+    incR(a, R14)
+    jmp(a, count)
+    label(a, alloc)
+    mov(a, Rdi, R12)
+    call(a, runtime(g, "rt_str_new"))
+    store(a, Rax, disp: Chars, src: R13)
+    mov(a, R14, Rbx)
+    mov(a, Rbx, Rax)
+    lea(a, R13, Rax, disp: BytesAt)  # where the next byte goes
+    let m := labels(a, "fb", 4)
+    let copy := m[0]
+    let one := m[1]
+    let replace := m[2]
+    let done := m[3]
+    label(a, copy)
+    cmp(a, R14, R15)
+    jcc(a, "ae", label: done)
+    mov(a, Rdi, R14)
+    mov(a, Rsi, R15)
+    sub(a, Rsi, R14)
+    call(a, runtime(g, "rt_utf8_len"))
+    testR(a, Rax, Rax)
+    jcc(a, "e", label: replace)
+    label(a, one)
+    load8(a, Rdx, R14)
+    store8(a, R13, disp: 0, src: Rdx)
+    incR(a, R14)
+    incR(a, R13)
+    decR(a, Rax)
+    jcc(a, "ne", label: one)
+    jmp(a, copy)
+    label(a, replace)
+    let fffd := [0xEF, 0xBF, 0xBD]
+    for i := 0 to 2 do
+        store8Imm(a, R13, disp: i, value: fffd[i])
+    addImm(a, R13, value: 3)
+    incR(a, R14)
+    jmp(a, copy)
+    label(a, done)
+    mov(a, Rax, Rbx)
+    popAll(a, saved)
+    ret(a)
+
+## rax := the concatenation of the strings in [rdi, rsi), last to first (the stack order
+## of pushed parts). Releases the parts.
+procedure rtConcat(g: ref Em)
+    let a := g.a
+    let saved := [Rbx, R12, R13, R14, R15]
+    pushAll(a, saved)
+    mov(a, R12, Rdi)  # first slot (the last part)
+    mov(a, R13, Rsi)  # end (just past the first part)
+    xor32(a, R14, R14)  # bytes
+    xor32(a, R15, R15)  # chars
+    let total := newLabel(a, "c")
+    let alloc := newLabel(a, "c")
+    mov(a, Rbx, R13)
+    label(a, total)
+    cmp(a, Rbx, R12)
+    jcc(a, "e", label: alloc)
+    subImm(a, Rbx, value: 8)
+    load(a, Rax, Rbx)
+    load(a, Rcx, Rax, disp: Len)
+    add(a, R14, Rcx)
+    load(a, Rcx, Rax, disp: Chars)
+    add(a, R15, Rcx)
+    jmp(a, total)
+    label(a, alloc)
+    mov(a, Rdi, R14)
+    call(a, runtime(g, "rt_str_new"))
+    store(a, Rax, disp: Chars, src: R15)
+    mov(a, R14, Rax)  # the result
+    lea(a, R15, Rax, disp: BytesAt)  # where the next part goes
+    let copy := newLabel(a, "c")
+    let done := newLabel(a, "c")
+    mov(a, Rbx, R13)
+    label(a, copy)
+    cmp(a, Rbx, R12)
+    jcc(a, "e", label: done)
+    subImm(a, Rbx, value: 8)
+    load(a, Rsi, Rbx)
+    load(a, Rdx, Rsi, disp: Len)
+    addImm(a, Rsi, value: BytesAt)
+    mov(a, Rdi, R15)
+    add(a, R15, Rdx)
+    ccall(g, "memcpy")
+    load(a, Rdi, Rbx)
+    release(g, Rdi)
+    jmp(a, copy)
+    label(a, done)
+    mov(a, Rax, R14)
+    popAll(a, saved)
+    ret(a)
+
+## rax := the decimal string of the integer rax, signed (`%ld`) or not (`%lu`).
+procedure rtIntToStr(g: ref Em, fmt: String)
+    let a := g.a
+    subImm(a, Rsp, value: 32)
+    mov(a, Rcx, Rax)
+    mov(a, Rdi, Rsp)
+    movImm(a, Rsi, value: 32)
+    var bs := utf8(fmt)
+    add(var bs, Byte(0))
+    leaData(a, Rdx, label: data(a, bs))
+    ccall(g, "snprintf")
+    mov(a, Rdi, Rsp)
+    mov(a, Rsi, Rax)
+    call(a, runtime(g, "rt_str_from"))
+    addImm(a, Rsp, value: 32)
+    ret(a)
+
+## rax := "true" or "false".
+procedure rtBoolToStr(g: ref Em)
+    let a := g.a
+    let done := newLabel(a, "b")
+    testR(a, Rax, Rax)
+    leaData(a, Rax, label: literal(g, "false"))  # lea keeps the flags
+    jcc(a, "e", label: done)
+    leaData(a, Rax, label: literal(g, "true"))
+    label(a, done)
+    ret(a)
+
+## rax := the one-character string of the code point rax (UTF-8 encoded).
+procedure rtCharToStr(g: ref Em)
+    let a := g.a
+    let sized := newLabel(a, "u")
+    let loop := newLabel(a, "u")
+    let lead := newLabel(a, "u")
+    let prefixes := [0, 0xC0, 0xE0]
+    let limits := [0x80, 0x800, 0x10000]
+    for i := 0 to 2 do
+        movImm(a, Rsi, value: i + 1)  # bytes
+        movImm(a, Rdx, value: prefixes[i])  # bits of the first byte
+        cmpImm(a, Rax, value: limits[i])
+        jcc(a, "b", label: sized)
+    movImm(a, Rsi, value: 4)
+    movImm(a, Rdx, value: 0xF0)
+    label(a, sized)
+    subImm(a, Rsp, value: 8)  # the bytes
+    lea(a, Rcx, Rsp, disp: -1)
+    add(a, Rcx, Rsi)  # the last byte; continuation bytes are written backwards
+    mov(a, Rdi, Rsi)
+    label(a, loop)
+    decR(a, Rdi)
+    jcc(a, "e", label: lead)
+    mov(a, R8, Rax)
+    and32Imm(a, R8, value: 0x3F)
+    or32Imm(a, R8, value: 0x80)
+    store8(a, Rcx, disp: 0, src: R8)
+    shrImm(a, Rax, n: 6)
+    decR(a, Rcx)
+    jmp(a, loop)
+    label(a, lead)
+    add(a, Rdx, Rax)  # the prefix bits and the remaining value don't overlap
+    store8(a, Rcx, disp: 0, src: Rdx)
+    mov(a, Rdi, Rsp)
+    call(a, runtime(g, "rt_str_from"))
+    addImm(a, Rsp, value: 8)
+    ret(a)
+
+## rax := -1, 0 or 1 as string rdi is before, equal to or after string rsi (bytewise,
+## which is code point order for UTF-8).
+procedure rtStrCmp(g: ref Em)
+    let a := g.a
+    let l := labels(a, "s", 4)
+    let short := l[0]
+    let less := l[1]
+    let more := l[2]
+    let done := l[3]
+    push(a, Rbx)
+    push(a, R12)
+    load(a, Rbx, Rdi, disp: Len)
+    load(a, R12, Rsi, disp: Len)
+    mov(a, Rdx, Rbx)
+    cmp(a, Rdx, R12)
+    jcc(a, "be", label: short)
+    mov(a, Rdx, R12)
+    label(a, short)  # rdx: the shorter length
+    addImm(a, Rdi, value: BytesAt)
+    addImm(a, Rsi, value: BytesAt)
+    ccall(g, "memcmp")
+    test32(a, Rax, Rax)
+    jcc(a, "s", label: less)
+    jcc(a, "ne", label: more)
+    cmp(a, Rbx, R12)  # one is a prefix of the other
+    jcc(a, "b", label: less)
+    jcc(a, "a", label: more)
+    xor32(a, Rax, Rax)
+    jmp(a, done)
+    label(a, less)
+    movImm(a, Rax, value: -1)
+    jmp(a, done)
+    label(a, more)
+    movImm(a, Rax, value: 1)
+    label(a, done)
+    pop(a, R12)
+    pop(a, Rbx)
+    ret(a)
+
+## rax := whether string rdi starts with string rsi.
+procedure rtStartsWith(g: ref Em)
+    let a := g.a
+    let no := newLabel(a, "p")
+    load(a, Rdx, Rsi, disp: Len)
+    load(a, Rcx, Rdi, disp: Len)
+    cmp(a, Rdx, Rcx)
+    jcc(a, "a", label: no)
+    addImm(a, Rdi, value: BytesAt)
+    addImm(a, Rsi, value: BytesAt)
+    ccall(g, "memcmp")
+    test32(a, Rax, Rax)
+    jcc(a, "ne", label: no)
+    movImm(a, Rax, value: 1)
+    ret(a)
+    label(a, no)
+    xor32(a, Rax, Rax)
+    ret(a)
+
+## rax := the bytes [rsi, rdx) of string rdi, as a new string. The offsets are checked by
+## the caller.
+procedure rtSlice(g: ref Em)
+    let a := g.a
+    sub(a, Rdx, Rsi)
+    addImm(a, Rdi, value: BytesAt)
+    add(a, Rdi, Rsi)
+    mov(a, Rsi, Rdx)
+    jmp(a, runtime(g, "rt_str_from"))

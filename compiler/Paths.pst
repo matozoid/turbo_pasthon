@@ -94,3 +94,26 @@ export function absolute(p: String): String
     if startsWith(p, prefix: "/") then
         return normalize(p)
     return normalize(join(currentDir(), b: p))
+
+function components(p: String): List[String]
+    var out: List[String] := []
+    for c in split(p, sep: "/") do
+        if c <> "" then
+            add(var out, c)
+    return out
+
+## `p` as a path relative to the directory `start`.
+export function relative(p, start: String): String
+    let a := components(absolute(p))
+    let b := components(absolute(start))
+    var common := 0
+    while common < len(a) and common < len(b) and a[common] = b[common] do
+        common := common + 1
+    var parts: List[String] := []
+    for i := common to len(b) - 1 do
+        add(var parts, "..")
+    for i := common to len(a) - 1 do
+        add(var parts, a[i])
+    if len(parts) = 0 then
+        return "."
+    return Strings.join(parts, sep: "/")

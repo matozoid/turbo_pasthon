@@ -168,9 +168,9 @@ type
         span: Span
         ty: Type
 
-    OrdRange = record
-        lo: Integer
-        hi: Integer
+    export OrdRange = record
+        export lo: Integer
+        export hi: Integer
 
     ## Everything shared between the units: declared types, signatures, constants.
     export Env = record
@@ -182,8 +182,8 @@ type
         declCache: Map[Integer, ref TypeInfo]
         constCache: Map[Integer, Type]
         boundCache: Map[Integer, List[Type]]
-        checkers: Map[String, ref TC]
-        constCheckers: Map[String, ref TC]
+        export checkers: Map[String, ref TC]
+        export constCheckers: Map[String, ref TC]
         busy: Map[Integer, Boolean]
         satCache: Map[String, Boolean]
         ## Enum members, fields, trait routines, by id: the type that declares them.
@@ -234,6 +234,11 @@ type
         kind: String
         span: Span
         id: Integer
+
+    ## A routine providing a trait routine, and the bindings of its type parameters.
+    export Found = record
+        export f: ref Symbol
+        export sf: Subst
 
     export Checked = record
         export resolved: Resolved
@@ -1198,7 +1203,7 @@ function visible(tc: ref TC, name: String): List[ref Symbol]
         tc.resolver := Some(newResolver(tc.c, tc.home))
     return unitLookup(tc.resolver.get(), name)
 
-function visibleRoutines(tc: ref TC, name: String): List[ref Symbol]
+export function visibleRoutines(tc: ref TC, name: String): List[ref Symbol]
     var out: List[ref Symbol] := []
     for s in visible(tc, name) do
         if isRoutine(s.kind) then
@@ -2008,7 +2013,7 @@ function elements(tc: ref TC, t0: Type, n: Integer, e: Expr): List[Type]
     fail(tc, exprSpan(e), "E0350", "can't iterate over {show(t)}: it isn't a List, Array, Set, Map, String, enum, or iterator, and no 'iter' function takes it")
     return bad
 
-function iteratorItem(tc: ref TC, t: Type): Option[Type]
+export function iteratorItem(tc: ref TC, t: Type): Option[Type]
     let it := sys(tc.env, "Iterator")
     if it.isNone() then
         return None
@@ -3923,8 +3928,12 @@ function structural(tc: ref TC, t: Type, wanted: TraitT, var s: Subst, vars: Var
 ## Whether a visible routine provides trait routine `m` for type `t`. Reads the depth of
 ## the trait check from `tc.depth`.
 function provides(tc: ref TC, t: Type, m: ref Symbol, wanted: TraitT, var s: Subst, vars: Vars): Boolean
+    return provider(tc, t, m, sub: traitSubst(tc, t, wanted), s: var s, vars: vars).isSome()
+
+## The visible routine that provides trait routine `m` for type `t`, with the bindings of
+## its own type parameters; `sub` binds `This` and the trait's parameters.
+export function provider(tc: ref TC, t: Type, m: ref Symbol, sub: Subst, var s: Subst, vars: Vars): Option[Found]
     let depth := tc.depth
-    let sub := traitSubst(tc, t, wanted)
     let msig := sig(tc.env, m)
     var need: List[Type] := []
     for p in msig.params do
@@ -3959,8 +3968,8 @@ function provides(tc: ref TC, t: Type, m: ref Symbol, wanted: TraitT, var s: Sub
         ok := ok and unify2(needResult, fs.result, var s2, var sf, vars, fv)
         if ok then
             s := s2
-            return true
-    return false
+            return Some(Found(f: f, sf: sf))
+    return None
 
 ## Unifies a trait's requirement with a candidate's declared type, when both sides may
 ## have unbound parameters.
@@ -3989,7 +3998,7 @@ function implies(want, have: String): Boolean
         return have = "Equatable" or have = "Ordered" or have = "Hashable"
     return have = want
 
-function builtinTrait(tc: ref TC, t: Type, name: String): Boolean
+export function builtinTrait(tc: ref TC, t: Type, name: String): Boolean
     if hasError(t) then
         return true
     case t of
@@ -4076,7 +4085,8 @@ function builtinTraitOf(tc: ref TC, t: Type, name: String): Boolean
 # ------------------------------------------------------------------------- entry
 
 ## Resolves and type-checks a program and the units it uses.
-export function typecheck(path, stdDir: String): Checked
+## `keep` keeps the checkers of the units, for the backend.
+export function typecheck(path, stdDir: String, keep: Boolean := false): Checked
     let r := resolveUnits(path, stdDir: stdDir)
     var env: Option[ref Env] := None
     if r.main.isSome() then
@@ -4084,8 +4094,9 @@ export function typecheck(path, stdDir: String): Checked
         for u in r.units do
             run(checker(e, u))
         checkBounds(e)
-        e.checkers := {}
-        e.constCheckers := {}
+        if not keep then
+            e.checkers := {}
+            e.constCheckers := {}
         env := Some(e)
     r.checker.diagnostics := sortedDiagnostics(r.checker.diagnostics, mainFile: mainFile(r))
     return Checked(resolved: r, env: env)

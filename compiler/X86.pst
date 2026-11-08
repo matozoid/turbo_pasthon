@@ -198,6 +198,11 @@ export procedure movImm(a: ref Assembler, dst: Integer, value: Integer)
         emit(a, [rex(true, 0, rm: dst), 0xB8 + low(dst)])
         putLE(var a.code, value, n: 8)
 
+## `mov r64, imm64` whatever the value: the form for unsigned constants above 2^63 - 1.
+export procedure movImm64(a: ref Assembler, dst: Integer, value: Integer)
+    emit(a, [rex(true, 0, rm: dst), 0xB8 + low(dst)])
+    putLE(var a.code, value, n: 8)
+
 ## An instruction with a `[base + disp]` operand. `reg` is the register operand or the
 ## opcode extension. `flags`: 1 for a 64-bit operand (REX.W), 2 for a byte register
 ## operand, 4 for a 0x66 prefix.

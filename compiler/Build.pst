@@ -1,0 +1,47 @@
+program Build
+
+## Compiles a program to an executable, as `python3 -m pst build` does: the port's
+## code generator, to compare with the Python one (tests/test_port.py).
+##
+## Usage: `Build STD_DIR FILE OUT [--unchecked]`.
+
+uses IO, OS, Diagnostics, Typecheck, Emit
+
+procedure report(ds: List[Diagnostic])
+    for d in ds do
+        writelnErr(human(d))
+
+procedure fatal(message: String)
+    writelnErr(message)
+    exit(1)
+
+let a := args()
+if len(a) < 3 or len(a) > 4 or (len(a) = 4 and a[3] <> "--unchecked") then
+    writelnErr("usage: Build STD_DIR FILE OUT [--unchecked]")
+    exit(2)
+let checked := typecheck(a[1], stdDir: a[0], keep: true)
+var errors := false
+for d in checked.resolved.checker.diagnostics do
+    if d.severity = Severity.Error then
+        errors := true
+if errors then
+    report(checked.resolved.checker.diagnostics)
+    exit(1)
+let built := build(checked, checked: len(a) = 3)
+let env := checked.env.get()
+env.checkers := {}  # they refer to the environment: a cycle
+report(checked.resolved.checker.diagnostics)
+report(built.diagnostics)
+case built.executable of
+    Some(exe):
+        case create(a[2], mode: 0o755) of
+            Ok(f):
+                case writeBytes(f.value, exe.value) of
+                    Ok(_):
+                        _ := close(f.value)
+                    Err(e):
+                        fatal(e.error)
+            Err(e):
+                fatal(e.error)
+    None:
+        exit(1)

@@ -802,4 +802,94 @@ class Asm(unittest.TestCase):
         self.compare("")
 
 
+def build_inputs(out: str) -> list[tuple[Path, bool]]:
+    """Copies the programs that the build tests compile into ``out``, one directory each,
+    and returns their main files, each with whether it is built checked. The tests run
+    with building skipped."""
+    import io
+    import tests.test_build as tb
+
+    inputs = []
+    last = []
+
+    def record(path, std_dir=STD_DIR):
+        last[:] = [path]
+        return check(path, std_dir)
+
+    def skip(result, checked=True):
+        d = Path(out, str(len(inputs)))
+        shutil.copytree(os.path.dirname(os.path.abspath(last[0])), d)
+        inputs.append((d / os.path.basename(last[0]), checked))
+        raise unittest.SkipTest("only collecting")
+
+    os.makedirs(tb._TMP.name, exist_ok=True)  # removed if test_build already ran
+    saved = tb.check, tb.build
+    tb.check, tb.build = record, skip
+    try:
+        suite = unittest.defaultTestLoader.loadTestsFromModule(tb)
+        unittest.TextTestRunner(stream=io.StringIO()).run(suite)
+    finally:
+        tb.check, tb.build = saved
+    return inputs
+
+
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class Build(unittest.TestCase):
+    """The code generator: the port's executable and diagnostics must be the Python
+    compiler's, byte for byte."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.exe = build_tool("Build")
+
+    def compare(self, path: Path, checked: bool = True, under: tuple = ()):
+        result = check(str(path))
+        diagnostics = list(result.diagnostics)
+        want = None
+        if not result.has_errors:
+            built = build(result, checked)
+            diagnostics += built.diagnostics
+            want = built.executable
+        out = Path(_TMP.name, "built")
+        out.unlink(missing_ok=True)
+        args = [self.exe, STD_DIR, str(path), str(out)] + ([] if checked else ["--unchecked"])
+        r = subprocess.run([*under, *args], capture_output=True, timeout=600)
+        self.assertEqual(r.stderr.decode(), "".join(d.human() + "\n" for d in diagnostics))
+        self.assertEqual(r.returncode, 0 if want is not None else 1)
+        if want is not None:
+            self.assertTrue(out.read_bytes() == want, f"{path.name}: the executables differ")
+            self.assertEqual(out.stat().st_mode & 0o777, 0o755)
+
+    def test_build_tests(self):
+        inputs = build_inputs(tempfile.mkdtemp(dir=_TMP.name))
+        self.assertGreater(len(inputs), 50)
+        for path, checked in inputs:
+            with self.subTest(str(path)):
+                self.compare(path, checked)
+
+    def test_programs(self):
+        for path in (ROOT / "examples" / "Inventory.pst", COMPILER / "LexDump.pst",
+                     COMPILER / "AsmDump.pst"):
+            with self.subTest(path.name):
+                self.compare(path)
+
+    def test_unchecked(self):
+        self.compare(ROOT / "examples" / "Inventory.pst", checked=False)
+
+    def test_errors(self):
+        path = Path(_TMP.name, "Broken.pst")
+        path.write_text("program Broken\n\nlet x: Integer := true\n")
+        self.compare(path)
+
+    def test_missing_file(self):
+        self.compare(Path(_TMP.name, "does-not-exist.pst"))
+
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_valgrind(self):
+        self.compare(
+            ROOT / "examples" / "Inventory.pst",
+            under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"),
+        )
+
+
 del _Differential
