@@ -992,6 +992,77 @@ class Lists(unittest.TestCase):
         self.assertEqual(p.stdout, b"100000 100000\n")
 
 
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class Iterators(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_loops_and_adapters(self):
+        """`for` over enums, strings, user iterators and System adapters; `next` and
+        `iter` are found where the iterator type became concrete (`count` in System
+        calls this program's `next`). Function values are named routines."""
+        p = run_program("""
+            type
+                Color = (Red, Green, Blue)
+                Countdown = record
+                    n: Integer
+
+            function next(var c: Countdown): Option[Integer]
+                if c.n = 0 then
+                    return None
+                c.n := c.n - 1
+                return Some(c.n + 1)
+
+            function double(x: Integer): Integer
+                return x * 2
+
+            function isOdd(x: Integer): Boolean
+                return x mod 2 = 1
+
+            function shout(s: String): String
+                return "{s}!"
+
+            for c in Color do
+                write("{c} ")
+            for ch in "hé€𝄞" do
+                write("[{ch}]")
+            for x in Countdown(n: 3) do
+                write(" {x}")
+            writeln()
+            let xs := [1, 2, 3, 4, 5]
+            let words := ["a", "b", "c"]
+            for x in xs.iter().filter(isOdd).map(double).skip(1).take(5) do
+                write("{x} ")
+            for w in words.iter().map(shout) do
+                write(w)
+            for p in zip(words.iter(), b: xs.iter()) do
+                write(" {p.first}{p.second}")
+            for i in enumerate(words.iter()) do
+                write(" {i.index}={i.value}")
+            writeln()
+            var it := xs.iter()
+            for _ in it do
+                break
+            writeln("{count(it)} {count(Countdown(n: 7))} {sum(xs.iter())} {count(chars("𝄞x"))}")
+            writeln("{collect(xs.iter().map(double)) = [2, 4, 6, 8, 10]} {any(xs.iter(), isOdd)} {all(xs.iter(), isOdd)}")
+            let f := double
+            writeln("{get(find(xs.iter(), isOdd))} {f(21)}")
+            """, under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))  # fmt: skip
+        self.assertEqual((p.returncode, p.stderr), (0, b""))
+        self.assertEqual(
+            p.stdout.decode(),
+            "Red Green Blue [h][é][€][𝄞] 3 2 1\n6 10 a!b!c! a1 b2 c3 0=a 1=b 2=c\n"
+            "5 7 15 2\ntrue true false\n1 42\n",
+        )
+
+    def test_get_on_none(self):
+        p = run_program("""
+            function big(x: Integer): Boolean
+                return x > 10
+            writeln(get(find([1, 2].iter(), big)))
+            """)
+        self.assertEqual(p.returncode, 70)
+        self.assertIn(b"panic P0005: get on None", p.stderr)
+
+
 class Unsupported(unittest.TestCase):
     def test_reported_at_the_construct(self):
         built, _ = compile_program("""

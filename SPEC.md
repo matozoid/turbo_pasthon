@@ -542,6 +542,9 @@ type
   copy-on-write (§4.6) this is O(1). Mutating the collection inside the loop copies the
   buffer, and the loop keeps iterating the original contents. Iterators never dangle and
   never observe concurrent modification.
+- The same holds for an iterator: `for x in it` advances a copy, and `it` is unchanged
+  after the loop. An adapter that consumes the iterator it wraps calls
+  `next(var it.source)` instead of looping over it.
 - Generic code accepts iterators, not collections: `count(iter(xs))`.
 
 ```pascal

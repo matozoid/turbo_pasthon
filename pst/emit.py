@@ -71,7 +71,7 @@ from .resolve import CheckResult
 from .symbols import Kind, Symbol
 from .types import (
     BOOLEAN, CHAR, INTEGER, STRING, THIS, VOID, Builtin, FuncT, Named, Prim, TypeValue,
-    has_error, params_in, show, subst,
+    has_error, params_in, show, subst, unify,
 )  # fmt: skip
 from .x86 import (
     R8, R9, R10, R11, R12, R13, R14, R15, RAX, RBP, RBX, RCX, RDI, RDX, RSI, RSP, Assembler,
@@ -251,6 +251,8 @@ class Emitter:
             return True
         if _is_list(t):
             return self.supported(t.args[0], seen)
+        if isinstance(t, FuncT):  # a named top-level routine: its address
+            return all(self.supported(p, seen) for p in (*t.params, t.result) if p != VOID)
         kind = self.kind(t)
         if kind == "enum":
             return True
@@ -658,11 +660,15 @@ class Emitter:
 
     def for_in(self, s: A.ForIn) -> None:
         """`for x in xs` over a list: the loop runs over the list as it was when the
-        loop started (a copy, SPEC §4.6), kept in a slot of its own block."""
+        loop started (a copy, SPEC §4.14), kept in a slot of its own block."""
         a = self.asm
         t = self.type(s.iterable)
-        if not _is_list(t) or len(s.vars) != 1:
+        if len(s.vars) != 1:
             self.unsupported(s.iterable, f"a loop over {show(t)}")
+        if isinstance(t, TypeValue):
+            return self.for_enum(s, t.type)
+        if not _is_list(t):
+            return self.for_iterator(s, t)
         managed = self.managed(t.args[0])
         depth = len(self.f.scopes)
         self.f.scopes.append([])
@@ -695,6 +701,97 @@ class Emitter:
         a.inc(RAX)
         a.store(RBP, pos, RAX)
         a.jmp(top)
+        a.label(end)
+        self.release_scopes(depth)
+        self.f.scopes.pop()
+
+    def for_enum(self, s: A.ForIn, t) -> None:
+        """`for c in Color`: every member, in order."""
+        a = self.asm
+        if self.kind(t) != "enum":
+            self.unsupported(s.iterable, f"a loop over {show(t)}")
+        var = self.local(s.vars[0].span)
+        top, cont, end = a.new_label("for"), a.new_label("next"), a.new_label("rof")
+        a.store_imm(RBP, var, 0)
+        a.label(top)
+        a.load(RAX, RBP, var)
+        a.cmp_imm(RAX, len(self.env.decl(t.sym).members))
+        a.jcc("ge", end)
+        self.loop(s.body, end, cont)
+        a.label(cont)
+        a.load(RAX, RBP, var)
+        a.inc(RAX)
+        a.store(RBP, var, RAX)
+        a.jmp(top)
+        a.label(end)
+
+    def for_iterator(self, s: A.ForIn, t) -> None:
+        """`for x in e` by the iterator protocol (SPEC §4.14): `e` itself if it is an
+        Iterator, else `iter(e)`, then `next` until it returns `None`. `iter` and `next`
+        are found where the iterable's type became concrete, as bound members are."""
+        a = self.asm
+        generic = self.types.get(id(s.iterable))
+        outer = [p for p in params_in(generic) if p in self.f.sites]
+        site = self.f.sites[outer[0]] if outer else self.f.file
+        chk = self.env._checkers[site]
+        it_t, make = t, None
+        item = chk.iterator_item(t)
+        if item is None:
+            for f in chk.lookup_routines("iter"):
+                fs = self.env.sig(f)
+                sf: dict = {}
+                if len(fs.params) == 1 and isinstance(f.node, A.Routine) and unify(fs.params[0].type, t, sf, set(fs.tparams)):
+                    item = chk.iterator_item(subst(fs.result, sf))
+                    if item is not None:
+                        it_t = subst(fs.result, sf)
+                        make = self.label_of(s, f, tuple(sf[tp] for tp in fs.tparams), {tp: site for tp in fs.tparams})
+                        break
+        trait = self.env.decl(self.env.sys("Iterator"))
+        member = next(r for r in trait.routines if r.name == "next")
+        found = chk.provider(it_t, member, {trait.params[0]: item, THIS: it_t}, {}) if item is not None else None
+        if found is None:
+            self.unsupported(s.iterable, f"a loop over {show(t)}")
+        f, sf = found
+        tparams = self.env.sig(f).tparams
+        step = self.label_of(s, f, tuple(sf.get(tp) for tp in tparams), {tp: site for tp in tparams})
+        option = subst(self.env.sig(f).result, sf)
+        variants = self.env.variants(option)
+        none = next(i for i, v in enumerate(variants) if _head(v) is self.env.sys("None"))
+        managed = self.managed(item)
+        depth = len(self.f.scopes)
+        self.f.scopes.append([])
+        self.expr(s.iterable)
+        if make is not None:
+            a.mov(RDI, RAX)
+            a.call(make)
+        it = self.f.alloc(object())
+        a.store(RBP, it, RAX)
+        if self.managed(it_t):
+            self.f.scopes[-1].append(it)
+        var = self.local(s.vars[0].span)
+        a.store_imm(RBP, var, 0)
+        if managed:
+            self.f.scopes[-1].append(var)
+        top, done, end = a.new_label("for"), a.new_label("none"), a.new_label("rof")
+        a.label(top)
+        a.lea(RDI, RBP, it)
+        a.call(step)
+        a.lea_data(RCX, self.descriptor((option, none), [variants[none]]))
+        a.cmp_mem(RCX, RAX, _DESC)
+        a.jcc("e", done)
+        a.push(RAX)
+        a.load(RAX, RAX, _FIELDS)  # the Some
+        a.load(RAX, RAX, _FIELDS)  # its value
+        if managed:
+            self.retain()
+            a.load(RDI, RBP, var)
+            self.release(RDI)  # the previous value
+        a.store(RBP, var, RAX)
+        self.drop(1)
+        self.loop(s.body, end, top)
+        a.jmp(top)
+        a.label(done)
+        self.release()
         a.label(end)
         self.release_scopes(depth)
         self.f.scopes.pop()
@@ -1077,6 +1174,11 @@ class Emitter:
         if sym.kind is Kind.TYPE and self.kind(t) == "record":  # `None`
             self.new_block(self.descriptor(t, []))
             return
+        if sym.is_routine:
+            if not isinstance(sym.node, A.Routine) or self.env.sig(sym).tparams:
+                self.unsupported(e, f"{sym.describe()} as a value")
+            a.lea_code(RAX, self.label_of(e, sym))
+            return
         if sym.kind is Kind.RESULT and self.f.result_slot is not None:
             a.load(RAX, RBP, self.f.result_slot)
         elif sym in self.f.slots:
@@ -1302,6 +1404,8 @@ class Emitter:
             sym = self.ref(_callee_span(e.callee))
             if sym is not None and sym.kind in (Kind.TYPE, Kind.BUILTIN_TYPE):
                 return self.convert(e)
+        if m is not None and m.sig.kind == "value":
+            return self.call_value(e, m)
         if m is None or m.sig.kind != "routine" or m.sig.sym is None:
             self.unsupported(e, "this kind of call")
         sym = m.sig.sym
@@ -1348,6 +1452,21 @@ class Emitter:
                 a.load(RCX, RBP, tmp)
                 self.store_at(place, self.type(place))
             a.pop(RAX)
+
+    def call_value(self, e, m) -> None:
+        """Calls a function value: `f(x)` with `f: function(T): U`."""
+        a = self.asm
+        if m.extra or len(m.params) > len(_ARG_REGS):
+            self.unsupported(e, f"a call with more than {len(_ARG_REGS)} arguments")
+        self.expr(e.callee)
+        a.push(RAX)
+        for p, slot in zip(m.params, m.slots):
+            self.argument(p, slot, m, self.f.file)
+            a.push(RAX)
+        for i in reversed(range(len(m.params))):
+            a.pop(_ARG_REGS[i])
+        a.pop(R11)
+        a.call_reg(R11)
 
     def movable(self, place, others: list) -> bool:
         """Whether a `var` argument that isn't a whole variable can be moved out of its
@@ -1585,6 +1704,32 @@ class Emitter:
             a.push(RAX)
             a.load(RAX, RAX, _COUNT)
             self.drop(1)
+        elif name == ("System", "decodeUtf8At"):
+            self.expr(args[0])
+            a.push(RAX)
+            self.expr(args[1])
+            a.load(RDI, RSP)
+            a.mov(RSI, RAX)
+            a.call(self.runtime("rt_decode_utf8"))
+            self.drop(1)
+        elif name == ("System", "utf8Width"):
+            self.expr(args[0])
+            a.mov(RCX, RAX)
+            a.mov_imm(RAX, 1)
+            for top in (0x80, 0x800, 0x10000):
+                done = a.new_label("w")
+                a.cmp_imm(RCX, top)
+                a.jcc("b", done)
+                a.inc(RAX)
+                a.label(done)
+        elif name == ("System", "getFailed"):
+            self.string_of(["panic P0005: ", args[0], f"\n    at {self.where(e.span)}\n"])
+            a.lea(RSI, RAX, _BYTES)
+            a.load(RDX, RAX, _LEN)
+            a.mov_imm(RDI, 2)
+            a.call(self.runtime("rt_write"))
+            a.mov_imm(RDI, _PANIC_STATUS)
+            self.exit()
         elif name == ("System", "resize"):
             self.expr(args[1])
             a.push(RAX)
@@ -2193,6 +2338,40 @@ class Emitter:
         a.ret()
         a.label(bad)
         a.xor32(RAX, RAX)
+        a.ret()
+
+    def rt_decode_utf8(self) -> None:
+        """rax := the code point at byte offset rsi of the string rdi (valid UTF-8, and
+        rsi on a character boundary)."""
+        a = self.asm
+        two, three, more, done = (a.new_label("d") for _ in range(4))
+        a.add(RSI, RDI)
+        a.load8(RAX, RSI, _BYTES)
+        a.cmp_imm(RAX, 0x80)
+        a.jcc("b", done)
+        a.mov_imm(RDX, 1)  # continuation bytes
+        a.cmp_imm(RAX, 0xE0)
+        a.jcc("b", two)
+        a.inc(RDX)
+        a.cmp_imm(RAX, 0xF0)
+        a.jcc("b", three)
+        a.inc(RDX)
+        a.and32_imm(RAX, 0x07)
+        a.jmp(more)
+        a.label(three)
+        a.and32_imm(RAX, 0x0F)
+        a.jmp(more)
+        a.label(two)
+        a.and32_imm(RAX, 0x1F)
+        a.label(more)
+        a.shl_imm(RAX, 6)
+        a.inc(RSI)
+        a.load8(RCX, RSI, _BYTES)
+        a.and32_imm(RCX, 0x3F)
+        a.or_(RAX, RCX)
+        a.dec(RDX)
+        a.jcc("ne", more)
+        a.label(done)
         a.ret()
 
     def rt_from_cstring(self) -> None:

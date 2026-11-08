@@ -270,9 +270,12 @@ export function filter[T, I: Iterator[T]](it: I, pred: function(T): Boolean): Fi
     return FilterIter(source: it, pred: pred)
 
 export function next[T, I: Iterator[T]](var it: FilterIter[T, I]): Option[T]
-    for x in it.source do
-        if it.pred(x) then
-            return Some(x)
+    # Not `for x in it.source`: that would iterate a copy, leaving the source as it was.
+    var x := next(var it.source)
+    while isSome(x) do
+        if it.pred(get(x)) then
+            return x
+        x := next(var it.source)
     return None
 
 ## Yields the first `n` values.
@@ -312,9 +315,11 @@ export function enumerate[T, I: Iterator[T]](it: I): EnumerateIter[I]
     return EnumerateIter(source: it, index: 0)
 
 export function next[T, I: Iterator[T]](var it: EnumerateIter[I]): Option[Indexed[T]]
-    return case next(var it.source) of
-        Some(s): Some(Indexed(index: it.index, value: s.value))
-        None: None
+    case next(var it.source) of
+        Some(s):
+            inc(var it.index)
+            return Some(Indexed(index: it.index - 1, value: s.value))
+        None: return None
 
 # -------------------------------------------------------------------- consumers
 

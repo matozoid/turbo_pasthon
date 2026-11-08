@@ -219,6 +219,9 @@ class Assembler:
     def add(self, dst: int, src: int) -> None:
         self._rr(0x01, dst, src)
 
+    def or_(self, dst: int, src: int) -> None:
+        self._rr(0x09, dst, src)
+
     def sub(self, dst: int, src: int) -> None:
         self._rr(0x29, dst, src)
 
@@ -358,6 +361,12 @@ class Assembler:
     def call(self, label: str) -> None:
         self.emit(0xE8)
         self._rel32(label)
+
+    def call_reg(self, r: int) -> None:
+        """`call r`."""
+        if r >= 8:
+            self.emit(0x41)
+        self.emit(0xFF, 0xD0 | (r & 7))
 
     def call_import(self, name: str) -> None:
         """`call [rip + GOT slot]` for an imported C function."""
