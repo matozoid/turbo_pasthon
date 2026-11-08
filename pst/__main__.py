@@ -135,6 +135,72 @@ def cmd_run(args: argparse.Namespace) -> int:
         return subprocess.run([exe, *rest]).returncode
 
 
+def _test_file(path: str, args: argparse.Namespace, tmp: str) -> tuple[int, int, bool]:
+    """Builds and runs the tests of one file (SPEC §13): (passed, failed, built)."""
+    result = check(path)
+    diags = list(result.diagnostics)
+    exe = None
+    if not result.has_errors:
+        built = build(result, not args.unchecked, tests=True)
+        diags += built.diagnostics
+        exe = built.executable
+    for d in diags:
+        if args.json:
+            print(json.dumps(d.to_json()))
+        else:
+            print(d.human(), file=sys.stderr)
+    if exe is None:
+        return 0, 0, False
+    out = os.path.join(tmp, "tests")
+    with open(out, "wb") as f:
+        f.write(exe)
+    os.chmod(out, 0o755)
+    tests = [i for i in result.main.tree.items if isinstance(i, ast.TestBlock)]
+    passed = failed = 0
+    for i, t in enumerate(tests):
+        if args.filter is not None and args.filter not in t.name:
+            continue
+        r = subprocess.run([out, str(i)], stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        ok = r.returncode == 0
+        output = r.stdout.decode("utf-8", "replace")
+        if ok:
+            passed += 1
+        else:
+            failed += 1
+        if args.json:
+            print(json.dumps({
+                "file": path, **t.span.to_json(), "test": t.name, "passed": ok,
+                "output": output,
+            }))  # fmt: skip
+        else:
+            print(f"{'ok  ' if ok else 'FAIL'} {path}:{t.span.line}: {t.name}")
+            if not ok:
+                for line in output.splitlines():
+                    print(f"    {line}")
+                if r.returncode != 70:
+                    print(f"    exit status {r.returncode}")
+    os.remove(out)
+    return passed, failed, True
+
+
+def cmd_test(args: argparse.Namespace) -> int:
+    if os.path.isdir(args.path):
+        files = sorted(
+            os.path.normpath(os.path.join(args.path, f)) for f in os.listdir(args.path) if f.endswith(".pst")
+        )
+    else:
+        files = [args.path]
+    passed = failed = 0
+    built = True
+    with tempfile.TemporaryDirectory() as tmp:
+        for path in files:
+            p, f, b = _test_file(path, args, tmp)
+            passed, failed, built = passed + p, failed + f, built and b
+    if not args.json:
+        print(f"{passed} passed, {failed} failed")
+    return 0 if built and failed == 0 else 1
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pst")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -161,6 +227,12 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--unchecked", action="store_true", help="drop runtime checks except assert")
     p.add_argument("args", nargs=argparse.REMAINDER, help="arguments for the program, after --")
     p.set_defaults(func=cmd_run)
+    p = sub.add_parser("test", help="run the test blocks of a file, or of the files in a directory")
+    p.add_argument("path")
+    p.add_argument("--filter", help="only the tests whose name contains this text")
+    p.add_argument("--unchecked", action="store_true", help="drop runtime checks except assert")
+    p.add_argument("--json", action="store_true", help="one JSON object per diagnostic and test")
+    p.set_defaults(func=cmd_test)
     args = parser.parse_args(argv)
     return args.func(args)
 

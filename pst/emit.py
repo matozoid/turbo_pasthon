@@ -143,12 +143,14 @@ class BuildResult:
     diagnostics: list[Diagnostic] = field(default_factory=list)
 
 
-def build(result: CheckResult, checked: bool = True) -> BuildResult:
+def build(result: CheckResult, checked: bool = True, tests: bool = False) -> BuildResult:
     """Compiles a checked program. ``result`` must have no errors. ``checked`` keeps the
-    runtime checks that `--unchecked` drops (overflow, bounds, contracts)."""
+    runtime checks that `--unchecked` drops (overflow, bounds, contracts). With ``tests``,
+    the main file may also be a unit, and the executable runs its `test` block number
+    ``argv[1]`` instead of the program's body (SPEC §13)."""
     if result.main is None or result.has_errors:
         raise ValueError("build needs a program that checked without errors")
-    return Emitter(result, checked).run()
+    return Emitter(result, checked, tests).run()
 
 
 class _Unsupported(Exception):
@@ -193,9 +195,10 @@ class _Frame:
 
 
 class Emitter:
-    def __init__(self, result: CheckResult, checked: bool = True) -> None:
+    def __init__(self, result: CheckResult, checked: bool = True, tests: bool = False) -> None:
         self.r = result
         self.checked = checked
+        self.tests = tests
         self.env = result.env
         self.main = result.main
         self.asm = Assembler()
@@ -475,7 +478,7 @@ class Emitter:
     # --------------------------------------------------------------------- driver
 
     def run(self) -> BuildResult:
-        if self.main.tree.kind != "program":
+        if self.main.tree.kind != "program" and not self.tests:
             self.diagnostics.append(Diagnostic(
                 self.main.path, self.main.tree.name.span, Severity.ERROR, "E0990",
                 "only a program can be built; a unit is compiled with the program that uses it",
@@ -488,9 +491,12 @@ class Emitter:
         a.mov(RBP, RSP)
         size_at = a.sub_imm32_fixed(RSP)
         a.stack = []
-        body = [i for i in self.main.tree.items if not isinstance(i, _DECLS)]
-        self.keep_alive(body)
-        self.block(A.Block(self.main.tree.span, body))
+        if self.tests:
+            self.test_blocks()
+        else:
+            body = [i for i in self.main.tree.items if not isinstance(i, _DECLS)]
+            self.keep_alive(body)
+            self.block(A.Block(self.main.tree.span, body))
         a.label(self.f.exit)
         a.xor32(RDI, RDI)
         self.exit()
@@ -518,6 +524,29 @@ class Emitter:
             code, bytes(a.rodata), a.labels["_start"], a.imports, needed, len(a.globals),
         )  # fmt: skip
         return BuildResult(exe)
+
+    def test_blocks(self) -> None:
+        """The body of a test executable: runs test block number `atoi(argv[1])` of the
+        main file, or none if there is no such argument or block."""
+        a = self.asm
+        tests = [i for i in self.main.tree.items if isinstance(i, A.TestBlock)]
+        a.load_global(RAX, "args")
+        a.load(RCX, RAX)
+        a.cmp_imm(RCX, 2)
+        a.jcc("l", self.f.exit)
+        a.load(RDI, RAX, 16)
+        self.ccall("atoi")
+        a.extend(RAX, 32, signed=True)
+        labels = [a.new_label("test") for _ in tests]
+        for i, label in enumerate(labels):
+            a.cmp_imm(RAX, i)
+            a.jcc("e", label)
+        a.jmp(self.f.exit)
+        for t, label in zip(tests, labels):
+            a.label(label)
+            self.keep_alive([t.body])
+            self.block(t.body)
+            a.jmp(self.f.exit)
 
     def label_of(self, e, sym: Symbol, targs: tuple = (), sites: dict | None = None) -> str:
         """The label of a routine, or of a generic routine's instance for ``targs``. An

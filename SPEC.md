@@ -1224,9 +1224,26 @@ v0.1 is single-threaded, but the design is fixed now so v0.1 doesn't rule it out
 test "largest of empty list is None"
     assert largest[Integer]([]).isNone()
 ```
-- `test` blocks are top-level, in any file. They are compiled only by `pst test`.
-- `pst test [file|dir] [--filter text]` runs tests and reports pass/fail, with JSON output available.
+- `test` blocks are top-level, in any file. They are checked with the file, but compiled only
+  by `pst test`.
 - Tests can call non-exported functions of their own unit.
+- `pst test PATH [--filter text] [--unchecked] [--json]` runs the tests of a file (a program or
+  a unit), or of each `.pst` file directly in a directory, in name order. Each file is checked
+  and built on its own, with the units it uses; their tests don't run. A program's body
+  doesn't run either.
+- Each test runs in its own process: test block number *i* of the file (counting from 0) is
+  run by the test executable with argument *i*. A test passes if its process exits with
+  status 0, so a panic or a `halt` with another status fails it. `--filter` runs only the
+  tests whose name contains the text.
+- Output, on standard output: one line per test, `ok   Shop.pst:10: double doubles` or
+  `FAIL Shop.pst:13: half is wrong`; after a failure, what the test wrote to standard output
+  and standard error, indented by 4 spaces, and `exit status N` unless it panicked (status
+  70); then `P passed, F failed`. Diagnostics go to standard error. The exit status is 1 if a
+  test failed or a file didn't build, else 0.
+- With `--json`, diagnostics and tests are printed as one JSON object per line, without the
+  summary. A test's object is its block's position (§15.1), `"test"` (its name), `"passed"`
+  and `"output"`: `{"file": "Shop.pst", "line": 13, "col": 1, "endLine": 15, "endCol": 23,
+  "test": "half is wrong", "passed": false, "output": "panic P0020: ..."}`.
 
 ---
 
@@ -1252,7 +1269,7 @@ test "largest of empty list is None"
 |---|---|
 | `pst build Main.pst [-o out] [--unchecked]` | compile to an ELF executable |
 | `pst run Main.pst [-- args]` | build to a temp dir and run |
-| `pst test [path]` | run `test` blocks |
+| `pst test PATH [--filter text]` | run `test` blocks (§13) |
 | `pst check [path] --json` | type-check only, emit diagnostics |
 | `pst fmt [path] [--check]` | canonical formatter |
 | `pst lsp` | language server over stdio, for human editors (§15.4) |
@@ -1261,7 +1278,7 @@ test "largest of empty list is None"
 | `pst index [path] --json` | dump the whole project's symbol index (§15.5) |
 
 `python3 -m pst` is the Python compiler; `compiler/Pst.pst` is the same tool in Pasthon
-(`check`, `build` and `run` so far), which finds the standard units in `units` next to its
+(`check`, `build` and `run` so far; not `test`), which finds the standard units in `units` next to its
 executable.
 
 ### 15.1 Diagnostics
