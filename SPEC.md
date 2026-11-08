@@ -33,7 +33,9 @@ easy for AI tools (and humans) to read, write, and verify.
 - Tab characters anywhere outside string literals are an error.
 - An indentation change not a multiple of 4, or an indent of more than one level, is an error.
 - The lexer emits `NEWLINE`, `INDENT`, `DEDENT` tokens (as in Python).
-- Blank lines and comment-only lines do not affect indentation.
+- Blank lines and comment-only lines do not affect indentation. End markers (§2.4) are the
+  exception: a marker line counts as a line at its own indentation, so it closes the block
+  it follows.
 - **Line continuation:** only inside open `(`, `[`, `{`. Inside brackets, newlines and indentation are ignored. There is no backslash continuation.
 
 ### 2.3 Comments
@@ -118,7 +120,26 @@ let json := "\{\"name\": \"{name}\"}"     # \{ is a literal brace
 - `\{` is a literal `{`. A `}` with no open placeholder is literal and needs no escape.
 - An unterminated `{`, or an empty `{}`, is an error (`E0030`).
 - A string with no placeholders is a plain constant, with no runtime cost.
+- A string literal, including its placeholders, must fit on one line. Use `\n` for newlines.
 - Strings in `extern` library names and `test` names may not contain placeholders.
+
+### 2.9 Lexical errors
+
+| Code | Meaning |
+|---|---|
+| `E0000` | source file is not valid UTF-8 |
+| `E0001` | tab character outside a string (fix: replace with 4 spaces) |
+| `E0002` | indentation not a multiple of 4 |
+| `E0003` | indentation increases by more than one level |
+| `E0004` | unterminated string literal |
+| `E0005` | invalid escape sequence |
+| `E0006` | unexpected character (including non-ASCII outside strings and comments) |
+| `E0007` | malformed number literal, or integer above 2^64 - 1 |
+| `E0008` | invalid char literal |
+| `E0009` | unmatched or unclosed bracket |
+| `E0030` | unclosed or empty string placeholder (fix: `\{`) |
+
+The lexer reports every error and continues; it always produces a complete token stream.
 
 ---
 
