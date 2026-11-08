@@ -1555,6 +1555,37 @@ class OsAndFiles(unittest.TestCase):
                                      "[a b] [é]", "3", "-9", "127", ""])
         self.assertEqual(os.listdir(tmp), [])
 
+    def test_directories_and_captured_output(self):
+        tmp = tempfile.mkdtemp(dir=_TMP.name)
+        for name in ("b", "a", "é"):
+            Path(tmp, name).write_text("x")
+        os.mkdir(Path(tmp, "d"))
+        p = run_program(f"""
+            writeln(isDir("{tmp}"))
+            writeln(isDir("{tmp}/a"))
+            writeln(isDir("{tmp}/missing"))
+            case listDir("{tmp}") of
+                Ok(names):
+                    writeln(len(names.value))
+                    for n in names.value do
+                        writeln(n)
+                Err(e):
+                    writeln(e.error)
+            case listDir("{tmp}/missing") of
+                Ok(_):
+                    writeln("found")
+                Err(e):
+                    writeln(e.error)
+            writeln(run("/bin/sh", ["-c", "echo out; echo err >&2; exit 2"], output: "{tmp}/a").getOr(-1))
+            writeln(run("/bin/true", [], output: "{tmp}/missing/x").getOr(-1))
+            """, uses="IO, OS", under=self.under())  # fmt: skip
+        self.assertEqual(p.returncode, 0, p.stderr)
+        lines = p.stdout.decode().split("\n")
+        self.assertEqual(lines[:4], ["true", "false", "false", "4"])
+        self.assertEqual(sorted(lines[4:8]), ["a", "b", "d", "é"])
+        self.assertEqual(lines[8:], [f"{tmp}/missing: No such file or directory", "2", "127", ""])
+        self.assertEqual(Path(tmp, "a").read_text(), "out\nerr\n")
+
     def test_readln(self):
         p = run_program("""
             while true do

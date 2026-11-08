@@ -927,6 +927,13 @@ class Cli(unittest.TestCase):
             "writeln(na\u00efve)\nwriteln(x\U0001d11e)\nlet s := 1 \x01 \x7f \x0c\n"
         ),
         "Lib.pst": "unit Lib\nexport function one(): Integer\n    return 1\n",
+        "Shop.pst": (
+            "unit Shop\nuses IO\nfunction double(x: Integer): Integer\n    return 2 * x\n"
+            'test "double doubles"\n    assert double(2) = 4\n'
+            'test "half \u00e9 wrong"\n    writeln("about to fail")\n    assert double(1) = 3\n'
+            'test "bounds"\n    let xs: List[Integer] := []\n    writeln(xs[1])\n'
+            'test "halts"\n    halt(4)\n'
+        ),
     }
 
     @classmethod
@@ -974,6 +981,14 @@ class Cli(unittest.TestCase):
         self.assertEqual(self.compare("run", "Exit.pst")[0], 3)
         self.assertEqual(self.compare("run", "Exit.pst", "--", "x")[0], 70)
         self.assertEqual(self.compare("run", "--unchecked", "Bad.pst")[0], 1)
+
+    def test_test(self):
+        self.assertEqual(self.compare("test", "Shop.pst")[0], 1)
+        self.assertEqual(self.compare("test", "Shop.pst", "--json", "--unchecked")[0], 1)
+        self.assertEqual(self.compare("test", "Shop.pst", "--filter", "double")[0], 0)
+        self.assertEqual(self.compare("test", "Lib.pst")[1], "0 passed, 0 failed\n")
+        self.assertEqual(self.compare("test", ".", "--filter", "o")[0], 1)
+        self.compare("test", "Bad.pst", "--json")
 
     def test_usage(self):
         for args in ([], ["frob"], ["build"], ["build", "Args.pst", "-o"]):

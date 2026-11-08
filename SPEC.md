@@ -1256,7 +1256,7 @@ test "largest of empty list is None"
 | `Strings` | `bytes`, `fromBytes` (invalid UTF-8 becomes U+FFFD), `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `endsWith`, `parseInt`, `parseReal`. `split` and `replace` require a non-empty separator. Written in Pasthon on libc's `memmem` and `memcpy`, except `charCount`, `byteLen`, `slice` and `startsWith` (compiler intrinsics) |
 | `Math` | `Pi`, `sqrt`, `sin`, `cos`, `abs`, `min`, `max`, `floor`, `ceil` |
 | `Bits` | `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, `popCount` on all integer types (compiler intrinsics); results wrap to the type's width, `shr` shifts in zeros, a shift count outside 0 to width - 1 gives 0 |
-| `OS` | `args(): List[String]` (without the program name), `env(name): Option[String]`, `exit(code)`, `currentDir(): String`, `isFile(path): Boolean` (a regular file, following symbolic links), `programPath(): String` (the running executable, from `/proc/self/exe`), `tempDir(): Result[String, String]` (a new private directory under `TMPDIR`, or `/tmp`), `removeFile(path)` and `removeDir(path)` (an empty directory; both `Result[Integer, String]`), `run(path, args): Result[Integer, String]` (runs an executable and waits: its exit status, or minus the signal that ended it; 127 if it can't be started). Written in Pasthon on libc (`getcwd`, `stat`, `readlink`, `mkdtemp`, `unlink`, `rmdir`, `fork`, `execv`, `waitpid`); `args` reads `argv`, which the program's entry point keeps in a writable word after the GOT (§15.2) |
+| `OS` | `args(): List[String]` (without the program name), `env(name): Option[String]`, `exit(code)`, `currentDir(): String`, `isFile(path): Boolean` (a regular file, following symbolic links), `isDir(path): Boolean`, `listDir(path): Result[List[String], String]` (the entry names, without `.` and `..`, in no particular order), `programPath(): String` (the running executable, from `/proc/self/exe`), `tempDir(): Result[String, String]` (a new private directory under `TMPDIR`, or `/tmp`), `removeFile(path)` and `removeDir(path)` (an empty directory; both `Result[Integer, String]`), `run(path, args, output := ""): Result[Integer, String]` (runs an executable and waits: its exit status, or minus the signal that ended it; 127 if it can't be started; with `output`, its standard output and error go to that file). Written in Pasthon on libc (`getcwd`, `stat`, `readlink`, `mkdtemp`, `unlink`, `rmdir`, `opendir`, `readdir`, `fork`, `dup2`, `execv`, `waitpid`); `args` reads `argv`, which the program's entry point keeps in a writable word after the GOT (§15.2) |
 | `Threads` | reserved for §11.2; not in v0.1 |
 | `C` | C interop types, `toCString`, `fromCString`, `fromCBytes`, `isNull`, `addr`, `cast` |
 | `DateTime` | planned, not in v0.1: dates and times modeled on Joda-Time. Immutable values `Instant`, `LocalDate`, `LocalTime`, `LocalDateTime`, `DateTime` (with a time zone), `Duration`, `Period`, `Interval`. Written in Pasthon on libc's time functions |
@@ -1278,7 +1278,7 @@ test "largest of empty list is None"
 | `pst index [path] --json` | dump the whole project's symbol index (§15.5) |
 
 `python3 -m pst` is the Python compiler; `compiler/Pst.pst` is the same tool in Pasthon
-(`check`, `build` and `run` so far; not `test`), which finds the standard units in `units` next to its
+(`check`, `build`, `run` and `test`), which finds the standard units in `units` next to its
 executable.
 
 ### 15.1 Diagnostics

@@ -21,6 +21,11 @@ extern "libc.so.6"
     procedure cExit(code: CInt) as "_exit"
     function waitpid(pid: CInt, status: Ptr[CInt], options: CInt): CInt
     function errnoLocation(): Ptr[CInt] as "__errno_location"
+    function cOpen(path: CString, flags: CInt, ...): CInt as "open"
+    function dup2(fd: CInt, fd2: CInt): CInt
+    function opendir(path: CString): Pointer
+    function readdir(dir: Pointer): Ptr[Byte]
+    function closedir(dir: Pointer): CInt
     function strerror(code: CInt): CString
     type
         ## glibc's `struct stat` on x86-64: 144 bytes; `st_mode` is the low half of
@@ -79,15 +84,40 @@ export unsafe function currentDir(): String
     free(p)
     return dir
 
-## Whether `path` names a regular file (following symbolic links).
-export unsafe function isFile(path: String): Boolean
+## The file type bits of `path` (following symbolic links), or -1 if it doesn't exist.
+unsafe function fileType(path: String): Integer
     var st := Stat(
         w0: 0, w1: 0, w2: 0, w3: 0, w4: 0, w5: 0, w6: 0, w7: 0, w8: 0,
         w9: 0, w10: 0, w11: 0, w12: 0, w13: 0, w14: 0, w15: 0, w16: 0, w17: 0,
     )
     if cStat(toCString(path), addr(var st)) <> 0 then
-        return false
-    return band(st.w3, 0o170000) = 0o100000
+        return -1
+    return Integer(band(st.w3, 0o170000))
+
+## Whether `path` names a regular file (following symbolic links).
+export function isFile(path: String): Boolean
+    return fileType(path) = 0o100000
+
+## Whether `path` names a directory (following symbolic links).
+export function isDir(path: String): Boolean
+    return fileType(path) = 0o040000
+
+## The names of the entries of directory `path`, without `.` and `..`, in no particular
+## order.
+export unsafe function listDir(path: String): Result[List[String], String]
+    let dir := opendir(toCString(path))
+    if isNull(dir) then
+        return Err("{path}: {lastError()}")
+    var names: List[String] := []
+    while true do
+        let entry := readdir(dir)
+        if isNull(entry) then
+            break
+        let name := fromCString(cast[CString](entry + 19))  # glibc's `d_name`
+        if name <> "." and name <> ".." then
+            add(var names, name)
+    _ := closedir(dir)
+    return Ok(names)
 
 ## The message for C's `errno`.
 unsafe function lastError(): String
@@ -133,16 +163,22 @@ export unsafe function removeDir(path: String): Result[Integer, String]
 
 ## Runs the executable at `path` with arguments `args` and waits for it to finish. The
 ## result is its exit status, or minus the signal that ended it. If the program can't be
-## started, the child process exits with status 127.
-export unsafe function run(path: String, args: List[String]): Result[Integer, String]
+## started, the child process exits with status 127. With `output`, the program's standard
+## output and standard error go to that file, created or emptied.
+export unsafe function run(path: String, args: List[String], output: String := ""): Result[Integer, String]
     let n := len(args)
     let argv := cast[Ptr[CString]](malloc(CSize(8 * (n + 2))))
     deref(argv) := strdup(toCString(path))
     for i := 0 to n - 1 do
         deref(argv + (i + 1)) := strdup(toCString(args[i]))
     deref(argv + (n + 1)) := cast[CString](0)
+    let out := toCString(output)
     let pid := fork()
     if pid = 0 then
+        if output <> "" then
+            let fd := cOpen(out, CInt(0o1 + 0o100 + 0o1000), CInt(0o644))
+            if fd < 0 or dup2(fd, fd2: CInt(1)) < 0 or dup2(fd, fd2: CInt(2)) < 0 then
+                cExit(CInt(127))
         _ := execv(deref(argv), argv)
         cExit(CInt(127))
     var message := ""

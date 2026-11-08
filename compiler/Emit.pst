@@ -195,6 +195,7 @@ type
         env: ref Env
         index: ref SymbolIndex
         checked: Boolean
+        tests: Boolean
         main: ref Unit
         a: ref Assembler
         diagnostics: List[Diagnostic]
@@ -825,7 +826,11 @@ function hasCall(g: ref Em, id: Integer): Boolean
 
 ## Compiles a checked program, which must have no errors. `checked` keeps the runtime
 ## checks that `--unchecked` drops (overflow, bounds, contracts).
-export function build(result: Checked, checked: Boolean := true): Built
+## Compiles a checked program. `result` must have no errors. `checked` keeps the runtime
+## checks that `--unchecked` drops (overflow, bounds, contracts). With `tests`, the main
+## file may also be a unit, and the executable runs its `test` block number `argv[1]`
+## instead of the program's body (SPEC §13).
+export function build(result: Checked, checked: Boolean := true, tests: Boolean := false): Built
     let r := result.resolved
     let env := result.env.get()
     let main := r.main.get()
@@ -856,7 +861,7 @@ export function build(result: Checked, checked: Boolean := true): Built
                 else:
                     pass()
     let g := new(Em(
-        env: env, index: r.checker.index, checked: checked, main: main, a: newAssembler(),
+        env: env, index: r.checker.index, checked: checked, tests: tests, main: main, a: newAssembler(),
         diagnostics: [], reported: {}, runtime: [], used: {}, panics: [], labels: {}, queue: [],
         descs: {}, supportedCache: {}, thunks: [], drops: [], needed: [Libc], library: library,
         units: units, types: types, calls: calls, f: newFrame(main.path, None, exit: ""),
@@ -876,7 +881,7 @@ procedure mergeChecker(var types: Map[String, Map[Integer, Type]], var calls: Ma
 function run(g: ref Em): Built
     let a := g.a
     let file := g.main.parsed.file
-    if file.kind <> "program" then
+    if file.kind <> "program" and not g.tests then
         add(var g.diagnostics, Diagnostic(
             file: g.main.path, span: file.name.span, severity: Severity.Error, code: "E0990",
             message: "only a program can be built; a unit is compiled with the program that uses it", fixes: [],
@@ -889,16 +894,19 @@ function run(g: ref Em): Built
     let sizeAt := subImm32Fixed(a, Rsp)
     a.tracked := true
     a.stack := []
-    var body: List[Stmt] := []
-    for item in file.items do
-        case item of
-            Stmt(s):
-                add(var body, s)
-            else:
-                pass()
-    for s in body do
-        keepAliveStmt(g, s)
-    block(g, Block(span: file.span, stmts: body))
+    if g.tests then
+        testBlocks(g, file)
+    else
+        var body: List[Stmt] := []
+        for item in file.items do
+            case item of
+                Stmt(s):
+                    add(var body, s)
+                else:
+                    pass()
+        for s in body do
+            keepAliveStmt(g, s)
+        block(g, Block(span: file.span, stmts: body))
     label(a, g.f.exit)
     xor32(a, Rdi, Rdi)
     exitProgram(g)
@@ -928,6 +936,41 @@ function run(g: ref Em): Built
     finish(a, rodataOffset(len(a.code)), gotOffset: got)
     let exe := executable(a.code, a.rodata, a.labels["_start"], a.imports, needed: g.needed, globals: len(a.globals))
     return Built(executable: Some(exe), diagnostics: [])
+
+## The body of a test executable: runs test block number `atoi(argv[1])` of the main
+## file, or none if there is no such argument or block.
+procedure testBlocks(g: ref Em, file: SourceFile)
+    let a := g.a
+    var tests: List[TestBlock] := []
+    for item in file.items do
+        case item of
+            Decl(d):
+                case d of
+                    TestBlock(t):
+                        add(var tests, t)
+                    else:
+                        pass()
+            else:
+                pass()
+    loadGlobal(a, Rax, name: "args")
+    load(a, Rcx, Rax)
+    cmpImm(a, Rcx, value: 2)
+    jcc(a, "l", label: g.f.exit)
+    load(a, Rdi, Rax, disp: 16)
+    ccall(g, "atoi")
+    extend(a, Rax, bits: 32, signed: true)
+    var labels: List[String] := []
+    for i := 0 to len(tests) - 1 do
+        add(var labels, newLabel(a, "test"))
+    for i := 0 to len(tests) - 1 do
+        cmpImm(a, Rax, value: i)
+        jcc(a, "e", label: labels[i])
+    jmp(a, g.f.exit)
+    for i := 0 to len(tests) - 1 do
+        label(a, labels[i])
+        keepAliveBlock(g, tests[i].body)
+        block(g, tests[i].body)
+        jmp(a, g.f.exit)
 
 ## The label of a routine, or of a generic routine's instance for `targs`. An instance is
 ## compiled once, however many places use it (SPEC §8.1).

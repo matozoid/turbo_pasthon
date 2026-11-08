@@ -78,7 +78,8 @@ export function jsonString(s: String): String
     add(var parts, "\"")
     return join(parts)
 
-function jsonSpan(s: Span): String
+## The position fields of a JSON object (SPEC §15.1), without braces.
+export function jsonSpan(s: Span): String
     return "\"line\": {s.line}, \"col\": {s.col}, \"endLine\": {s.endLine}, \"endCol\": {s.endCol}"
 
 ## The JSON form (SPEC §15.1) on one line, as Python's `json.dumps` writes it.
