@@ -291,6 +291,7 @@ type
 
 - Members are always written qualified (`Color.Red`), **except** as `case` labels where the type is known (`Red:`).
 - Enums are ordinal: `ord(Color.Green) = 1`, comparable with `<`, usable in `for` and as `Set` elements.
+- Enums are `Printable`: a member prints as its name.
 
 ### 4.4 Records
 
@@ -452,6 +453,11 @@ type
 Built-in traits in `System`: `Iterator[T]` (§4.14), `Sendable` (§11.2), `Equatable` (`=`), `Ordered` (`<` etc.), `Hashable`,
 `Printable` (`toString(this): String`).
 
+`Equatable`, `Ordered`, `Hashable` and `Sendable` are decided by the compiler from the
+type's structure (e.g. a record is `Equatable` if all its fields are). `Printable` is
+satisfied built-in by primitives (except C types), enums, and subranges, and structurally
+(a visible `toString`) by everything else.
+
 ### 4.11 Function types
 
 ```pascal
@@ -507,11 +513,15 @@ type
   var it := iter(e)          # or a copy of e, if e is already an Iterator
   while true do
       case next(var it) of
-          Some(x): <body>    # x is a fresh let binding
+          Some(s):
+              let x := s.value   # x is a fresh let binding
+              <body>
           None:    break
   ```
   Each loop is instantiated for its concrete iterator type, so `next` is a direct call.
 - `for _ in e do` iterates without binding.
+- `List`, `Array`, `Set`, `Map` (keys), `String` (chars) and enum types (`for c in Color do`,
+  all members in order) are iterated directly by the compiler, without `iter`.
 - `for k, v in m do` works on `Map`: it iterates `entries(m)`, which yields
   `Entry[K, V]` (fields `key`, `value`) and binds the two fields.
 - **Snapshot semantics.** An iterator holds its own copy of the collection. With
@@ -1365,6 +1375,46 @@ already has a lexical error are not reported.
 | `E0111` | `This` outside a trait |
 | `E0205` | variable declared again in the same routine |
 | `E0206` | variable never used (fix: discard with `_`) |
+
+### 16.3 Type errors
+
+| Code | Meaning |
+|---|---|
+| `E0300` | type mismatch (hints: `toReal`, `round`, `Int32(...)`) |
+| `E0301` | type of an empty `[]` / `{}` unknown (declare the variable's type) |
+| `E0302` | type argument can't be inferred, or an overloaded/generic routine used as a value |
+| `E0303` | wrong number of type arguments |
+| `E0304` | not a type |
+| `E0305` | operator not defined for the operand types (`/` is Real only; `div`/`mod` integers only) |
+| `E0306` | not a value: a type, a unit, or a procedure call |
+| `E0307` | calling something that isn't a function |
+| `E0310` | indexing a string |
+| `E0311` | indexing a type that can't be indexed |
+| `E0320` | no such field |
+| `E0321` | field private to its unit |
+| `E0330` | constructing a record with private fields outside its unit |
+| `E0340` | assignment to a `let`, a non-`var` parameter, a loop variable, a binding, or a constant |
+| `E0341` | `var` argument that isn't a mutable place |
+| `E0350` | `for ... in` over something not iterable |
+| `E0420` | trait used as the type of a value |
+| `E0421` | interpolated value isn't `Printable` |
+| `E0501` | function doesn't return on every path |
+| `E0502` | function result ignored (fix: `_ := `) |
+| `E0503` | `return` without a value in a function, or with one elsewhere |
+| `E0504` | `break` / `continue` outside a loop |
+| `E0505` | `try` on a non-Option/Result, or in a function not returning a matching Option/Result |
+| `E0510` | ambiguous overloaded call |
+| `E0511` | no overload matches (argument count, names, or types) |
+| `E0520` | dot call of a routine whose first parameter is `var` (fix: `f(var a, ...)`) |
+| `E0521` | argument for a `var` parameter not marked `var` (fix: add `var`) |
+| `E0522` | `var` on an argument whose parameter isn't `var` |
+| `E0530` | positional argument with the same type as an earlier parameter group (fix: name it) |
+| `E0601` | overlapping `case` labels |
+| `E0602` | non-exhaustive `case` (enum or union), or missing `else` (other types) |
+| `E0603` | invalid `case` label for the subject's type |
+| `E0700` | type argument doesn't satisfy a bound |
+| `E0710` | operation on a type parameter that its bounds don't provide |
+| `E0802` | `if` / `case` expression branches of different types |
 
 ---
 

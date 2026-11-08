@@ -1,5 +1,7 @@
 """Unit loading and name resolution: checker stage 1 (SPEC §3, §5.2, §15.2).
 
+Stage 2, the type checker, lives in ``typecheck.py`` and runs after every unit is resolved.
+
 ``check(path)`` parses a file and every unit it uses, collects the top-level declarations
 of each unit (the declaration pass), then resolves every name and builds the symbol index.
 
@@ -18,7 +20,7 @@ from dataclasses import dataclass, field
 from . import ast as A
 from .diagnostics import Diagnostic, Edit, Fix, Severity
 from .parser import ParseResult, parse
-from .source import Span
+from .source import Span, normalize
 from .symbols import LOCALS, LOWER_CAMEL, ROUTINES, UPPER_CAMEL, Index, Kind, Symbol
 
 STD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "units")
@@ -52,6 +54,7 @@ class Unit:
     symbol: Symbol
     top: dict[str, list[Symbol]] = field(default_factory=dict)
     used: list["Unit"] = field(default_factory=list)  # explicit `uses`, then System
+    text: str = ""  # normalized source, for fixes that rewrite code
 
     @property
     def tree(self) -> A.File:
@@ -117,6 +120,11 @@ class Checker:
             others = [u for u in self.units.values() if u is not main]
             for unit in [main] + others:
                 Resolver(self, unit).run()
+            from .typecheck import Env
+
+            env = Env(self, [main] + others)
+            for unit in [main] + others:
+                env.checker(unit).run()
         self.diagnostics.sort(key=lambda d: (d.file != (main.file if main else ""), d.file, d.span.start))
         return CheckResult(main, self.units, self.index, self.diagnostics)
 
@@ -132,7 +140,7 @@ class Checker:
         stem = os.path.splitext(os.path.basename(path))[0]
         name = tree.name.name or stem
         symbol = Symbol(Kind.UNIT, name, tree.name.span if tree.name.name else None, path, name, True, tree)
-        unit = Unit(name, path, std, parsed, symbol)
+        unit = Unit(name, path, std, parsed, symbol, text=normalize(text))
         if tree.name.name and tree.name.name != stem:
             fixes = []
             if stem[:1].isalpha() and stem.replace("_", "a").isalnum() and stem.isascii():

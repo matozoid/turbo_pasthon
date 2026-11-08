@@ -19,6 +19,7 @@ def tearDownModule():
 
 def run(files: dict[str, str], main: str | None = None):
     """Writes ``files`` to a fresh directory and checks the first (or ``main``)."""
+    os.makedirs(_TMP.name, exist_ok=True)  # other test modules share it
     root = tempfile.mkdtemp(dir=_TMP.name)
     for name, text in files.items():
         Path(root, name).write_text(textwrap.dedent(text).lstrip("\n"))
@@ -167,7 +168,7 @@ class Errors(unittest.TestCase):
                 writeln(1)
             for i := 0 to 1 do
                 writeln(1)
-            case Some(1) of
+            case readln() of
                 Some(v): writeln(1)
                 None: writeln(2)
             """))
@@ -342,7 +343,8 @@ class Units(unittest.TestCase):
         fixes = [f.edits[0].text for f in r.diagnostics[0].fixes]
         self.assertEqual(fixes, ["A.Point", "B.Point"])
         combine = [x for x in r.index.refs if not x.is_def and x.targets and x.targets[0].name == "combine"]
-        self.assertEqual(len(combine[0].targets), 2)  # an overload set across units
+        self.assertEqual(len(combine[0].targets), 1)  # narrowed by the type of q
+        self.assertEqual(combine[0].targets[0].unit, "A")
 
 
 class SymbolIndex(unittest.TestCase):

@@ -59,6 +59,7 @@ class Symbol:
     # Locals only:
     reads: int = 0
     unused_fix: Span | None = None  # replaced by `_` when the variable is never read
+    type: object = None  # set by the type checker (pst.types.Type)
 
     @property
     def is_routine(self) -> bool:
@@ -104,9 +105,24 @@ class Ref:
 class Index:
     def __init__(self) -> None:
         self.refs: list[Ref] = []
+        self._by_span: dict[tuple[str, int, int], int] = {}  # -> position in refs
 
     def add(self, file: str, span: Span, targets, is_def: bool = False) -> None:
+        self._by_span[(file, span.start, span.end)] = len(self.refs)
         self.refs.append(Ref(file, span, tuple(targets), is_def))
+
+    def lookup(self, file: str, span: Span) -> Ref | None:
+        """The reference recorded for exactly this span (the latest, if several)."""
+        i = self._by_span.get((file, span.start, span.end))
+        return None if i is None else self.refs[i]
+
+    def narrow(self, file: str, span: Span, targets) -> None:
+        """Replaces the targets of the reference at ``span``: an overloaded name, once
+        the type checker has picked the routine it calls."""
+        i = self._by_span.get((file, span.start, span.end))
+        if i is not None:
+            r = self.refs[i]
+            self.refs[i] = Ref(r.file, r.span, tuple(targets), r.is_def)
 
     def at(self, file: str, line: int, col: int) -> Ref | None:
         """The reference covering a position, if any."""
