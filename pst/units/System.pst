@@ -136,8 +136,6 @@ extern "pst"
     export function new[T](value: T): ref T
     ## A non-owning reference to `r`.
     export function weak[T](r: ref T): Weak[T]
-    ## The referenced value, unless it was destroyed.
-    export function get[T](w: Weak[T]): Option[ref T]
 
     export function toString(x: Integer): String
     export function toString(x: Real): String
@@ -177,6 +175,10 @@ extern "pst"
     function bnot[T](a: T): T
     function shl[T](a: T, n: Integer): T
     function popCount[T](a: T): Integer
+    ## Whether the box that `w` refers to still has strong references.
+    function alive[T](w: Weak[T]): Boolean
+    ## The box that `w` refers to; it must be `alive`.
+    function target[T](w: Weak[T]): ref T
 
 # ------------------------------------------------------------------------ lists
 
@@ -377,6 +379,14 @@ procedure include[T](var s: Set[T], x: T)
 function includes[T](x: T, s: Set[T]): Boolean
     let b := bitOf(x)
     return band(s.words[b div 64], shl(1, b mod 64)) <> 0
+
+# ------------------------------------------------------------------------- refs
+
+## The referenced value, unless the last strong reference to it went away.
+export function get[T](w: Weak[T]): Option[ref T]
+    if alive(w) then
+        return Some(target(w))
+    return None
 
 # ------------------------------------------------------------ Option and Result
 

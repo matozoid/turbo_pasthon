@@ -12,6 +12,8 @@ Supported so far:
 - C interop (SPEC §10): calls into shared libraries, callbacks, `Ptr[T]`/`Pointer`/
   `CString`, `deref`, pointer arithmetic, `cast`, `addr`, C records,
   `toCString`/`fromCString`, `isNull`;
+- refs (SPEC §4.9): `new`, fields read and written through them, `deref`, identity `=`,
+  `Weak[T]` with `weak` and `get`, and destroy hooks (§11.1);
 - lists (literals, indexing, `len`, `resize`), maps (literals, `m[k]`, `in`, `hash`) and
   sets (literals, `in`, `bitOf`/`ofBit`), with the rest written in Pasthon in System;
   `for ... in` over lists, strings, enums and any `Iterator`, and `for k, v in` over maps;
@@ -34,13 +36,22 @@ blocks. Every block starts with a refcount and a descriptor:
     string: refcount | 0          | byte length | char count | UTF-8 bytes | NUL
     record: refcount | descriptor | field 0 | field 1 | ...     (8 bytes per field)
     union:  refcount | descriptor | the variant's value
+    ref T:  refcount | descriptor | the value | weak cell or 0
+    cell:   refcount | descriptor | the box, or 0 once it is gone
 
 A descriptor (read-only data) gives the number of fields, the block size, a number that
-makes it unique, an equality routine (0: compare field by field), and per field whether
-it holds a reference. A union value has its own block, whose descriptor says which
-variant it holds; `case` compares descriptors. So one release, one copy, and one equality
-routine serve every type. Only `Map` has an equality routine of its own: System's
-`mapEquals`, as its entries may be in any order.
+makes it unique, an equality routine (0: compare field by field), a drop routine (0:
+none), and per field whether it holds a reference. A union value has its own block, whose
+descriptor says which variant it holds; `case` compares descriptors. So one release, one
+copy, and one equality routine serve every type. `Map` has an equality routine of its
+own (System's `mapEquals`, as its entries may be in any order), and so do boxes (`ref T`),
+whose `=` compares identity.
+
+A box is the one block that is shared on purpose: writing through a ref makes the value
+in the box unique, never the box. Its drop routine, which release runs before freeing
+it, clears its weak cell and calls the destroy hook of a resource record. A `Weak[T]`
+holds the cell, which the box creates on the first `weak` and holds too, so the cell
+outlives both.
 
 String literals live in read-only data with refcount -1, which retain and release ignore.
 Reference counting follows one rule: every expression produces an *owned* reference.
@@ -75,7 +86,7 @@ from .diagnostics import Diagnostic, Severity
 from .resolve import CheckResult
 from .symbols import Kind, Symbol
 from .types import (
-    BOOLEAN, CHAR, INTEGER, STRING, THIS, VOID, Builtin, FuncT, Named, Prim, TypeValue,
+    BOOLEAN, CHAR, INTEGER, STRING, THIS, VOID, Builtin, FuncT, Named, Prim, RefT, TypeValue,
     has_error, params_in, show, subst, unify,
 )  # fmt: skip
 from .x86 import (
@@ -106,8 +117,13 @@ _FIELDS = 16
 _COUNT, _CAP, _ELEMS = 16, 24, 32
 # Descriptor layout: then one word per field, 1 if it holds a reference. A list's
 # descriptor has count _LIST and one kind word, for all its elements. _D_EQ is 0, or the
-# distance from the descriptor to the code of the type's equality routine.
-_D_COUNT, _D_SIZE, _D_ID, _D_EQ, _D_KINDS = 0, 8, 16, 24, 32
+# distance from the descriptor to the code of the type's equality routine; _D_DROP the
+# same for a routine called with the block in rdi when its last reference goes.
+_D_COUNT, _D_SIZE, _D_ID, _D_EQ, _D_DROP, _D_KINDS = 0, 8, 16, 24, 32, 40
+# A `ref T` box: the header, the value, then its weak cell or 0. A cell: the header, then
+# the box, or 0 once the box is gone.
+_VALUE, _CELL = 16, 24
+_TARGET = 16
 _LIST = -1
 _FNV_OFFSET, _FNV_PRIME = 0xCBF29CE484222325, 0x100000001B3
 
@@ -180,6 +196,7 @@ class Emitter:
         self._queue: list[tuple] = []  # (routine, type arguments, sites, depth) to emit
         self._descs: dict[object, str] = {}  # record type, or (union, variant) -> label
         self._thunks: list[tuple] = []  # (label, routine label, parameter types) of callbacks
+        self._drops: list[tuple] = []  # (label, destroy hook label or None) of box types
         self.needed: list[bytes] = [elf.LIBC]  # shared libraries, in DT_NEEDED order
         self.library: dict[int, str] = {}  # id(extern declaration) -> its library
         self.units = {u.path: u for u in [self.main, *result.units.values()]}
@@ -252,13 +269,18 @@ class Emitter:
 
     def managed(self, t) -> bool:
         """Whether values of type ``t`` are reference counted."""
-        return t == STRING or self.kind(t) in ("record", "union") or _is_list(t)
+        return (
+            t == STRING or self.kind(t) in ("record", "union") or _is_list(t)
+            or isinstance(t, RefT) or _is_weak(t)
+        )  # fmt: skip
 
     def supported(self, t, seen: frozenset = frozenset()) -> bool:
         if t in _VALUES or has_error(t) or t in seen or self.ints(t) or _is_pointer(t):
             return True
-        if _is_list(t):
+        if _is_list(t) or _is_weak(t):
             return self.supported(t.args[0], seen)
+        if isinstance(t, RefT):
+            return self.supported(t.target, seen)
         if isinstance(t, FuncT):  # a named top-level routine: its address
             return all(self.supported(p, seen) for p in (*t.params, t.result) if p != VOID)
         kind = self.kind(t)
@@ -280,24 +302,52 @@ class Emitter:
         s = dict(zip(d.params, t.args))
         return [(f.name, subst(f.type, s)) for f in d.fields]
 
-    def descriptor(self, key, parts: list, eq: str | None = None) -> str:
+    def descriptor(self, key, parts: list, eq: str | None = None, drop: str | None = None) -> str:
         """The data label of the descriptor for blocks of ``key`` holding ``parts``, with
-        equality routine ``eq`` (a code label) if given."""
+        equality routine ``eq`` and drop routine ``drop`` (code labels) if given."""
         if key not in self._descs:
-            words = [len(parts), _FIELDS + 8 * len(parts), len(self._descs), 0]
+            words = [len(parts), _FIELDS + 8 * len(parts), len(self._descs), 0, 0]
             words += [int(self.managed(p)) for p in parts]
             self._descs[key] = self.asm.data(struct.pack(f"<{len(words)}q", *words), align=8)
             if eq is not None:
                 self.asm.code_ref(self._descs[key], _D_EQ, eq)
+            if drop is not None:
+                self.asm.code_ref(self._descs[key], _D_DROP, drop)
         return self._descs[key]
 
     def list_desc(self, t) -> str:
         """The descriptor of lists of type ``t``."""
         key = ("list", t.args[0])
         if key not in self._descs:
-            words = [_LIST, _ELEMS, len(self._descs), 0, int(self.managed(t.args[0]))]
-            self._descs[key] = self.asm.data(struct.pack("<5q", *words), align=8)
+            words = [_LIST, _ELEMS, len(self._descs), 0, 0, int(self.managed(t.args[0]))]
+            self._descs[key] = self.asm.data(struct.pack("<6q", *words), align=8)
         return self._descs[key]
+
+    def box_desc(self, t, node) -> str:
+        """The descriptor of `ref T` boxes (SPEC §4.9): `=` compares identity, and the
+        drop routine clears the weak cell and runs a resource record's destroy hook."""
+        key = ("ref", t)
+        if key not in self._descs:
+            hook = self.env.hooks().get(t.sym) if isinstance(t, Named) else None
+            drop = self.asm.new_label("drop")
+            self._drops.append((drop, self.label_of(node, hook) if hook is not None else None))
+            self.descriptor(key, [t, Builtin("Weak", (t,))], self.runtime("rt_ref_eq"), drop)
+        return self._descs[key]
+
+    def box_drop(self, label: str, hook: str | None) -> None:
+        """The drop routine of a box type, for rt_release: rdi is the box."""
+        a = self.asm
+        alone = a.new_label("d")
+        a.label(label)
+        a.load(RAX, RDI, _CELL)
+        a.test(RAX, RAX)
+        a.jcc("e", alone)
+        a.store_imm(RAX, _TARGET, 0)  # weak references now get None
+        a.label(alone)
+        if hook is not None:
+            a.add_imm(RDI, _VALUE)  # destroy(var r): the address of the value
+            a.call(hook)
+        a.ret()
 
     def new_block(self, desc: str) -> None:
         """rax := a new block with descriptor ``desc``; its fields are the caller's."""
@@ -400,6 +450,8 @@ class Emitter:
         self.f = None
         for thunk in self._thunks:
             self.thunk(*thunk)
+        for drop in self._drops:
+            self.box_drop(*drop)
         for label, message in self._panics:
             a.label(label)
             a.lea_data(RSI, a.data(message))
@@ -925,12 +977,17 @@ class Emitter:
             return self.address(e.inner, insert)
         if self.is_cplace(e):
             return self.cplace(e)
-        if isinstance(e, A.FieldAccess) and self.kind(self.type(e.target)) == "record":
-            names = [n for n, _ in self.fields(self.type(e.target))]
-            self.address(e.target)
+        if isinstance(e, A.Deref):  # `deref(r)` of a ref: the box's value
+            return self.box_value(e.target)
+        if isinstance(e, A.FieldAccess) and self.kind(_unboxed(self.type(e.target))) == "record":
+            t = self.type(e.target)
+            if isinstance(t, RefT):
+                self.box_value(e.target)
+            else:
+                self.address(e.target)
             self.asm.mov(RDI, RAX)
             self.asm.call(self.runtime("rt_unique"))
-            self.asm.add_imm(RAX, _FIELDS + 8 * names.index(e.name.name))
+            self.asm.add_imm(RAX, _FIELDS + 8 * self.field_index(_unboxed(t), e.name.name))
             return
         if isinstance(e, A.Index) and self.env.is_map(self.type(e.target)):
             return self.map_entry(e, insert)
@@ -978,6 +1035,19 @@ class Emitter:
         a.pop(RCX)
         self.element(RAX, RCX, e)
 
+    def box_value(self, e) -> None:
+        """rax := the address of the value in the box that ref ``e`` refers to. ``e`` must
+        be rooted in a variable, which keeps the box alive: so its reference is dropped
+        at once, and the box isn't made unique, as refs share it (SPEC §4.9)."""
+        root = _unparen(e)
+        while isinstance(root, (A.FieldAccess, A.Index, A.Deref)):
+            root = _unparen(root.target)
+        if not isinstance(root, A.Name) or self.ref(root.span) not in self.f.slots:
+            self.unsupported(e, "changing a value through a ref that isn't in a variable")
+        self.expr(e)
+        self.release()
+        self.asm.add_imm(RAX, _VALUE)
+
     def field_index(self, t, name: str) -> int:
         return [n for n, _ in self.fields(t)].index(name)
 
@@ -985,20 +1055,23 @@ class Emitter:
         """Whether the place ``e`` is in C memory: `deref(p)`, or a field of a C record."""
         e = _unparen(e)
         if isinstance(e, A.Deref):
-            return True
-        return isinstance(e, A.FieldAccess) and self.is_c_record(self.type(e.target))
+            return _is_ptr(self.type(e.target))
+        return isinstance(e, A.FieldAccess) and self.is_c_record(_unboxed(self.type(e.target)))
 
     def cplace(self, e) -> None:
         """rax := the address of the C bytes of place ``e``: `deref(p)`, a field of a C
-        record, or a C record held in a variable (made unique first)."""
+        record, or a C record held in a variable or a box (made unique first)."""
         e = _unparen(e)
-        if isinstance(e, A.Deref):
+        if isinstance(e, A.Deref) and _is_ptr(self.type(e.target)):
             return self.expr(e.target)
-        if isinstance(e, A.FieldAccess) and self.is_c_record(self.type(e.target)):
+        if isinstance(e, A.FieldAccess) and self.is_c_record(_unboxed(self.type(e.target))):
             self.cplace(e.target)
-            self.asm.add_imm(RAX, self.c_offset(self.type(e.target), e.name.name, e))
+            self.asm.add_imm(RAX, self.c_offset(_unboxed(self.type(e.target)), e.name.name, e))
             return
-        self.address(e)
+        if isinstance(self.type(e), RefT):
+            self.box_value(e)
+        else:
+            self.address(e)
         self.asm.mov(RDI, RAX)
         self.asm.call(self.runtime("rt_unique"))
         self.asm.add_imm(RAX, _FIELDS)
@@ -1155,19 +1228,20 @@ class Emitter:
             if sym is None:
                 self.unsupported(e, "this name")
             return self.load_sym(sym, e)
+        boxed = isinstance(t, RefT)  # `r.x` reads the field of the value in the box
+        t = t.target if boxed else t
         if self.kind(t) != "record":
             self.unsupported(e, f"a field of {show(t)}")
+        self.expr(e.target)
+        self.asm.push(RAX)
+        if boxed:
+            self.asm.load(RAX, RAX, _VALUE)
         if self.is_c_record(t):
-            self.expr(e.target)
-            self.asm.push(RAX)
             self.asm.add_imm(RAX, _FIELDS + self.c_offset(t, e.name.name, e))
             self.load_c(self.type(e), e)
             self.drop(1)
             return
-        names = [n for n, _ in self.fields(t)]
-        self.expr(e.target)
-        self.asm.push(RAX)
-        self.asm.load(RAX, RAX, _FIELDS + 8 * names.index(e.name.name))
+        self.asm.load(RAX, RAX, _FIELDS + 8 * self.field_index(t, e.name.name))
         if self.managed(self.type(e)):
             self.retain()
         self.drop(1)
@@ -1314,10 +1388,14 @@ class Emitter:
 
     def e_Deref(self, e) -> None:
         t = self.type(e.target)
-        if not _is_ptr(t):
-            self.unsupported(e, f"'deref' of {show(t)}")
         self.expr(e.target)
-        self.load_c(self.type(e), e)
+        if _is_ptr(t):
+            return self.load_c(self.type(e), e)
+        self.asm.push(RAX)
+        self.asm.load(RAX, RAX, _VALUE)  # a copy of the box's value
+        if self.managed(t.target):
+            self.retain()
+        self.drop(1)
 
     def e_Unary(self, e) -> None:
         a = self.asm
@@ -1892,6 +1970,40 @@ class Emitter:
                 (a.sub_imm if sym.name == "bitOf" else a.add_imm)(RAX, first[0])
         elif sym.name in _BITS and sym.unit in ("System", "Bits"):
             self.bits(e, sym.name, args, self.sub(m.s.get(m.sig.tparams[0])))
+        elif name == ("System", "new"):
+            t = self.sub(m.s.get(m.sig.tparams[0]))
+            self.value_type(t, e)
+            self.coerce(args[0], t)
+            a.push(RAX)
+            self.new_block(self.box_desc(t, e))
+            a.pop(RCX)
+            a.store(RAX, _VALUE, RCX)
+            a.store_imm(RAX, _CELL, 0)
+        elif name == ("System", "weak"):
+            made = a.new_label("weak")
+            self.expr(args[0])
+            a.push(RAX)
+            a.load(RAX, RAX, _CELL)
+            a.test(RAX, RAX)
+            a.jcc("ne", made)
+            self.new_block(self.descriptor("cell", [INTEGER]))  # held by the box
+            a.load(RCX, RSP)
+            a.store(RAX, _TARGET, RCX)
+            a.store(RCX, _CELL, RAX)
+            a.label(made)
+            self.retain()
+            self.drop(1)
+        elif name in (("System", "alive"), ("System", "target")):
+            self.expr(args[0])
+            a.push(RAX)
+            a.load(RAX, RAX, _TARGET)
+            if sym.name == "alive":
+                a.test(RAX, RAX)
+                a.setcc("ne", RAX)
+                a.movzx8(RAX, RAX)
+            else:
+                self.retain()
+            self.drop(1)
         elif name == ("System", "resize"):
             self.expr(args[1])
             a.push(RAX)
@@ -2130,10 +2242,11 @@ class Emitter:
         a.label(go)
 
     def rt_release(self) -> None:
-        """Drops a reference to the block rdi (if not 0). With the last one, releases the
-        references its fields (or elements) hold and frees it. Preserves registers."""
+        """Drops a reference to the block rdi (if not 0). With the last one, runs its drop
+        routine, if it has one, releases the references its fields (or elements) hold and
+        frees it. Preserves registers."""
         a = self.asm
-        loop, skip, free, done = (a.new_label("r") for _ in range(4))
+        loop, skip, free, done, kept = (a.new_label("r") for _ in range(5))
         a.test(RDI, RDI)  # an empty slot (toCString's, or a moved-out value)
         a.jcc("e", done)
         a.cmp_mem_imm(RDI, _RC, 0)
@@ -2146,6 +2259,18 @@ class Emitter:
         a.load(RDX, RSI, _DESC)
         a.test(RDX, RDX)
         a.jcc("e", free)  # a string
+        a.load(R11, RDX, _D_DROP)
+        a.test(R11, R11)
+        a.jcc("e", kept)
+        a.add(R11, RDX)
+        a.push(RSI)
+        a.push(RSI)
+        a.mov(RDI, RSI)
+        a.call_reg(R11)
+        a.pop(RSI)
+        a.pop(RSI)
+        a.load(RDX, RSI, _DESC)
+        a.label(kept)
         self.walk(RSI, RDX, RCX, R8, R9)
         a.label(loop)  # rcx slots left; rdx their kinds, r8 their values
         a.test(RCX, RCX)
@@ -2166,6 +2291,18 @@ class Emitter:
         for r in reversed(_CALLER_SAVED):
             a.pop(r)
         a.label(done)
+        a.ret()
+
+    def rt_ref_eq(self) -> None:
+        """The equality routine of boxes: rax := whether rdi and rsi are the same box.
+        Like any equality routine, it owns its arguments."""
+        a = self.asm
+        a.cmp(RDI, RSI)
+        a.setcc("e", RAX)
+        a.movzx8(RAX, RAX)
+        a.call(self.runtime("rt_release"))
+        a.mov(RDI, RSI)
+        a.call(self.runtime("rt_release"))
         a.ret()
 
     def rt_new(self) -> None:
@@ -2909,6 +3046,15 @@ def _is_pointer(t) -> bool:
 
 def _is_list(t) -> bool:
     return isinstance(t, Builtin) and t.name == "List"
+
+
+def _unboxed(t):
+    """``T`` for `ref T`, else ``t``."""
+    return t.target if isinstance(t, RefT) else t
+
+
+def _is_weak(t) -> bool:
+    return isinstance(t, Builtin) and t.name == "Weak"
 
 
 def _is_ptr(t) -> bool:

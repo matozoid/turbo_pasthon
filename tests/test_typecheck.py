@@ -200,6 +200,59 @@ class Errors(unittest.TestCase):
             writeln("{len(a)} {len(b)} {len(c)} {len(d)} {len(e)} {len(f)} {len(g)}")
             """), [("E0700", 8, 8), ("E0700", 9, 8), ("E0700", 10, 8), ("E0700", 11, 10), ("E0306", 12, 24)])
 
+    def test_resource_records(self):
+        """A record with a destroy hook exists only behind `ref` (SPEC §11.1)."""
+        self.assertEqual(errs("""
+            type
+                Handle = record
+                    id: Integer
+
+                Holder = record
+                    h: Handle
+                    r: ref Handle
+
+            procedure destroy(var h: Handle)
+                writeln(h.id)
+
+            function make(): Handle
+                return Handle(id: 1)
+
+            let a := new(Handle(id: 1))
+            let b := Handle(id: 2)
+            let c := deref(a)
+            destroy(var c)
+            let xs: List[Handle] := []
+            writeln("{a.id} {b.id} {len(xs)}")
+            """), [
+                ("E1103", 6, 12), ("E1103", 12, 18), ("E1103", 13, 12), ("E1103", 16, 10),
+                ("E1103", 17, 10), ("E1101", 18, 1), ("E0341", 18, 13), ("E1103", 19, 14),
+            ])  # fmt: skip
+
+    def test_foreign_destroy_hook(self):
+        """A destroy hook must be in its record's unit; elsewhere it is E1102 and the
+        record stays an ordinary one."""
+        r = run({
+            "Main.pst": """
+                program Main
+
+                uses Things
+
+                procedure destroy(var t: Thing)
+                    t.n := 0
+
+                var t := Thing(n: 1)
+                destroy(var t)
+                """,
+            "Things.pst": """
+                unit Things
+
+                type
+                    export Thing = record
+                        export n: Integer
+                """,
+        })  # fmt: skip
+        self.assertEqual(codes(r), [("Main.pst", "E1102", 5, 11)])
+
     def test_overloads(self):
         self.assertEqual(errs("""
             function f(x: Int32): Integer

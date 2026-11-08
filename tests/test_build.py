@@ -1142,6 +1142,118 @@ class Sets(unittest.TestCase):
 
 
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class Refs(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_sharing(self):
+        """`new`, fields read and written through refs (one box, shared), `deref` copies
+        and replaces, `=` is identity, refs in records, lists and maps."""
+        p = run_program("""
+            type
+                Node = record
+                    value: Integer
+                    next: Option[ref Node]
+
+                Pair = record
+                    a: ref Node
+                    n: Integer
+
+            function sum(n: ref Node): Integer
+                var total := n.value
+                case n.next of
+                    Some(m): total := total + sum(m.value)
+                    None: total := total + 0
+                return total
+
+            procedure bump(var x: Integer)
+                x := x + 100
+
+            let a := new(Node(value: 1, next: None))
+            let b := new(Node(value: 2, next: Some(a)))
+            write("{sum(b)} ")
+            a.value := 10
+            writeln(sum(b))
+            let c := deref(a)
+            a.value := 20
+            write("{c.value} {a.value} {sum(b)} ")
+            deref(a) := Node(value: 5, next: None)
+            writeln("{c.value} {a.value} {sum(b)}")
+            bump(var a.value)
+            inc(var a.value)
+            let a2 := a
+            writeln("{a.value} {a2 = a} {a = b} {deref(a2) = deref(a)}")
+            write("{Pair(a: a, n: 1) = Pair(a: a2, n: 1)} {Pair(a: a, n: 1) = Pair(a: b, n: 1)} ")
+            var xs := [a, b]
+            xs[1].value := 7
+            let m := {"k": a}
+            m["k"].value := 8
+            write("{b.value} {a.value} ")
+            let n := new(41)
+            deref(n) := deref(n) + 1
+            let s := new("hi")
+            deref(s) := "{deref(s)}!"
+            writeln("{deref(n)} {deref(s)} {len(xs)} {len(m)}")
+            """, under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))  # fmt: skip
+        self.assertEqual((p.returncode, p.stderr), (0, b""))
+        self.assertEqual(
+            p.stdout.decode(),
+            "3 12\n10 20 22 10 5 7\n106 true false true\ntrue false 7 8 42 hi! 2 1\n",
+        )
+
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_destroy_and_weak(self):
+        """A resource record's destroy hook runs once, when the last strong reference
+        goes, and may change the value; then weak references get None."""
+        p = run_program("""
+            type
+                Res = record
+                    id: Integer
+                    log: List[String]
+
+                Tree = record
+                    kids: List[ref Tree]
+                    parent: Option[Weak[Tree]]
+                    name: String
+
+            procedure destroy(var r: Res)
+                r.id := r.id * 10
+                add(var r.log, "bye")
+                writeln("destroy {r.id} {len(r.log)}")
+
+            function make(id: Integer): ref Res
+                return new(Res(id: id, log: []))
+
+            function alive(w: Weak[Res]): Boolean
+                return case get(w) of
+                    Some(_): true
+                    None: false
+
+            let x := make(1)
+            var w := weak(x)
+            if true then
+                let y := make(2)
+                w := weak(y)
+                let y2 := y
+                writeln("{alive(w)} {y2.id}")
+            writeln("{alive(w)} {weak(x) = weak(x)} {weak(x) = w}")
+            writeln(make(3).id)
+            let root := new(Tree(kids: [], parent: None, name: "root"))
+            let kid := new(Tree(kids: [], parent: Some(weak(root)), name: "kid"))
+            add(var root.kids, kid)
+            case kid.parent of
+                Some(p):
+                    case get(p.value) of
+                        Some(r): writeln("{r.value.name} {len(r.value.kids)}")
+                        None: writeln("orphan")
+                None: writeln("no parent")
+            writeln("end")
+            """, under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))  # fmt: skip
+        self.assertEqual((p.returncode, p.stderr), (0, b""))
+        self.assertEqual(
+            p.stdout.decode(),
+            "true 2\ndestroy 20 1\nfalse true false\ndestroy 30 1\n3\nroot 1\nend\ndestroy 10 1\n",
+        )
+
+
 class Iterators(unittest.TestCase):
     @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
     def test_loops_and_adapters(self):

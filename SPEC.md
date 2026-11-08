@@ -445,7 +445,9 @@ type
 - `=` on two refs compares **identity**. Compare contents with `deref(a) = deref(b)`.
 - A `let` binding of a ref can't be rebound, but the pointee can still be mutated.
 - `Weak[T]` holds a non-owning reference: `weak(r)` creates it, `w.get(): Option[ref T]`.
-  Use it to break cycles; strong reference cycles leak.
+  Use it to break cycles; strong reference cycles leak. Once the last strong reference
+  goes away, `get` gives `None` (the pointee is freed even while weak references remain).
+  `=` on two weak references is true if they refer to the same pointee, or both to none.
 
 ### 4.10 Traits
 
@@ -1134,15 +1136,18 @@ export function open(path: String): Result[ref File, String]
 ```
 
 - A record whose unit declares `procedure destroy(var r: R)` for it is a **resource record**.
-  `destroy` must be in the same unit as the record, with exactly this signature. It is
-  called automatically and can never be called explicitly (`E1101`).
+  `destroy` must be in the same unit as the record, with exactly this signature (one
+  declared in another unit is `E1102`). It is called automatically and can never be
+  called explicitly, nor used as a value (`E1101`).
 - **Resource records exist only behind `ref`.** A value of type `R` itself can't be stored
   in a variable, parameter, field, list, or return value (`E1103`). Only `ref R` can.
   - The constructor `R(...)` may appear only as the direct argument of `new(...)`.
   - `deref(r)` on a `ref R` is an error (it would copy). Field access `r.fd` works.
-  - `R` can't be a generic type argument, but `ref R` can: `List[ref File]`.
+  - `R` can't be a generic type argument, but `ref R` can: `List[ref File]`. `Weak[R]` is
+    allowed, as its argument is the type of what it refers to, like `ref`'s.
 - `ref R` copies freely (refcount +1). Cleanup is deterministic: `destroy` runs exactly once,
-  when the last strong reference goes away. Then the memory is freed.
+  when the last strong reference goes away. Weak references to it already get `None` while
+  it runs. Then what the record holds is released and the memory is freed.
 - If a record holds `ref R` fields, releasing the record releases them, which may trigger
   their `destroy`.
 - There are **no moves** and no move tracking. Ownership is always the refcount.
@@ -1554,6 +1559,9 @@ already has a lexical error are not reported.
 | `E0903` | invalid declaration in an extern block's `type` section (§10.5) |
 | `E0904` | `cast` between types other than pointers and integers (§10.4) |
 | `E0905` | `addr` of something other than a variable or a C record field in one (§4.13) |
+| `E1101` | calling a destroy hook, or using it as a value (§11.1) |
+| `E1102` | destroy hook declared outside its record's unit |
+| `E1103` | a value of a resource record outside `ref`: its type written elsewhere than in `ref R` or `Weak[R]`, `R(...)` not directly inside `new`, `deref` of a `ref R`, or a copy of one |
 
 ### 16.4 Build errors
 

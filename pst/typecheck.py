@@ -86,6 +86,15 @@ def _castable(t) -> bool:
     return is_integer(t) or t in (Prim("Pointer"), Prim("CString")) or (isinstance(t, Builtin) and t.name == "Ptr")
 
 
+def _children(node):
+    """The direct sub-nodes of an AST node."""
+    for value in vars(node).values():
+        if isinstance(value, A.Node):
+            yield value
+        elif isinstance(value, list):
+            yield from (v for v in value if isinstance(v, A.Node))
+
+
 def _is_literal(e) -> bool:
     return _literal_value(e) is not None
 
@@ -227,6 +236,7 @@ class Env:
         # Generic types written in type expressions, (file, span) -> type: their bounds
         # are checked once every declaration is known (check_bounds).
         self.written: dict[tuple, Named] = {}
+        self._hooks: dict | None = None
         for u in units:
             for item in u.tree.items:
                 if isinstance(item, A.TypeSection):
@@ -260,6 +270,38 @@ class Env:
         u = self.units.get("System")
         syms = u.top.get(name) if u is not None and u.std else None
         return syms[0] if syms else None
+
+    def hooks(self) -> dict:
+        """The destroy hooks (SPEC §11.1): resource record symbol -> its `destroy`
+        procedure, a non-generic `procedure destroy(var r: R)` in the record's unit."""
+        if self._hooks is None:
+            self._hooks = {}
+            for u in self.units.values():
+                for item in u.tree.items:
+                    if not (isinstance(item, A.Routine) and item.sig.name.name == "destroy"):
+                        continue
+                    sym = self.def_sym(u.file, item.sig.name.span)
+                    if sym is None:
+                        continue
+                    sig = self.sig(sym)
+                    if sig.is_function or sig.tparams or len(sig.params) != 1 or not sig.params[0].is_var:
+                        continue
+                    t = sig.params[0].type
+                    if not (isinstance(t, Named) and self.kind_of(t) == "record" and not t.args):
+                        continue
+                    if t.sym.unit != u.name:
+                        self.error(
+                            u.file, "E1102", item.sig.name.span,
+                            f"a destroy hook for '{t.sym.name}' must be declared in its unit, "
+                            f"'{t.sym.unit}'",
+                        )  # fmt: skip
+                    elif t.sym not in self._hooks:
+                        self._hooks[t.sym] = sym
+        return self._hooks
+
+    def is_resource(self, t) -> bool:
+        """Whether ``t`` is a resource record, which exists only behind `ref`."""
+        return isinstance(t, Named) and t.sym in self.hooks()
 
     def check_bounds(self) -> None:
         """`Map[Real, V]`: each type argument of a written generic type must satisfy
@@ -581,6 +623,7 @@ class TypeChecker:
         self.tparams: list[Symbol] = []
         self.loops: list[dict] = []
         self.in_ensures = False
+        self._new_args: set[int] = set()  # id(argument of a `new` call), for resources()
 
     # ------------------------------------------------------------------ helpers
 
@@ -660,6 +703,70 @@ class TypeChecker:
             elif isinstance(item, A.TestBlock):
                 self.body(item.body.stmts)
         self.body([i for i in items if not isinstance(i, _DECLS)])
+        if self.env.hooks():
+            self.resources(self.unit.tree, None)
+
+    def resources(self, node, parent) -> None:
+        """Resource records exist only behind `ref`, and their destroy hook runs by itself
+        (SPEC §11.1): E1103 for a value of one (other than `r.field`, and `R(...)` as the
+        argument of `new`), E1101 for naming the hook."""
+        hooks = self.env.hooks()
+        if isinstance(node, A.TypeName) and not isinstance(parent, A.RefType) and not self.is_weak(parent):
+            sym = self.type_sym(node)
+            hook = hooks.get(sym)
+            own = isinstance(parent, A.Param) and hook is not None and parent is hook.node.sig.params[0]
+            if hook is not None and not own:
+                self.error(
+                    "E1103", node.span,
+                    f"'{sym.name}' is a resource record (it has a destroy hook), so its values "
+                    f"exist only behind 'ref': write 'ref {sym.name}'",
+                    [Fix(f"write 'ref {sym.name}'", (Edit(_point(node.span), "ref "),))],
+                )  # fmt: skip
+        elif isinstance(node, A.Call) and id(node) in self.calls:
+            m = self.calls[id(node)]
+            if m.sig.sym is not None and m.sig.sym in hooks.values():
+                self.error("E1101", node.span, "a destroy hook can't be called; it runs when the last reference goes away")
+                return
+            if m.sig.sym is not None and m.sig.sym is self.env.sys("new") and node.args:
+                self._new_args.add(id(node.args[0]))
+        elif isinstance(node, A.Name):
+            r = self.ref_at(node.span)
+            if r is not None and r.targets and all(s in hooks.values() for s in r.targets):
+                self.error("E1101", node.span, "a destroy hook can't be used as a value; it runs by itself")
+        t = self.types.get(id(node))
+        if self.env.is_resource(t) and not self.resource_ok(node, parent):
+            name = t.sym.name
+            if isinstance(node, A.Deref):
+                msg = f"'deref' of a 'ref {name}' would copy a resource record; use its fields"
+            elif isinstance(node, A.Call):
+                msg = f"a resource record can only be made inside 'new': 'new({self.text(node.span)})'"
+            else:
+                msg = f"a value of resource record '{name}' would be copied here; only 'ref {name}' can be"
+            self.error("E1103", node.span, msg)
+            return
+        for child in _children(node):
+            self.resources(child, node)
+
+    def type_sym(self, t: A.TypeName) -> Symbol | None:
+        r = self.ref_at((t.part_spans or [t.span])[-1])
+        return r.targets[0] if r is not None and len(r.targets) == 1 else None
+
+    def is_weak(self, t) -> bool:
+        """Whether ``t`` is the type expression `Weak[...]`, whose argument is the type of
+        what it refers to, as with `ref`."""
+        if not isinstance(t, A.TypeName):
+            return False
+        sym = self.type_sym(t)
+        return sym is not None and sym.kind is Kind.BUILTIN_TYPE and sym.name == "Weak"
+
+    def resource_ok(self, node, parent) -> bool:
+        """Whether a value of a resource record may appear as ``node``: as `r.field`, or
+        `R(...)` directly inside `new`."""
+        if isinstance(node, A.Deref):
+            return False
+        if isinstance(parent, A.FieldAccess) and parent.target is node:
+            return True
+        return isinstance(node, A.Call) and id(parent) in self._new_args
 
     def body(self, stmts: list) -> None:
         """The program body or a test block."""
