@@ -11,7 +11,7 @@ Supported so far:
   `and`/`or`/`not`, `if` and `case` expressions, string interpolation;
 - C interop (SPEC §10): calls into shared libraries, callbacks, `Ptr[T]`/`Pointer`/
   `CString`, `deref`, pointer arithmetic, `cast`, `addr`, C records,
-  `toCString`/`fromCString`, `isNull`;
+  `toCString`/`fromCString`/`fromCBytes`, `isNull`;
 - refs (SPEC §4.9): `new`, fields read and written through them, `deref`, identity `=`,
   `Weak[T]` with `weak` and `get`, and destroy hooks (§11.1);
 - lists (literals, indexing, `len`, `resize`), maps (literals, `m[k]`, `in`, `hash`) and
@@ -23,7 +23,9 @@ Supported so far:
 - routines (up to 6 parameters), with defaults, named arguments, dot calls, and
   contracts; a generic routine is compiled once per instance (SPEC §8), with calls to
   bound members resolved where its type arguments became concrete;
-- built-ins: `write`/`writeln`, `toString`, `ord`, `halt`, `inc`, `dec`, the `Bits`
+- the `IO` and `OS` units, written in Pasthon on libc; `OS.args` reads `argv`, which
+  `_start` keeps in a writable word after the GOT;
+- built-ins: `write`/`writeln`/`writeErr`/`writelnErr`, `toString`, `ord`, `halt`, `inc`, `dec`, the `Bits`
   operations, and `byteLen`, `charCount`, `slice`, `startsWith` from `Strings`.
 
 Scheme (SPEC §15.2: no IR, no optimizer): every expression leaves its value in rax;
@@ -461,6 +463,7 @@ class Emitter:
         a = self.asm
         self.f = _Frame(self.main.path, None, a.new_label("exit"))
         a.label("_start")
+        a.store_global("args", RSP)  # argc, then argv: SPEC §14 `OS.args`
         a.mov(RBP, RSP)
         size_at = a.sub_imm32_fixed(RSP)
         a.stack = []
@@ -490,7 +493,9 @@ class Emitter:
         needed = tuple(self.needed)
         got = elf.got_offset(len(a.code), len(a.rodata), a.imports, needed)
         code = a.finish(elf.rodata_offset(len(a.code)), got)
-        exe = elf.executable(code, bytes(a.rodata), a.labels["_start"], a.imports, needed)
+        exe = elf.executable(
+            code, bytes(a.rodata), a.labels["_start"], a.imports, needed, len(a.globals),
+        )  # fmt: skip
         return BuildResult(exe)
 
     def label_of(self, e, sym: Symbol, targs: tuple = (), sites: dict | None = None) -> str:
@@ -1960,10 +1965,11 @@ class Emitter:
         a = self.asm
         args = [s.expr if s is not None else None for s in m.slots]
         name = (sym.unit, sym.name)
-        if name in (("IO", "write"), ("IO", "writeln")):
+        if sym.unit == "IO" and sym.name in ("write", "writeln", "writeErr", "writelnErr"):
             parts = [] if not args else _parts(args[0])
-            self.string_of(parts + (["\n"] if sym.name == "writeln" else []))
+            self.string_of(parts + (["\n"] if sym.name.startswith("writeln") else []))
             a.mov(RDI, RAX)
+            a.mov_imm(RSI, 2 if sym.name.endswith("Err") else 1)
             a.call(self.runtime("rt_write_str"))
         elif name == ("System", "toString"):
             self.to_string(args[0])
@@ -2117,6 +2123,16 @@ class Emitter:
             a.jcc("e", self.panic("P0007", "null C string", e.span))
             a.mov(RDI, RAX)
             a.call(self.runtime("rt_from_cstring"))
+        elif name == ("C", "fromCBytes"):
+            self.expr(args[0])
+            a.push(RAX)
+            self.expr(args[1])
+            a.mov(RSI, RAX)
+            a.pop(RDI)
+            a.call(self.runtime("rt_from_bytes"))
+        elif name == ("OS", "argv"):
+            a.load_global(RAX, "args")
+            a.add_imm(RAX, 8)  # past argc
         elif name == ("C", "addr"):
             place = _unparen(args[0])
             if self.is_c_record(self.type(place)) or self.is_cplace(place):
@@ -2279,12 +2295,13 @@ class Emitter:
         a.ret()
 
     def rt_write_str(self) -> None:
-        """Writes the string rdi to stdout and releases it."""
+        """Writes the string rdi to file descriptor rsi (stdout or stderr) and releases it."""
         a = self.asm
         a.push(RDI)
+        a.mov(RCX, RSI)
         a.lea(RSI, RDI, _BYTES)
         a.load(RDX, RDI, _LEN)
-        a.mov_imm(RDI, 1)
+        a.mov(RDI, RCX)
         a.call(self.runtime("rt_write"))
         self.drop(1)
         a.ret()
@@ -2788,8 +2805,8 @@ class Emitter:
 
     def rt_utf8_len(self) -> None:
         """rax := the length of the valid UTF-8 sequence at rdi, or 0 if there is none (no
-        overlong forms or surrogates). A NUL never continues a sequence, so this doesn't
-        read past the end of a C string. Uses rcx, rdx, r8-r11."""
+        overlong forms or surrogates). rsi (at least 1) bytes may be read. Uses rcx, rdx,
+        r8-r11."""
         a = self.asm
         one, three, four, check, cont, bad = (a.new_label("u8") for _ in range(6))
         a.load8(RCX, RDI)
@@ -2821,6 +2838,8 @@ class Emitter:
             a.mov_imm(R10, high)
             a.jmp(check)
         a.label(check)
+        a.cmp(R8, RSI)
+        a.jcc("a", bad)  # the sequence doesn't fit
         a.load8(RDX, RDI, 1)
         a.cmp(RDX, R9)
         a.jcc("b", bad)
@@ -2884,8 +2903,19 @@ class Emitter:
         a.ret()
 
     def rt_from_cstring(self) -> None:
-        """rax := a new string copied from the C string rdi. Each byte that isn't part of
-        valid UTF-8 becomes U+FFFD."""
+        """rax := a new string copied from the C string rdi (see rt_from_bytes)."""
+        a = self.asm
+        a.push(RBX)
+        a.mov(RBX, RDI)
+        self.ccall("strlen")
+        a.mov(RDI, RBX)
+        a.mov(RSI, RAX)
+        a.pop(RBX)
+        a.jmp(self.runtime("rt_from_bytes"))
+
+    def rt_from_bytes(self) -> None:
+        """rax := a new string copied from the rsi bytes at rdi. Each byte that isn't part
+        of valid UTF-8 becomes U+FFFD."""
         a = self.asm
         saved = (RBX, R12, R13, R14, R15)
         for r in saved:
@@ -2894,13 +2924,16 @@ class Emitter:
         a.xor32(R12, R12)  # bytes
         a.xor32(R13, R13)  # chars
         a.mov(R14, RDI)
-        count, invalid, alloc = (a.new_label("fc") for _ in range(3))
+        a.mov(R15, RDI)
+        a.add(R15, RSI)  # the end
+        count, invalid, alloc = (a.new_label("fb") for _ in range(3))
         a.label(count)
-        a.load8(RCX, R14)
-        a.test(RCX, RCX)
-        a.jcc("e", alloc)
+        a.cmp(R14, R15)
+        a.jcc("ae", alloc)
         a.inc(R13)
         a.mov(RDI, R14)
+        a.mov(RSI, R15)
+        a.sub(RSI, R14)
         a.call(self.runtime("rt_utf8_len"))
         a.test(RAX, RAX)
         a.jcc("e", invalid)
@@ -2915,15 +2948,16 @@ class Emitter:
         a.mov(RDI, R12)
         a.call(self.runtime("rt_str_new"))
         a.store(RAX, _CHARS, R13)
-        a.mov(R15, RAX)
-        a.lea(R13, RAX, _BYTES)  # where the next byte goes
         a.mov(R14, RBX)
-        copy, byte, replace, done = (a.new_label("fc") for _ in range(4))
+        a.mov(RBX, RAX)
+        a.lea(R13, RAX, _BYTES)  # where the next byte goes
+        copy, byte, replace, done = (a.new_label("fb") for _ in range(4))
         a.label(copy)
-        a.load8(RCX, R14)
-        a.test(RCX, RCX)
-        a.jcc("e", done)
+        a.cmp(R14, R15)
+        a.jcc("ae", done)
         a.mov(RDI, R14)
+        a.mov(RSI, R15)
+        a.sub(RSI, R14)
         a.call(self.runtime("rt_utf8_len"))
         a.test(RAX, RAX)
         a.jcc("e", replace)
@@ -2942,7 +2976,7 @@ class Emitter:
         a.inc(R14)
         a.jmp(copy)
         a.label(done)
-        a.mov(RAX, R15)
+        a.mov(RAX, RBX)
         for r in reversed(saved):
             a.pop(r)
         a.ret()

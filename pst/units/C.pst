@@ -19,6 +19,9 @@ extern "pst"
     ## Copies a NUL-terminated C string. Invalid UTF-8 is replaced with U+FFFD. Panics
     ## (P0007) if `s` is null: check with `isNull` first where C may return null.
     export function fromCString(s: CString): String
+    ## Copies the `count` bytes at `p`, which may include NULs. Invalid UTF-8 is replaced
+    ## with U+FFFD.
+    export function fromCBytes(p: Pointer, count: Integer): String
     ## Whether a pointer is null. Safe: it doesn't read through the pointer.
     export function isNull(p: CString): Boolean
     export function isNull(p: Pointer): Boolean

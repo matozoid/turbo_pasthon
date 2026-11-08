@@ -39,6 +39,7 @@ class Assembler:
         self._code_refs: list[tuple[str, int, str]] = []  # (data label, offset, code label)
         self._strings: dict[bytes, str] = {}
         self.imports: list[str] = []  # imported C functions, in GOT order
+        self.globals: list[str] = []  # writable words, after the GOT
         self._n = 0
         # While tracked (not None): a word per value pushed and not yet popped, in code
         # order, True for an owned reference (see Emitter.save).
@@ -84,6 +85,8 @@ class Assembler:
                 target = rodata_offset + self.data_labels[label]
             elif kind == "got":
                 target = got_offset + 8 * self.imports.index(label)
+            elif kind == "global":
+                target = got_offset + 8 * (len(self.imports) + self.globals.index(label))
             else:
                 if label not in self.labels:
                     raise ValueError(f"undefined label {label}")
@@ -223,6 +226,20 @@ class Assembler:
         """`lea dst, [rip + label]` for a rodata label."""
         self.emit(_rex(True, dst, 0), 0x8D, 0x05 | (dst & 7) << 3)
         self._rel32(label, "data")
+
+    def load_global(self, dst: int, name: str) -> None:
+        """`mov dst, [rip + global]`."""
+        self._global(0x8B, dst, name)
+
+    def store_global(self, name: str, src: int) -> None:
+        """`mov [rip + global], src`."""
+        self._global(0x89, src, name)
+
+    def _global(self, op: int, r: int, name: str) -> None:
+        if name not in self.globals:
+            self.globals.append(name)
+        self.emit(_rex(True, r, 0), op, 0x05 | (r & 7) << 3)
+        self._rel32(name, "global")
 
     def lea_code(self, dst: int, label: str) -> None:
         """`lea dst, [rip + label]` for a code label."""

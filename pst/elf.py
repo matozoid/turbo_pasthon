@@ -8,11 +8,12 @@ File layout, loaded at ``BASE``:
     ELF header, program headers        \\
     code, read-only data                 |  read + execute segment
     interpreter path, dynamic symbols    /
-    dynamic section, GOT                 -- read + write segment
+    dynamic section, GOT, globals        -- read + write segment
 
 Imported functions are called through the GOT: `call [rip + slot]`. Each slot has an
 `R_X86_64_GLOB_DAT` relocation, which the dynamic loader fills in at startup, so there is
-no PLT and no lazy binding.
+no PLT and no lazy binding. The globals are zeroed words the runtime writes (the address of
+the command line arguments).
 """
 
 from __future__ import annotations
@@ -62,7 +63,9 @@ class Layout:
     end: int
 
     @staticmethod
-    def of(code_len: int, rodata_len: int, imports: list[str], needed: tuple = (LIBC,)) -> "Layout":
+    def of(
+        code_len: int, rodata_len: int, imports: list[str], needed: tuple = (LIBC,), globals_: int = 0,
+    ) -> "Layout":
         n = len(imports)
         rodata = CODE_OFFSET + align(code_len, 16)
         interp = align(rodata + rodata_len, 8)
@@ -75,7 +78,7 @@ class Layout:
         got = dynamic + 16 * (_DYNAMIC_ENTRIES + len(needed))
         return Layout(
             code_len, rodata, interp, dynstr, dynsym, hash_, rela, ro_end, dynamic, got,
-            got + 8 * n,
+            got + 8 * (n + globals_),
         )  # fmt: skip
 
     def addr(self, offset: int) -> int:
@@ -104,11 +107,12 @@ def _dynstr(imports: list[str], needed: tuple) -> bytes:
 
 def executable(
     code: bytes, rodata: bytes, entry: int, imports: list[str], needed: tuple = (LIBC,),
+    globals_: int = 0,
 ) -> bytes:
     """An executable whose code starts at ``CODE_OFFSET``; ``entry`` is an offset into
     ``code``. ``imports`` are the C functions the code calls through the GOT, found in
-    the ``needed`` libraries."""
-    lay = Layout.of(len(code), len(rodata), imports, needed)
+    the ``needed`` libraries. ``globals_`` zeroed words follow the GOT."""
+    lay = Layout.of(len(code), len(rodata), imports, needed, globals_)
     n = len(imports)
     out = bytearray(lay.end)
 

@@ -1061,6 +1061,8 @@ extern "libm.so.6"
           return None
       return Some(fromCString(p))
   ```
+- `fromCBytes(p: Pointer, count: Integer): String` copies `count` bytes, which may include
+  NULs, decoding them the same way.
   Planned, not in v0.1: decoding other encodings (Latin-1 and other 8-bit code pages,
   where bytes 0x80–0xFF are characters), as a parameter or a separate function.
 - A program ends through libc's `exit`, so output C buffered with `stdio` is written. It is
@@ -1219,13 +1221,13 @@ test "largest of empty list is None"
 | Unit | Contents |
 |---|---|
 | `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters (including `chars`) and consumers (§4.14), `len`, `add`, `concat`, `remove`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, conversions, `halt`, `assert` support |
-| `IO` | `write`, `writeln`, `readln`, files: `open`, `close`, `readAll`, `writeAll` returning `Result` |
+| `IO` | `write`, `writeln` (standard output), `writeErr`, `writelnErr` (standard error), `readln(): Option[String]`; files: `open` (reading), `create(path, mode := 0o644)` (writing; creates or empties), `close`, `readAll`, `readBytes`, `writeAll`, `writeBytes` returning `Result[_, String]` with C's error message. A `File` closes when its last reference goes away. Written in Pasthon on libc's `open`, `read`, `write`, `close` |
 | `Strings` | `bytes`, `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `parseInt`, `parseReal` |
 | `Math` | `Pi`, `sqrt`, `sin`, `cos`, `abs`, `min`, `max`, `floor`, `ceil` |
 | `Bits` | `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, `popCount` on all integer types (compiler intrinsics); results wrap to the type's width, `shr` shifts in zeros, a shift count outside 0 to width - 1 gives 0 |
-| `OS` | `args(): List[String]`, `env(name): Option[String]`, `exit` |
+| `OS` | `args(): List[String]` (without the program name), `env(name): Option[String]`, `exit(code)`. Written in Pasthon on libc; `args` reads `argv`, which the program's entry point keeps in a writable word after the GOT (§15.2) |
 | `Threads` | reserved for §11.2; not in v0.1 |
-| `C` | C interop types, `toCString`, `fromCString` |
+| `C` | C interop types, `toCString`, `fromCString`, `fromCBytes`, `isNull`, `addr`, `cast` |
 | `DateTime` | planned, not in v0.1: dates and times modeled on Joda-Time. Immutable values `Instant`, `LocalDate`, `LocalTime`, `LocalDateTime`, `DateTime` (with a time zone), `Duration`, `Period`, `Interval`. Written in Pasthon on libc's time functions |
 
 ---
@@ -1277,7 +1279,8 @@ encoding the client negotiates (§15.4).
 4. **Emit pass**: walk the typed AST and emit x86-64 machine code directly with a simple
    stack-based expression scheme. No IR, no optimizer.
 5. **Link**: the compiler writes the ELF itself (`PT_INTERP` = `/lib64/ld-linux-x86-64.so.2`,
-   dynamic section, a GOT for extern symbols, the runtime emitted along with the program).
+   dynamic section, a GOT for extern symbols, writable words for the runtime after it, the
+   runtime emitted along with the program).
 
 Checked build (default): bounds, overflow, subrange, contracts. `--unchecked` drops all of
 them except `assert`.

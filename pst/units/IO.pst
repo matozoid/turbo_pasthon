@@ -1,6 +1,8 @@
 unit IO
 
-## Console and file input/output.
+## Console and file input/output, on libc.
+
+uses C, Strings
 
 type
     ## An open file. Closed automatically when the last reference goes away.
@@ -14,32 +16,146 @@ extern "pst"
     export procedure writeln[T: Printable](value: T)
     ## Writes a newline to standard output.
     export procedure writeln()
-    ## Reads one line from standard input, without the newline. `None` at end of input.
-    export function readln(): Option[String]
+    ## Writes the text form of `value` to standard error.
+    export procedure writeErr[T: Printable](value: T)
+    ## Writes the text form of `value` and a newline to standard error.
+    export procedure writelnErr[T: Printable](value: T)
 
-    function sysOpen(path: String): Result[Integer, String]
-    function sysClose(fd: Integer): Result[Integer, String]
-    function sysReadAll(fd: Integer): Result[String, String]
-    function sysWriteAll(fd: Integer, text: String): Result[Integer, String]
+extern "libc.so.6"
+    function cOpen(path: CString, flags: CInt, ...): CInt as "open"
+    function cClose(fd: CInt): CInt as "close"
+    function cRead(fd: CInt, buf: Pointer, count: CSize): CLong as "read"
+    function cWrite(fd: CInt, buf: Pointer, count: CSize): CLong as "write"
+    function errnoLocation(): Ptr[CInt] as "__errno_location"
+    function strerror(code: CInt): CString
+    function malloc(size: CSize): Pointer
+    function realloc(p: Pointer, size: CSize): Pointer
+    procedure free(p: Pointer)
+
+const
+    ReadOnly = 0
+    WriteOnly = 0o1
+    Create = 0o100
+    Truncate = 0o1000
+    CloseOnExec = 0o2000000
 
 procedure destroy(var f: File)
-    _ := sysClose(f.fd)
+    if f.fd >= 0 then
+        _ := cClose(CInt(f.fd))
 
-## Opens the file at `path` for reading and writing.
+## The message for C's `errno`.
+unsafe function lastError(): String
+    return fromCString(strerror(deref(errnoLocation())))
+
+unsafe function openWith(path: String, flags: Integer, mode: Integer): Result[ref File, String]
+    let fd := cOpen(toCString(path), CInt(flags + CloseOnExec), CInt(mode))
+    if fd < 0 then
+        return Err("{path}: {lastError()}")
+    return Ok(new(File(fd: Integer(fd))))
+
+## Opens the file at `path` for reading.
 export function open(path: String): Result[ref File, String]
-    let fd := try sysOpen(path)
-    return Ok(new(File(fd: fd)))
+    return openWith(path, ReadOnly, mode: 0)
+
+## Creates the file at `path` for writing, or empties it if it exists. A new file gets the
+## permissions `mode` (less the process's umask): `0o755` for an executable.
+export function create(path: String, mode: Integer := 0o644): Result[ref File, String]
+    return openWith(path, WriteOnly + Create + Truncate, mode: mode)
 
 ## Closes the file now, instead of when the last reference goes away.
-export function close(f: ref File): Result[Integer, String]
-    let r := sysClose(f.fd)
+export unsafe function close(f: ref File): Result[Integer, String]
+    if f.fd < 0 then
+        return Err("the file is already closed")
+    let r := cClose(CInt(f.fd))
     f.fd := -1
+    if r < 0 then
+        return Err(lastError())
+    return Ok(0)
+
+## Reads the rest of file descriptor `fd` into a buffer from `malloc`, to be freed by the
+## caller, and sets `n` to the number of bytes read.
+unsafe function readFd(fd: Integer, var n: Integer): Result[Ptr[Byte], String]
+    var size := 4096
+    var buf: Ptr[Byte] := cast[Ptr[Byte]](malloc(CSize(size)))
+    n := 0
+    while true do
+        if n = size then
+            size := size * 2
+            buf := cast[Ptr[Byte]](realloc(cast[Pointer](buf), CSize(size)))
+        let got := cRead(CInt(fd), cast[Pointer](buf + n), CSize(size - n))
+        if got < 0 then
+            let message := lastError()
+            free(cast[Pointer](buf))
+            return Err(message)
+        if got = 0 then
+            return Ok(buf)
+        n := n + Integer(got)
+
+## Writes the `n` bytes at `p` to file descriptor `fd`.
+unsafe function writeFd(fd: Integer, p: Ptr[Byte], n: Integer): Result[Integer, String]
+    var done := 0
+    while done < n do
+        let w := cWrite(CInt(fd), cast[Pointer](p + done), CSize(n - done))
+        if w < 0 then
+            return Err(lastError())
+        done := done + Integer(w)
+    return Ok(n)
+
+## The rest of the file as text. Invalid UTF-8 is replaced with U+FFFD.
+export unsafe function readAll(f: ref File): Result[String, String]
+    var n := 0
+    let buf := try readFd(f.fd, n: var n)
+    let text := fromCBytes(cast[Pointer](buf), n)
+    free(cast[Pointer](buf))
+    return Ok(text)
+
+## The rest of the file as bytes.
+export unsafe function readBytes(f: ref File): Result[List[Byte], String]
+    var n := 0
+    let buf := try readFd(f.fd, n: var n)
+    var bytes: List[Byte] := []
+    var i := 0
+    while i < n do
+        add(var bytes, deref(buf + i))
+        i := i + 1
+    free(cast[Pointer](buf))
+    return Ok(bytes)
+
+## Writes `text` to the file. The result is the number of bytes written.
+export unsafe function writeAll(f: ref File, text: String): Result[Integer, String]
+    return writeFd(f.fd, cast[Ptr[Byte]](toCString(text)), n: byteLen(text))
+
+## Writes `data` to the file. The result is the number of bytes written.
+export unsafe function writeBytes(f: ref File, data: List[Byte]): Result[Integer, String]
+    let n := len(data)
+    let buf := cast[Ptr[Byte]](malloc(CSize(n + 1)))
+    var i := 0
+    while i < n do
+        deref(buf + i) := data[i]
+        i := i + 1
+    let r := writeFd(f.fd, buf, n: n)
+    free(cast[Pointer](buf))
     return r
 
-## The whole remaining contents of the file.
-export function readAll(f: ref File): Result[String, String]
-    return sysReadAll(f.fd)
-
-## Writes `text` to the file.
-export function writeAll(f: ref File, text: String): Result[Integer, String]
-    return sysWriteAll(f.fd, text)
+## Reads one line from standard input, without the newline. `None` at end of input.
+export unsafe function readln(): Option[String]
+    var size := 128
+    var buf: Ptr[Byte] := cast[Ptr[Byte]](malloc(CSize(size)))
+    var n := 0
+    var c: Byte := 0
+    while true do
+        if cRead(0, cast[Pointer](addr(var c)), 1) <= 0 then
+            if n = 0 then
+                free(cast[Pointer](buf))
+                return None
+            break
+        if c = 10 then
+            break
+        if n = size then
+            size := size * 2
+            buf := cast[Ptr[Byte]](realloc(cast[Pointer](buf), CSize(size)))
+        deref(buf + n) := c
+        n := n + 1
+    let line := fromCBytes(cast[Pointer](buf), n)
+    free(cast[Pointer](buf))
+    return Some(line)

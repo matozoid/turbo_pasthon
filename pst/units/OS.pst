@@ -1,11 +1,33 @@
 unit OS
 
-## The process environment.
+## The process environment, on libc.
+
+uses C
+
+extern "libc.so.6"
+    function getenv(name: CString): CString
 
 extern "pst"
-    ## Command line arguments, without the program name.
-    export function args(): List[String]
-    ## The value of environment variable `name`.
-    export function env(name: String): Option[String]
-    ## Exits with status `code`, like `halt`.
-    export procedure exit(code: Integer)
+    ## The program's `argv`: a pointer to C strings, the program name first, ending with a
+    ## null pointer.
+    function argv(): Ptr[CString]
+
+## Command line arguments, without the program name.
+export unsafe function args(): List[String]
+    var r: List[String] := []
+    var p := argv() + 1
+    while not isNull(deref(p)) do
+        add(var r, fromCString(deref(p)))
+        p := p + 1
+    return r
+
+## The value of environment variable `name`.
+export function env(name: String): Option[String]
+    let p := getenv(toCString(name))
+    if isNull(p) then
+        return None
+    return Some(fromCString(p))
+
+## Exits with status `code`, like `halt`.
+export procedure exit(code: Integer)
+    halt(code)

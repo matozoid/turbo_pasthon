@@ -34,7 +34,7 @@ def compile_program(body: str, checked: bool = True, uses: str = "IO", units: di
 
 def run_program(
     body: str, *args: str, checked: bool = True, uses: str = "IO", under: tuple = (),
-    units: dict | None = None, env: dict | None = None,
+    units: dict | None = None, env: dict | None = None, stdin: bytes = b"",
 ) -> subprocess.CompletedProcess:
     """Builds and runs a program, optionally under a tool such as valgrind."""
     built, tmp = compile_program(body, checked, uses, units)
@@ -43,7 +43,9 @@ def run_program(
     Path(exe).write_bytes(built.executable)
     os.chmod(exe, 0o755)
     environ = {**os.environb, **{k.encode(): v for k, v in (env or {}).items()}}
-    return subprocess.run([*under, exe, *args], capture_output=True, timeout=60, env=environ)
+    return subprocess.run(
+        [*under, exe, *args], input=stdin, capture_output=True, timeout=60, env=environ,
+    )  # fmt: skip
 
 
 class Encoding(unittest.TestCase):
@@ -1347,6 +1349,117 @@ class DeferAndTry(unittest.TestCase):
             "[a][skip][bc][stop]\nok 3\n[a][bad]err not a number: bad\n"
             "  check done\nerr not a number: bad\n  check done\nok 1\n"
         ))
+
+
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class OsAndFiles(unittest.TestCase):
+    VALGRIND = ("valgrind", "-q", "--leak-check=full", "--error-exitcode=9")
+
+    def under(self) -> tuple:
+        return self.VALGRIND if shutil.which("valgrind") else ()
+
+    def test_args_env_exit(self):
+        p = run_program("""
+            for a in args() do
+                writeln("[{a}]")
+            case env("PST_TEST") of
+                Some(v):
+                    writeln(v.value)
+                None:
+                    writeln("unset")
+            writeln(env("PST_NOT_SET_ANYWHERE").isNone())
+            writelnErr("to stderr")
+            exit(3)
+            """, "one", "two words", "", uses="IO, OS", env={"PST_TEST": b"h\xc3\xa9"},
+            under=self.under())  # fmt: skip
+        self.assertEqual(p.stdout.decode(), "[one]\n[two words]\n[]\nhé\ntrue\n")
+        self.assertEqual(p.stderr, b"to stderr\n")
+        self.assertEqual(p.returncode, 3)
+
+    def test_files(self):
+        tmp = tempfile.mkdtemp(dir=_TMP.name)
+        p = run_program(f"""
+            let dir := "{tmp}"
+            case create("{{dir}}/text") of
+                Ok(f):
+                    _ := writeAll(f.value, "héllo\\nworld\\n")
+                    case close(f.value) of
+                        Ok(_):
+                            writeln(close(f.value).isErr())
+                        Err(e):
+                            writeln(e.error)
+                Err(e):
+                    writeln(e.error)
+            case open("{{dir}}/text") of
+                Ok(f):
+                    case readAll(f.value) of
+                        Ok(t):
+                            write(t.value)
+                        Err(e):
+                            writeln(e.error)
+                Err(e):
+                    writeln(e.error)
+            case create("{{dir}}/bin", 0o755) of
+                Ok(f):
+                    _ := writeBytes(f.value, [Byte(0), Byte(1), Byte(255)])
+                Err(e):
+                    writeln(e.error)
+            case open("{{dir}}/bin") of
+                Ok(f):
+                    case readBytes(f.value) of
+                        Ok(b):
+                            for x in b.value do
+                                write("{{x}} ")
+                            writeln()
+                        Err(e):
+                            writeln(e.error)
+                Err(e):
+                    writeln(e.error)
+            case open("{{dir}}/missing") of
+                Ok(_):
+                    writeln("found")
+                Err(e):
+                    writeln(e.error)
+            """, under=self.under())  # fmt: skip
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(p.stdout.decode(), f"true\nhéllo\nworld\n0 1 255 \n{tmp}/missing: No such file or directory\n")
+        self.assertEqual(Path(tmp, "bin").read_bytes(), b"\0\1\xff")
+        self.assertEqual(os.stat(Path(tmp, "bin")).st_mode & 0o111, 0o111 & ~_umask())
+        self.assertEqual(os.stat(Path(tmp, "text")).st_mode & 0o111, 0)
+
+    def test_read_invalid_utf8(self):
+        tmp = tempfile.mkdtemp(dir=_TMP.name)
+        Path(tmp, "bad").write_bytes(b"a\0b\xffc\xc3")  # a NUL, a stray byte, a cut-off sequence
+        p = run_program(f"""
+            case open("{tmp}/bad") of
+                Ok(f):
+                    case readAll(f.value) of
+                        Ok(t):
+                            write(t.value)
+                            writeln(charCount(t.value))
+                        Err(e):
+                            writeln(e.error)
+                Err(e):
+                    writeln(e.error)
+            """, uses="IO, Strings", under=self.under())  # fmt: skip
+        self.assertEqual(p.stdout, "a\0b\ufffdc\ufffd6\n".encode())
+
+    def test_readln(self):
+        p = run_program("""
+            while true do
+                case readln() of
+                    Some(l):
+                        writeln("[{l.value}]")
+                    None:
+                        break
+            """, stdin="a\nbé\n\nlast".encode(), under=self.under())  # fmt: skip
+        self.assertEqual(p.stdout.decode(), "[a]\n[bé]\n[]\n[last]\n")
+
+
+def _umask() -> int:
+    mask = os.umask(0)
+    os.umask(mask)
+    return mask
 
 
 class Iterators(unittest.TestCase):
