@@ -1,0 +1,12 @@
+unit Bits
+
+## Bit operations on all integer types.
+
+extern "pst"
+    export function band[T](a, b: T): T
+    export function bor[T](a, b: T): T
+    export function bxor[T](a, b: T): T
+    export function bnot[T](a: T): T
+    export function shl[T](a: T, n: Integer): T
+    export function shr[T](a: T, n: Integer): T
+    export function popCount[T](a: T): Integer

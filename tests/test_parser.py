@@ -244,7 +244,7 @@ class Declarations(unittest.TestCase):
         self.assertIsNone(r.file.items[0].doc)
 
     def test_spec_example(self):
-        r = parse((ROOT / "examples" / "inventory.pst").read_text(), "inventory.pst")
+        r = parse((ROOT / "examples" / "Inventory.pst").read_text(), "Inventory.pst")
         self.assertEqual([d.human() for d in r.diagnostics], [])
         kinds = [type(i).__name__ for i in r.file.items]
         self.assertEqual(kinds.count("Routine"), 4)
@@ -353,7 +353,7 @@ class Errors(unittest.TestCase):
 
     def test_never_crashes(self):
         # Every prefix of a real program yields a tree.
-        src = (ROOT / "examples" / "inventory.pst").read_text()
+        src = (ROOT / "examples" / "Inventory.pst").read_text()
         for n in range(0, len(src), 7):
             r = parse(src[:n])
             self.assertIsInstance(r.file, A.File)

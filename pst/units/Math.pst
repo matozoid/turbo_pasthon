@@ -1,0 +1,29 @@
+unit Math
+
+## Numeric functions.
+
+const
+    export Pi = 3.141592653589793
+
+extern "pst"
+    export function sqrt(x: Real): Real
+    export function sin(x: Real): Real
+    export function cos(x: Real): Real
+    ## Largest integer not above `x`.
+    export function floor(x: Real): Integer
+    ## Smallest integer not below `x`.
+    export function ceil(x: Real): Integer
+
+export function abs(x: Integer): Integer
+    return if x < 0 then -x else x
+
+export function abs(x: Real): Real
+    return if x < 0.0 then -x else x
+
+## The smaller of `a` and `b`.
+export function min[T: Ordered](a, b: T): T
+    return if b < a then b else a
+
+## The larger of `a` and `b`.
+export function max[T: Ordered](a, b: T): T
+    return if b > a then b else a

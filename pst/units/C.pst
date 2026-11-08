@@ -1,0 +1,19 @@
+unit C
+
+## C interop types (SPEC §4.13). `CString`, `Ptr[T]` and `Pointer` are provided by the
+## compiler.
+
+type
+    export CInt = Int32
+    export CUInt = UInt32
+    export CLong = Int64
+    export CSize = UInt64
+    export CDouble = Real
+    export CFloat = Real32
+    export CChar = Int8
+
+extern "pst"
+    ## A NUL-terminated copy of `s`, freed when the CString goes away.
+    export function toCString(s: String): CString
+    ## Copies a NUL-terminated C string. Invalid UTF-8 is replaced with U+FFFD.
+    export function fromCString(s: CString): String

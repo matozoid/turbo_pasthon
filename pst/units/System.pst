@@ -1,0 +1,338 @@
+unit System
+
+## The core unit. Every file uses it implicitly (SPEC §3.5).
+##
+## Provided by the compiler, not declared here: the primitive types Int8, Int16, Int32,
+## Int64, UInt8, UInt16, UInt32, UInt64, Real32, Real64, Boolean, Char, String; the
+## generic types List[T], Map[K, V], Set[T], Array[T, N], Weak[T]; and the traits
+## Equatable, Ordered, Hashable, Sendable. Routines in `extern "pst"` blocks are
+## implemented by the compiler.
+
+type
+    ## Signed 64-bit integer.
+    export Integer = Int64
+    ## IEEE-754 64-bit floating point.
+    export Real = Real64
+    export Byte = UInt8
+
+    ## A present value.
+    export Some[T] = record
+        export value: T
+    ## No value.
+    export None = record
+    export Option[T] = Some[T] | None
+
+    ## A successful result.
+    export Ok[T] = record
+        export value: T
+    ## A failed result.
+    export Err[E] = record
+        export error: E
+    export Result[T, E] = Ok[T] | Err[E]
+
+    ## A type with a text form.
+    export Printable = trait
+        function toString(this): String
+
+    ## A source of values, read with `next` (SPEC §4.14).
+    export Iterator[T] = trait
+        function next(var this): Option[T]
+
+    ## Two values side by side, yielded by `zip`.
+    export Pair[A, B] = record
+        export first: A
+        export second: B
+
+    ## A value and its position, yielded by `enumerate`.
+    export Indexed[T] = record
+        export index: Integer
+        export value: T
+
+    ## One map entry, yielded by `entries`.
+    export Entry[K, V] = record
+        export key: K
+        export value: V
+
+    export ListIter[T] = record
+        items: List[T]
+        pos: Integer
+
+    export ArrayIter[T, N: Integer] = record
+        items: Array[T, N]
+        pos: Integer
+
+    export CharIter = record
+        text: String
+        pos: Integer
+
+    export MapIter[T, U, I] = record
+        source: I
+        f: function(T): U
+
+    export FilterIter[T, I] = record
+        source: I
+        pred: function(T): Boolean
+
+    export TakeIter[I] = record
+        source: I
+        left: Integer
+
+    export SkipIter[I] = record
+        source: I
+        left: Integer
+
+    export ZipIter[I, J] = record
+        a: I
+        b: J
+
+    export EnumerateIter[I] = record
+        source: I
+        index: Integer
+
+extern "pst"
+    ## Number of elements.
+    export function len[T](xs: List[T]): Integer
+    export function len[K, V](m: Map[K, V]): Integer
+    export function len[T](s: Set[T]): Integer
+    export function len[T, N: Integer](a: Array[T, N]): Integer
+
+    ## Appends `x` to the end of `xs`.
+    export procedure add[T](var xs: List[T], x: T)
+    ## Adds `x` to the set.
+    export procedure add[T](var s: Set[T], x: T)
+    ## A new list: `a` followed by `b`.
+    export function concat[T](a, b: List[T]): List[T]
+    ## Removes the element at `index`.
+    export procedure remove[T](var xs: List[T], index: Integer)
+    ## Removes `key` from the map, if present.
+    export procedure remove[K, V](var m: Map[K, V], key: K)
+    ## Removes `x` from the set, if present.
+    export procedure remove[T](var s: Set[T], x: T)
+    ## The entries of a map, in insertion order.
+    export function entries[K, V](m: Map[K, V]): ListIter[Entry[K, V]]
+
+    ## Adds 1 (or `n`) to an integer or enum variable.
+    export procedure inc[T](var x: T)
+    export procedure inc[T](var x: T, n: Integer)
+    ## Subtracts 1 (or `n`) from an integer or enum variable.
+    export procedure dec[T](var x: T)
+    export procedure dec[T](var x: T, n: Integer)
+    ## The position of an enum member, or the code point of a Char.
+    export function ord[T](x: T): Integer
+
+    ## Allocates `value` on the heap.
+    export function new[T](value: T): ref T
+    ## A non-owning reference to `r`.
+    export function weak[T](r: ref T): Weak[T]
+    ## The referenced value, unless it was destroyed.
+    export function get[T](w: Weak[T]): Option[ref T]
+
+    export function toString(x: Integer): String
+    export function toString(x: Real): String
+    export function toString(x: Boolean): String
+    export function toString(x: Char): String
+    export function toString(x: String): String
+
+    ## Converts an integer to a real.
+    export function toReal(x: Integer): Real
+    ## Converts a real to an integer, truncating toward zero.
+    export function toInt(x: Real): Integer
+    ## Rounds a real to the nearest integer.
+    export function round(x: Real): Integer
+
+    ## Exits immediately with status `code`. Deferred statements do not run.
+    export procedure halt(code: Integer)
+
+    ## Panics with `P0005`.
+    function getFailed[T](what: String): T
+    function byteLen(s: String): Integer
+    function decodeUtf8At(s: String, pos: Integer): Char
+    function utf8Width(c: Char): Integer
+
+# ------------------------------------------------------------ Option and Result
+
+export function isSome[T](o: Option[T]): Boolean
+    return case o of
+        Some(_): true
+        None: false
+
+export function isNone[T](o: Option[T]): Boolean
+    return not isSome(o)
+
+export function isOk[T, E](r: Result[T, E]): Boolean
+    return case r of
+        Ok(_): true
+        Err(_): false
+
+export function isErr[T, E](r: Result[T, E]): Boolean
+    return not isOk(r)
+
+## The value; panics with `P0005` on `None`.
+export function get[T](o: Option[T]): T
+    return case o of
+        Some(s): s.value
+        None: getFailed[T]("get on None")
+
+## The value; panics with `P0005` on `Err`.
+export function get[T, E](r: Result[T, E]): T
+    return case r of
+        Ok(v): v.value
+        Err(_): getFailed[T]("get on Err")
+
+## The value, or `default` on `None`.
+export function getOr[T](o: Option[T], default: T): T
+    return case o of
+        Some(s): s.value
+        None: default
+
+## The value, or `default` on `Err`.
+export function getOr[T, E](r: Result[T, E], default: T): T
+    return case r of
+        Ok(v): v.value
+        Err(_): default
+
+# -------------------------------------------------------------------- iterators
+
+export function iter[T](xs: List[T]): ListIter[T]
+    return ListIter(items: xs, pos: 0)
+
+export function next[T](var it: ListIter[T]): Option[T]
+    if it.pos >= len(it.items) then
+        return None
+    let x := it.items[it.pos]
+    inc(var it.pos)
+    return Some(x)
+
+export function iter[T, N: Integer](xs: Array[T, N]): ArrayIter[T, N]
+    return ArrayIter(items: xs, pos: 0)
+
+export function next[T, N: Integer](var it: ArrayIter[T, N]): Option[T]
+    if it.pos >= len(it.items) then
+        return None
+    let x := it.items[it.pos]
+    inc(var it.pos)
+    return Some(x)
+
+## The characters of a string.
+export function chars(s: String): CharIter
+    return CharIter(text: s, pos: 0)
+
+export function iter(s: String): CharIter
+    return chars(s)
+
+export function next(var it: CharIter): Option[Char]
+    if it.pos >= byteLen(it.text) then
+        return None
+    let c := decodeUtf8At(it.text, it.pos)
+    it.pos := it.pos + utf8Width(c)
+    return Some(c)
+
+## Yields `f(x)` for each `x`.
+export function map[T, U, I: Iterator[T]](it: I, f: function(T): U): MapIter[T, U, I]
+    return MapIter(source: it, f: f)
+
+export function next[T, U, I: Iterator[T]](var it: MapIter[T, U, I]): Option[U]
+    return case next(var it.source) of
+        Some(s): Some(it.f(s.value))
+        None: None
+
+## Yields each `x` where `pred(x)`.
+export function filter[T, I: Iterator[T]](it: I, pred: function(T): Boolean): FilterIter[T, I]
+    return FilterIter(source: it, pred: pred)
+
+export function next[T, I: Iterator[T]](var it: FilterIter[T, I]): Option[T]
+    for x in it.source do
+        if it.pred(x) then
+            return Some(x)
+    return None
+
+## Yields the first `n` values.
+export function take[T, I: Iterator[T]](it: I, n: Integer): TakeIter[I]
+    return TakeIter(source: it, left: n)
+
+export function next[T, I: Iterator[T]](var it: TakeIter[I]): Option[T]
+    if it.left <= 0 then
+        return None
+    dec(var it.left)
+    return next(var it.source)
+
+## Yields all but the first `n` values.
+export function skip[T, I: Iterator[T]](it: I, n: Integer): SkipIter[I]
+    return SkipIter(source: it, left: n)
+
+export function next[T, I: Iterator[T]](var it: SkipIter[I]): Option[T]
+    while it.left > 0 do
+        dec(var it.left)
+        if isNone(next(var it.source)) then
+            return None
+    return next(var it.source)
+
+## Yields pairs until either side ends.
+export function zip[A, B, I: Iterator[A], J: Iterator[B]](a: I, b: J): ZipIter[I, J]
+    return ZipIter(a: a, b: b)
+
+export function next[A, B, I: Iterator[A], J: Iterator[B]](var it: ZipIter[I, J]): Option[Pair[A, B]]
+    let x := next(var it.a)
+    let y := next(var it.b)
+    if isNone(x) or isNone(y) then
+        return None
+    return Some(Pair(first: get(x), second: get(y)))
+
+## Yields each value with its position, starting at 0.
+export function enumerate[T, I: Iterator[T]](it: I): EnumerateIter[I]
+    return EnumerateIter(source: it, index: 0)
+
+export function next[T, I: Iterator[T]](var it: EnumerateIter[I]): Option[Indexed[T]]
+    return case next(var it.source) of
+        Some(s): Some(Indexed(index: it.index, value: s.value))
+        None: None
+
+# -------------------------------------------------------------------- consumers
+
+## All values, in order.
+export function collect[T, I: Iterator[T]](it: I): List[T]
+    var out: List[T] := []
+    for x in it do
+        add(var out, x)
+    return out
+
+## Number of values.
+export function count[T, I: Iterator[T]](it: I): Integer
+    var n := 0
+    for _ in it do
+        inc(var n)
+    return n
+
+## Sum of the values.
+export function sum[I: Iterator[Integer]](it: I): Integer
+    var total := 0
+    for x in it do
+        total := total + x
+    return total
+
+export function sum[I: Iterator[Real]](it: I): Real
+    var total := 0.0
+    for x in it do
+        total := total + x
+    return total
+
+## Whether `pred` holds for some value.
+export function any[T, I: Iterator[T]](it: I, pred: function(T): Boolean): Boolean
+    for x in it do
+        if pred(x) then
+            return true
+    return false
+
+## Whether `pred` holds for every value.
+export function all[T, I: Iterator[T]](it: I, pred: function(T): Boolean): Boolean
+    for x in it do
+        if not pred(x) then
+            return false
+    return true
+
+## The first value where `pred` holds.
+export function find[T, I: Iterator[T]](it: I, pred: function(T): Boolean): Option[T]
+    for x in it do
+        if pred(x) then
+            return Some(x)
+    return None

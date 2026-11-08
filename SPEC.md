@@ -203,7 +203,7 @@ const
 var count := 0
 
 procedure bump(var n: Integer)
-    inc(n)
+    inc(var n)
 
 bump(var count)
 writeln("{Greeting}, count = {count}")
@@ -220,7 +220,34 @@ in the file. No `forward` declarations are needed. Mutual recursion works.
 - Enum members are exported with their enum.
 - `uses Strings` makes exported names available both qualified (`Strings.split`) and unqualified (`split`).
 - If an unqualified name is ambiguous between units, using it is an error (`E0110`); qualify it.
-- The `System` unit (core types, `Option`, `Result`, `writeln`, `len`, etc.) is implicitly used.
+- The `System` unit (core types, `Option`, `Result`, `len`, etc.) is implicitly used.
+- Lookup order for an unqualified name: local variables and parameters (innermost first),
+  type parameters and the members their bounds require (§8.2), the file's own top-level
+  declarations, then the names exported by the used units. Own declarations hide imported
+  ones, except routines: overloads with the same name from the own unit and every used
+  unit form one overload set (§6.7).
+- Two top-level declarations with the same name in one unit are an error (`E0108`), except
+  routines (overloads).
+- `uses X` finds `X.pst` among the standard units first, then in the directory of the file
+  that names it. A missing unit, or one that is a `program`, is `E0102`. Cyclic `uses` is an
+  error (`E0107`).
+- Using a name that `X` declares but doesn't export is `E0109`.
+
+### 3.6 Standard units
+The standard units (§14) are ordinary `.pst` files shipped with the compiler (`pst/units/`).
+Primitive types, the built-in generic types (`List`, `Map`, `Set`, `Array`, `Weak`), the
+traits `Equatable`, `Ordered`, `Hashable`, `Sendable`, and the C types `CString`, `Ptr`,
+`Pointer` are provided by the compiler as names in `System` (`C` for the C types). Routines
+the compiler implements are declared like C functions, in `extern "pst"` blocks, which are
+allowed only in standard units (`E0106`):
+
+```pascal
+extern "pst"
+    ## Number of elements.
+    export function len[T](xs: List[T]): Integer
+```
+
+`export` on a declaration inside an `extern` block exports it, as for routines.
 
 ---
 
@@ -512,7 +539,7 @@ function next(var it: CharIter): Option[Char]
 function count[T, I: Iterator[T]](it: I): Integer
     var n := 0
     for _ in it do
-        inc(n)
+        inc(var n)
     return n
 ```
 
@@ -561,7 +588,10 @@ let name := "bob"            # immutable binding
 - Every variable **must** be initialized at declaration (`E0201`).
 - `let` bindings can't be reassigned or passed as `var` arguments.
 - Shadowing a variable from an enclosing scope in the same function is an error (`E0205`).
-- Declaring a variable and never using it is an error (`E0206`). Remove it.
+- Declaring a variable and never using it is an error (`E0206`). Remove it, or discard the
+  value (fix: `var x := f()` becomes `_ := f()`). Assigning to a variable doesn't use it;
+  reading it, or passing it as `var`, does. This covers `for ... in` variables and `case`
+  bindings (fix: `_`), but not the counter of `for i := a to b`.
 
 ---
 
@@ -654,7 +684,7 @@ p.x := expr
 list[i] := expr
 deref(r) := expr
 ```
-There are no compound operators (`+=`). Use `inc(x)`, `inc(x, n)`, `dec(x)`, `dec(x, n)` for counters.
+There are no compound operators (`+=`). Use `inc(var x)`, `inc(var x, n)`, `dec(var x)`, `dec(var x, n)` for counters.
 
 ### 7.2 if
 ```pascal
@@ -673,7 +703,7 @@ else
 ### 7.3 while
 ```pascal
 while i < n do
-    inc(i)
+    inc(var i)
 ```
 
 ### 7.4 repeat ... until
@@ -682,7 +712,8 @@ repeat
     line := readln()
 until line = "quit"
 ```
-`until` sits at the same indentation as `repeat` and closes the block.
+`until` sits at the same indentation as `repeat` and closes the block. The condition can
+use variables declared in the body.
 
 ### 7.5 for
 ```pascal
@@ -1040,9 +1071,9 @@ test "largest of empty list is None"
 
 | Unit | Contents |
 |---|---|
-| `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters and consumers (§4.14), `len`, `add`, `concat`, `remove`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, conversions, `halt`, `assert` support |
+| `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters (including `chars`) and consumers (§4.14), `len`, `add`, `concat`, `remove`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, conversions, `halt`, `assert` support |
 | `IO` | `write`, `writeln`, `readln`, files: `open`, `close`, `readAll`, `writeAll` returning `Result` |
-| `Strings` | `chars`, `bytes`, `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `parseInt`, `parseReal` |
+| `Strings` | `bytes`, `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `parseInt`, `parseReal` |
 | `Math` | `Pi`, `sqrt`, `sin`, `cos`, `abs`, `min`, `max`, `floor`, `ceil` |
 | `Bits` | `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, `popCount` on all integer types (compiler intrinsics) |
 | `OS` | `args(): List[String]`, `env(name): Option[String]`, `exit` |
@@ -1261,7 +1292,7 @@ routineBody = NEWLINE INDENT { "requires" expr NEWLINE } { "ensures" expr NEWLIN
               stmt { stmt } DEDENT ;
 
 externBlk   = "extern" STRING NEWLINE INDENT { externDecl NEWLINE } DEDENT ;
-externDecl  = signature ["as" STRING] ;
+externDecl  = ["export"] signature ["as" STRING] ;
 testBlk     = "test" STRING block ;
 
 stmt        = varDecl | assign | callStmt | ifStmt | whileStmt | repeatStmt
@@ -1316,6 +1347,24 @@ where they are purely syntactic.
 Recovery: an error skips the rest of its line and any block indented under it, leaving an
 error node, so one mistake gives one diagnostic. Syntax errors on a logical line that
 already has a lexical error are not reported.
+
+### 16.2 Name errors
+
+| Code | Meaning |
+|---|---|
+| `E0020` | wrong casing for the kind of name (fix: rename the definition and its uses) |
+| `E0100` | unknown name, or no such member in a unit or enum (fix: similar visible names) |
+| `E0102` | unit not found, or not a unit |
+| `E0103` | top-level variable of the program used inside a routine or `const` |
+| `E0105` | `program` / `unit` name doesn't match the file name (fix: rename) |
+| `E0106` | `extern "pst"` outside the standard units |
+| `E0107` | cyclic `uses` |
+| `E0108` | duplicate declaration in one unit, record, trait, enum, or type parameter list |
+| `E0109` | name not exported by its unit |
+| `E0110` | unqualified name ambiguous between used units (fix: qualify) |
+| `E0111` | `This` outside a trait |
+| `E0205` | variable declared again in the same routine |
+| `E0206` | variable never used (fix: discard with `_`) |
 
 ---
 

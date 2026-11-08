@@ -1,0 +1,45 @@
+unit IO
+
+## Console and file input/output.
+
+type
+    ## An open file. Closed automatically when the last reference goes away.
+    export File = record
+        fd: Integer
+
+extern "pst"
+    ## Writes the text form of `value` to standard output.
+    export procedure write[T: Printable](value: T)
+    ## Writes the text form of `value` and a newline to standard output.
+    export procedure writeln[T: Printable](value: T)
+    ## Writes a newline to standard output.
+    export procedure writeln()
+    ## Reads one line from standard input, without the newline. `None` at end of input.
+    export function readln(): Option[String]
+
+    function sysOpen(path: String): Result[Integer, String]
+    function sysClose(fd: Integer): Result[Integer, String]
+    function sysReadAll(fd: Integer): Result[String, String]
+    function sysWriteAll(fd: Integer, text: String): Result[Integer, String]
+
+procedure destroy(var f: File)
+    _ := sysClose(f.fd)
+
+## Opens the file at `path` for reading and writing.
+export function open(path: String): Result[ref File, String]
+    let fd := try sysOpen(path)
+    return Ok(new(File(fd: fd)))
+
+## Closes the file now, instead of when the last reference goes away.
+export function close(f: ref File): Result[Integer, String]
+    let r := sysClose(f.fd)
+    f.fd := -1
+    return r
+
+## The whole remaining contents of the file.
+export function readAll(f: ref File): Result[String, String]
+    return sysReadAll(f.fd)
+
+## Writes `text` to the file.
+export function writeAll(f: ref File, text: String): Result[Integer, String]
+    return sysWriteAll(f.fd, text)

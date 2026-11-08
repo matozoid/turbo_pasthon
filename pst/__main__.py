@@ -13,6 +13,7 @@ from .diagnostics import Diagnostic, Severity
 from . import ast
 from .lexer import lex
 from .parser import parse
+from .resolve import check
 from .source import Span
 
 
@@ -84,6 +85,16 @@ def cmd_ast(args: argparse.Namespace) -> int:
     return 1 if any(d.severity is Severity.ERROR for d in diags) else 0
 
 
+def cmd_check(args: argparse.Namespace) -> int:
+    result = check(args.file)
+    for d in result.diagnostics:
+        if args.json:
+            print(json.dumps(d.to_json()))
+        else:
+            print(d.human(), file=sys.stderr)
+    return 1 if result.has_errors else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="pst")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -95,6 +106,10 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("file")
     p.add_argument("--json", action="store_true")
     p.set_defaults(func=cmd_ast)
+    p = sub.add_parser("check", help="check a program or unit and the units it uses")
+    p.add_argument("file")
+    p.add_argument("--json", action="store_true", help="one JSON diagnostic per line")
+    p.set_defaults(func=cmd_check)
     args = parser.parse_args(argv)
     return args.func(args)
 

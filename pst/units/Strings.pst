@@ -1,0 +1,27 @@
+unit Strings
+
+## Text operations. Offsets are byte offsets into the UTF-8 encoding (SPEC §4.5.1).
+
+extern "pst"
+    ## The UTF-8 bytes of a string.
+    export function bytes(s: String): List[Byte]
+    ## Number of characters (code points). O(n).
+    export function charCount(s: String): Integer
+    ## Number of bytes. O(1).
+    export function byteLen(s: String): Integer
+    ## The bytes from `start` up to (not including) `stop`. Panics with `P0006` if an
+    ## offset is not on a character boundary.
+    export function slice(s: String, start, stop: Integer): String
+    ## Byte offset of the first occurrence of `sub`.
+    export function find(s: String, sub: String): Option[Integer]
+    ## The parts between occurrences of `sep`.
+    export function split(s: String, sep: String): List[String]
+    ## The parts joined with `sep` between them.
+    export function join(parts: List[String], sep: String := ""): String
+    ## Without leading and trailing whitespace.
+    export function trim(s: String): String
+    ## Every occurrence of `target` replaced by `replacement`.
+    export function replace(s: String, target: String, replacement: String): String
+    export function startsWith(s: String, prefix: String): Boolean
+    export function parseInt(s: String): Result[Integer, String]
+    export function parseReal(s: String): Result[Real, String]

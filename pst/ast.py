@@ -41,6 +41,7 @@ class TypeName(Node):
 
     parts: list[str]
     args: list[Union["TypeExpr", "Expr"]] = field(default_factory=list)
+    part_spans: list[Span] = field(default_factory=list)  # one per part
 
 
 @dataclass(eq=False)
@@ -479,6 +480,7 @@ class Routine(Node):
 
 @dataclass(eq=False)
 class ExternDecl(Node):
+    exported: bool
     sig: Signature
     symbol: str | None  # `as "symbol"`
     doc: str | None = None
@@ -511,7 +513,7 @@ class File(Node):
 
 # --------------------------------------------------------------------- output
 
-_SKIP_IN_DUMP = {"span", "op_span", "doc", "end_marker"}
+_SKIP_IN_DUMP = {"span", "op_span", "doc", "end_marker", "part_spans"}
 _BARE = re.compile(r'[^\s()\[\]"]+')
 
 

@@ -511,15 +511,18 @@ class _Parser:
                 result = self.type_expr()
             return A.FuncType(self.finish(start), is_function, params, result)
         if self.accept(K.THIS_TYPE):
-            return A.TypeName(start, ["This"])
+            return A.TypeName(start, ["This"], [], [start])
         if not self.at(K.IDENT):
             self.fail("E0040", start, f"expected a type, found {_describe(self.peek())}")
-        parts = [self.advance().text]
+        first = self.advance()
+        parts, spans = [first.text], [first.span]
         while self.at(K.DOT) and self.peek(1).kind is K.IDENT:
             self.advance()
-            parts.append(self.advance().text)
+            tok = self.advance()
+            parts.append(tok.text)
+            spans.append(tok.span)
         args = self.bracket_items(True) if self.at(K.LBRACKET) else []
-        return A.TypeName(self.finish(start), parts, args)
+        return A.TypeName(self.finish(start), parts, args, spans)
 
     def bracket_items(self, as_types: bool) -> list:
         """`[a, b]` after a name: type arguments, or (in expressions) index items.
@@ -544,11 +547,13 @@ class _Parser:
     def expr_to_type(self, e):
         """Reinterpret a name expression (`List[T]`, `Geometry.Shape`) as a type."""
         if isinstance(e, A.Name):
-            return A.TypeName(e.span, [e.name])
+            return A.TypeName(e.span, [e.name], [], [e.span])
         if isinstance(e, A.FieldAccess):
             inner = self.expr_to_type(e.target)
             if isinstance(inner, A.TypeName) and not inner.args:
-                return A.TypeName(e.span, inner.parts + [e.name.name])
+                return A.TypeName(
+                    e.span, inner.parts + [e.name.name], [], inner.part_spans + [e.name.span]
+                )
             return None
         if isinstance(e, A.Index):
             inner = self.expr_to_type(e.target)
@@ -558,7 +563,7 @@ class _Parser:
                     else self.expr_to_type(x) or x
                     for x in e.items
                 ]
-                return A.TypeName(e.span, inner.parts, args)
+                return A.TypeName(e.span, inner.parts, args, inner.part_spans)
         return None
 
     # ---------------------------------------------------- constants, routines
@@ -673,6 +678,7 @@ class _Parser:
 
     def extern_decl(self) -> A.ExternDecl:
         start = self.peek().span
+        exported = self.accept(K.EXPORT) is not None
         if not self.at(K.FUNCTION, K.PROCEDURE):
             self.fail(
                 "E0040", start, f"expected 'function' or 'procedure', found {_describe(self.peek())}"
@@ -680,7 +686,7 @@ class _Parser:
         sig = self.signature()
         symbol = self.string_const("C symbol name") if self.accept(K.AS) else None
         self.end_line()
-        return A.ExternDecl(self.finish(start), sig, symbol, self.doc(start))
+        return A.ExternDecl(self.finish(start), exported, sig, symbol, self.doc(start))
 
     def test_block(self) -> A.TestBlock:
         start = self.advance().span
@@ -885,7 +891,8 @@ class _Parser:
             if binding is None:
                 self.fail("E0040", self.peek().span, "expected a name for the variant value, or '_'")
             self.expect(K.RPAREN, "')'")
-            return A.VariantLabel(self.finish(start), A.TypeName(name.span, [name.text]), binding)
+            variant = A.TypeName(name.span, [name.text], [], [name.span])
+            return A.VariantLabel(self.finish(start), variant, binding)
         low = self.expr()
         if self.accept(K.DOTDOT):
             high = self.expr()

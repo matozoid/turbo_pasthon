@@ -1,0 +1,11 @@
+unit OS
+
+## The process environment.
+
+extern "pst"
+    ## Command line arguments, without the program name.
+    export function args(): List[String]
+    ## The value of environment variable `name`.
+    export function env(name: String): Option[String]
+    ## Exits with status `code`, like `halt`.
+    export procedure exit(code: Integer)
