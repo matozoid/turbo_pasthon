@@ -12,16 +12,16 @@ Supported so far:
 - C interop (SPEC §10): calls into shared libraries, callbacks, `Ptr[T]`/`Pointer`/
   `CString`, `deref`, pointer arithmetic, `cast`, `addr`, C records,
   `toCString`/`fromCString`, `isNull`;
-- lists (literals, indexing, `len`, `resize`) and maps (literals, `m[k]`, `in`, `hash`),
-  with the rest of both written in Pasthon in System; `for ... in` over lists, strings,
-  enums and any `Iterator`, and `for k, v in` over maps;
+- lists (literals, indexing, `len`, `resize`), maps (literals, `m[k]`, `in`, `hash`) and
+  sets (literals, `in`, `bitOf`/`ofBit`), with the rest written in Pasthon in System;
+  `for ... in` over lists, strings, enums and any `Iterator`, and `for k, v in` over maps;
 - statements: `var`/`let`, assignment (to fields too), `if`, `case`, `while`, `repeat`,
   `for ... to/downto`, `break`, `continue`, `return`, `assert`, `_ := e`, calls;
 - routines (up to 6 parameters), with defaults, named arguments, dot calls, and
   contracts; a generic routine is compiled once per instance (SPEC §8), with calls to
   bound members resolved where its type arguments became concrete;
-- built-ins: `write`/`writeln`, `toString`, `ord`, `halt`, `inc`, `dec`, and
-  `byteLen`, `charCount`, `slice`, `startsWith` from `Strings`.
+- built-ins: `write`/`writeln`, `toString`, `ord`, `halt`, `inc`, `dec`, the `Bits`
+  operations, and `byteLen`, `charCount`, `slice`, `startsWith` from `Strings`.
 
 Scheme (SPEC §15.2: no IR, no optimizer): every expression leaves its value in rax;
 binary operators push the left operand while the right one is computed. Each routine has
@@ -97,6 +97,7 @@ _INTS = {
     "UInt8": (8, False), "UInt16": (16, False), "UInt32": (32, False), "UInt64": (64, False),
 }  # fmt: skip
 _UINT64 = Prim("UInt64")
+_BITS = ("band", "bor", "bxor", "bnot", "shl", "shr", "popCount")
 # Heap block layout: the header, then a string's parts or a record's fields.
 _RC, _DESC = 0, 8
 _LEN, _CHARS, _BYTES = 16, 24, 32
@@ -1204,11 +1205,26 @@ class Emitter:
             a.call(put)
         a.load(RAX, RBP, tmp)
 
+    def e_SetLit(self, e) -> None:
+        """`{a, b, ...}`: an empty set, then `include` for each element."""
+        a = self.asm
+        t = self.type(e)
+        self.sys_call(e, "emptySet", [], t.args)
+        tmp = self.f.alloc(object())
+        a.store(RBP, tmp, RAX)
+        include = self.sys_label(e, "include", t.args)
+        for x in e.items:
+            self.coerce(x, t.args[0])
+            a.mov(RSI, RAX)
+            a.lea(RDI, RBP, tmp)
+            a.call(include)
+        a.load(RAX, RBP, tmp)
+
     def e_EmptyBraces(self, e) -> None:
         t = self.type(e)
-        if not self.env.is_map(t):
+        if not (self.env.is_map(t) or self.env.is_set(t)):
             self.unsupported(e, f"'{{}}' as {show(t)}")
-        self.sys_call(e, "emptyMap", [], t.args)
+        self.sys_call(e, "emptyMap" if self.env.is_map(t) else "emptySet", [], t.args)
 
     def e_Index(self, e) -> None:
         a = self.asm
@@ -1338,6 +1354,8 @@ class Emitter:
             t = self.type(e.right)
             if self.env.is_map(t):
                 return self.sys_call(e, "containsKey", [(e.left, t.args[0]), (e.right, t)], t.args)
+            if self.env.is_set(t):
+                return self.sys_call(e, "includes", [(e.left, t.args[0]), (e.right, t)], t.args)
             if not _is_list(t):
                 self.unsupported(e, f"'in' on {show(t)}")
             return self.sys_call(e, "contains", [(e.left, t.args[0]), (e.right, t)], (t.args[0],))
@@ -1864,6 +1882,16 @@ class Emitter:
                 a.load(RDI, RAX)
                 a.store_imm(RAX, 0, 0)
                 self.release(RDI)
+        elif name in (("System", "bitOf"), ("System", "ofBit")):
+            t = self.sub(m.s.get(m.sig.tparams[0]))
+            first = self.env.ordinal_range(t)
+            if first is None:
+                self.unsupported(e, f"a Set of {show(t)}")
+            self.expr(args[0])
+            if first[0] != 0:
+                (a.sub_imm if sym.name == "bitOf" else a.add_imm)(RAX, first[0])
+        elif sym.name in _BITS and sym.unit in ("System", "Bits"):
+            self.bits(e, sym.name, args, self.sub(m.s.get(m.sig.tparams[0])))
         elif name == ("System", "resize"):
             self.expr(args[1])
             a.push(RAX)
@@ -1917,6 +1945,43 @@ class Emitter:
             self.slice(e, args)
         else:
             self.unsupported(e, f"'{sym.name}'")
+
+    def bits(self, e, op: str, args, t) -> None:
+        """The `Bits` operations, on the bits of ``t``'s width: results wrap to the type,
+        `shr` shifts zeros in, and a shift by a count outside 0 to width - 1 gives 0."""
+        a = self.asm
+        info = self.ints(t)
+        if info is None:
+            self.unsupported(e, f"'{op}' on {show(t)}")
+        width, _ = info
+        for x in args:
+            self.expr(x)
+            a.push(RAX)
+        if len(args) == 2:
+            a.pop(RCX)
+        a.pop(RAX)
+        if op in ("band", "bor", "bxor"):
+            {"band": a.and_, "bor": a.or_, "bxor": a.xor}[op](RAX, RCX)
+        elif op == "bnot":
+            a.not_(RAX)
+            self.normalize(t)
+        elif op == "popCount":
+            a.extend(RAX, width, False)
+            a.popcnt(RAX, RAX)
+        else:
+            zero, done = a.new_label("shift"), a.new_label("shift")
+            a.cmp_imm(RCX, width)
+            a.jcc("ae", zero)  # unsigned: negative counts too
+            if op == "shr":
+                a.extend(RAX, width, False)
+                a.shr_cl(RAX)
+            else:
+                a.shl_cl(RAX)
+            self.normalize(t)
+            a.jmp(done)
+            a.label(zero)
+            a.xor32(RAX, RAX)
+            a.label(done)
 
     def slice(self, e, args) -> None:
         """`slice(s, start, stop)`: offsets out of range panic with `P0001` (in checked

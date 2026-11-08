@@ -336,7 +336,7 @@ type
 | `Array[T, N]` | fixed length `N` (compile-time constant), inline value, C-compatible |
 | `List[T]` | growable, 0-based |
 | `Map[K, V]` | hash map in insertion order; `K` must satisfy `Hashable` |
-| `Set[T]` | `T` must be an ordinal type with at most 256 values; stored as a bitset |
+| `Set[T]` | `T` must be an ordinal type with at most 256 values (`E0700`); stored as a bitset |
 
 All indexing is 0-based and bounds-checked in checked builds (panic `P0001`).
 
@@ -354,7 +354,7 @@ exist on `String` (`E0310`, with a fix suggesting `chars`, `bytes`, or `slice`).
   `slice(s, from, to)` takes them. An offset that isn't on a `Char` boundary panics (`P0006`).
 
 ### 4.6 Value semantics everywhere (except `ref`)
-`String`, records, unions, `List` and `Map` behave as **values**: assignment and parameter
+`String`, records, unions, `List`, `Map` and `Set` behave as **values**: assignment and parameter
 passing produce logically independent copies. They are implemented as refcounted buffers
 with **copy-on-write**, so copies are O(1) until mutated.
 
@@ -377,6 +377,17 @@ else is Pasthon in System. `Map(...)` can't be written outside System (`E0306`).
   overwriting keeps a key's place, removing and re-adding moves it to the end.
 - `=` compares contents regardless of order.
 - `remove` leaves a tombstone; the table is rebuilt (and compacted) when it is 3/4 full.
+
+A `Set` is a record in System holding 256 bits, one per possible element: Boolean, Byte,
+Int8, an enum, or a subrange with at most 256 values (`Set[Char]` and `Set[Integer]` are
+`E0700`; use a subrange like `'a'..'z'`, or a `Map`). Element `x` is bit `ord(x)` minus
+the `ord` of the type's first value. The compiler provides the `{a, b}` and `{}` literals,
+`x in s`, and the element-to-bit mapping; the rest is Pasthon in System, on `Bits`.
+
+- `add(var s, x)`, `remove(var s, x)` (no-op if absent), `len(s)`, `x in s`.
+- `union(a, b)`, `intersection(a, b)`, `difference(a, b)` (in `a`, not in `b`).
+- Iterating gives the elements in `ord` order. `Set(...)` can't be written outside System
+  (`E0306`).
 
 The only aliasing in the language comes from `ref T` (§4.9).
 
@@ -549,9 +560,9 @@ type
   ```
   Each loop is instantiated for its concrete iterator type, so `next` is a direct call.
 - `for _ in e do` iterates without binding.
-- `List`, `Array`, `Set`, `String` (chars) and enum types (`for c in Color do`,
-  all members in order) are iterated directly by the compiler, without `iter`. `Map` has
-  an `iter` in System that yields its keys.
+- `List`, `Array`, `String` (chars) and enum types (`for c in Color do`, all members in
+  order) are iterated directly by the compiler, without `iter`. `Map` and `Set` have an
+  `iter` in System: a map's yields its keys, a set's its elements.
 - `for k, v in m do` works on `Map`: it iterates `entries(m)`, which yields
   `Entry[K, V]` (fields `key`, `value`) and binds the two fields.
 - **Snapshot semantics.** An iterator holds its own copy of the collection. With
@@ -1098,7 +1109,7 @@ unsafe procedure fill(s: Ptr[SdlSurface])
 
 ## 11. Memory model
 
-- **Automatic reference counting.** `String`, records, unions, `List`, `Map` and `ref T` are refcounted.
+- **Automatic reference counting.** `String`, records, unions, `List`, `Map`, `Set` and `ref T` are refcounted.
 - Increments and decrements are inserted by the compiler. Destruction is deterministic: memory is freed as soon as the last owner goes away.
 - **No cycle collector.** Strong cycles leak, so use `Weak[T]`.
 - Primitives, enums, arrays and C records (§10.5) live inline (stack or embedded). Strings, records and unions
@@ -1204,7 +1215,7 @@ test "largest of empty list is None"
 | `IO` | `write`, `writeln`, `readln`, files: `open`, `close`, `readAll`, `writeAll` returning `Result` |
 | `Strings` | `bytes`, `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `parseInt`, `parseReal` |
 | `Math` | `Pi`, `sqrt`, `sin`, `cos`, `abs`, `min`, `max`, `floor`, `ceil` |
-| `Bits` | `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, `popCount` on all integer types (compiler intrinsics) |
+| `Bits` | `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, `popCount` on all integer types (compiler intrinsics); results wrap to the type's width, `shr` shifts in zeros, a shift count outside 0 to width - 1 gives 0 |
 | `OS` | `args(): List[String]`, `env(name): Option[String]`, `exit` |
 | `Threads` | reserved for §11.2; not in v0.1 |
 | `C` | C interop types, `toCString`, `fromCString` |
@@ -1534,7 +1545,7 @@ already has a lexical error are not reported.
 | `E0601` | overlapping `case` labels |
 | `E0602` | non-exhaustive `case` (enum or union), or missing `else` (other types) |
 | `E0603` | invalid `case` label for the subject's type |
-| `E0700` | type argument doesn't satisfy a bound |
+| `E0700` | type argument doesn't satisfy a bound, or isn't a valid `Set` element |
 | `E0710` | operation on a type parameter that its bounds don't provide |
 | `E0720` | generic instances nest more than 64 deep (§8) |
 | `E0802` | `if` / `case` expression branches of different types |

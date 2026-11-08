@@ -1093,6 +1093,55 @@ class Maps(unittest.TestCase):
 
 
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class Sets(unittest.TestCase):
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_operations(self):
+        """Literals, `in`, `add`/`remove`, `len`, iteration in `ord` order, union,
+        intersection and difference, `=`, and elements with a negative first `ord`."""
+        p = run_program("""
+            type
+                Color = (Red, Green, Blue)
+
+            var s: Set[Color] := {Color.Red}
+            add(var s, Color.Blue)
+            add(var s, Color.Blue)
+            writeln("{len(s)} {Color.Red in s} {Color.Green in s} {Color.Blue in s}")
+            for c in s do
+                write("{c} ")
+            let before := s
+            remove(var s, Color.Red)
+            remove(var s, Color.Green)
+            let t := {Color.Green, Color.Blue}
+            write("{len(before)} {len(union(s, t))} {len(intersection(s, t))} ")
+            writeln("{len(difference(t, s))} {s = {Color.Blue}} {s = t}")
+            var bs: Set[Byte] := {255, 0, 64, 63}
+            for b in bs do
+                write("{b} ")
+            var ns: Set[Int8] := {127, -128, 0}
+            for n in ns do
+                write("{n} ")
+            var none: Set[Boolean] := {}
+            writeln("{len(bs)} {len(none)} {true in none} {true in {true}}")
+            """, under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))  # fmt: skip
+        self.assertEqual((p.returncode, p.stderr), (0, b""))
+        self.assertEqual(
+            p.stdout.decode(),
+            "2 true false true\nRed Blue 2 2 1 1 true false\n0 63 64 255 -128 0 127 4 0 false true\n",
+        )
+
+    def test_bits(self):
+        """Results wrap to the type's width, `shr` shifts in zeros, shifting by the width
+        or more (or a negative count) gives 0."""
+        p = run_program("""
+            let x: Int8 := -1
+            writeln("{band(12, 10)} {bor(12, 10)} {bxor(12, 10)} {bnot(0)} {shl(1, 63)} {shr(-1, 60)}")
+            writeln("{shl(1, 64)} {shr(1, -1)} {popCount(-1)} {shr(x, 4)} {popCount(x)} {shl(x, 7)} {bnot(Byte(5))}")
+            """, uses="IO, Bits")  # fmt: skip
+        self.assertEqual((p.returncode, p.stderr), (0, b""))
+        self.assertEqual(p.stdout.decode(), "8 14 6 -1 -9223372036854775808 15\n0 0 64 15 8 -128 250\n")
+
+
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
 class Iterators(unittest.TestCase):
     @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
     def test_loops_and_adapters(self):

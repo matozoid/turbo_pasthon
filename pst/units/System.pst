@@ -4,7 +4,7 @@ unit System
 ##
 ## Provided by the compiler, not declared here: the primitive types Int8, Int16, Int32,
 ## Int64, UInt8, UInt16, UInt32, UInt64, Real32, Real64, Boolean, Char, String; the
-## generic types List[T], Set[T], Array[T, N], Weak[T]; and the traits
+## generic types List[T], Array[T, N], Weak[T]; and the traits
 ## Equatable, Ordered, Hashable, Sendable. Routines in `extern "pst"` blocks are
 ## implemented by the compiler.
 
@@ -65,6 +65,15 @@ type
         slots: List[Integer]
         count: Integer  # entries not removed
 
+    ## A set of ordinal values (SPEC §4.5), written `{a, b}`: 256 bits in 4 words, one
+    ## per possible element. Element `x` is bit `bitOf(x)`.
+    export Set[T] = record
+        words: List[Integer]
+
+    export SetIter[T] = record
+        source: Set[T]
+        pos: Integer
+
     export KeyIter[K: Hashable, V] = record
         source: Map[K, V]
         pos: Integer
@@ -112,13 +121,7 @@ type
 extern "pst"
     ## Number of elements.
     export function len[T](xs: List[T]): Integer
-    export function len[T](s: Set[T]): Integer
     export function len[T, N: Integer](a: Array[T, N]): Integer
-
-    ## Adds `x` to the set.
-    export procedure add[T](var s: Set[T], x: T)
-    ## Removes `x` from the set, if present.
-    export procedure remove[T](var s: Set[T], x: T)
 
     ## Adds 1 (or `n`) to an integer or enum variable.
     export procedure inc[T](var x: T)
@@ -164,6 +167,16 @@ extern "pst"
     procedure vacate[T](var xs: List[T], i: Integer)
     ## A hash of `x`, not negative. Equal values have equal hashes.
     function hash[T: Hashable](x: T): Integer
+    ## The bit of a set element: `ord(x)` minus the `ord` of the first value of `T`.
+    function bitOf[T](x: T): Integer
+    ## The set element whose bit is `i`.
+    function ofBit[T](i: Integer): T
+    ## As in Bits.
+    function band[T](a, b: T): T
+    function bor[T](a, b: T): T
+    function bnot[T](a: T): T
+    function shl[T](a: T, n: Integer): T
+    function popCount[T](a: T): Integer
 
 # ------------------------------------------------------------------------ lists
 
@@ -312,6 +325,59 @@ function mapEquals[K: Hashable, V: Equatable](a, b: Map[K, V]): Boolean
                 return false
     return true
 
+# ------------------------------------------------------------------------- sets
+
+## Number of elements.
+export function len[T](s: Set[T]): Integer
+    var n := 0
+    for w in s.words do
+        n := n + popCount(w)
+    return n
+
+## Adds `x` to the set.
+export procedure add[T](var s: Set[T], x: T)
+    include(var s, x)
+
+## Removes `x` from the set, if present.
+export procedure remove[T](var s: Set[T], x: T)
+    let b := bitOf(x)
+    s.words[b div 64] := band(s.words[b div 64], bnot(shl(1, b mod 64)))
+
+## The elements in `a`, in `b`, or in both.
+export function union[T](a, b: Set[T]): Set[T]
+    var s := a
+    for i := 0 to 3 do
+        s.words[i] := bor(a.words[i], b.words[i])
+    return s
+
+## The elements in both `a` and `b`.
+export function intersection[T](a, b: Set[T]): Set[T]
+    var s := a
+    for i := 0 to 3 do
+        s.words[i] := band(a.words[i], b.words[i])
+    return s
+
+## The elements in `a` but not in `b`.
+export function difference[T](a, b: Set[T]): Set[T]
+    var s := a
+    for i := 0 to 3 do
+        s.words[i] := band(a.words[i], bnot(b.words[i]))
+    return s
+
+## `{}`.
+function emptySet[T](): Set[T]
+    return Set(words: [0, 0, 0, 0])
+
+## `{a, b}` adds its elements with this; `add` is overloaded.
+procedure include[T](var s: Set[T], x: T)
+    let b := bitOf(x)
+    s.words[b div 64] := bor(s.words[b div 64], shl(1, b mod 64))
+
+## `x in s`.
+function includes[T](x: T, s: Set[T]): Boolean
+    let b := bitOf(x)
+    return band(s.words[b div 64], shl(1, b mod 64)) <> 0
+
 # ------------------------------------------------------------ Option and Result
 
 export function isSome[T](o: Option[T]): Boolean
@@ -375,6 +441,18 @@ export function next[T, N: Integer](var it: ArrayIter[T, N]): Option[T]
     let x := it.items[it.pos]
     inc(var it.pos)
     return Some(x)
+
+## The elements of a set, in `ord` order.
+export function iter[T](s: Set[T]): SetIter[T]
+    return SetIter(source: s, pos: 0)
+
+export function next[T](var it: SetIter[T]): Option[T]
+    while it.pos < 256 do
+        inc(var it.pos)
+        let b := it.pos - 1
+        if band(it.source.words[b div 64], shl(1, b mod 64)) <> 0 then
+            return Some(ofBit[T](b))
+    return None
 
 ## The keys of a map, in insertion order.
 export function iter[K: Hashable, V](m: Map[K, V]): KeyIter[K, V]

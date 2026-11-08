@@ -28,7 +28,7 @@ STD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "units")
 _BUILTIN_TYPES = {
     "System": [
         "Int8", "Int16", "Int32", "Int64", "UInt8", "UInt16", "UInt32", "UInt64",
-        "Real32", "Real64", "Boolean", "Char", "String", "List", "Set", "Array",
+        "Real32", "Real64", "Boolean", "Char", "String", "List", "Array",
         "Weak",
     ],
     "C": ["CString", "Ptr", "Pointer"],

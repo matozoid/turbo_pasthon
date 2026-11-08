@@ -182,6 +182,24 @@ class Errors(unittest.TestCase):
             writeln("{len(n)} {size(n)}")
             """), [("E0700", 1, 24), ("E0700", 4, 8), ("E0306", 6, 32)])
 
+    def test_set_elements(self):
+        """Set elements are an ordinal type with at most 256 values."""
+        self.assertEqual(errs("""
+            type
+                Digit = '0'..'9'
+                Small = -5..5
+                Big = 0..300
+
+            let a: Set[Digit] := {}
+            let b: Set[Small] := {}
+            let c: Set[Real] := {}
+            let d: Set[Char] := {}
+            let e: Set[Big] := {}
+            let f := {1, 2}
+            let g: Set[Boolean] := Set(words: [])
+            writeln("{len(a)} {len(b)} {len(c)} {len(d)} {len(e)} {len(f)} {len(g)}")
+            """), [("E0700", 8, 8), ("E0700", 9, 8), ("E0700", 10, 8), ("E0700", 11, 10), ("E0306", 12, 24)])
+
     def test_overloads(self):
         self.assertEqual(errs("""
             function f(x: Int32): Integer

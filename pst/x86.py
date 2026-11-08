@@ -235,6 +235,9 @@ class Assembler:
     def or_(self, dst: int, src: int) -> None:
         self._rr(0x09, dst, src)
 
+    def and_(self, dst: int, src: int) -> None:
+        self._rr(0x21, dst, src)
+
     def sub(self, dst: int, src: int) -> None:
         self._rr(0x29, dst, src)
 
@@ -261,6 +264,19 @@ class Assembler:
 
     def neg(self, r: int) -> None:
         self._unary(3, r)
+
+    def not_(self, r: int) -> None:
+        self._unary(2, r)
+
+    def shl_cl(self, r: int) -> None:
+        self.emit(_rex(True, 0, r), 0xD3, 0xE0 | (r & 7))
+
+    def shr_cl(self, r: int) -> None:
+        """Logical shift right by cl."""
+        self.emit(_rex(True, 0, r), 0xD3, 0xE8 | (r & 7))
+
+    def popcnt(self, dst: int, src: int) -> None:
+        self.emit(0xF3, _rex(True, dst, src), 0x0F, 0xB8, 0xC0 | (dst & 7) << 3 | (src & 7))
 
     def mul(self, r: int) -> None:
         """Unsigned rdx:rax := rax * r (sets CF when rdx isn't 0)."""

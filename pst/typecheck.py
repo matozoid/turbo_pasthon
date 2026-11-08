@@ -31,7 +31,7 @@ from .types import (
     TypeValue, has_error, is_integer, is_numeric, is_real, params_in, show, subst, unify,
 )  # fmt: skip
 
-_ARITY = {"List": 1, "Set": 1, "Weak": 1, "Ptr": 1, "Array": 2}
+_ARITY = {"List": 1, "Weak": 1, "Ptr": 1, "Array": 2}
 _INT_RANGE = {
     "Int8": (-(2**7), 2**7 - 1), "Int16": (-(2**15), 2**15 - 1),
     "Int32": (-(2**31), 2**31 - 1), "Int64": (-(2**63), 2**63 - 1),
@@ -263,8 +263,10 @@ class Env:
 
     def check_bounds(self) -> None:
         """`Map[Real, V]`: each type argument of a written generic type must satisfy
-        its parameter's bounds (E0700)."""
+        its parameter's bounds (E0700), and a `Set`'s elements must fit one."""
         for (file, span), t in self.written.items():
+            if self.is_set(t):
+                self.check_element(file, span, t.args[0])
             d = self.decl(t.sym)
             s = dict(zip(d.params, t.args))
             chk = self.checker(self.by_file[file])
@@ -274,6 +276,50 @@ class Env:
                         msg = f"{show(s[p])} doesn't satisfy {show(subst(b, s))}, required by '{t.sym.name}'"
                         self.error(file, "E0700", span, msg)
                         break
+
+    def is_set(self, t) -> bool:
+        """Whether ``t`` is a `Set[T]`: a record of System's, with literals of its own."""
+        return isinstance(t, Named) and t.sym is self.sys("Set") and t.sym is not None
+
+    def check_element(self, file, span, t) -> None:
+        """A `Set` element type: ordinal, with at most 256 values (SPEC §4.5)."""
+        if isinstance(t, Param) or has_error(t):
+            return
+        r = self.ordinal_range(t)
+        if r is None or r[1] - r[0] >= 256:
+            msg = f"{show(t)} can't be a Set element: it needs an ordinal type with at most 256 values (Boolean, Byte, an enum, or a subrange)"
+            self.error(file, "E0700", span, msg)
+
+    def ordinal_range(self, t) -> tuple | None:
+        """The first and last `ord` of an ordinal type. None for other types, and for a
+        subrange whose bounds aren't literals or enum members."""
+        if t == BOOLEAN:
+            return 0, 1
+        if t == CHAR:
+            return 0, 0x10FFFF
+        if isinstance(t, Prim) and t.name in _INT_RANGE:
+            return _INT_RANGE[t.name]
+        if not isinstance(t, Named):
+            return None
+        d = self.decl(t.sym)
+        if d.kind == "enum":
+            return 0, len(d.members) - 1
+        if d.kind != "subrange":
+            return None
+        bounds = [self.ordinal_of(b, d.base) for b in (t.sym.node.body.low, t.sym.node.body.high)]
+        return None if None in bounds else tuple(bounds)
+
+    def ordinal_of(self, e, t) -> int | None:
+        """The `ord` of a subrange bound of type ``t``: a literal or an enum member."""
+        e = _unparen(e)
+        v = _literal_value(e)
+        if isinstance(v, int):
+            return v
+        if isinstance(e, A.CharLit):
+            return ord(e.value)
+        if isinstance(e, A.FieldAccess) and self.kind_of(t) == "enum" and e.name.name in self.decl(t.sym).members:
+            return self.decl(t.sym).members.index(e.name.name)
+        return None
 
     def is_map(self, t) -> bool:
         """Whether ``t`` is a `Map[K, V]`: a record of System's, with literals of its own."""
@@ -871,7 +917,7 @@ class TypeChecker:
         if n == 2:
             self.error("E0350", e.span, f"two loop variables ('for k, v in m') need a Map, not {show(t)}")
             return bad
-        if isinstance(t, Builtin) and t.name in ("List", "Array", "Set"):
+        if isinstance(t, Builtin) and t.name in ("List", "Array"):
             return [t.args[0]]
         if t == STRING:
             return [CHAR]
@@ -1212,14 +1258,15 @@ class TypeChecker:
         return Builtin("List", (first,))
 
     def e_SetLit(self, e, expected):
-        if isinstance(expected, Builtin) and expected.name == "Set":
+        if self.env.is_set(expected):
             for x in e.items:
                 self.check(x, expected.args[0])
             return expected
         first = self.value(e.items[0])
         for x in e.items[1:]:
             self.check(x, first)
-        return Builtin("Set", (first,))
+        self.env.check_element(self.file, e.span, first)
+        return Named(self.env.sys("Set"), (first,))
 
     def e_MapLit(self, e, expected):
         if self.env.is_map(expected):
@@ -1240,7 +1287,7 @@ class TypeChecker:
         return expected
 
     def e_EmptyBraces(self, e, expected):
-        if self.env.is_map(expected) or isinstance(expected, Builtin) and expected.name == "Set":
+        if self.env.is_map(expected) or self.env.is_set(expected):
             return expected
         self.error("E0301", e.span, "the type of '{}' isn't known here; declare it: 'var m: Map[K, V] := {}'")
         return ERROR
@@ -1505,7 +1552,7 @@ class TypeChecker:
 
     def in_op(self, e):
         rt = self.value(e.right)
-        if isinstance(rt, Builtin) and rt.name in ("Set", "List") or self.env.is_map(rt):
+        if isinstance(rt, Builtin) and rt.name == "List" or self.env.is_map(rt) or self.env.is_set(rt):
             self.check(e.left, rt.args[0])
         else:
             self.value(e.left)
@@ -1757,9 +1804,10 @@ class TypeChecker:
             self.error("E0306", e.callee.span, f"'{sym.name}' is {'an' if d.kind in ('enum', 'alias') else 'a'} {d.kind}; {what.get(d.kind, 'it has no values')}")
             return ERROR
         private = [f.name for f in d.fields if not f.exported]
-        if target is self.env.sys("Map") and target.unit != self.unit.name:
+        if target in (self.env.sys("Map"), self.env.sys("Set")) and target.unit != self.unit.name:
             self.prepare(e.args)
-            self.error("E0306", e.callee.span, "'Map' values are written as literals: '{k: v}', or '{}' where the type is known")
+            lit = "{k: v}" if target.name == "Map" else "{a, b}"
+            self.error("E0306", e.callee.span, f"'{target.name}' values are written as literals: '{lit}', or '{{}}' where the type is known")
             return ERROR
         if target.unit != self.unit.name and private:
             self.prepare(e.args)
@@ -2016,7 +2064,7 @@ class TypeChecker:
         if k == EMPTY_LIST:
             return 0 if isinstance(want, Builtin) and want.name == "List" else None
         if k == EMPTY_BRACES:
-            return 0 if self.env.is_map(want) or isinstance(want, Builtin) and want.name == "Set" else None
+            return 0 if self.env.is_map(want) or self.env.is_set(want) else None
         if isinstance(k, Overloads) and isinstance(want, FuncT):
             fits = []
             for sym in k.syms:
