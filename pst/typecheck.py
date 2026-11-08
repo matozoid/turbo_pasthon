@@ -1948,6 +1948,7 @@ class TypeChecker:
         a, b = self.base(t), self.base(target)
         ok = (
             has_error(t) or a == b or (is_integer(a) and is_integer(b)) or (is_real(a) and is_real(b))
+            or (is_integer(a) and b == CHAR)
         )
         if not ok:
             msg = f"can't convert {show(t)} to {show(target)}"

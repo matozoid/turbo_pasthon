@@ -7,7 +7,7 @@ Supported so far:
 - values of type Integer (and the sized integers), Boolean, Char, String, enums, and
   non-generic or concretely instantiated records and unions (so `Option[Integer]`,
   `Result[String, Integer]`): literals, constants, locals, parameters (`var` ones too),
-  fields, construction, arithmetic with overflow checks, integer conversions, comparisons,
+  fields, construction, arithmetic with overflow checks, integer conversions and `Char(i)`, comparisons,
   `and`/`or`/`not`, `if` and `case` expressions, string interpolation;
 - C interop (SPEC §10): calls into shared libraries, callbacks, `Ptr[T]`/`Pointer`/
   `CString`, `deref`, pointer arithmetic, `cast`, `addr`, C records,
@@ -23,7 +23,7 @@ Supported so far:
 - routines (up to 6 parameters), with defaults, named arguments, dot calls, and
   contracts; a generic routine is compiled once per instance (SPEC §8), with calls to
   bound members resolved where its type arguments became concrete;
-- the `IO` and `OS` units, written in Pasthon on libc; `OS.args` reads `argv`, which
+- the `IO`, `OS` and `Strings` units (but `parseReal`), written in Pasthon on libc; `OS.args` reads `argv`, which
   `_start` keeps in a writable word after the GOT;
 - built-ins: `write`/`writeln`/`writeErr`/`writelnErr`, `toString`, `ord`, `halt`, `inc`, `dec`, the `Bits`
   operations, and `byteLen`, `charCount`, `slice`, `startsWith` from `Strings`.
@@ -1780,9 +1780,19 @@ class Emitter:
 
     def convert(self, e) -> None:
         """`Int32(x)`: converts between integer types, panicking (in checked builds) if
-        the value doesn't fit."""
+        the value doesn't fit. `Char(i)` converts a code point."""
         a = self.asm
         src, dst = self.type(e.args[0].value), self.type(e)
+        if dst == CHAR and self.ints(src):  # `Char(i)`: checked in every build
+            self.expr(e.args[0].value)
+            bad = self.panic("P0009", "not a Unicode scalar value", e.span)
+            a.cmp_imm(RAX, 0x10FFFF)
+            a.jcc("a", bad)  # negative values too, compared unsigned
+            a.mov(RCX, RAX)
+            a.sub_imm(RCX, 0xD800)
+            a.cmp_imm(RCX, 0x7FF)
+            a.jcc("be", bad)  # a surrogate
+            return
         if not (self.ints(src) and self.ints(dst)):
             self.unsupported(e, f"converting {show(src)} to {show(dst)}")
         self.expr(e.args[0].value)

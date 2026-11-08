@@ -268,6 +268,15 @@ class Panics(unittest.TestCase):
         err = self.panic('writeln(slice("h\u00e9llo", 2, 3))', checked=False, uses="IO, Strings")
         self.assertIn("P0006: slice offset is not on a character boundary", err)
 
+    def test_char_of_code_point(self):
+        for value in ("-1", "1114112", "55296", "57343"):
+            for checked in (True, False):
+                with self.subTest(value, checked=checked):
+                    err = self.panic(f"var i := {value}\nwriteln(Char(i))", checked=checked)
+                    self.assertEqual(err, "panic P0009: not a Unicode scalar value\n    at Main.pst:6:9\n")
+        p = run_program("writeln(Char(233))\nwriteln(Char(0x10FFFF) = '\\u{10FFFF}')\nwriteln(ord(Char(57344)))")
+        self.assertEqual(p.stdout.decode(), "é\ntrue\n57344\n")
+
     def test_assert_stays_in_unchecked_builds(self):
         err = self.panic('assert 1 + 1 = 3, "math"', checked=False)
         self.assertEqual(err, "panic P0020: assertion failed: 1 + 1 = 3: math\n    at Main.pst:5:1\n")
@@ -1460,6 +1469,53 @@ def _umask() -> int:
     mask = os.umask(0)
     os.umask(mask)
     return mask
+
+
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
+class StringsUnit(unittest.TestCase):
+    def test_strings(self):
+        under = ("valgrind", "-q", "--leak-check=full", "--error-exitcode=9") if shutil.which("valgrind") else ()
+        p = run_program("""
+            procedure show(r: Result[Integer, String])
+                case r of
+                    Ok(v):
+                        writeln(v.value)
+                    Err(e):
+                        writeln(e.error)
+
+            writeln(len(bytes("hé")))
+            writeln(bytes("hé")[2])
+            writeln(find("héllo wörld", sub: "wö").getOr(-1))
+            writeln(find("abcabc", sub: "c", start: 3).getOr(-1))
+            writeln(find("abc", sub: "x").isNone())
+            writeln(endsWith("main.pst", suffix: ".pst"))
+            writeln(endsWith("t", suffix: ".pst"))
+            for part in split("a,b,,c", sep: ",") do
+                write("[{part}]")
+            writeln()
+            writeln(join(["x", "yé", "z"], sep: ", "))
+            writeln("[{join([])}]")
+            writeln("[{trim("  \\t hi there \\n")}]")
+            writeln("[{trim("   ")}]")
+            writeln(replace("a-b-c", target: "-", replacement: "+="))
+            show(parseInt("123"))
+            show(parseInt("-9223372036854775808"))
+            show(parseInt("9223372036854775808"))
+            show(parseInt("+7"))
+            show(parseInt("-"))
+            show(parseInt("12a"))
+            """, uses="IO, Strings", under=under)  # fmt: skip
+        self.assertEqual(p.returncode, 0, p.stderr)
+        self.assertEqual(p.stdout.decode(), (
+            "3\n169\n7\n5\ntrue\ntrue\nfalse\n[a][b][][c]\nx, yé, z\n[]\n[hi there]\n[]\n"
+            "a+=b+=c\n123\n-9223372036854775808\n'9223372036854775808' doesn't fit in an Integer\n"
+            "7\n'-' is not an integer\n'12a' is not an integer\n"
+        ))  # fmt: skip
+
+    def test_split_needs_a_separator(self):
+        p = run_program('writeln(len(split("abc", sep: "")))', uses="IO, Strings")
+        self.assertEqual(p.returncode, 70)
+        self.assertIn(b"panic P0010", p.stderr)
 
 
 class Iterators(unittest.TestCase):

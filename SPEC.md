@@ -348,9 +348,9 @@ exist on `String` (`E0310`, with a fix suggesting `chars`, `bytes`, or `slice`).
 - `charCount(s)` is the number of `Char`s, computed once when the string is created (O(1)).
   `byteLen(s)` is the UTF-8 size. There is no `len(s)`. `len` is only for collections
   with O(1) indexing.
-- `bytes(s)` returns the UTF-8 bytes as a `List[Byte]` (O(1), shares the buffer), with real
-  O(1) indexing for parsers.
-- **Positions are byte offsets.** `find(s, sub): Option[Integer]` returns one, and
+- `bytes(s)` returns a copy of the UTF-8 bytes as a `List[Byte]`, with real O(1) indexing
+  for parsers.
+- **Positions are byte offsets.** `find(s, sub, start := 0): Option[Integer]` returns one, and
   `slice(s, from, to)` takes them. An offset that isn't on a `Char` boundary panics (`P0006`).
 
 ### 4.6 Value semantics everywhere (except `ref`)
@@ -960,7 +960,9 @@ function largest[T: Ordered](xs: List[T]): Option[T]
   `-7 div 2 = -3`, `-7 mod 2 = -1`. `x mod -1` is `0`; `Integer.min div -1` overflows.
 - Division by zero panics (`P0004`), in `--unchecked` builds too.
 - `and`, `or`, `not` work on Boolean only (short-circuit). Bitwise ops are library functions in the `Bits` unit (§14).
-- Mixed numeric types are an error. Convert explicitly: `toReal(i)`, `toInt(r)` (truncates), `round(r)`, `Int32(x)` (checked narrowing).
+- Mixed numeric types are an error. Convert explicitly: `toReal(i)`, `toInt(r)` (truncates), `round(r)`, `Int32(x)` (checked narrowing). `ord(c)` is a `Char`'s code point and
+  `Char(i)` the `Char` of code point `i`; it panics (`P0009`) if `i` is negative, above
+  U+10FFFF or a surrogate, in `--unchecked` builds too.
 - Integer overflow panics in checked builds (`P0002`) and wraps in `--unchecked` builds.
 - `=` is structural for records, unions, lists, maps, sets, and strings, and identity for `ref`.
 
@@ -1196,6 +1198,7 @@ v0.1 is single-threaded, but the design is fixed now so v0.1 doesn't rule it out
 | `P0006` | string byte offset not on a `Char` boundary |
 | `P0007` | `fromCString` of a null pointer |
 | `P0008` | missing map key (check with `k in m`, or use `get`/`getOr`) |
+| `P0009` | `Char(i)` of a value that isn't a Unicode scalar value |
 | `P0010` | `requires` violated |
 | `P0011` | `ensures` violated |
 | `P0020` | `assert` failed |
@@ -1222,7 +1225,7 @@ test "largest of empty list is None"
 |---|---|
 | `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters (including `chars`) and consumers (§4.14), `len`, `add`, `concat`, `remove`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, conversions, `halt`, `assert` support |
 | `IO` | `write`, `writeln` (standard output), `writeErr`, `writelnErr` (standard error), `readln(): Option[String]`; files: `open` (reading), `create(path, mode := 0o644)` (writing; creates or empties), `close`, `readAll`, `readBytes`, `writeAll`, `writeBytes` returning `Result[_, String]` with C's error message. A `File` closes when its last reference goes away. Written in Pasthon on libc's `open`, `read`, `write`, `close` |
-| `Strings` | `bytes`, `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `parseInt`, `parseReal` |
+| `Strings` | `bytes`, `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `endsWith`, `parseInt`, `parseReal`. `split` and `replace` require a non-empty separator. Written in Pasthon on libc's `memmem` and `memcpy`, except `charCount`, `byteLen`, `slice` and `startsWith` (compiler intrinsics) |
 | `Math` | `Pi`, `sqrt`, `sin`, `cos`, `abs`, `min`, `max`, `floor`, `ceil` |
 | `Bits` | `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, `popCount` on all integer types (compiler intrinsics); results wrap to the type's width, `shr` shifts in zeros, a shift count outside 0 to width - 1 gives 0 |
 | `OS` | `args(): List[String]` (without the program name), `env(name): Option[String]`, `exit(code)`. Written in Pasthon on libc; `args` reads `argv`, which the program's entry point keeps in a writable word after the GOT (§15.2) |

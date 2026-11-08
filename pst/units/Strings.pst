@@ -2,9 +2,9 @@ unit Strings
 
 ## Text operations. Offsets are byte offsets into the UTF-8 encoding (SPEC §4.5.1).
 
+uses C
+
 extern "pst"
-    ## The UTF-8 bytes of a string.
-    export function bytes(s: String): List[Byte]
     ## Number of characters (code points). O(1).
     export function charCount(s: String): Integer
     ## Number of bytes. O(1).
@@ -12,16 +12,123 @@ extern "pst"
     ## The bytes from `start` up to (not including) `stop`. Panics with `P0006` if an
     ## offset is not on a character boundary.
     export function slice(s: String, start, stop: Integer): String
-    ## Byte offset of the first occurrence of `sub`.
-    export function find(s: String, sub: String): Option[Integer]
-    ## The parts between occurrences of `sep`.
-    export function split(s: String, sep: String): List[String]
-    ## The parts joined with `sep` between them.
-    export function join(parts: List[String], sep: String := ""): String
-    ## Without leading and trailing whitespace.
-    export function trim(s: String): String
-    ## Every occurrence of `target` replaced by `replacement`.
-    export function replace(s: String, target: String, replacement: String): String
     export function startsWith(s: String, prefix: String): Boolean
-    export function parseInt(s: String): Result[Integer, String]
     export function parseReal(s: String): Result[Real, String]
+
+extern "libc.so.6"
+    function memmem(hay: Pointer, hayLen: CSize, needle: Pointer, needleLen: CSize): Pointer
+    function memcpy(dst: Pointer, src: Pointer, n: CSize): Pointer
+    function malloc(size: CSize): Pointer
+    procedure free(p: Pointer)
+
+## The UTF-8 bytes of a string.
+export unsafe function bytes(s: String): List[Byte]
+    let p := cast[Ptr[Byte]](toCString(s))
+    var r: List[Byte] := []
+    var i := 0
+    while i < byteLen(s) do
+        add(var r, deref(p + i))
+        i := i + 1
+    return r
+
+## Byte offset of the first occurrence of `sub` at or after byte offset `start`.
+export unsafe function find(s: String, sub: String, start: Integer := 0): Option[Integer]
+    requires start >= 0 and start <= byteLen(s)
+    let p := cast[Ptr[Byte]](toCString(s))
+    let q := memmem(
+        cast[Pointer](p + start),
+        CSize(byteLen(s) - start),
+        needle: cast[Pointer](toCString(sub)),
+        needleLen: CSize(byteLen(sub)),
+    )
+    if isNull(q) then
+        return None
+    return Some(cast[Integer](q) - cast[Integer](p))
+
+## Whether `s` ends with `suffix`.
+export function endsWith(s: String, suffix: String): Boolean
+    let n := byteLen(s) - byteLen(suffix)
+    return n >= 0 and find(s, sub: suffix, start: n).isSome()
+
+## The parts between occurrences of `sep`.
+export function split(s: String, sep: String): List[String]
+    requires byteLen(sep) > 0
+    var parts: List[String] := []
+    var start := 0
+    while true do
+        case find(s, sub: sep, start: start) of
+            Some(at):
+                add(var parts, slice(s, start, at.value))
+                start := at.value + byteLen(sep)
+            None:
+                add(var parts, slice(s, start, byteLen(s)))
+                return parts
+    return parts
+
+## The parts joined with `sep` between them.
+export unsafe function join(parts: List[String], sep: String := ""): String
+    var total := 0
+    for part in parts do
+        total := total + byteLen(part)
+    if len(parts) > 0 then
+        total := total + byteLen(sep) * (len(parts) - 1)
+    let buf := cast[Ptr[Byte]](malloc(CSize(total + 1)))
+    var at := 0
+    for i := 0 to len(parts) - 1 do
+        if i > 0 then
+            _ := memcpy(cast[Pointer](buf + at), src: cast[Pointer](toCString(sep)), n: CSize(byteLen(sep)))
+            at := at + byteLen(sep)
+        let part := parts[i]
+        _ := memcpy(cast[Pointer](buf + at), src: cast[Pointer](toCString(part)), n: CSize(byteLen(part)))
+        at := at + byteLen(part)
+    let r := fromCBytes(cast[Pointer](buf), total)
+    free(cast[Pointer](buf))
+    return r
+
+const
+    MinInt = -9223372036854775807 - 1
+
+function isSpace(b: Byte): Boolean
+    return b = 32 or b = 9 or b = 10 or b = 13
+
+## Without leading and trailing whitespace (spaces, tabs, line breaks).
+export unsafe function trim(s: String): String
+    let p := cast[Ptr[Byte]](toCString(s))
+    var start := 0
+    var stop := byteLen(s)
+    while start < stop and isSpace(deref(p + start)) do
+        start := start + 1
+    while stop > start and isSpace(deref(p + (stop - 1))) do
+        stop := stop - 1
+    return slice(s, start, stop)
+
+## Every occurrence of `target` replaced by `replacement`.
+export function replace(s: String, target: String, replacement: String): String
+    requires byteLen(target) > 0
+    return join(split(s, sep: target), sep: replacement)
+
+## The decimal integer `s`: digits with an optional leading `-` or `+`.
+export unsafe function parseInt(s: String): Result[Integer, String]
+    let p := cast[Ptr[Byte]](toCString(s))
+    let n := byteLen(s)
+    var i := 0
+    var negative := false
+    if n > 0 and (deref(p) = 45 or deref(p) = 43) then
+        negative := deref(p) = 45
+        i := 1
+    if i = n then
+        return Err("'{s}' is not an integer")
+    var value := 0  # accumulated negated, so MinInt fits
+    while i < n do
+        let d := Integer(deref(p + i)) - 48
+        if d < 0 or d > 9 then
+            return Err("'{s}' is not an integer")
+        if value < (MinInt + d) div 10 then
+            return Err("'{s}' doesn't fit in an Integer")
+        value := value * 10 - d
+        i := i + 1
+    if negative then
+        return Ok(value)
+    if value = MinInt then
+        return Err("'{s}' doesn't fit in an Integer")
+    return Ok(-value)
