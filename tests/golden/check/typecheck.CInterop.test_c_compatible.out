@@ -1,0 +1,71 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 7:16-7:20
+  type 'Good' @ Main.pst:7:16
+def Main.pst 8:13-8:14
+  field 'p' @ Main.pst:8:13
+def Main.pst 9:13-9:14
+  field 'n' @ Main.pst:9:13
+def Main.pst 10:16-10:19
+  type 'Bad' @ Main.pst:10:16
+def Main.pst 11:13-11:14
+  field 's' @ Main.pst:11:13
+def Main.pst 12:14-12:15
+  function 'f' @ Main.pst:12:14
+def Main.pst 13:14-13:15
+  function 'g' @ Main.pst:13:14
+def Main.pst 14:14-14:15
+  function 'h' @ Main.pst:14:14
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 3:10-3:11
+  unit 'C' @ std/C.pst:1:6
+use Main.pst 15:6-15:7
+  function 'h' @ Main.pst:14:14
+use Main.pst 15:8-15:17
+  function 'toCString' @ std/C.pst:18:21
+use Main.pst 16:6-16:7
+  function 'h' @ Main.pst:14:14
+use Main.pst 16:8-16:17
+  function 'toCString' @ std/C.pst:18:21
+use Main.pst 16:28-16:32
+  type 'Good' @ Main.pst:7:16
+use Main.pst 16:36-16:40
+  function 'cast' @ std/C.pst:33:21
+use Main.pst 16:41-16:44
+  builtin type 'Ptr' @ built into unit C
+use Main.pst 16:45-16:49
+  type 'Good' @ Main.pst:7:16
+use Main.pst 8:20-8:24
+  type 'Good' @ Main.pst:7:16
+use Main.pst 8:16-8:19
+  builtin type 'Ptr' @ built into unit C
+use Main.pst 9:16-9:20
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 11:16-11:22
+  builtin type 'String' @ built into unit System
+use Main.pst 12:19-12:25
+  builtin type 'String' @ built into unit System
+use Main.pst 12:30-12:34
+  type 'Good' @ Main.pst:7:16
+use Main.pst 12:37-12:41
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 13:29-13:35
+  builtin type 'String' @ built into unit System
+use Main.pst 13:38-13:42
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 13:45-13:52
+  builtin type 'Pointer' @ built into unit C
+use Main.pst 14:21-14:28
+  builtin type 'CString' @ built into unit C
+use Main.pst 14:36-14:40
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 16:33-16:34
+  field 'p' @ Main.pst:8:13
+use Main.pst 16:56-16:57
+  field 'n' @ Main.pst:9:13
+Main.pst error E0901 11:16-11:22 "String isn't C-compatible; use numbers, Boolean, C types (CInt, CString, Ptr[T], Pointer), C records, or function types of those"
+Main.pst error E0901 12:19-12:25 "String isn't C-compatible; use numbers, Boolean, C types (CInt, CString, Ptr[T], Pointer), C records, or function types of those"
+Main.pst error E0901 13:20-13:42 "function(String): Int32 isn't C-compatible; use numbers, Boolean, C types (CInt, CString, Ptr[T], Pointer), C records, or function types of those"
+Main.pst error E0901 15:25-15:28 "String isn't C-compatible; use numbers, Boolean, C types (CInt, CString, Ptr[T], Pointer), C records, or function types of those"
+Main.pst error E0902 16:36-16:54 "'cast' is only allowed inside an 'unsafe' function or procedure"

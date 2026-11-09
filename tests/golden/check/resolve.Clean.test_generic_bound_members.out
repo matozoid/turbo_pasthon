@@ -1,0 +1,43 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:15
+  trait 'Measurable' @ Main.pst:6:5
+def Main.pst 7:18-7:22
+  function 'area' @ Main.pst:7:18
+def Main.pst 9:10-9:15
+  function 'total' @ Main.pst:9:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 7:30-7:34
+  type 'Real' @ std/System.pst:15:12
+def Main.pst 9:16-9:17
+  type parameter 'T' @ Main.pst:9:16
+use Main.pst 9:19-9:29
+  trait 'Measurable' @ Main.pst:6:5
+use Main.pst 9:40-9:41
+  type parameter 'T' @ Main.pst:9:16
+use Main.pst 9:35-9:39
+  builtin type 'List' @ built into unit System
+def Main.pst 9:31-9:33
+  parameter 'xs' @ Main.pst:9:31
+    : List[T]
+use Main.pst 9:45-9:49
+  type 'Real' @ std/System.pst:15:12
+def Main.pst 10:9-10:12
+  var 'sum' @ Main.pst:10:9
+    : Real
+use Main.pst 11:14-11:16
+  parameter 'xs' @ Main.pst:9:31
+def Main.pst 11:9-11:10
+  loop variable 'x' @ Main.pst:11:9
+    : T
+use Main.pst 12:9-12:12
+  var 'sum' @ Main.pst:10:9
+use Main.pst 12:16-12:19
+  var 'sum' @ Main.pst:10:9
+use Main.pst 12:22-12:26
+  function 'area' @ Main.pst:7:18
+use Main.pst 12:27-12:28
+  loop variable 'x' @ Main.pst:11:9
+use Main.pst 13:12-13:15
+  var 'sum' @ Main.pst:10:9

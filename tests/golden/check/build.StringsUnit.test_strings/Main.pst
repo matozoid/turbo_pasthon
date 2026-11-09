@@ -1,0 +1,34 @@
+program Main
+
+uses IO, Strings
+
+procedure show(r: Result[Integer, String])
+    case r of
+        Ok(v):
+            writeln(v.value)
+        Err(e):
+            writeln(e.error)
+
+writeln(len(bytes("hé")))
+writeln(bytes("hé")[2])
+writeln(find("héllo wörld", sub: "wö").getOr(-1))
+writeln(find("abcabc", sub: "c", start: 3).getOr(-1))
+writeln(find("abc", sub: "x").isNone())
+writeln(endsWith("main.pst", suffix: ".pst"))
+writeln(endsWith("t", suffix: ".pst"))
+for part in split("a,b,,c", sep: ",") do
+    write("[{part}]")
+writeln()
+writeln(join(["x", "yé", "z"], sep: ", "))
+writeln("[{join([])}]")
+writeln("[{trim("  \t hi there \n")}]")
+writeln("[{trim("   ")}]")
+writeln(replace("a-b-c", target: "-", replacement: "+="))
+show(parseInt("123"))
+show(parseInt("-9223372036854775808"))
+show(parseInt("9223372036854775808"))
+show(parseInt("+7"))
+show(parseInt("-"))
+show(parseInt("12a"))
+writeln(fromBytes([Byte(104), Byte(195), Byte(169), Byte(255), Byte(33)]))
+writeln("[{fromBytes([])}]")

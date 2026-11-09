@@ -1,0 +1,8 @@
+program Main
+
+uses IO, Geo
+
+writeln(area(Shape.Circle))
+writeln(Geo.area(Geo.Shape.Square))
+writeln(Geo.hidden())
+writeln(hidden())

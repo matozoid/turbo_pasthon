@@ -1,0 +1,14 @@
+program Main
+
+uses IO
+
+let a := 1
+let b: Int32 := 2
+let c: Real32 := 1.5
+let xs: List[Int32] := [1, 2, 3]
+var m: Map[String, Integer] := {}
+m["a"] := a
+writeln("{a} {b} {c} {len(xs)} {m["a"]}")
+let r := toReal(a) / 2.0
+writeln(r)
+writeln(7 div 2 + 7 mod 2)

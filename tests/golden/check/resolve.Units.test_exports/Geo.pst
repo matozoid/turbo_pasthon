@@ -1,0 +1,10 @@
+unit Geo
+
+type
+    export Shape = (Circle, Square)
+
+export function area(s: Shape): Integer
+    return hidden()
+
+function hidden(): Integer
+    return 2

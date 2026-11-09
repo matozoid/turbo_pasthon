@@ -1,0 +1,20 @@
+program Main
+
+uses IO
+
+type
+    Box = record
+        items: List[String]
+        lists: List[List[String]]
+
+procedure put(var xs: List[String], var ys: List[String])
+    add(var xs, "x")
+
+function f(n: Option[Integer]): Option[Integer]
+    let none: List[String] := []
+    var b := Box(items: [], lists: [none])
+    var c := b
+    put(var b.items, ys: var c.lists[try n])
+    return Some(len(b.items))
+
+writeln(isSome(f(Some(0))))

@@ -1,0 +1,5 @@
+unit Things
+
+type
+    export Thing = record
+        export n: Integer

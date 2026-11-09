@@ -1,0 +1,13 @@
+program Main
+
+uses IO
+
+type
+    Point = record
+        x: Real
+
+let s := "abc"
+writeln(s[0])
+writeln("{Point(x: 1.0)}")
+var shown: Printable := 1
+writeln(shown)

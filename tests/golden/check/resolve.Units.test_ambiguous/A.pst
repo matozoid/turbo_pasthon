@@ -1,0 +1,8 @@
+unit A
+
+type
+    export Point = record
+        export x: Integer
+
+export function combine(a, b: Point): Integer
+    return 1

@@ -1,0 +1,9 @@
+program Main
+
+uses IO
+
+function f(x: Integer): Integer
+    if x > 0 then
+        return 1
+
+f(1)

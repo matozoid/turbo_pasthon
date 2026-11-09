@@ -1,0 +1,49 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 5:10-5:14
+  function 'half' @ Main.pst:5:10
+def Main.pst 8:10-8:11
+  function 'f' @ Main.pst:8:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 5:18-5:25
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 5:15-5:16
+  parameter 'x' @ Main.pst:5:15
+    : Integer
+use Main.pst 5:35-5:42
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 5:28-5:34
+  type 'Option' @ std/System.pst:23:12
+use Main.pst 6:12-6:16
+  type 'Some' @ std/System.pst:19:12
+use Main.pst 6:17-6:18
+  parameter 'x' @ Main.pst:5:15
+use Main.pst 8:15-8:22
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 8:12-8:13
+  parameter 'x' @ Main.pst:8:12
+    : Integer
+use Main.pst 8:32-8:39
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 8:25-8:31
+  type 'Option' @ std/System.pst:23:12
+def Main.pst 9:9-9:10
+  loop variable 'i' @ Main.pst:9:9
+    : Integer
+use Main.pst 11:16-11:17
+  loop variable 'i' @ Main.pst:9:9
+def Main.pst 13:17-13:18
+  loop variable 'j' @ Main.pst:13:17
+    : Integer
+use Main.pst 15:22-15:26
+  function 'half' @ Main.pst:5:10
+use Main.pst 15:27-15:28
+  parameter 'x' @ Main.pst:8:12
+use Main.pst 16:20-16:24
+  type 'None' @ std/System.pst:22:12
+use Main.pst 17:12-17:16
+  type 'None' @ std/System.pst:22:12
+Main.pst error E0507 12:17-12:22 "'break' can't leave a deferred statement"
+Main.pst error E0507 15:18-15:29 "'try' can't leave a deferred statement"
+Main.pst error E0507 16:13-16:24 "'return' can't leave a deferred statement"

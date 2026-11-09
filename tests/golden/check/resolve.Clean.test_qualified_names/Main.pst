@@ -1,0 +1,13 @@
+program Main
+
+uses IO, Strings
+
+type
+    Color = (Red, Green)
+
+writeln(Strings.join(["a"], sep: ""))
+writeln(Color.Green)
+var c: Color := Color.Red
+case c of
+    Red: writeln(1)
+    Green: writeln(2)

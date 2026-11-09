@@ -1,0 +1,13 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+def Main.pst 5:5-5:6
+  let 'x' @ Main.pst:5:5
+    : Integer
+use Main.pst 6:1-6:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 6:9-6:14
+  builtin type 'UInt8' @ built into unit System
+use Main.pst 6:15-6:16
+  let 'x' @ Main.pst:5:5

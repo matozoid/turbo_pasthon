@@ -1,0 +1,95 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 9:10-9:11
+  function 'f' @ Main.pst:9:10
+def Main.pst 12:5-12:6
+  type 'R' @ Main.pst:12:5
+def Main.pst 13:9-13:10
+  field 'a' @ Main.pst:13:9
+def Main.pst 14:11-14:12
+  procedure 'p' @ Main.pst:14:11
+use Main.pst 2:6-2:8
+  unit 'IO' @ std/IO.pst:1:6
+def Main.pst 3:5-3:10
+  let 'count' @ Main.pst:3:5
+def Main.pst 4:5-4:10
+  var 'total' @ Main.pst:4:5
+def Main.pst 5:5-5:11
+  let 'unused' @ Main.pst:5:5
+use Main.pst 6:1-6:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 7:1-7:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 7:16-7:21
+  let 'count' @ Main.pst:3:5
+use Main.pst 8:1-8:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+def Main.pst 18:5-18:6
+  loop variable 'i' @ Main.pst:18:5
+use Main.pst 19:22-19:23
+  loop variable 'i' @ Main.pst:18:5
+def Main.pst 19:9-19:18
+  let 'unusedToo' @ Main.pst:19:9
+def Main.pst 20:5-20:6
+  loop variable 'x' @ Main.pst:20:5
+use Main.pst 21:5-21:12
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 23:5-23:12
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 9:15-9:22
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 9:12-9:13
+  parameter 'x' @ Main.pst:9:12
+use Main.pst 9:25-9:32
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 10:12-10:13
+  parameter 'x' @ Main.pst:9:12
+use Main.pst 13:12-13:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 13:23-13:28
+  function 'count' @ std/System.pst:656:17
+use Main.pst 14:16-14:23
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 14:13-14:14
+  parameter 'a' @ Main.pst:14:13
+use Main.pst 14:28-14:35
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 14:25-14:26
+  parameter 'b' @ Main.pst:14:25
+def Main.pst 15:9-15:10
+  let 'a' @ Main.pst:15:9
+use Main.pst 16:15-16:16
+  let 'a' @ Main.pst:15:9
+def Main.pst 16:9-16:11
+  var 'b2' @ Main.pst:16:9
+use Main.pst 17:5-17:12
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 17:13-17:14
+  parameter 'b' @ Main.pst:14:25
+Main.pst error E0206 5:5-5:11 "let 'unused' is never used"
+  fix "discard: replace with '_'"
+    edit 5:1-5:11 "_"
+Main.pst error E0100 6:9-6:14 "unknown name 'cuont'"
+  fix "replace with 'count'"
+    edit 6:9-6:14 "count"
+Main.pst error E0100 7:9-7:13 "unknown name 'totl'"
+  fix "replace with 'total'"
+    edit 7:9-7:13 "total"
+Main.pst error E0100 8:9-8:22 "unknown name 'nothingLikeIt'"
+Main.pst error E0103 10:16-10:21 "'total' is a top-level variable of the program, which functions can't see; pass it as a parameter ('var' to change it)"
+Main.pst error E0205 15:9-15:10 "'a' is already declared in this routine (parameter, line 14); choose another name"
+Main.pst error E0206 16:9-16:11 "var 'b2' is never used"
+  fix "discard: replace with '_'"
+    edit 16:5-16:11 "_"
+Main.pst error E0206 19:9-19:18 "let 'unusedToo' is never used"
+  fix "discard: replace with '_'"
+    edit 19:5-19:18 "_"
+Main.pst error E0206 20:5-20:6 "loop variable 'x' is never used"
+  fix "discard: replace with '_'"
+    edit 20:5-20:6 "_"

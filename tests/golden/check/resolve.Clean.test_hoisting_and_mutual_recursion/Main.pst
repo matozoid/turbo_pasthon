@@ -1,0 +1,11 @@
+program Main
+
+uses IO
+
+writeln(isEven(4))
+
+function isEven(n: Integer): Boolean
+    return if n = 0 then true else isOdd(n - 1)
+
+function isOdd(n: Integer): Boolean
+    return if n = 0 then false else isEven(n - 1)

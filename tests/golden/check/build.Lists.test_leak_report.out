@@ -1,0 +1,46 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:9
+  type 'Node' @ Main.pst:6:5
+def Main.pst 7:9-7:13
+  field 'next' @ Main.pst:7:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 9:10-9:13
+  function 'new' @ std/System.pst:136:21
+use Main.pst 9:14-9:18
+  type 'Node' @ Main.pst:6:5
+use Main.pst 9:25-9:29
+  type 'None' @ std/System.pst:22:12
+def Main.pst 9:5-9:6
+  let 'a' @ Main.pst:9:5
+    : ref Node
+use Main.pst 10:10-10:13
+  function 'new' @ std/System.pst:136:21
+use Main.pst 10:14-10:18
+  type 'Node' @ Main.pst:6:5
+use Main.pst 10:25-10:29
+  type 'Some' @ std/System.pst:19:12
+use Main.pst 10:30-10:31
+  let 'a' @ Main.pst:9:5
+def Main.pst 10:5-10:6
+  let 'b' @ Main.pst:10:5
+    : ref Node
+use Main.pst 11:1-11:2
+  let 'a' @ Main.pst:9:5
+use Main.pst 11:11-11:15
+  type 'Some' @ std/System.pst:19:12
+use Main.pst 11:16-11:17
+  let 'b' @ Main.pst:10:5
+use Main.pst 12:1-12:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 7:26-7:30
+  type 'Node' @ Main.pst:6:5
+use Main.pst 7:15-7:21
+  type 'Option' @ std/System.pst:23:12
+use Main.pst 9:19-9:23
+  field 'next' @ Main.pst:7:9
+use Main.pst 10:19-10:23
+  field 'next' @ Main.pst:7:9
+use Main.pst 11:3-11:7
+  field 'next' @ Main.pst:7:9

@@ -1,0 +1,14 @@
+program Main
+
+uses IO
+
+var n := 0
+repeat
+    n := n + 1
+    while n < 3 do
+        n := n + 1
+        continue
+    if n = 5 then
+        continue
+    let done := n > 7
+until done

@@ -1,0 +1,38 @@
+program Main
+
+uses IO, C
+
+extern "libc.so.6"
+    type
+        export Div = record
+            quot: CInt
+            rem: CInt
+        export Mixed = record
+            a: Int8
+            b: Int64
+            c: Int16
+    function abs(x: CInt): CInt
+    function strlen(s: CString): CSize
+    function printf(fmt: CString, ...): CInt
+    function malloc(n: CSize): Pointer
+    procedure free(p: Pointer)
+    procedure qsort(base: Pointer, n: CSize, size: CSize, cmp: function(Pointer, Pointer): CInt)
+    function cdiv(a: CInt, b: CInt): Div as "div"
+    function getenv(name: CString): CString
+    function setenv(name: CString, value: CString, overwrite: CInt): CInt
+
+extern "libm.so.6"
+    function labs(x: CLong): CLong
+
+procedure demo()
+    for i := 1 to 3 do
+        let t := "x{i}"
+        _ := strlen(toCString(t))
+        if i = 2 then
+            return
+demo()
+var d := Div(quot: 1, rem: 2)
+let e := d
+d := cdiv(9, b: 2)
+writeln(fromCString(getenv(toCString("PST_TEST"))))
+writeln(e.rem + d.rem)

@@ -1,0 +1,13 @@
+program Main
+
+uses IO
+
+type
+    Measurable = trait
+        function area(this): Real
+
+function total[T: Measurable](xs: List[T]): Real
+    var sum := 0.0
+    for x in xs do
+        sum := sum + area(x)
+    return sum

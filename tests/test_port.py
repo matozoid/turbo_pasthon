@@ -1,7 +1,9 @@
-"""Differential tests: the compiler's Pasthon port against the Python compiler.
+"""Tests of the compiler's Pasthon port.
 
-Each port stage has a dump program in ``compiler/`` that prints its result in a canonical
-form; the same form is printed here from the Python stage, and the two must match.
+Each front end stage has a dump (a command of the port's tool, or a program in
+``compiler/``) that prints its result in a canonical form, which must match a golden file in
+``tests/golden/``. With ``PST_UPDATE_GOLDEN=1`` the tests write the golden files instead.
+The code generator and the command line tool are compared with the Python compiler.
 """
 
 import os
@@ -11,18 +13,10 @@ import shutil
 import subprocess
 import tempfile
 import unittest
-from dataclasses import fields
 from pathlib import Path
 
 from pst.emit import build
-from pst import ast
-from pst.lexer import lex
-from pst.parser import parse
-from pst.source import Span
-from pst.resolve import Checker, Resolver as PyResolver, STD_DIR, check
-from pst.symbols import LOCALS
-from pst.tokens import TokenKind
-from pst.types import show
+from pst.resolve import STD_DIR, check
 
 ROOT = Path(__file__).resolve().parent.parent
 COMPILER = ROOT / "compiler"
@@ -65,126 +59,99 @@ def pst_tool() -> str:
     return _PST[0]
 
 
-def quote(s: str) -> str:
-    out = ['"']
-    for c in s:
-        if c == "\\":
-            out.append("\\\\")
-        elif c == '"':
-            out.append('\\"')
-        elif c == "\n":
-            out.append("\\n")
-        elif ord(c) < 32 or ord(c) == 127:
-            out.append(f"\\u{{{ord(c):X}}}")
+GOLDEN = ROOT / "tests" / "golden"
+_UPDATE = os.environ.get("PST_UPDATE_GOLDEN") == "1"
+_ERROR = re.compile(r"^(?:\S+ )?error E\d{4} ", re.M)
+
+
+def normalize(text: str, case_dir: str, keep_std: bool = True) -> str:
+    """A dump with the paths of the standard units and of the files in ``case_dir`` made
+    relative; without ``keep_std``, also without the index entries in the standard units."""
+    case_dir = case_dir.rstrip("/")
+    text = text.replace(STD_DIR + "/", "std/").replace(case_dir + "/", "").replace(case_dir, ".")
+    if keep_std:
+        return text
+    lines, keep = [], True
+    for line in text.splitlines(keepends=True):
+        if not line.startswith(" "):
+            keep = not line.startswith(("def std/", "use std/"))
+        if keep:
+            lines.append(line)
+    return "".join(lines)
+
+
+def assert_golden(test: unittest.TestCase, golden: Path, actual: str):
+    """Compares ``actual`` with the golden file, or writes it with PST_UPDATE_GOLDEN=1."""
+    if _UPDATE:
+        golden.parent.mkdir(parents=True, exist_ok=True)
+        golden.write_bytes(actual.encode())
+        return
+    test.assertTrue(golden.exists(), f"{golden} is missing: run with PST_UPDATE_GOLDEN=1")
+    expected = golden.read_bytes().decode()
+    if actual != expected:
+        got, want = actual.splitlines(), expected.splitlines()
+        for i, (a, b) in enumerate(zip(got, want)):
+            if a != b:
+                test.fail(f"{golden.name}: line {i + 1}:\n  port:   {a}\n  golden: {b}")
+        test.fail(f"{golden.name}: {len(got)} lines from the port, {len(want)} in the golden file")
+
+
+def source_files() -> list[Path]:
+    return sorted(
+        p
+        for d in ("std", "examples", "compiler")
+        for p in (ROOT / d).glob("*.pst")
+    )
+
+
+class _Differential(unittest.TestCase):
+    """Runs a dump of the port, a command of its tool or a dump program, and compares it
+    with the golden files in ``tests/golden/<kind>/``."""
+
+    kind = ""
+    tool = ""
+    command = ""  # a command of the port's tool, instead of a dump program
+    snippets: dict[str, str] = {}
+
+    @classmethod
+    def setUpClass(cls):
+        cls.exe = pst_tool() if cls.command else build_tool(cls.tool)
+
+    def args(self, path: Path) -> list[str]:
+        return [self.command, str(path)] if self.command else [str(path)]
+
+    def dump(self, path: Path, under: tuple = (), keep_std: bool = True) -> str:
+        r = subprocess.run([*under, self.exe, *self.args(path)], capture_output=True, timeout=120)
+        out = r.stdout.decode()
+        if self.command:  # status 1 if there are errors, as for `pst check`
+            self.assertIn(r.returncode, (0, 1), r.stderr.decode())
+            self.assertEqual(r.returncode == 1, _ERROR.search(out) is not None, path.name)
+            self.assertEqual(r.stderr, b"")
         else:
-            out.append(c)
-    out.append('"')
-    return "".join(out)
+            self.assertEqual(r.returncode, 0, r.stderr.decode())
+        return normalize(out, str(path.parent), keep_std)
 
+    def compare(self, path: Path, name: str, keep_std: bool = True):
+        assert_golden(self, GOLDEN / self.kind / f"{name}.out", self.dump(path, keep_std=keep_std))
 
-def where(s) -> str:
-    return f"{s.line}:{s.col}-{s.end_line}:{s.end_col}"
+    def test_source_files(self):
+        paths = source_files()
+        self.assertGreater(len(paths), 10)
+        for path in paths:
+            with self.subTest(path.name):
+                self.assertIsNone(_ERROR.search(self.dump(path)))
 
+    def test_snippets(self):
+        for name, text in self.snippets.items():
+            with self.subTest(name):
+                path = Path(_TMP.name, f"{self.kind}-{name}.pst")
+                path.write_bytes(text.encode())
+                self.compare(path, name)
 
-def kind_names() -> dict[TokenKind, str]:
-    """The Pasthon name of each token kind: the enums list the kinds in the same order."""
-    text = (COMPILER / "Tokens.pst").read_text()
-    body = re.search(r"export TokenKind = \((.*?)\)", text, re.S).group(1)
-    names = [n.strip() for n in body.split(",") if n.strip()]
-    assert len(names) == len(TokenKind), (len(names), len(TokenKind))
-    return dict(zip(TokenKind, names))
-
-
-def value_of(t) -> str:
-    v = t.value
-    if t.kind is TokenKind.REAL:
-        return f"real {t.text.replace('_', '')}"
-    if t.kind is TokenKind.INT:
-        return f"int {v}"
-    if t.kind is TokenKind.CHAR:
-        return f"char {ord(v) if v else 0}"
-    if t.kind is TokenKind.END_MARKER:
-        return f"marker {v[0]} {v[1] or '-'}"
-    if isinstance(v, str):
-        return f"text {quote(v)}"
-    return "-"
-
-
-def lex_dump(text: str, file: str) -> str:
-    names = kind_names()
-    r = lex(text, file)
-    lines = [f"{names[t.kind]} {where(t.span)} {quote(t.text)} {value_of(t)}" for t in r.tokens]
-    for c in r.comments:
-        lines.append(f"comment {where(c.span)} {quote(c.text)} {'true' if c.is_doc else 'false'}")
-    for d in r.diagnostics:
-        lines.append(f"{d.severity.value} {d.code} {where(d.span)} {quote(d.message)}")
-        for f in d.fixes:
-            lines.append(f"  fix {quote(f.description)}")
-            for e in f.edits:
-                lines.append(f"    edit {where(e.span)} {quote(e.text)}")
-    return "".join(line + "\n" for line in lines)
-
-
-def diagnostic_lines(diagnostics) -> list[str]:
-    lines = []
-    for d in diagnostics:
-        lines.append(f"{d.severity.value} {d.code} {where(d.span)} {quote(d.message)}")
-        for f in d.fixes:
-            lines.append(f"  fix {quote(f.description)}")
-            for e in f.edits:
-                lines.append(f"    edit {where(e.span)} {quote(e.text)}")
-    return lines
-
-
-def ast_dump(text: str, file: str) -> str:
-    """The tree as ``pst ast`` prints it: one node per line, indented by
-    depth, with scalar fields on the node's line and child nodes below it."""
-    r = parse(text, file)
-    lines = []
-
-    def scalar(node, name, v) -> str:
-        if isinstance(v, bool):
-            return "true" if v else "false"
-        if isinstance(node, ast.RealLit):
-            return text[node.span.start : node.span.end].replace("_", "")
-        if isinstance(node, ast.CharLit):
-            return str(ord(v) if v else 0)
-        if isinstance(v, int):
-            return str(v)
-        if isinstance(v, str):
-            return quote(v)
-        if isinstance(v, Span):
-            return where(v)
-        if name == "part_spans":
-            return "[" + ",".join(where(s) for s in v) + "]"
-        return "[" + ",".join(quote(x) for x in v) + "]"
-
-    def walk(node, depth: int, label: str):
-        pad = "  " * depth
-        scalars, children = [], []
-        for f in fields(node):
-            v = getattr(node, f.name)
-            if f.name == "span" or v is None or (isinstance(v, list) and not v):
-                continue
-            if isinstance(v, ast.Node):
-                children.append((f"{f.name}: ", v))
-            elif isinstance(v, list) and not isinstance(v[0], Span) and f.name != "parts" or (
-                f.name == "parts" and isinstance(node, ast.InterpString)
-            ):
-                children.extend((f"{f.name}[{i}]: ", x) for i, x in enumerate(v))
-            else:
-                scalars.append(f" {f.name}={scalar(node, f.name, v)}")
-        kind = type(node).__name__
-        lines.append(f"{pad}{label}{kind} {where(node.span)}{''.join(scalars)}")
-        for lab, child in children:
-            if isinstance(child, str):
-                lines.append(f"{pad}  {lab}Text {quote(child)}")
-            else:
-                walk(child, depth + 1, lab)
-
-    walk(r.file, 0, "")
-    lines.extend(diagnostic_lines(r.diagnostics))
-    return "".join(line + "\n" for line in lines)
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_valgrind(self):
+        self.dump(COMPILER / "Lexer.pst",
+                  under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))
 
 
 # Inputs that exercise the lexer's errors and corners.
@@ -218,122 +185,6 @@ SNIPPETS = {
     "no-final-newline": "x := 1",
     "statement-start": "f(a,\n  b)\ng(c,\nx.y := 1\nh(d,\n# comment\n\nreturn 2\nk(e,\n    let := 3)\n",
 }
-
-
-def resolve_dump(path: str, std_dir: str = STD_DIR) -> str:
-    """Resolution without type checking, as ``compiler/ResolveDump.pst`` prints it: the
-    symbol index, then the diagnostics of every file."""
-    c = Checker(std_dir)
-    std = os.path.dirname(os.path.abspath(path)) == os.path.abspath(std_dir)
-    main = c.load(path, std=std)
-    if main is not None:
-        c.check_cycles(main)
-        others = [u for u in c.units.values() if u is not main]
-        for unit in [main] + others:
-            PyResolver(c, unit).run()
-    c.diagnostics.sort(key=lambda d: (d.file != (main.file if main else ""), d.file, d.span.start))
-    lines = []
-    for r in c.index.refs:
-        lines.append(f"{'def' if r.is_def else 'use'} {r.file} {where(r.span)}")
-        for t in r.targets:
-            lines.append(f"  {t.describe()} @ {t.location()}")
-    for d in c.diagnostics:
-        lines.append(f"{d.file} {d.severity.value} {d.code} {where(d.span)} {quote(d.message)}")
-        for f in d.fixes:
-            lines.append(f"  fix {quote(f.description)}")
-            for e in f.edits:
-                lines.append(f"    edit {where(e.span)} {quote(e.text)}")
-    return "".join(line + "\n" for line in lines)
-
-
-def check_dump(path: str, std_dir: str = STD_DIR) -> str:
-    """Resolution and type checking, as ``compiler/CheckDump.pst`` prints it: the symbol
-    index with the type of each local variable at its definition, then the diagnostics."""
-    result = check(path, std_dir)
-    lines = []
-    for r in result.index.refs:
-        lines.append(f"{'def' if r.is_def else 'use'} {r.file} {where(r.span)}")
-        for t in r.targets:
-            lines.append(f"  {t.describe()} @ {t.location()}")
-            if r.is_def and t.kind in LOCALS:
-                lines.append(f"    : {'?' if t.type is None else show(t.type)}")
-    for d in result.diagnostics:
-        lines.append(f"{d.file} {d.severity.value} {d.code} {where(d.span)} {quote(d.message)}")
-        for f in d.fixes:
-            lines.append(f"  fix {quote(f.description)}")
-            for e in f.edits:
-                lines.append(f"    edit {where(e.span)} {quote(e.text)}")
-    return "".join(line + "\n" for line in lines)
-
-
-def source_files() -> list[Path]:
-    return sorted(
-        p
-        for d in ("std", "examples", "compiler")
-        for p in (ROOT / d).glob("*.pst")
-    )
-
-
-class _Differential(unittest.TestCase):
-    """Runs a dump program, or a dump command of the port's tool, and the matching Python
-    dump on the same files."""
-
-    tool = ""
-    command = ""  # a command of the port's tool, instead of a dump program
-    snippets: dict[str, str] = {}
-
-    @staticmethod
-    def expected(text: str, file: str) -> str:
-        raise NotImplementedError
-
-    @classmethod
-    def setUpClass(cls):
-        cls.exe = pst_tool() if cls.command else build_tool(cls.tool)
-
-    def args(self, path: Path) -> list[str]:
-        return [self.command, str(path)] if self.command else [str(path)]
-
-    def expected_for(self, path: Path) -> str:
-        text = path.read_bytes().decode("utf-8", errors="replace")
-        return type(self).expected(text, str(path))
-
-    def compare(self, path: Path, under: tuple = ()):
-        expected = self.expected_for(path)
-        r = subprocess.run([*under, self.exe, *self.args(path)], capture_output=True, timeout=120)
-        if self.command:  # status 1 if there are errors, as for `pst check`
-            self.assertIn(r.returncode, (0, 1), r.stderr.decode())
-            self.assertEqual(r.returncode == 1, "\nerror " in "\n" + expected, path.name)
-            self.assertEqual(r.stderr, b"")
-        else:
-            self.assertEqual(r.returncode, 0, r.stderr.decode())
-        actual = r.stdout.decode()
-        if actual != expected:
-            got, want = actual.splitlines(), expected.splitlines()
-            for i, (a, b) in enumerate(zip(got, want)):
-                if a != b:
-                    self.fail(f"{path.name}: line {i + 1}:\n  port:   {a}\n  python: {b}")
-            self.fail(f"{path.name}: {len(got)} lines from the port, {len(want)} from Python")
-
-    def test_source_files(self):
-        paths = source_files()
-        self.assertGreater(len(paths), 10)
-        for path in paths:
-            with self.subTest(path.name):
-                self.compare(path)
-
-    def test_snippets(self):
-        for name, text in self.snippets.items():
-            with self.subTest(name):
-                path = Path(_TMP.name, f"{self.tool or self.command}-{name}.pst")
-                path.write_bytes(text.encode())
-                self.compare(path)
-
-    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
-    def test_valgrind(self):
-        self.compare(
-            COMPILER / "Lexer.pst",
-            under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"),
-        )
 
 
 # Inputs that exercise the parser's errors, recovery and corners.
@@ -487,19 +338,16 @@ PARSER_SNIPPETS = {
     "header-extra": "program P Q\nx := 1\n",
 }
 
-
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
 class Lexer(_Differential):
-    command = "tokens"
+    kind = command = "tokens"
     snippets = SNIPPETS
-    expected = staticmethod(lex_dump)
 
 
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
 class Parser(_Differential):
-    command = "ast"
+    kind = command = "ast"
     snippets = PARSER_SNIPPETS
-    expected = staticmethod(ast_dump)
 
 
 # Programs, each a set of files (the first is checked), that exercise the resolver's errors
@@ -613,16 +461,16 @@ RESOLVE_SNIPPETS = {
     },
 }
 
-
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
 class Resolve(_Differential):
+    """Resolution without type checking. The golden files leave out the index entries in
+    the standard units, except for a standard unit itself."""
+
+    kind = "resolve"
     tool = "ResolveDump"
 
     def args(self, path: Path) -> list[str]:
         return [STD_DIR, str(path)]
-
-    def expected_for(self, path: Path) -> str:
-        return resolve_dump(str(path))
 
     def test_snippets(self):
         for name, files in RESOLVE_SNIPPETS.items():
@@ -630,129 +478,52 @@ class Resolve(_Differential):
                 d = Path(tempfile.mkdtemp(dir=_TMP.name))
                 for f, text in files.items():
                     Path(d, f).write_bytes(text if isinstance(text, bytes) else text.encode())
-                self.compare(d / next(iter(files)))
+                self.compare(d / next(iter(files)), name, keep_std=False)
 
     def test_missing_file(self):
-        self.compare(Path(_TMP.name, "does-not-exist.pst"))
+        self.compare(Path(_TMP.name, "does-not-exist.pst"), "missing-file")
 
     def test_std_unit(self):
-        self.compare(Path(STD_DIR, "Strings.pst"))
+        self.compare(Path(STD_DIR, "Strings.pst"), "std-strings")
 
 
-def checker_inputs(out: str) -> list[Path]:
-    """Copies the programs that the resolver, type checker and build tests check into
-    ``out``, one directory each, and returns their main files. The tests run with
-    ``check`` recording its input and building skipped."""
-    import io
-    import tests.test_build as tb
-    import tests.test_resolve as tr
-    import tests.test_typecheck as tt
-
-    paths = []
-    real = tr.check
-
-    def record(path, std_dir=STD_DIR):
-        src = os.path.dirname(os.path.abspath(path))
-        if not src.startswith(str(ROOT)):  # not the std units or examples
-            d = Path(out, str(len(paths)))
-            shutil.copytree(src, d)
-            paths.append(d / os.path.basename(path))
-        return real(path, std_dir)
-
-    def skip(*args, **kwargs):
-        raise unittest.SkipTest("only checking")
-
-    os.makedirs(tb._TMP.name, exist_ok=True)  # removed if test_build already ran
-    saved = tr.check, tb.check, tb.build
-    tr.check, tb.check, tb.build = record, record, skip
-    try:
-        suite = unittest.TestSuite()
-        for m in (tr, tt, tb):
-            suite.addTests(unittest.defaultTestLoader.loadTestsFromModule(m))
-        unittest.TextTestRunner(stream=io.StringIO()).run(suite)
-    finally:
-        tr.check, tb.check, tb.build = saved
-    return paths
+def main_file(d: Path) -> Path:
+    """The file to check in a directory of ``tests/golden/check``: ``Main.pst``, or its
+    only file."""
+    if (d / "Main.pst").exists():
+        return d / "Main.pst"
+    [path] = d.glob("*.pst")
+    return path
 
 
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
 class Check(_Differential):
+    """Resolution and type checking of the programs in the directories of
+    ``tests/golden/check``, taken from the Python compiler's tests."""
+
+    kind = "check"
     tool = "CheckDump"
 
     def args(self, path: Path) -> list[str]:
         return [STD_DIR, str(path)]
 
-    def expected_for(self, path: Path) -> str:
-        return check_dump(str(path))
-
     def test_checker_tests(self):
-        paths = checker_inputs(tempfile.mkdtemp(dir=_TMP.name))
-        self.assertGreater(len(paths), 100)
-        for path in paths:
-            with self.subTest(str(path)):
-                self.compare(path)
+        dirs = sorted(d for d in (GOLDEN / "check").iterdir() if d.is_dir())
+        self.assertGreater(len(dirs), 100)
+        for d in dirs:
+            with self.subTest(d.name):
+                self.compare(main_file(d), d.name, keep_std=False)
 
     def test_missing_file(self):
-        self.compare(Path(_TMP.name, "does-not-exist.pst"))
+        self.compare(Path(_TMP.name, "does-not-exist.pst"), "missing-file")
 
     def test_std_unit(self):
-        self.compare(Path(STD_DIR, "Strings.pst"))
+        self.compare(Path(STD_DIR, "Strings.pst"), "std-strings")
 
     @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
     def test_valgrind(self):
-        self.compare(
-            ROOT / "examples" / "Inventory.pst",
-            under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"),
-        )
-
-
-def asm_dump(script: str) -> str:
-    """Runs an assembler script (see ``compiler/AsmDump.pst``) and prints what AsmDump prints."""
-    from pst import elf, x86
-
-    a = x86.Assembler()
-    names: dict[str, str] = {}
-    out: list[str] = []
-
-    def arg(w: str):
-        w = names.get(w, w)
-        if w in ("true", "false"):
-            return w == "true"
-        return int(w) if re.fullmatch(r"-?\d+", w) else w
-
-    for line in script.splitlines():
-        if not line:
-            continue
-        op, *ws = line.split(" ")
-        if op == "data":
-            value = bytes(int(b) & 0xFF for b in ws[2].split(",")) if ws[2] != "-" else b""
-            names[ws[0]] = a.data(value, int(ws[1]))
-        elif op == "new_label":
-            names[ws[0]] = a.new_label(ws[1])
-        elif op == "track":
-            a.stack = []
-        elif op == "untrack":
-            a.stack = None
-        elif op == "own":
-            a.stack[-1] = True
-        elif op == "sub_imm32_fixed":
-            out.append(f"fixed {a.sub_imm32_fixed(*map(arg, ws))}")
-        else:
-            getattr(a, op)(*map(arg, ws))
-        if a.stack is not None:
-            out.append(f"stack [{''.join('1' if o else '0' for o in a.stack)}]")
-    needed = (elf.LIBC,)
-    code = a.finish(elf.rodata_offset(len(a.code)), elf.got_offset(len(a.code), len(a.rodata), a.imports, needed))
-
-    def dump(title: str, bs: bytes) -> None:
-        out.append(f"{title} {len(bs)}")
-        out.extend(bs[i : i + 32].hex() for i in range(0, len(bs), 32))
-
-    dump("code", code)
-    dump("rodata", bytes(a.rodata))
-    out.append(f"imports {' '.join(a.imports)}")
-    out.append(f"globals {' '.join(a.globals)}")
-    dump("executable", elf.executable(code, bytes(a.rodata), 0, a.imports, needed, len(a.globals)))
-    return "".join(line + "\n" for line in out)
+        self.dump(ROOT / "examples" / "Inventory.pst",
+                  under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))
 
 
 def asm_script() -> str:
@@ -803,29 +574,26 @@ def asm_script() -> str:
     return "".join(line + "\n" for line in lines)
 
 
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
 class Asm(unittest.TestCase):
-    """The assembler and ELF writer, run on the same instruction script."""
+    """The assembler and ELF writer, run on an instruction script."""
 
     @classmethod
     def setUpClass(cls):
         cls.exe = build_tool("AsmDump")
 
-    def compare(self, script: str):
+    def compare(self, script: str, name: str):
         path = Path(_TMP.name, "asm.txt")
         path.write_text(script)
         r = subprocess.run([self.exe, str(path)], capture_output=True, timeout=120)
         self.assertEqual(r.returncode, 0, r.stderr.decode())
-        got, want = r.stdout.decode().splitlines(), asm_dump(script).splitlines()
-        for i, (a, b) in enumerate(zip(got, want)):
-            if a != b:
-                self.fail(f"line {i + 1}:\n  port:   {a}\n  python: {b}")
-        self.assertEqual(len(got), len(want))
+        assert_golden(self, GOLDEN / "asm" / f"{name}.out", r.stdout.decode())
 
     def test_instructions(self):
-        self.compare(asm_script())
+        self.compare(asm_script(), "instructions")
 
     def test_empty(self):
-        self.compare("")
+        self.compare("", "empty")
 
 
 def build_inputs(out: str) -> list[tuple[Path, bool]]:

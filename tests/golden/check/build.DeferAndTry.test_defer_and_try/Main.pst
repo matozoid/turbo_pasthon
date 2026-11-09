@@ -1,0 +1,77 @@
+program Main
+
+uses IO, Strings
+
+function parse(s: String): Result[Integer, String]
+    if s = "bad" then
+        return Err("not a number: {s}")
+    return Ok(byteLen(s))
+
+function half(n: Integer): Option[Integer]
+    if n mod 2 = 1 then
+        return None
+    return Some(n div 2)
+
+function both(a: String, b: String): Result[String, String]
+    defer writeln("  both done")
+    let label := "{a}+{b}"
+    defer
+        writeln("  leaving {label}")
+    let parts := [label, "{try parse(a)}", "{try parse(b)}"]
+    return Ok("{parts[0]}={len(parts)}")
+
+function pick(xs: List[String], n: Integer): Option[String]
+    defer writeln("  pick done")
+    let m := {"x": xs[0], "y": "{try half(n)}"}
+    return Some("{m["x"]}{m["y"]}")
+
+function sum(xs: List[String]): Result[Integer, String]
+    var total := 0
+    for x in xs do
+        defer write("[{x}]")
+        if x = "skip" then
+            continue
+        if x = "stop" then
+            break
+        total := total + try parse(x)
+    writeln("")
+    return Ok(total)
+
+function check(s: String): Result[Integer, String]
+    defer writeln("  check done")
+    try parse(s)
+    return Ok(1)
+
+procedure show(r: Result[Integer, String])
+    case r of
+        Ok(v): writeln("ok {v.value}")
+        Err(x): writeln("err {x.error}")
+
+procedure showS(r: Result[String, String])
+    case r of
+        Ok(v): writeln("ok {v.value}")
+        Err(x): writeln("err {x.error}")
+
+procedure showO(r: Option[String])
+    case r of
+        Some(v): writeln("some {v.value}")
+        None: writeln("none")
+
+procedure order()
+    defer writeln("  first")
+    defer writeln("  second")
+    if true then
+        defer writeln("  inner")
+        writeln("  body")
+    writeln("  end")
+
+order()
+showS(both("ab", b: "cde"))
+showS(both("ab", b: "bad"))
+showS(both("bad", b: "x"))
+showO(pick(["p"], 4))
+showO(pick(["p"], 3))
+show(sum(["a", "skip", "bc", "stop", "zzz"]))
+show(sum(["a", "bad", "bc"]))
+show(check("bad"))
+show(check("ok"))

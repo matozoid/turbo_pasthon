@@ -1,0 +1,32 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+def Main.pst 5:5-5:6
+  let 'a' @ Main.pst:5:5
+    : Integer
+use Main.pst 6:10-6:11
+  let 'a' @ Main.pst:5:5
+use Main.pst 6:20-6:21
+  let 'a' @ Main.pst:5:5
+def Main.pst 6:5-6:6
+  let 't' @ Main.pst:6:5
+    : Boolean
+use Main.pst 7:1-7:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 7:11-7:12
+  let 't' @ Main.pst:6:5
+use Main.pst 7:19-7:20
+  let 't' @ Main.pst:6:5
+use Main.pst 7:23-7:24
+  let 'a' @ Main.pst:5:5
+use Main.pst 7:32-7:33
+  let 'a' @ Main.pst:5:5
+use Main.pst 7:46-7:47
+  let 'a' @ Main.pst:5:5
+use Main.pst 7:57-7:58
+  let 'a' @ Main.pst:5:5
+use Main.pst 8:1-8:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 8:12-8:13
+  let 'a' @ Main.pst:5:5

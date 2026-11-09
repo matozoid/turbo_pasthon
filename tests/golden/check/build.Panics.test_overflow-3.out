@@ -1,0 +1,11 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+def Main.pst 5:5-5:6
+  var 'x' @ Main.pst:5:5
+    : Integer
+use Main.pst 6:1-6:2
+  var 'x' @ Main.pst:5:5
+use Main.pst 6:9-6:10
+  var 'x' @ Main.pst:5:5

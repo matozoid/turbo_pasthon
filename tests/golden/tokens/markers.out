@@ -1,0 +1,27 @@
+KwFunction 1:1-1:9 "function" -
+Ident 1:10-1:11 "f" -
+Lparen 1:11-1:12 "(" -
+Rparen 1:12-1:13 ")" -
+Newline 1:13-2:1 "\n" -
+Indent 2:5-2:5 "" -
+KwReturn 2:5-2:11 "return" -
+IntLit 2:12-2:13 "1" int 1
+Newline 2:13-3:1 "\n" -
+Dedent 3:1-3:1 "" -
+EndMarker 3:1-3:17 "# end function f" marker function f
+Newline 3:17-4:1 "\n" -
+KwRecord 4:1-4:7 "record" -
+Newline 4:7-5:1 "\n" -
+EndMarker 5:1-5:13 "# end record" marker record -
+Newline 5:13-6:1 "\n" -
+EndMarker 6:1-6:11 "# end if  " marker if -
+Newline 6:11-7:1 "\n" -
+Indent 11:5-11:5 "" -
+EndMarker 11:5-11:14 "# end for" marker for -
+Newline 11:14-12:1 "\n" -
+Dedent 12:1-12:1 "" -
+Eof 12:1-12:1 "" -
+comment 7:1-7:14 "# end while x" false
+comment 8:1-8:16 "# end functionx" false
+comment 9:1-9:20 "# end trait T extra" false
+comment 10:1-10:8 "# endif" false

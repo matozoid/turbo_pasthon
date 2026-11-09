@@ -1,0 +1,16 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 5:1-5:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 6:1-6:6
+  procedure 'write' @ std/IO.pst:14:22
+use Main.pst 7:1-7:3
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 7:4-7:11
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 8:1-8:8
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 9:1-9:6
+  procedure 'write' @ std/IO.pst:14:22

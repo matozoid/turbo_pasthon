@@ -1,0 +1,11 @@
+program Main
+
+uses IO
+
+procedure p(n: Integer)
+    if n > 0 then
+        let n := 1
+        writeln(n)
+    for i := 0 to n do
+        for i := 0 to n do
+            writeln(i)

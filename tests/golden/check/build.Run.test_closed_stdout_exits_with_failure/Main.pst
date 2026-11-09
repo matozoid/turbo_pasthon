@@ -1,0 +1,5 @@
+program Main
+
+uses IO
+
+writeln("x")

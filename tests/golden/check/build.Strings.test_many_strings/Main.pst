@@ -1,0 +1,11 @@
+program Main
+
+uses IO, Strings
+
+var n := 0
+var y := ""
+while n < 1000000 do
+    let x := "n = {n}"
+    y := "{x}!"
+    n := n + 1
+writeln(y)

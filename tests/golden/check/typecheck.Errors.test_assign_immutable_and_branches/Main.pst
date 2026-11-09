@@ -1,0 +1,8 @@
+program Main
+
+uses IO
+
+let a := 1
+a := 2
+let b := if a > 0 then 1 else "x"
+writeln("{b}")

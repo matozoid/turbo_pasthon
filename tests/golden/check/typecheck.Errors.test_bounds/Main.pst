@@ -1,0 +1,15 @@
+program Main
+
+uses IO
+
+type
+    Point = record
+        x: Real
+
+function biggest[T: Ordered](a, b: T): T
+    return if a > b then a else b
+
+function sum[T](a, b: T): T
+    return a + b
+
+_ := biggest(Point(x: 1.0), Point(x: 2.0))

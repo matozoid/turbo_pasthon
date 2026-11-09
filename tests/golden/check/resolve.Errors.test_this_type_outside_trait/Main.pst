@@ -1,0 +1,6 @@
+program Main
+
+uses IO
+
+function f(x: This): Integer
+    return 1

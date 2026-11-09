@@ -1,0 +1,48 @@
+program Main
+
+uses IO
+
+type
+    Node = record
+        value: Integer
+        next: Option[ref Node]
+
+    Pair = record
+        a: ref Node
+        n: Integer
+
+function sum(n: ref Node): Integer
+    var total := n.value
+    case n.next of
+        Some(m): total := total + sum(m.value)
+        None: total := total + 0
+    return total
+
+procedure bump(var x: Integer)
+    x := x + 100
+
+let a := new(Node(value: 1, next: None))
+let b := new(Node(value: 2, next: Some(a)))
+write("{sum(b)} ")
+a.value := 10
+writeln(sum(b))
+let c := deref(a)
+a.value := 20
+write("{c.value} {a.value} {sum(b)} ")
+deref(a) := Node(value: 5, next: None)
+writeln("{c.value} {a.value} {sum(b)}")
+bump(var a.value)
+inc(var a.value)
+let a2 := a
+writeln("{a.value} {a2 = a} {a = b} {deref(a2) = deref(a)}")
+write("{Pair(a: a, n: 1) = Pair(a: a2, n: 1)} {Pair(a: a, n: 1) = Pair(a: b, n: 1)} ")
+var xs := [a, b]
+xs[1].value := 7
+let m := {"k": a}
+m["k"].value := 8
+write("{b.value} {a.value} ")
+let n := new(41)
+deref(n) := deref(n) + 1
+let s := new("hi")
+deref(s) := "{deref(s)}!"
+writeln("{deref(n)} {deref(s)} {len(xs)} {len(m)}")

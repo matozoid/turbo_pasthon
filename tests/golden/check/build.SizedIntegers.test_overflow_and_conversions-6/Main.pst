@@ -1,0 +1,6 @@
+program Main
+
+uses IO
+
+let x := -1
+writeln(UInt64(x))

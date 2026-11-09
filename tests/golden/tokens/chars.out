@@ -1,0 +1,35 @@
+KwLet 1:1-1:4 "let" -
+Ident 1:5-1:6 "a" -
+Assign 1:7-1:9 ":=" -
+CharLit 1:10-1:13 "'x'" char 120
+Newline 1:13-2:1 "\n" -
+KwLet 2:1-2:4 "let" -
+Ident 2:5-2:6 "b" -
+Assign 2:7-2:9 ":=" -
+CharLit 2:10-2:12 "''" char 0
+Newline 2:12-3:1 "\n" -
+KwLet 3:1-3:4 "let" -
+Ident 3:5-3:6 "c" -
+Assign 3:7-3:9 ":=" -
+CharLit 3:10-3:14 "'ab'" char 0
+Newline 3:14-4:1 "\n" -
+KwLet 4:1-4:4 "let" -
+Ident 4:5-4:6 "d" -
+Assign 4:7-4:9 ":=" -
+CharLit 4:10-4:14 "'\\n'" char 10
+Newline 4:14-5:1 "\n" -
+KwLet 5:1-5:4 "let" -
+Ident 5:5-5:6 "e" -
+Assign 5:7-5:9 ":=" -
+CharLit 5:10-5:18 "'\\u{E9}'" char 233
+Newline 5:18-6:1 "\n" -
+KwLet 6:1-6:4 "let" -
+Ident 6:5-6:6 "f" -
+Assign 6:7-6:9 ":=" -
+CharLit 6:10-6:12 "'\\" char 0
+Newline 6:12-7:1 "\n" -
+Eof 7:1-7:1 "" -
+error E0008 2:10-2:12 "char literal must contain exactly one character, found 0"
+error E0008 3:10-3:14 "char literal must contain exactly one character, found 2"
+error E0005 6:11-6:12 "incomplete escape sequence"
+error E0008 6:10-6:12 "unterminated char literal"

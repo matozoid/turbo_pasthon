@@ -1,0 +1,6 @@
+program Main
+
+uses IO
+
+var z := 0
+writeln(1 mod z)

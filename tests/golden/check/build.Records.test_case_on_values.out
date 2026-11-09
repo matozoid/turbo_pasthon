@@ -1,0 +1,142 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:11
+  type 'Circle' @ Main.pst:6:5
+def Main.pst 7:9-7:10
+  field 'r' @ Main.pst:7:9
+def Main.pst 8:5-8:9
+  type 'Rect' @ Main.pst:8:5
+def Main.pst 9:9-9:10
+  field 'w' @ Main.pst:9:9
+def Main.pst 10:9-10:10
+  field 'h' @ Main.pst:10:9
+def Main.pst 11:5-11:10
+  type 'Shape' @ Main.pst:11:5
+def Main.pst 13:10-13:14
+  function 'kind' @ Main.pst:13:10
+def Main.pst 19:10-19:13
+  function 'cls' @ Main.pst:19:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+def Main.pst 25:5-25:6
+  loop variable 'n' @ Main.pst:25:5
+    : Integer
+use Main.pst 26:12-26:17
+  type 'Shape' @ Main.pst:11:5
+use Main.pst 26:26-26:27
+  loop variable 'n' @ Main.pst:25:5
+use Main.pst 27:12-27:18
+  type 'Circle' @ Main.pst:6:5
+use Main.pst 27:22-27:23
+  loop variable 'n' @ Main.pst:25:5
+use Main.pst 28:15-28:19
+  type 'Rect' @ Main.pst:8:5
+use Main.pst 28:23-28:24
+  loop variable 'n' @ Main.pst:25:5
+def Main.pst 26:9-26:10
+  let 's' @ Main.pst:26:9
+    : Shape
+use Main.pst 29:10-29:11
+  let 's' @ Main.pst:26:9
+use Main.pst 30:9-30:15
+  type 'Circle' @ Main.pst:6:5
+def Main.pst 30:16-30:17
+  case binding 'c' @ Main.pst:30:16
+    : Circle
+use Main.pst 30:20-30:27
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 30:37-30:38
+  case binding 'c' @ Main.pst:30:16
+use Main.pst 31:9-31:13
+  type 'Rect' @ Main.pst:8:5
+use Main.pst 31:18-31:25
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 32:1-32:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 32:11-32:15
+  function 'kind' @ Main.pst:13:10
+use Main.pst 32:23-32:27
+  function 'kind' @ Main.pst:13:10
+use Main.pst 32:35-32:39
+  function 'kind' @ Main.pst:13:10
+use Main.pst 33:1-33:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 33:11-33:14
+  function 'cls' @ Main.pst:19:10
+use Main.pst 33:22-33:25
+  function 'cls' @ Main.pst:19:10
+use Main.pst 33:33-33:36
+  function 'cls' @ Main.pst:19:10
+use Main.pst 34:15-34:21
+  builtin type 'String' @ built into unit System
+use Main.pst 34:8-34:14
+  type 'Option' @ std/System.pst:23:12
+use Main.pst 34:26-34:32
+  unit 'System' @ std/System.pst:1:6
+use Main.pst 34:33-34:37
+  type 'None' @ std/System.pst:22:12
+def Main.pst 34:5-34:6
+  let 'o' @ Main.pst:34:5
+    : Option[String]
+use Main.pst 35:6-35:7
+  let 'o' @ Main.pst:34:5
+use Main.pst 36:5-36:9
+  type 'Some' @ std/System.pst:19:12
+def Main.pst 36:10-36:11
+  case binding 'v' @ Main.pst:36:10
+    : Some[String]
+use Main.pst 36:14-36:21
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 36:22-36:23
+  case binding 'v' @ Main.pst:36:10
+use Main.pst 37:11-37:18
+  procedure 'writeln' @ std/IO.pst:16:22
+def Main.pst 38:5-38:9
+  let 'flag' @ Main.pst:38:5
+    : Boolean
+use Main.pst 39:6-39:10
+  let 'flag' @ Main.pst:38:5
+use Main.pst 40:11-40:18
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 41:12-41:19
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 7:12-7:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 9:12-9:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 10:12-10:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 11:13-11:19
+  type 'Circle' @ Main.pst:6:5
+use Main.pst 11:22-11:26
+  type 'Rect' @ Main.pst:8:5
+use Main.pst 13:18-13:24
+  builtin type 'String' @ built into unit System
+def Main.pst 13:15-13:16
+  parameter 's' @ Main.pst:13:15
+    : String
+use Main.pst 13:27-13:34
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 14:17-14:18
+  parameter 's' @ Main.pst:13:15
+use Main.pst 19:17-19:21
+  builtin type 'Char' @ built into unit System
+def Main.pst 19:14-19:15
+  parameter 'c' @ Main.pst:19:14
+    : Char
+use Main.pst 19:24-19:30
+  builtin type 'String' @ built into unit System
+use Main.pst 20:17-20:18
+  parameter 'c' @ Main.pst:19:14
+use Main.pst 27:19-27:20
+  field 'r' @ Main.pst:7:9
+use Main.pst 28:20-28:21
+  field 'w' @ Main.pst:9:9
+use Main.pst 28:26-28:27
+  field 'h' @ Main.pst:10:9
+use Main.pst 30:39-30:40
+  field 'r' @ Main.pst:7:9
+use Main.pst 36:24-36:29
+  field 'value' @ std/System.pst:20:16
+use Main.pst 37:5-37:9
+  type 'None' @ std/System.pst:22:12

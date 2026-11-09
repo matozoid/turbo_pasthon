@@ -1,0 +1,6 @@
+program Main
+
+uses IO
+
+var m := {"a": 1}
+inc(var m["b"])

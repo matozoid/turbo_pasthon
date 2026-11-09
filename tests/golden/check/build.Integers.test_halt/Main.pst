@@ -1,0 +1,7 @@
+program Main
+
+uses IO
+
+writeln("a")
+halt(3)
+writeln("b")

@@ -1,0 +1,16 @@
+program Main
+
+uses IO, C
+
+extern "libc.so.6"
+    type
+        export Good = record
+            p: Ptr[Good]
+            n: CInt
+        export Bad = record
+            s: String
+    function f(s: String, g: Good): CInt
+    function g(cb: function(String): CInt): Pointer
+    function h(fmt: CString, ...): CInt
+_ := h(toCString("%s"), "x")
+_ := h(toCString("%d"), 1, Good(p: cast[Ptr[Good]](0), n: 1))

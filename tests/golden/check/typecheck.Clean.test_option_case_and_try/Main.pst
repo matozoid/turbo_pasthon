@@ -1,0 +1,16 @@
+program Main
+
+uses IO
+
+function half(x: Integer): Option[Integer]
+    if x mod 2 = 0 then
+        return Some(x div 2)
+    return None
+
+function quarter(x: Integer): Option[Integer]
+    let h := try half(x)
+    return half(h)
+
+case quarter(8) of
+    Some(v): writeln(v.value)
+    None: writeln("odd")

@@ -1,0 +1,83 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 5:8-5:12
+  builtin type 'Int8' @ built into unit System
+def Main.pst 5:5-5:6
+  var 'a' @ Main.pst:5:5
+    : Int8
+use Main.pst 6:8-6:13
+  builtin type 'UInt8' @ built into unit System
+def Main.pst 6:5-6:6
+  var 'u' @ Main.pst:6:5
+    : Byte
+use Main.pst 7:8-7:14
+  builtin type 'UInt64' @ built into unit System
+def Main.pst 7:5-7:6
+  var 'w' @ Main.pst:7:5
+    : UInt64
+use Main.pst 8:8-8:13
+  builtin type 'Int32' @ built into unit System
+def Main.pst 8:5-8:6
+  let 'i' @ Main.pst:8:5
+    : Int32
+use Main.pst 9:1-9:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 9:11-9:12
+  var 'a' @ Main.pst:5:5
+use Main.pst 9:15-9:16
+  var 'u' @ Main.pst:6:5
+use Main.pst 9:19-9:20
+  var 'w' @ Main.pst:7:5
+use Main.pst 9:23-9:24
+  let 'i' @ Main.pst:8:5
+use Main.pst 10:1-10:4
+  procedure 'inc' @ std/System.pst:128:22
+use Main.pst 10:9-10:10
+  var 'u' @ Main.pst:6:5
+use Main.pst 11:1-11:4
+  procedure 'dec' @ std/System.pst:130:22
+use Main.pst 11:9-11:10
+  var 'w' @ Main.pst:7:5
+use Main.pst 12:1-12:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 12:11-12:12
+  var 'u' @ Main.pst:6:5
+use Main.pst 12:15-12:16
+  var 'w' @ Main.pst:7:5
+use Main.pst 12:19-12:25
+  builtin type 'UInt64' @ built into unit System
+use Main.pst 12:31-12:32
+  var 'w' @ Main.pst:7:5
+use Main.pst 12:35-12:36
+  var 'w' @ Main.pst:7:5
+use Main.pst 12:45-12:46
+  var 'w' @ Main.pst:7:5
+use Main.pst 13:1-13:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 13:11-13:16
+  builtin type 'Int64' @ built into unit System
+use Main.pst 13:17-13:18
+  let 'i' @ Main.pst:8:5
+use Main.pst 13:26-13:32
+  builtin type 'UInt16' @ built into unit System
+use Main.pst 13:42-13:46
+  builtin type 'Int8' @ built into unit System
+use Main.pst 13:47-13:48
+  var 'a' @ Main.pst:5:5
+use Main.pst 13:58-13:63
+  builtin type 'Int16' @ built into unit System
+use Main.pst 13:64-13:65
+  var 'a' @ Main.pst:5:5
+use Main.pst 14:10-14:15
+  builtin type 'UInt8' @ built into unit System
+def Main.pst 14:5-14:6
+  loop variable 'x' @ Main.pst:14:5
+    : Byte
+use Main.pst 15:5-15:10
+  procedure 'write' @ std/IO.pst:14:22
+use Main.pst 15:11-15:12
+  loop variable 'x' @ Main.pst:14:5
+use Main.pst 16:1-16:8
+  procedure 'writeln' @ std/IO.pst:18:22

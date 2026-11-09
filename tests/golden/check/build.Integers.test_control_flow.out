@@ -1,0 +1,70 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+def Main.pst 5:5-5:10
+  var 'total' @ Main.pst:5:5
+    : Integer
+def Main.pst 6:5-6:6
+  loop variable 'i' @ Main.pst:6:5
+    : Integer
+use Main.pst 7:8-7:9
+  loop variable 'i' @ Main.pst:6:5
+use Main.pst 9:5-9:10
+  var 'total' @ Main.pst:5:5
+use Main.pst 9:14-9:19
+  var 'total' @ Main.pst:5:5
+use Main.pst 9:22-9:23
+  loop variable 'i' @ Main.pst:6:5
+def Main.pst 10:5-10:6
+  loop variable 'i' @ Main.pst:10:5
+    : Integer
+use Main.pst 11:5-11:10
+  procedure 'write' @ std/IO.pst:14:22
+use Main.pst 11:11-11:12
+  loop variable 'i' @ Main.pst:10:5
+def Main.pst 12:5-12:6
+  loop variable 'i' @ Main.pst:12:5
+    : Integer
+use Main.pst 13:5-13:10
+  procedure 'write' @ std/IO.pst:14:22
+def Main.pst 14:5-14:6
+  loop variable 'i' @ Main.pst:14:5
+    : Integer
+use Main.pst 15:5-15:10
+  procedure 'write' @ std/IO.pst:14:22
+use Main.pst 16:1-16:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 16:12-16:17
+  var 'total' @ Main.pst:5:5
+def Main.pst 17:5-17:6
+  var 'n' @ Main.pst:17:5
+    : Integer
+use Main.pst 19:5-19:8
+  procedure 'inc' @ std/System.pst:127:22
+use Main.pst 19:13-19:14
+  var 'n' @ Main.pst:17:5
+use Main.pst 20:8-20:9
+  var 'n' @ Main.pst:17:5
+use Main.pst 23:5-23:8
+  procedure 'dec' @ std/System.pst:131:22
+use Main.pst 23:13-23:14
+  var 'n' @ Main.pst:17:5
+use Main.pst 24:7-24:8
+  var 'n' @ Main.pst:17:5
+use Main.pst 25:4-25:5
+  var 'n' @ Main.pst:17:5
+use Main.pst 26:5-26:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 27:9-27:10
+  var 'n' @ Main.pst:17:5
+use Main.pst 28:5-28:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 30:5-30:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 31:6-31:7
+  var 'n' @ Main.pst:17:5
+use Main.pst 32:8-32:15
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 34:4-34:5
+  var 'n' @ Main.pst:17:5

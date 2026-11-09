@@ -1,0 +1,10 @@
+program Main
+
+uses IO
+
+while true do
+    case readln() of
+        Some(l):
+            writeln("[{l.value}]")
+        None:
+            break

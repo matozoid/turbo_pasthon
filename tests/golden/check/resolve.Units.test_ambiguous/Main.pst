@@ -1,0 +1,7 @@
+program Main
+
+uses A, B
+
+let p := Point(x: 1)
+let q := A.Point(x: 1)
+_ := combine(p, q)

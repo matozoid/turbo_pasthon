@@ -1,0 +1,44 @@
+program Main
+
+uses IO
+
+type
+    Item = record
+        name: String
+        tags: List[String]
+
+procedure bump(var x: Integer)
+    x := x + 1
+
+var xs: List[Integer] := [1, 2, 3]
+add(var xs, 4)
+writeln("{len(xs)} {xs[0]} {xs[3]}")
+var ys := xs
+ys[0] := 10
+bump(var ys[1])
+writeln("{xs[0]} {xs[1]} {ys[0]} {ys[1]}")
+remove(var ys, 1)
+for y in ys do
+    write("{y} ")
+writeln()
+let zs := concat(xs, b: ys)
+writeln("{len(zs)} {3 in zs} {7 in zs} {xs = [1, 2, 3, 4]} {xs = ys}")
+var names: List[String] := []
+for i := 1 to 20 do
+    add(var names, "n{i}")
+writeln("{names[19]} {"n7" in names} {"b" in names}")
+var it := Item(name: "a", tags: [])
+add(var it.tags, "x")
+let copy := it
+add(var it.tags, "y")
+writeln("{len(it.tags)} {len(copy.tags)}")
+var grid: List[List[Integer]] := [[1, 2], [3]]
+add(var grid[1], 4)
+grid[0][1] := 9
+for row in grid do
+    for x in row do
+        write("{x} ")
+writeln()
+var os: List[Option[String]] := [Some("a"), None]
+add(var os, Some("c"))
+writeln("{os = [Some("a"), None, Some("c")]} {os = [Some("a"), None, Some("d")]}")

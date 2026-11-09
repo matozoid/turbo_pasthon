@@ -1,0 +1,11 @@
+program Main
+
+uses IO
+
+procedure push(var xs: List[Integer], x: Integer)
+    ensures len(xs) = len(old(xs)) + 1
+    add(var xs, x)
+
+function double(x: Integer): Integer
+    ensures result = 2 * x
+    return x + x

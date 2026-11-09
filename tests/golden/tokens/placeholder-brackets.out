@@ -1,0 +1,32 @@
+Ident 1:1-1:2 "f" -
+Lparen 1:2-1:3 "(" -
+StringBegin 1:3-1:5 "\"{" text ""
+Ident 1:5-1:6 "g" -
+Lparen 1:6-1:7 "(" -
+Ident 1:7-1:8 "x" -
+Rbrace 1:8-1:9 "}" -
+StringLit 1:9-1:11 "\")" text ")"
+StringEnd 1:11-1:11 "" text ""
+Newline 1:11-2:1 "\n" -
+KwLet 2:1-2:4 "let" -
+Ident 2:5-2:6 "z" -
+Assign 2:7-2:9 ":=" -
+StringBegin 2:10-2:12 "\"{" text ""
+Lbracket 2:12-2:13 "[" -
+IntLit 2:13-2:14 "1" int 1
+Comma 2:14-2:15 "," -
+IntLit 2:16-2:17 "2" int 2
+Rbrace 2:17-2:18 "}" -
+StringLit 2:18-2:19 "\"" text ""
+StringEnd 2:19-2:19 "" text ""
+Newline 2:19-3:1 "\n" -
+Eof 3:1-3:1 "" -
+error E0009 1:8-1:9 "unmatched '}'; expected ')'"
+error E0004 1:9-1:11 "unterminated string literal"
+error E0030 1:11-1:11 "string placeholder '{' is not closed on this line; write '\\{' for a literal brace"
+error E0009 1:2-1:3 "unclosed '('"
+  fix "insert ')'"
+    edit 1:11-1:11 ")"
+error E0009 2:17-2:18 "unmatched '}'; expected ']'"
+error E0004 2:18-2:19 "unterminated string literal"
+error E0030 2:19-2:19 "string placeholder '{' is not closed on this line; write '\\{' for a literal brace"

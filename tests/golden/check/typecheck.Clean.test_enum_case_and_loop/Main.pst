@@ -1,0 +1,14 @@
+program Main
+
+uses IO
+
+type
+    Color = (Red, Green, Blue)
+
+function name(c: Color): String
+    case c of
+        Red: return "r"
+        Green..Blue: return "gb"
+
+for c in Color do
+    writeln(name(c))

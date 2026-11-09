@@ -1,0 +1,15 @@
+program Main
+
+uses IO
+
+type
+    Color = (Red, Red)
+    Color = record
+        x: Integer
+        x: Real
+
+function f(x: Integer): Integer
+    return x
+
+function f(x: Real): Real
+    return x

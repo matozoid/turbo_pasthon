@@ -1,0 +1,14 @@
+program Main
+
+uses IO
+
+type
+    Color = (Red, Green, Blue)
+
+let c := Color.Red
+case c of
+    Red: writeln(1)
+    Red: writeln(2)
+case 3 of
+    1..5: writeln(1)
+    4: writeln(2)

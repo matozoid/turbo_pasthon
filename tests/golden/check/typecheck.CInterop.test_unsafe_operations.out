@@ -1,0 +1,146 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 5:11-5:12
+  procedure 'f' @ Main.pst:5:11
+def Main.pst 13:18-13:19
+  procedure 'g' @ Main.pst:13:18
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 3:10-3:11
+  unit 'C' @ std/C.pst:1:6
+use Main.pst 5:20-5:24
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 5:16-5:19
+  builtin type 'Ptr' @ built into unit C
+def Main.pst 5:13-5:14
+  parameter 'p' @ Main.pst:5:13
+    : Ptr[Int32]
+use Main.pst 6:12-6:16
+  type 'CInt' @ std/C.pst:7:12
+def Main.pst 6:9-6:10
+  var 'x' @ Main.pst:6:9
+    : Int32
+use Main.pst 7:5-7:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 7:19-7:20
+  parameter 'p' @ Main.pst:5:13
+use Main.pst 8:5-8:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 8:19-8:20
+  parameter 'p' @ Main.pst:5:13
+use Main.pst 9:14-9:18
+  function 'addr' @ std/C.pst:31:21
+use Main.pst 9:23-9:24
+  var 'x' @ Main.pst:6:9
+def Main.pst 9:9-9:10
+  let 'q' @ Main.pst:9:9
+    : Ptr[Int32]
+use Main.pst 10:14-10:18
+  function 'cast' @ std/C.pst:33:21
+use Main.pst 10:19-10:26
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 10:28-10:29
+  parameter 'p' @ Main.pst:5:13
+def Main.pst 10:9-10:10
+  let 'n' @ Main.pst:10:9
+    : Integer
+use Main.pst 11:5-11:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 11:15-11:16
+  let 'n' @ Main.pst:10:9
+use Main.pst 11:25-11:26
+  let 'q' @ Main.pst:9:9
+use Main.pst 13:27-13:31
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 13:23-13:26
+  builtin type 'Ptr' @ built into unit C
+def Main.pst 13:20-13:21
+  parameter 'p' @ Main.pst:13:20
+    : Ptr[Int32]
+use Main.pst 13:37-13:43
+  builtin type 'String' @ built into unit System
+def Main.pst 13:34-13:35
+  parameter 's' @ Main.pst:13:34
+    : String
+use Main.pst 14:12-14:16
+  type 'CInt' @ std/C.pst:7:12
+def Main.pst 14:9-14:10
+  var 'x' @ Main.pst:14:9
+    : Int32
+use Main.pst 15:14-15:18
+  function 'addr' @ std/C.pst:31:21
+use Main.pst 15:23-15:24
+  var 'x' @ Main.pst:14:9
+def Main.pst 15:9-15:10
+  let 'q' @ Main.pst:15:9
+    : Ptr[Int32]
+use Main.pst 16:14-16:18
+  function 'cast' @ std/C.pst:33:21
+use Main.pst 16:19-16:26
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 16:28-16:29
+  parameter 'p' @ Main.pst:13:20
+def Main.pst 16:9-16:10
+  let 'n' @ Main.pst:16:9
+    : Integer
+use Main.pst 17:14-17:18
+  function 'cast' @ std/C.pst:33:21
+use Main.pst 17:19-17:25
+  builtin type 'String' @ built into unit System
+use Main.pst 17:27-17:28
+  parameter 'p' @ Main.pst:13:20
+def Main.pst 17:9-17:10
+  let 't' @ Main.pst:17:9
+    : String
+use Main.pst 18:14-18:18
+  function 'cast' @ std/C.pst:33:21
+use Main.pst 18:19-18:22
+  builtin type 'Ptr' @ built into unit C
+use Main.pst 18:23-18:27
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 18:30-18:31
+  let 'n' @ Main.pst:16:9
+use Main.pst 18:33-18:34
+  parameter 's' @ Main.pst:13:34
+def Main.pst 18:9-18:10
+  let 'u' @ Main.pst:18:9
+    : <error>
+use Main.pst 19:5-19:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 19:15-19:16
+  let 'n' @ Main.pst:16:9
+use Main.pst 19:25-19:26
+  let 'q' @ Main.pst:15:9
+use Main.pst 19:36-19:37
+  parameter 'p' @ Main.pst:13:20
+use Main.pst 19:45-19:46
+  let 't' @ Main.pst:17:9
+use Main.pst 19:55-19:56
+  let 'u' @ Main.pst:18:9
+use Main.pst 20:18-20:22
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 20:13-20:17
+  builtin type 'List' @ built into unit System
+def Main.pst 20:9-20:11
+  var 'xs' @ Main.pst:20:9
+    : List[Int32]
+use Main.pst 21:14-21:18
+  function 'addr' @ std/C.pst:31:21
+use Main.pst 21:23-21:25
+  var 'xs' @ Main.pst:20:9
+def Main.pst 21:9-21:10
+  let 'v' @ Main.pst:21:9
+    : Ptr[Int32]
+use Main.pst 22:5-22:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 22:19-22:20
+  let 'v' @ Main.pst:21:9
+Main.pst error E0902 7:13-7:21 "dereferencing a pointer is only allowed inside an 'unsafe' function or procedure"
+Main.pst error E0902 8:13-8:25 "dereferencing a pointer is only allowed inside an 'unsafe' function or procedure"
+Main.pst error E0902 8:21-8:22 "pointer arithmetic is only allowed inside an 'unsafe' function or procedure"
+Main.pst error E0902 9:14-9:25 "'addr' is only allowed inside an 'unsafe' function or procedure"
+Main.pst error E0902 10:14-10:30 "'cast' is only allowed inside an 'unsafe' function or procedure"
+Main.pst error E0902 11:19-11:27 "dereferencing a pointer is only allowed inside an 'unsafe' function or procedure"
+Main.pst error E0904 17:14-17:29 "can't cast Ptr[Int32] to String: 'cast' converts between pointers (Ptr[T], Pointer, CString) and integers"
+Main.pst error E0511 18:14-18:35 "write 'cast[T](x)': one type argument and one value"
+Main.pst error E0905 21:23-21:28 "'addr' needs a variable, or a field of a C record held in one"

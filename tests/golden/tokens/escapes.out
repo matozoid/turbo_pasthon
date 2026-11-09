@@ -1,0 +1,19 @@
+KwLet 1:1-1:4 "let" -
+Ident 1:5-1:6 "s" -
+Assign 1:7-1:9 ":=" -
+StringLit 1:10-1:79 "\"\\n\\t\\r\\0\\\\\\\"\\'\\q\\u{41}\\u{1F600}\\u{D800}\\u{110000}\\u{}\\u{1234567}\\uz\"" text "\n\u{9}\u{D}\u{0}\\\"'qA😀�����z"
+Newline 1:79-2:1 "\n" -
+KwLet 2:1-2:4 "let" -
+Ident 2:5-2:6 "e" -
+Assign 2:7-2:9 ":=" -
+StringLit 2:10-2:12 "\"\\" text ""
+Newline 2:12-3:1 "\n" -
+Eof 3:1-3:1 "" -
+error E0005 1:25-1:27 "invalid escape sequence '\\q'"
+error E0005 1:42-1:50 "'\\u{D800}' is not a Unicode scalar value"
+error E0005 1:50-1:60 "'\\u{110000}' is not a Unicode scalar value"
+error E0005 1:60-1:64 "expected '\\u{XXXX}' with 1 to 6 hex digits"
+error E0005 1:64-1:75 "expected '\\u{XXXX}' with 1 to 6 hex digits"
+error E0005 1:75-1:77 "expected '\\u{XXXX}' with 1 to 6 hex digits"
+error E0005 2:11-2:12 "incomplete escape sequence"
+error E0004 2:10-2:12 "unterminated string literal"

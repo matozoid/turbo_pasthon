@@ -1,0 +1,9 @@
+program Main
+
+uses Things
+
+procedure destroy(var t: Thing)
+    t.n := 0
+
+var t := Thing(n: 1)
+destroy(var t)

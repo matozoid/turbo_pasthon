@@ -1,0 +1,22 @@
+program Main
+
+uses IO, C
+
+procedure f(p: Ptr[CInt])
+    var x: CInt := 1
+    writeln(deref(p))
+    writeln(deref(p + 1))
+    let q := addr(var x)
+    let n := cast[Integer](p)
+    writeln("{n} {deref(q)}")
+
+unsafe procedure g(p: Ptr[CInt], s: String)
+    var x: CInt := 1
+    let q := addr(var x)
+    let n := cast[Integer](p)
+    let t := cast[String](p)
+    let u := cast[Ptr[CInt]](n, s)
+    writeln("{n} {deref(q)} {deref(p + 1)} {t} {deref(u)}")
+    var xs: List[CInt] := [1]
+    let v := addr(var xs[0])
+    writeln(deref(v))

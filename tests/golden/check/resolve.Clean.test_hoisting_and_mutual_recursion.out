@@ -1,0 +1,38 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 7:10-7:16
+  function 'isEven' @ Main.pst:7:10
+def Main.pst 10:10-10:15
+  function 'isOdd' @ Main.pst:10:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 5:1-5:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 5:9-5:15
+  function 'isEven' @ Main.pst:7:10
+use Main.pst 7:20-7:27
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 7:17-7:18
+  parameter 'n' @ Main.pst:7:17
+    : Integer
+use Main.pst 7:30-7:37
+  builtin type 'Boolean' @ built into unit System
+use Main.pst 8:15-8:16
+  parameter 'n' @ Main.pst:7:17
+use Main.pst 8:36-8:41
+  function 'isOdd' @ Main.pst:10:10
+use Main.pst 8:42-8:43
+  parameter 'n' @ Main.pst:7:17
+use Main.pst 10:19-10:26
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 10:16-10:17
+  parameter 'n' @ Main.pst:10:16
+    : Integer
+use Main.pst 10:29-10:36
+  builtin type 'Boolean' @ built into unit System
+use Main.pst 11:15-11:16
+  parameter 'n' @ Main.pst:10:16
+use Main.pst 11:37-11:43
+  function 'isEven' @ Main.pst:7:10
+use Main.pst 11:44-11:45
+  parameter 'n' @ Main.pst:10:16

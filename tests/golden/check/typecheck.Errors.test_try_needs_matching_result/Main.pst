@@ -1,0 +1,9 @@
+program Main
+
+uses IO
+
+function half(x: Integer): Option[Integer]
+    return Some(x)
+
+function f(x: Integer): Integer
+    return try half(x)

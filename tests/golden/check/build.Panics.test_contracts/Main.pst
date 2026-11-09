@@ -1,0 +1,8 @@
+program Main
+
+uses IO
+
+function f(n: Integer): Integer
+    requires n > 0
+    return n
+writeln(f(0))

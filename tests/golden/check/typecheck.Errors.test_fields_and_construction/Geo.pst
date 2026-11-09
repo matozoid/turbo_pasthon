@@ -1,0 +1,8 @@
+unit Geo
+
+type
+    export Point = record
+        export x: Integer
+
+    export Secret = record
+        code: Integer

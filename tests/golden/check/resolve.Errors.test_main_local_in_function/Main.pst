@@ -1,0 +1,9 @@
+program Main
+
+uses IO
+
+var total := 1
+writeln(total)
+
+procedure show()
+    writeln(total)

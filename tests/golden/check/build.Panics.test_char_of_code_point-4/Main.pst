@@ -1,0 +1,6 @@
+program Main
+
+uses IO
+
+var i := 1114112
+writeln(Char(i))

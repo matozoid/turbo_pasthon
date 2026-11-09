@@ -1,0 +1,21 @@
+program Main
+
+uses IO, OS
+
+writeln(isDir("/tmp/tmpktdi783b/tmpq0a3v7if"))
+writeln(isDir("/tmp/tmpktdi783b/tmpq0a3v7if/a"))
+writeln(isDir("/tmp/tmpktdi783b/tmpq0a3v7if/missing"))
+case listDir("/tmp/tmpktdi783b/tmpq0a3v7if") of
+    Ok(names):
+        writeln(len(names.value))
+        for n in names.value do
+            writeln(n)
+    Err(e):
+        writeln(e.error)
+case listDir("/tmp/tmpktdi783b/tmpq0a3v7if/missing") of
+    Ok(_):
+        writeln("found")
+    Err(e):
+        writeln(e.error)
+writeln(run("/bin/sh", ["-c", "echo out; echo err >&2; exit 2"], output: "/tmp/tmpktdi783b/tmpq0a3v7if/a").getOr(-1))
+writeln(run("/bin/true", [], output: "/tmp/tmpktdi783b/tmpq0a3v7if/missing/x").getOr(-1))

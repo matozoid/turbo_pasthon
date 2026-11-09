@@ -1,0 +1,163 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 2:6-2:8
+  unit 'IO' @ std/IO.pst:1:6
+def A.pst 1:6-1:7
+  unit 'A' @ A.pst:1:6
+def A.pst 4:12-4:16
+  type 'Kind' @ A.pst:4:12
+def A.pst 4:20-4:23
+  enum member 'One' @ A.pst:4:20
+def A.pst 4:25-4:28
+  enum member 'Two' @ A.pst:4:25
+def A.pst 6:12-6:18
+  const 'Shared' @ A.pst:6:12
+def A.pst 7:17-7:23
+  function 'shared' @ A.pst:7:17
+def A.pst 9:17-9:22
+  function 'onlyA' @ A.pst:9:17
+def A.pst 11:10-11:16
+  function 'hidden' @ A.pst:11:10
+def A.pst 13:17-13:23
+  function 'common' @ A.pst:13:17
+def B.pst 1:6-1:7
+  unit 'B' @ B.pst:1:6
+def B.pst 4:12-4:18
+  const 'Shared' @ B.pst:4:12
+def B.pst 5:17-5:23
+  function 'shared' @ B.pst:5:17
+def B.pst 7:17-7:22
+  function 'fromB' @ B.pst:7:17
+def B.pst 9:17-9:23
+  function 'common' @ B.pst:9:17
+def B.pst 12:12-12:13
+  const 'S' @ B.pst:12:12
+use B.pst 2:6-2:7
+  unit 'A' @ A.pst:1:6
+use A.pst 2:6-2:7
+  unit 'B' @ B.pst:1:6
+use Main.pst 2:10-2:11
+  unit 'A' @ A.pst:1:6
+use Main.pst 2:13-2:14
+  unit 'B' @ B.pst:1:6
+def Prog.pst 1:9-1:13
+  unit 'Prog' @ Prog.pst:1:9
+def Alias.pst 1:6-1:11
+  unit 'Other' @ Alias.pst:1:6
+def Alias.pst 2:17-2:24
+  function 'aliased' @ Alias.pst:2:17
+use Main.pst 2:49-2:54
+  unit 'Other' @ Alias.pst:1:6
+def Bad.pst 1:6-1:9
+  unit 'Bad' @ Bad.pst:1:6
+def Bad.pst 4:12-4:13
+  const 'X' @ Bad.pst:4:12
+use Main.pst 2:56-2:59
+  unit 'Bad' @ Bad.pst:1:6
+use Main.pst 3:1-3:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 3:9-3:15
+  function 'shared' @ A.pst:7:17
+  function 'shared' @ B.pst:5:17
+use Main.pst 4:1-4:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 4:9-4:14
+  function 'onlyA' @ A.pst:9:17
+use Main.pst 5:1-5:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 5:9-5:10
+  unit 'A' @ A.pst:1:6
+use Main.pst 6:1-6:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 6:9-6:10
+  unit 'A' @ A.pst:1:6
+use Main.pst 6:11-6:15
+  type 'Kind' @ A.pst:4:12
+use Main.pst 6:16-6:19
+  enum member 'One' @ A.pst:4:20
+use Main.pst 7:1-7:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 7:9-7:10
+  unit 'A' @ A.pst:1:6
+use Main.pst 7:11-7:15
+  type 'Kind' @ A.pst:4:12
+use Main.pst 8:1-8:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 8:9-8:14
+  function 'fromB' @ B.pst:7:17
+use Main.pst 8:18-8:24
+  function 'common' @ A.pst:13:17
+  function 'common' @ B.pst:9:17
+use Main.pst 9:8-9:9
+  unit 'A' @ A.pst:1:6
+use Main.pst 9:10-9:14
+  type 'Kind' @ A.pst:4:12
+use Main.pst 9:18-9:19
+  unit 'A' @ A.pst:1:6
+use Main.pst 9:20-9:24
+  type 'Kind' @ A.pst:4:12
+use Main.pst 9:25-9:28
+  enum member 'Two' @ A.pst:4:25
+def Main.pst 9:5-9:6
+  let 'k' @ Main.pst:9:5
+use Main.pst 10:8-10:9
+  unit 'A' @ A.pst:1:6
+use Main.pst 10:18-10:19
+  let 'k' @ Main.pst:9:5
+def Main.pst 10:5-10:6
+  let 'j' @ Main.pst:10:5
+use Main.pst 11:1-11:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 11:9-11:10
+  let 'j' @ Main.pst:10:5
+use A.pst 7:27-7:34
+  type 'Integer' @ std/System.pst:13:12
+use A.pst 9:26-9:33
+  type 'Integer' @ std/System.pst:13:12
+use A.pst 11:20-11:27
+  type 'Integer' @ std/System.pst:13:12
+use A.pst 13:27-13:34
+  type 'Integer' @ std/System.pst:13:12
+use B.pst 5:27-5:34
+  type 'Integer' @ std/System.pst:13:12
+use B.pst 7:26-7:33
+  type 'Integer' @ std/System.pst:13:12
+use B.pst 9:27-9:34
+  type 'Integer' @ std/System.pst:13:12
+def B.pst 9:24-9:25
+  parameter 'x' @ B.pst:9:24
+use B.pst 9:42-9:49
+  type 'Integer' @ std/System.pst:13:12
+use B.pst 10:12-10:13
+  parameter 'x' @ B.pst:9:24
+use B.pst 12:16-12:22
+  const 'Shared' @ B.pst:4:12
+use Alias.pst 2:28-2:35
+  type 'Integer' @ std/System.pst:13:12
+use Alias.pst 2:28-2:35
+  type 'Integer' @ std/System.pst:13:12
+Main.pst error E0107 2:19-2:23 "'Main' can't use itself"
+Main.pst error E0102 2:25-2:32 "unit 'Missing' not found: no 'Missing.pst' in . or the standard units"
+Main.pst error E0102 2:34-2:38 "'Prog' is a program, not a unit"
+Main.pst error E0102 2:61-2:64 "unit 'Raw' not found: no 'Raw.pst' in . or the standard units"
+Main.pst error E0110 3:17-3:23 "'Shared' is ambiguous: declared in units A, B; qualify it"
+  fix "qualify as 'A.Shared'"
+    edit 3:17-3:23 "A.Shared"
+  fix "qualify as 'B.Shared'"
+    edit 3:17-3:23 "B.Shared"
+Main.pst error E0109 5:11-5:17 "'hidden' is not exported by unit A"
+Main.pst error E0100 7:16-7:21 "enum 'Kind' has no member 'Three'"
+Main.pst error E0100 10:10-10:14 "unit A has no 'Nope'"
+Alias.pst error E0105 1:6-1:11 "unit 'Other' must be in a file named 'Other.pst', not 'Alias.pst'"
+  fix "rename to 'Alias'"
+    edit 1:6-1:11 "Alias"
+B.pst error E0107 2:6-2:7 "cyclic uses: A -> B -> A"
+Bad.pst error E0107 2:6-2:9 "'Bad' can't use itself"
+Bad.pst error E0107 2:6-2:9 "cyclic uses: Bad -> Bad"

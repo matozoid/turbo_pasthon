@@ -1,0 +1,30 @@
+program Main
+
+uses IO
+
+type
+    Shape = trait
+        function area(this): Real
+
+    Square = record
+        side: Real
+
+function area(s: Square): Real
+    return s.side * s.side
+
+function total[T: Shape](xs: List[T]): Real
+    var sum := 0.0
+    for x in xs do
+        sum := sum + x.area()
+    return sum
+
+let shapes := [Square(side: 2.0)]
+writeln(total(shapes))
+for c in "abc" do
+    writeln(c)
+let doubled := map(iter([1, 2]), double)
+for d in doubled do
+    writeln(d)
+
+function double(x: Integer): Integer
+    return x * 2

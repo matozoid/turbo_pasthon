@@ -1,0 +1,175 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:9
+  type 'Pair' @ Main.pst:6:5
+def Main.pst 7:9-7:10
+  field 'a' @ Main.pst:7:9
+def Main.pst 8:9-8:10
+  field 'b' @ Main.pst:8:9
+def Main.pst 10:11-10:15
+  procedure 'both' @ Main.pst:10:11
+def Main.pst 13:11-13:14
+  procedure 'mix' @ Main.pst:13:11
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 16:10-16:14
+  type 'Pair' @ Main.pst:6:5
+def Main.pst 16:5-16:6
+  var 'p' @ Main.pst:16:5
+    : Pair
+def Main.pst 17:5-17:6
+  var 'n' @ Main.pst:17:5
+    : Integer
+use Main.pst 18:1-18:5
+  procedure 'both' @ Main.pst:10:11
+use Main.pst 18:10-18:11
+  var 'p' @ Main.pst:16:5
+use Main.pst 18:19-18:20
+  var 'p' @ Main.pst:16:5
+use Main.pst 19:1-19:5
+  procedure 'both' @ Main.pst:10:11
+use Main.pst 19:10-19:11
+  var 'n' @ Main.pst:17:5
+use Main.pst 19:17-19:18
+  var 'p' @ Main.pst:16:5
+use Main.pst 20:1-20:5
+  procedure 'both' @ Main.pst:10:11
+use Main.pst 20:10-20:11
+  var 'n' @ Main.pst:17:5
+use Main.pst 20:17-20:18
+  var 'n' @ Main.pst:17:5
+use Main.pst 21:1-21:5
+  procedure 'both' @ Main.pst:10:11
+use Main.pst 21:10-21:11
+  var 'p' @ Main.pst:16:5
+use Main.pst 21:20-21:21
+  var 'p' @ Main.pst:16:5
+use Main.pst 22:1-22:4
+  procedure 'mix' @ Main.pst:13:11
+use Main.pst 22:9-22:10
+  var 'p' @ Main.pst:16:5
+use Main.pst 22:16-22:17
+  var 'p' @ Main.pst:16:5
+def Main.pst 23:5-23:7
+  var 'xs' @ Main.pst:23:5
+    : List[Integer]
+use Main.pst 24:1-24:5
+  procedure 'both' @ Main.pst:10:11
+use Main.pst 24:10-24:12
+  var 'xs' @ Main.pst:23:5
+use Main.pst 24:21-24:23
+  var 'xs' @ Main.pst:23:5
+use Main.pst 25:10-25:13
+  function 'new' @ std/System.pst:136:21
+use Main.pst 25:14-25:18
+  type 'Pair' @ Main.pst:6:5
+def Main.pst 25:5-25:6
+  let 'r' @ Main.pst:25:5
+    : ref Pair
+use Main.pst 26:10-26:13
+  function 'new' @ std/System.pst:136:21
+use Main.pst 26:14-26:18
+  type 'Pair' @ Main.pst:6:5
+def Main.pst 26:5-26:6
+  let 's' @ Main.pst:26:5
+    : ref Pair
+use Main.pst 27:1-27:5
+  procedure 'both' @ Main.pst:10:11
+use Main.pst 27:10-27:11
+  let 'r' @ Main.pst:25:5
+use Main.pst 27:19-27:20
+  let 's' @ Main.pst:26:5
+use Main.pst 28:1-28:5
+  procedure 'both' @ Main.pst:10:11
+use Main.pst 28:10-28:11
+  let 'r' @ Main.pst:25:5
+use Main.pst 28:19-28:20
+  let 's' @ Main.pst:26:5
+use Main.pst 29:1-29:4
+  procedure 'mix' @ Main.pst:13:11
+use Main.pst 29:15-29:16
+  let 'r' @ Main.pst:25:5
+use Main.pst 29:23-29:24
+  let 's' @ Main.pst:26:5
+use Main.pst 30:1-30:5
+  procedure 'both' @ Main.pst:10:11
+use Main.pst 30:10-30:11
+  let 'r' @ Main.pst:25:5
+use Main.pst 30:19-30:20
+  var 'p' @ Main.pst:16:5
+use Main.pst 7:12-7:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 8:12-8:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 10:26-10:33
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 10:20-10:21
+  parameter 'x' @ Main.pst:10:20
+    : Integer
+def Main.pst 10:23-10:24
+  parameter 'y' @ Main.pst:10:23
+    : Integer
+use Main.pst 11:5-11:6
+  parameter 'x' @ Main.pst:10:20
+use Main.pst 11:10-11:11
+  parameter 'y' @ Main.pst:10:23
+use Main.pst 13:22-13:26
+  type 'Pair' @ Main.pst:6:5
+def Main.pst 13:19-13:20
+  parameter 'p' @ Main.pst:13:19
+    : Pair
+use Main.pst 13:35-13:42
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 13:32-13:33
+  parameter 'x' @ Main.pst:13:32
+    : Integer
+use Main.pst 14:5-14:6
+  parameter 'p' @ Main.pst:13:19
+use Main.pst 14:12-14:13
+  parameter 'x' @ Main.pst:13:32
+use Main.pst 14:7-14:8
+  field 'a' @ Main.pst:7:9
+use Main.pst 16:15-16:16
+  field 'a' @ Main.pst:7:9
+use Main.pst 16:21-16:22
+  field 'b' @ Main.pst:8:9
+use Main.pst 18:12-18:13
+  field 'a' @ Main.pst:7:9
+use Main.pst 18:21-18:22
+  field 'b' @ Main.pst:8:9
+use Main.pst 19:19-19:20
+  field 'a' @ Main.pst:7:9
+use Main.pst 21:12-21:13
+  field 'a' @ Main.pst:7:9
+use Main.pst 21:22-21:23
+  field 'a' @ Main.pst:7:9
+use Main.pst 22:18-22:19
+  field 'b' @ Main.pst:8:9
+use Main.pst 25:19-25:20
+  field 'a' @ Main.pst:7:9
+use Main.pst 25:25-25:26
+  field 'b' @ Main.pst:8:9
+use Main.pst 26:19-26:20
+  field 'a' @ Main.pst:7:9
+use Main.pst 26:25-26:26
+  field 'b' @ Main.pst:8:9
+use Main.pst 27:12-27:13
+  field 'a' @ Main.pst:7:9
+use Main.pst 27:21-27:22
+  field 'a' @ Main.pst:7:9
+use Main.pst 28:12-28:13
+  field 'a' @ Main.pst:7:9
+use Main.pst 28:21-28:22
+  field 'b' @ Main.pst:8:9
+use Main.pst 29:25-29:26
+  field 'a' @ Main.pst:7:9
+use Main.pst 30:12-30:13
+  field 'a' @ Main.pst:7:9
+use Main.pst 30:21-30:22
+  field 'a' @ Main.pst:7:9
+Main.pst error E0523 20:17-20:18 "'n' overlaps 'n', which is also passed as 'var'; pass separate places"
+Main.pst error E0523 21:19-21:24 "'(p.a)' overlaps 'p.a', which is also passed as 'var'; pass separate places"
+Main.pst error E0523 22:16-22:19 "'p.b' overlaps 'p', which is also passed as 'var'; pass separate places"
+Main.pst error E0523 24:21-24:26 "'xs[1]' overlaps 'xs[0]', which is also passed as 'var'; pass separate places"
+Main.pst error E0523 27:19-27:22 "'s.a' overlaps 'r.a', which is also passed as 'var'; pass separate places"
+Main.pst error E0523 29:23-29:26 "'s.a' overlaps 'deref(r)', which is also passed as 'var'; pass separate places"

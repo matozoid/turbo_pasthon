@@ -1,0 +1,125 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 5:10-5:14
+  function 'fact' @ Main.pst:5:10
+def Main.pst 11:11-11:15
+  procedure 'bump' @ Main.pst:11:11
+def Main.pst 15:11-15:16
+  procedure 'twice' @ Main.pst:15:11
+def Main.pst 19:10-19:14
+  function 'sum6' @ Main.pst:19:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 22:1-22:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 22:9-22:13
+  function 'fact' @ Main.pst:5:10
+def Main.pst 23:5-23:6
+  var 'b' @ Main.pst:23:5
+    : Integer
+use Main.pst 24:1-24:6
+  procedure 'twice' @ Main.pst:15:11
+use Main.pst 24:11-24:12
+  var 'b' @ Main.pst:23:5
+use Main.pst 25:1-25:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 25:9-25:10
+  var 'b' @ Main.pst:23:5
+use Main.pst 26:1-26:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 26:9-26:13
+  function 'sum6' @ Main.pst:19:10
+use Main.pst 26:23-26:27
+  function 'fact' @ Main.pst:5:10
+use Main.pst 27:1-27:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 5:18-5:25
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 5:15-5:16
+  parameter 'n' @ Main.pst:5:15
+    : Integer
+use Main.pst 5:28-5:35
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 6:14-6:15
+  parameter 'n' @ Main.pst:5:15
+use Main.pst 7:8-7:9
+  parameter 'n' @ Main.pst:5:15
+use Main.pst 9:12-9:13
+  parameter 'n' @ Main.pst:5:15
+use Main.pst 9:16-9:20
+  function 'fact' @ Main.pst:5:10
+use Main.pst 9:21-9:22
+  parameter 'n' @ Main.pst:5:15
+use Main.pst 11:23-11:30
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 11:20-11:21
+  parameter 'x' @ Main.pst:11:20
+    : Integer
+use Main.pst 11:36-11:43
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 11:32-11:34
+  parameter 'by' @ Main.pst:11:32
+    : Integer
+use Main.pst 12:13-12:14
+  parameter 'x' @ Main.pst:11:20
+use Main.pst 12:21-12:22
+  parameter 'x' @ Main.pst:11:20
+use Main.pst 12:26-12:28
+  parameter 'by' @ Main.pst:11:32
+use Main.pst 13:5-13:6
+  parameter 'x' @ Main.pst:11:20
+use Main.pst 13:10-13:11
+  parameter 'x' @ Main.pst:11:20
+use Main.pst 13:14-13:16
+  parameter 'by' @ Main.pst:11:32
+use Main.pst 15:24-15:31
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 15:21-15:22
+  parameter 'x' @ Main.pst:15:21
+    : Integer
+use Main.pst 16:5-16:9
+  procedure 'bump' @ Main.pst:11:11
+use Main.pst 16:14-16:15
+  parameter 'x' @ Main.pst:15:21
+use Main.pst 17:5-17:9
+  procedure 'bump' @ Main.pst:11:11
+use Main.pst 17:17-17:18
+  parameter 'x' @ Main.pst:15:21
+use Main.pst 19:33-19:40
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 19:15-19:16
+  parameter 'a' @ Main.pst:19:15
+    : Integer
+def Main.pst 19:18-19:19
+  parameter 'b' @ Main.pst:19:18
+    : Integer
+def Main.pst 19:21-19:22
+  parameter 'c' @ Main.pst:19:21
+    : Integer
+def Main.pst 19:24-19:25
+  parameter 'd' @ Main.pst:19:24
+    : Integer
+def Main.pst 19:27-19:28
+  parameter 'e' @ Main.pst:19:27
+    : Integer
+def Main.pst 19:30-19:31
+  parameter 'f' @ Main.pst:19:30
+    : Integer
+use Main.pst 19:43-19:50
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 20:12-20:13
+  parameter 'a' @ Main.pst:19:15
+use Main.pst 20:20-20:21
+  parameter 'b' @ Main.pst:19:18
+use Main.pst 20:28-20:29
+  parameter 'c' @ Main.pst:19:21
+use Main.pst 20:36-20:37
+  parameter 'd' @ Main.pst:19:24
+use Main.pst 20:44-20:45
+  parameter 'e' @ Main.pst:19:27
+use Main.pst 20:52-20:53
+  parameter 'f' @ Main.pst:19:30
+use Main.pst 17:10-17:11
+  parameter 'x' @ Main.pst:11:20
+use Main.pst 17:20-17:22
+  parameter 'by' @ Main.pst:11:32

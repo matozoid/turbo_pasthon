@@ -1,0 +1,16 @@
+program Main
+
+uses IO
+
+function f(x: Int32): Integer
+    return 1
+
+function f(x: Int16): Integer
+    return 2
+
+function f(x: Real): Integer
+    return 3
+
+_ := f(1.0)
+_ := f(1)
+_ := f("a")

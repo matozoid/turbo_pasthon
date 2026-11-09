@@ -1,0 +1,7 @@
+program Main
+
+uses IO
+
+function big(x: Integer): Boolean
+    return x > 10
+writeln(get(find([1, 2].iter(), big)))

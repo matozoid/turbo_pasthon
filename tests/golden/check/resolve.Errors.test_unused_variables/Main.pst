@@ -1,0 +1,14 @@
+program Main
+
+uses IO
+
+var a := 1
+var b: Integer := 2
+b := 3
+for x in [1] do
+    writeln(1)
+for i := 0 to 1 do
+    writeln(1)
+case readln() of
+    Some(v): writeln(1)
+    None: writeln(2)

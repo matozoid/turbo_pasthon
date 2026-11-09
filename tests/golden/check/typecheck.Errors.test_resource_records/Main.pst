@@ -1,0 +1,24 @@
+program Main
+
+uses IO
+
+type
+    Handle = record
+        id: Integer
+
+    Holder = record
+        h: Handle
+        r: ref Handle
+
+procedure destroy(var h: Handle)
+    writeln(h.id)
+
+function make(): Handle
+    return Handle(id: 1)
+
+let a := new(Handle(id: 1))
+let b := Handle(id: 2)
+let c := deref(a)
+destroy(var c)
+let xs: List[Handle] := []
+writeln("{a.id} {b.id} {len(xs)}")

@@ -1,0 +1,17 @@
+program Main
+
+uses IO
+
+function half(x: Integer): Option[Integer]
+    return Some(x)
+
+function f(x: Integer): Option[Integer]
+    for i := 1 to 3 do
+        defer
+            if i = 2 then
+                break
+            for j := 1 to 3 do
+                continue
+            _ := try half(x)
+            return None
+    return None

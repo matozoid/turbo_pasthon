@@ -1,0 +1,49 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 5:11-5:15
+  procedure 'move' @ Main.pst:5:11
+def Main.pst 8:11-8:15
+  procedure 'span' @ Main.pst:8:11
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 11:1-11:5
+  procedure 'move' @ Main.pst:5:11
+use Main.pst 12:1-12:5
+  procedure 'move' @ Main.pst:5:11
+use Main.pst 13:1-13:5
+  procedure 'span' @ Main.pst:8:11
+use Main.pst 5:19-5:26
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 5:16-5:17
+  parameter 'x' @ Main.pst:5:16
+    : Integer
+use Main.pst 5:31-5:38
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 5:28-5:29
+  parameter 'y' @ Main.pst:5:28
+    : Integer
+use Main.pst 6:5-6:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 6:13-6:14
+  parameter 'x' @ Main.pst:5:16
+use Main.pst 6:17-6:18
+  parameter 'y' @ Main.pst:5:28
+use Main.pst 8:22-8:29
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 8:16-8:17
+  parameter 'a' @ Main.pst:8:16
+    : Integer
+def Main.pst 8:19-8:20
+  parameter 'b' @ Main.pst:8:19
+    : Integer
+use Main.pst 9:5-9:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 9:13-9:14
+  parameter 'a' @ Main.pst:8:16
+use Main.pst 9:17-9:18
+  parameter 'b' @ Main.pst:8:19
+use Main.pst 12:9-12:10
+  parameter 'y' @ Main.pst:5:28
+Main.pst error E0530 11:9-11:10 "'y' has the same type as 'x'; pass it by name: 'y: ...'"
+  fix "name the argument 'y'"
+    edit 11:9-11:9 "y: "

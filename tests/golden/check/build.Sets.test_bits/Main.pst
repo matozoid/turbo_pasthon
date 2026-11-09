@@ -1,0 +1,7 @@
+program Main
+
+uses IO, Bits
+
+let x: Int8 := -1
+writeln("{band(12, 10)} {bor(12, 10)} {bxor(12, 10)} {bnot(0)} {shl(1, 63)} {shr(-1, 60)}")
+writeln("{shl(1, 64)} {shr(1, -1)} {popCount(-1)} {shr(x, 4)} {popCount(x)} {shl(x, 7)} {bnot(Byte(5))}")

@@ -1,0 +1,12 @@
+program Main
+
+uses IO
+
+const
+    Big = 1000000 * 1000000
+let a := 7
+writeln("{a + 3} {a - 10} {a * -6} {Big} {-a}")
+writeln("{-7 div 2} {-7 mod 2} {7 div -2} {7 mod -2} {(2 + 3) * 4}")
+writeln(9223372036854775807)
+writeln(-9223372036854775807 - 1)
+writeln(0)

@@ -1,0 +1,62 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 5:10-5:14
+  function 'half' @ Main.pst:5:10
+def Main.pst 10:10-10:17
+  function 'quarter' @ Main.pst:10:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 14:6-14:13
+  function 'quarter' @ Main.pst:10:10
+use Main.pst 15:5-15:9
+  type 'Some' @ std/System.pst:19:12
+def Main.pst 15:10-15:11
+  case binding 'v' @ Main.pst:15:10
+    : Some[Integer]
+use Main.pst 15:14-15:21
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 15:22-15:23
+  case binding 'v' @ Main.pst:15:10
+use Main.pst 16:11-16:18
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 5:18-5:25
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 5:15-5:16
+  parameter 'x' @ Main.pst:5:15
+    : Integer
+use Main.pst 5:35-5:42
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 5:28-5:34
+  type 'Option' @ std/System.pst:23:12
+use Main.pst 6:8-6:9
+  parameter 'x' @ Main.pst:5:15
+use Main.pst 7:16-7:20
+  type 'Some' @ std/System.pst:19:12
+use Main.pst 7:21-7:22
+  parameter 'x' @ Main.pst:5:15
+use Main.pst 8:12-8:16
+  type 'None' @ std/System.pst:22:12
+use Main.pst 10:21-10:28
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 10:18-10:19
+  parameter 'x' @ Main.pst:10:18
+    : Integer
+use Main.pst 10:38-10:45
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 10:31-10:37
+  type 'Option' @ std/System.pst:23:12
+use Main.pst 11:18-11:22
+  function 'half' @ Main.pst:5:10
+use Main.pst 11:23-11:24
+  parameter 'x' @ Main.pst:10:18
+def Main.pst 11:9-11:10
+  let 'h' @ Main.pst:11:9
+    : Integer
+use Main.pst 12:12-12:16
+  function 'half' @ Main.pst:5:10
+use Main.pst 12:17-12:18
+  let 'h' @ Main.pst:11:9
+use Main.pst 15:24-15:29
+  field 'value' @ std/System.pst:20:16
+use Main.pst 16:5-16:9
+  type 'None' @ std/System.pst:22:12

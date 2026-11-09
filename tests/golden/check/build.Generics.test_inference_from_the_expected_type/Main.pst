@@ -1,0 +1,34 @@
+program Main
+
+uses IO
+
+type
+    A = record
+        x: Integer
+    B = record
+        y: Integer
+    AB = A | B
+
+function make(n: Integer): Result[AB, String]
+    if n = 0 then
+        return Err("zero")
+    if n < 0 then
+        return Ok(B(y: n))
+    return Ok(A(x: n))
+
+function show(r: Result[AB, String]): String
+    case r of
+        Ok(v):
+            case v.value of
+                A(a):
+                    return "A {a.x}"
+                B(b):
+                    return "B {b.y}"
+        Err(e):
+            return e.error
+
+writeln(show(make(0)))
+writeln(show(make(5)))
+writeln(show(make(-2)))
+let o: Option[AB] := Some(B(y: 7))
+writeln(o = Some(B(y: 7)))

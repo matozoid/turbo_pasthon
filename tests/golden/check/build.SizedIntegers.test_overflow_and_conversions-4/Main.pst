@@ -1,0 +1,6 @@
+program Main
+
+uses IO
+
+var w: UInt64 := 18446744073709551615
+w := w + 1

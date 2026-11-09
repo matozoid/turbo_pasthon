@@ -1,0 +1,43 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 5:10-5:11
+  function 'f' @ Main.pst:5:10
+def Main.pst 8:10-8:11
+  function 'f' @ Main.pst:8:10
+def Main.pst 11:10-11:11
+  function 'f' @ Main.pst:11:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 14:6-14:7
+  function 'f' @ Main.pst:11:10
+use Main.pst 15:6-15:7
+  function 'f' @ Main.pst:5:10
+  function 'f' @ Main.pst:8:10
+  function 'f' @ Main.pst:11:10
+use Main.pst 16:6-16:7
+  function 'f' @ Main.pst:5:10
+  function 'f' @ Main.pst:8:10
+  function 'f' @ Main.pst:11:10
+use Main.pst 5:15-5:20
+  builtin type 'Int32' @ built into unit System
+def Main.pst 5:12-5:13
+  parameter 'x' @ Main.pst:5:12
+    : Int32
+use Main.pst 5:23-5:30
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 8:15-8:20
+  builtin type 'Int16' @ built into unit System
+def Main.pst 8:12-8:13
+  parameter 'x' @ Main.pst:8:12
+    : Int16
+use Main.pst 8:23-8:30
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 11:15-11:19
+  type 'Real' @ std/System.pst:15:12
+def Main.pst 11:12-11:13
+  parameter 'x' @ Main.pst:11:12
+    : Real
+use Main.pst 11:22-11:29
+  type 'Integer' @ std/System.pst:13:12
+Main.pst error E0510 15:6-15:10 "call to 'f' is ambiguous: f(Int32) (Main.pst:5:10); f(Int16) (Main.pst:8:10)"
+Main.pst error E0511 16:6-16:12 "no overload of 'f' takes (String); candidates: f(Int32) (Main.pst:5:10); f(Int16) (Main.pst:8:10); f(Real) (Main.pst:11:10)"

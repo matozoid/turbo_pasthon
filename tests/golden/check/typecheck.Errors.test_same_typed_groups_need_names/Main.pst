@@ -1,0 +1,13 @@
+program Main
+
+uses IO
+
+procedure move(x: Integer, y: Integer)
+    writeln(x + y)
+
+procedure span(a, b: Integer)
+    writeln(a + b)
+
+move(1, 2)
+move(1, y: 2)
+span(1, 2)

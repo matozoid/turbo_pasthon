@@ -1,0 +1,6 @@
+program Main
+
+uses IO
+
+let x: Real := 1
+writeln(x)

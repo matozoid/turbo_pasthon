@@ -1,0 +1,8 @@
+program Main
+
+uses IO, OS
+
+writeln(currentDir())
+writeln(isFile("/tmp/tmpktdi783b/tmpo721xp3q/f"))
+writeln(isFile("/tmp/tmpktdi783b/tmpo721xp3q"))
+writeln(isFile("/tmp/tmpktdi783b/tmpo721xp3q/missing"))

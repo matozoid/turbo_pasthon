@@ -1,0 +1,158 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 7:16-7:19
+  type 'Div' @ Main.pst:7:16
+def Main.pst 8:13-8:17
+  field 'quot' @ Main.pst:8:13
+def Main.pst 9:13-9:16
+  field 'rem' @ Main.pst:9:13
+def Main.pst 10:16-10:21
+  type 'Mixed' @ Main.pst:10:16
+def Main.pst 11:13-11:14
+  field 'a' @ Main.pst:11:13
+def Main.pst 12:13-12:14
+  field 'b' @ Main.pst:12:13
+def Main.pst 13:13-13:14
+  field 'c' @ Main.pst:13:13
+def Main.pst 14:14-14:17
+  function 'abs' @ Main.pst:14:14
+def Main.pst 15:14-15:20
+  function 'strlen' @ Main.pst:15:14
+def Main.pst 16:14-16:20
+  function 'printf' @ Main.pst:16:14
+def Main.pst 17:14-17:20
+  function 'malloc' @ Main.pst:17:14
+def Main.pst 18:15-18:19
+  procedure 'free' @ Main.pst:18:15
+def Main.pst 19:15-19:20
+  procedure 'qsort' @ Main.pst:19:15
+def Main.pst 20:14-20:18
+  function 'cdiv' @ Main.pst:20:14
+def Main.pst 21:14-21:20
+  function 'getenv' @ Main.pst:21:14
+def Main.pst 22:14-22:20
+  function 'setenv' @ Main.pst:22:14
+def Main.pst 25:14-25:18
+  function 'labs' @ Main.pst:25:14
+def Main.pst 27:11-27:15
+  procedure 'demo' @ Main.pst:27:11
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 3:10-3:11
+  unit 'C' @ std/C.pst:1:6
+use Main.pst 33:1-33:5
+  procedure 'demo' @ Main.pst:27:11
+use Main.pst 34:10-34:13
+  type 'Div' @ Main.pst:7:16
+def Main.pst 34:5-34:6
+  var 'd' @ Main.pst:34:5
+    : Div
+use Main.pst 35:10-35:11
+  var 'd' @ Main.pst:34:5
+def Main.pst 35:5-35:6
+  let 'e' @ Main.pst:35:5
+    : Div
+use Main.pst 36:1-36:2
+  var 'd' @ Main.pst:34:5
+use Main.pst 36:6-36:10
+  function 'cdiv' @ Main.pst:20:14
+use Main.pst 37:1-37:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 37:9-37:20
+  function 'fromCString' @ std/C.pst:21:21
+use Main.pst 37:21-37:27
+  function 'getenv' @ Main.pst:21:14
+use Main.pst 37:28-37:37
+  function 'toCString' @ std/C.pst:18:21
+use Main.pst 38:1-38:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 38:9-38:10
+  let 'e' @ Main.pst:35:5
+use Main.pst 38:17-38:18
+  var 'd' @ Main.pst:34:5
+use Main.pst 8:19-8:23
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 9:18-9:22
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 11:16-11:20
+  builtin type 'Int8' @ built into unit System
+use Main.pst 12:16-12:21
+  builtin type 'Int64' @ built into unit System
+use Main.pst 13:16-13:21
+  builtin type 'Int16' @ built into unit System
+use Main.pst 14:21-14:25
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 14:28-14:32
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 15:24-15:31
+  builtin type 'CString' @ built into unit C
+use Main.pst 15:34-15:39
+  type 'CSize' @ std/C.pst:10:12
+use Main.pst 16:26-16:33
+  builtin type 'CString' @ built into unit C
+use Main.pst 16:41-16:45
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 17:24-17:29
+  type 'CSize' @ std/C.pst:10:12
+use Main.pst 17:32-17:39
+  builtin type 'Pointer' @ built into unit C
+use Main.pst 18:23-18:30
+  builtin type 'Pointer' @ built into unit C
+use Main.pst 19:27-19:34
+  builtin type 'Pointer' @ built into unit C
+use Main.pst 19:39-19:44
+  type 'CSize' @ std/C.pst:10:12
+use Main.pst 19:52-19:57
+  type 'CSize' @ std/C.pst:10:12
+use Main.pst 19:73-19:80
+  builtin type 'Pointer' @ built into unit C
+use Main.pst 19:82-19:89
+  builtin type 'Pointer' @ built into unit C
+use Main.pst 19:92-19:96
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 20:22-20:26
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 20:31-20:35
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 20:38-20:41
+  type 'Div' @ Main.pst:7:16
+use Main.pst 21:27-21:34
+  builtin type 'CString' @ built into unit C
+use Main.pst 21:37-21:44
+  builtin type 'CString' @ built into unit C
+use Main.pst 22:27-22:34
+  builtin type 'CString' @ built into unit C
+use Main.pst 22:43-22:50
+  builtin type 'CString' @ built into unit C
+use Main.pst 22:63-22:67
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 22:70-22:74
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 25:22-25:27
+  type 'CLong' @ std/C.pst:9:12
+use Main.pst 25:30-25:35
+  type 'CLong' @ std/C.pst:9:12
+def Main.pst 28:9-28:10
+  loop variable 'i' @ Main.pst:28:9
+    : Integer
+use Main.pst 29:21-29:22
+  loop variable 'i' @ Main.pst:28:9
+def Main.pst 29:13-29:14
+  let 't' @ Main.pst:29:13
+    : String
+use Main.pst 30:14-30:20
+  function 'strlen' @ Main.pst:15:14
+use Main.pst 30:21-30:30
+  function 'toCString' @ std/C.pst:18:21
+use Main.pst 30:31-30:32
+  let 't' @ Main.pst:29:13
+use Main.pst 31:12-31:13
+  loop variable 'i' @ Main.pst:28:9
+use Main.pst 34:14-34:18
+  field 'quot' @ Main.pst:8:13
+use Main.pst 34:23-34:26
+  field 'rem' @ Main.pst:9:13
+use Main.pst 38:11-38:14
+  field 'rem' @ Main.pst:9:13
+use Main.pst 38:19-38:22
+  field 'rem' @ Main.pst:9:13

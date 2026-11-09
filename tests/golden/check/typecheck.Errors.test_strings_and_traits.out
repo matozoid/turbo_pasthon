@@ -1,0 +1,35 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:10
+  type 'Point' @ Main.pst:6:5
+def Main.pst 7:9-7:10
+  field 'x' @ Main.pst:7:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+def Main.pst 9:5-9:6
+  let 's' @ Main.pst:9:5
+    : String
+use Main.pst 10:1-10:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 10:9-10:10
+  let 's' @ Main.pst:9:5
+use Main.pst 11:1-11:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 11:11-11:16
+  type 'Point' @ Main.pst:6:5
+use Main.pst 12:12-12:21
+  trait 'Printable' @ std/System.pst:34:12
+def Main.pst 12:5-12:10
+  var 'shown' @ Main.pst:12:5
+    : <error>
+use Main.pst 13:1-13:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 13:9-13:14
+  var 'shown' @ Main.pst:12:5
+use Main.pst 7:12-7:16
+  type 'Real' @ std/System.pst:15:12
+use Main.pst 11:17-11:18
+  field 'x' @ Main.pst:7:9
+Main.pst error E0310 10:9-10:13 "strings can't be indexed; iterate with 'for c in s', index the bytes with 'bytes(s)[i]', or cut with 'slice(s, start, stop)'"
+Main.pst error E0421 11:11-11:24 "Point can't be shown in a string: it isn't Printable (declare 'function toString(x: Point): String')"
+Main.pst error E0420 12:12-12:21 "trait 'Printable' can't be the type of a value; use a type parameter bounded by it ('[T: Printable]'), or a union"

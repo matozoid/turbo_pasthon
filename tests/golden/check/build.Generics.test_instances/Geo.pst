@@ -1,0 +1,19 @@
+unit Geo
+
+uses IO
+
+type
+    export Measurable = trait
+        function area(this): Integer
+
+export function total[T: Measurable](a, b: T): Integer
+    return twice(a) + b.area()
+
+export function describe[T: Measurable](x: T): String
+    return "area {total(x, x) div 3}"
+
+function twice[T: Measurable](x: T): Integer
+    return double(x.area())
+
+function double(n: Integer): Integer
+    return n * 2

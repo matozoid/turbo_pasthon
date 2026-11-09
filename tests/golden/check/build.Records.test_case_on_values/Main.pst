@@ -1,0 +1,41 @@
+program Main
+
+uses IO
+
+type
+    Circle = record
+        r: Integer
+    Rect = record
+        w: Integer
+        h: Integer
+    Shape = Circle | Rect
+
+function kind(s: String): Integer
+    return case s of
+        "a", "b": 1
+        "c": 2
+        else: 0
+
+function cls(c: Char): String
+    return case c of
+        'a'..'z': "lower"
+        '0'..'9': "digit"
+        else: "other"
+
+for n := 1 to 3 do
+    let s: Shape := case n of
+        1: Circle(r: n)
+        else: Rect(w: n, h: 1)
+    case s of
+        Circle(c): writeln("circle {c.r}")
+        Rect(_): writeln("rect")
+writeln("{kind("b")} {kind("c")} {kind("zz")}")
+writeln("{cls('q')} {cls('5')} {cls('#')}")
+let o: Option[String] := System.None
+case o of
+    Some(v): writeln(v.value)
+    None: writeln("nothing")
+let flag := true
+case flag of
+    true: writeln("yes")
+    false: writeln("no")

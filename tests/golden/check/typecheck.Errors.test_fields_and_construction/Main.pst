@@ -1,0 +1,8 @@
+program Main
+
+uses IO, Geo
+
+let p := Point(x: 1)
+_ := Secret(code: 1)
+writeln(p.y)
+writeln(p.x)

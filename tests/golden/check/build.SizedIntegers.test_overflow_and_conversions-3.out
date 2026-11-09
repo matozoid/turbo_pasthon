@@ -1,0 +1,13 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 5:8-5:13
+  builtin type 'UInt8' @ built into unit System
+def Main.pst 5:5-5:6
+  var 'u' @ Main.pst:5:5
+    : Byte
+use Main.pst 6:1-6:4
+  procedure 'dec' @ std/System.pst:130:22
+use Main.pst 6:9-6:10
+  var 'u' @ Main.pst:5:5

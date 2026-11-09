@@ -1,0 +1,155 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 21:11-21:15
+  procedure 'show' @ Main.pst:21:11
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 3:10-3:12
+  unit 'OS' @ std/OS.pst:1:6
+use Main.pst 3:14-3:21
+  unit 'Strings' @ std/Strings.pst:1:6
+use Main.pst 5:1-5:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 5:9-5:20
+  function 'programPath' @ std/OS.pst:127:24
+use Main.pst 6:6-6:13
+  function 'tempDir' @ std/OS.pst:139:24
+use Main.pst 7:5-7:7
+  type 'Ok' @ std/System.pst:26:12
+def Main.pst 7:8-7:9
+  case binding 'd' @ Main.pst:7:8
+    : Ok[String]
+use Main.pst 8:9-8:16
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 8:17-8:27
+  function 'startsWith' @ std/Strings.pst:15:21
+use Main.pst 8:28-8:29
+  case binding 'd' @ Main.pst:7:8
+use Main.pst 8:47-8:50
+  function 'env' @ std/OS.pst:68:17
+use Main.pst 9:14-9:20
+  function 'create' @ std/IO.pst:62:17
+use Main.pst 9:23-9:24
+  case binding 'd' @ Main.pst:7:8
+use Main.pst 10:13-10:15
+  type 'Ok' @ std/System.pst:26:12
+def Main.pst 10:16-10:17
+  case binding 'f' @ Main.pst:10:16
+    : Ok[ref File]
+use Main.pst 11:22-11:27
+  function 'close' @ std/IO.pst:66:24
+use Main.pst 11:28-11:29
+  case binding 'f' @ Main.pst:10:16
+use Main.pst 12:13-12:16
+  type 'Err' @ std/System.pst:29:12
+def Main.pst 12:17-12:18
+  case binding 'e' @ Main.pst:12:17
+    : Err[String]
+use Main.pst 13:17-13:24
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 13:25-13:26
+  case binding 'e' @ Main.pst:12:17
+use Main.pst 14:9-14:16
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 14:17-14:26
+  function 'removeDir' @ std/OS.pst:159:24
+use Main.pst 14:27-14:28
+  case binding 'd' @ Main.pst:7:8
+use Main.pst 15:9-15:16
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 15:17-15:27
+  function 'removeFile' @ std/OS.pst:153:24
+use Main.pst 15:30-15:31
+  case binding 'd' @ Main.pst:7:8
+use Main.pst 16:9-16:16
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 16:17-16:27
+  function 'removeFile' @ std/OS.pst:153:24
+use Main.pst 16:30-16:31
+  case binding 'd' @ Main.pst:7:8
+use Main.pst 17:9-17:16
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 17:17-17:26
+  function 'removeDir' @ std/OS.pst:159:24
+use Main.pst 17:27-17:28
+  case binding 'd' @ Main.pst:7:8
+use Main.pst 18:9-18:16
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 18:17-18:23
+  function 'isFile' @ std/OS.pst:98:17
+use Main.pst 18:24-18:25
+  case binding 'd' @ Main.pst:7:8
+use Main.pst 19:5-19:8
+  type 'Err' @ std/System.pst:29:12
+def Main.pst 19:9-19:10
+  case binding 'e' @ Main.pst:19:9
+    : Err[String]
+use Main.pst 20:9-20:16
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 20:17-20:18
+  case binding 'e' @ Main.pst:19:9
+use Main.pst 27:1-27:5
+  procedure 'show' @ Main.pst:21:11
+use Main.pst 27:6-27:9
+  function 'run' @ std/OS.pst:168:24
+use Main.pst 28:1-28:5
+  procedure 'show' @ Main.pst:21:11
+use Main.pst 28:6-28:9
+  function 'run' @ std/OS.pst:168:24
+use Main.pst 29:1-29:5
+  procedure 'show' @ Main.pst:21:11
+use Main.pst 29:6-29:9
+  function 'run' @ std/OS.pst:168:24
+use Main.pst 21:26-21:33
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 21:35-21:41
+  builtin type 'String' @ built into unit System
+use Main.pst 21:19-21:25
+  type 'Result' @ std/System.pst:31:12
+def Main.pst 21:16-21:17
+  parameter 'r' @ Main.pst:21:16
+    : Result[Integer, String]
+use Main.pst 22:10-22:11
+  parameter 'r' @ Main.pst:21:16
+use Main.pst 23:9-23:11
+  type 'Ok' @ std/System.pst:26:12
+def Main.pst 23:12-23:13
+  case binding 'c' @ Main.pst:23:12
+    : Ok[Integer]
+use Main.pst 24:13-24:20
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 24:21-24:22
+  case binding 'c' @ Main.pst:23:12
+use Main.pst 25:9-25:12
+  type 'Err' @ std/System.pst:29:12
+def Main.pst 25:13-25:14
+  case binding 'e' @ Main.pst:25:13
+    : Err[String]
+use Main.pst 26:13-26:20
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 26:21-26:22
+  case binding 'e' @ Main.pst:25:13
+use Main.pst 24:23-24:28
+  field 'value' @ std/System.pst:27:16
+use Main.pst 26:23-26:28
+  field 'error' @ std/System.pst:30:16
+use Main.pst 8:30-8:35
+  field 'value' @ std/System.pst:27:16
+use Main.pst 9:25-9:30
+  field 'value' @ std/System.pst:27:16
+use Main.pst 11:30-11:35
+  field 'value' @ std/System.pst:27:16
+use Main.pst 13:27-13:32
+  field 'error' @ std/System.pst:30:16
+use Main.pst 14:29-14:34
+  field 'value' @ std/System.pst:27:16
+use Main.pst 15:32-15:37
+  field 'value' @ std/System.pst:27:16
+use Main.pst 16:32-16:37
+  field 'value' @ std/System.pst:27:16
+use Main.pst 17:29-17:34
+  field 'value' @ std/System.pst:27:16
+use Main.pst 18:26-18:31
+  field 'value' @ std/System.pst:27:16
+use Main.pst 20:19-20:24
+  field 'error' @ std/System.pst:30:16

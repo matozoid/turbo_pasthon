@@ -1,0 +1,23 @@
+program Main
+
+uses IO, Strings
+
+function greet(name: String, punct: Char := '!'): String
+    let g := "Hello, {name}{punct}"
+    return g
+
+procedure append(var s: String, tail: String)
+    s := "{s}{tail}"
+
+var s := "ab"
+let t := s
+s := "{s}c"
+writeln("{s} {t}")
+writeln(greet("wörld"))
+writeln(greet("x", punct: 'é'))
+var acc := ""
+for i := 1 to 4 do
+    append(var acc, tail: toString(i))
+writeln(acc)
+writeln("{toString(-12)} {toString(true)} {toString('€')} {'😀'} {ord('A')}")
+writeln(if acc = "1234" then "same" else acc)

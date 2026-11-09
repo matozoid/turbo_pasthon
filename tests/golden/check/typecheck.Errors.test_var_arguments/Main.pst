@@ -1,0 +1,9 @@
+program Main
+
+uses IO
+
+var xs: List[Integer] := []
+add(xs, 1)
+xs.add(2)
+let ys: List[Integer] := []
+add(var ys, 3)

@@ -1,0 +1,154 @@
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 4:5-4:10
+  type 'Shape' @ Main.pst:4:5
+def Main.pst 5:5-5:11
+  type 'Circle' @ Main.pst:5:5
+def Main.pst 6:9-6:10
+  field 'r' @ Main.pst:6:9
+def Main.pst 7:5-7:11
+  type 'Square' @ Main.pst:7:5
+def Main.pst 8:9-8:10
+  field 's' @ Main.pst:8:9
+use Main.pst 2:6-2:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 9:8-9:13
+  type 'Shape' @ Main.pst:4:5
+use Main.pst 9:17-9:23
+  type 'Circle' @ Main.pst:5:5
+def Main.pst 9:5-9:6
+  let 's' @ Main.pst:9:5
+use Main.pst 10:6-10:7
+  let 's' @ Main.pst:9:5
+use Main.pst 11:5-11:11
+  type 'Circle' @ Main.pst:5:5
+def Main.pst 11:12-11:13
+  case binding 'c' @ Main.pst:11:12
+use Main.pst 12:9-12:16
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 12:17-12:18
+  case binding 'c' @ Main.pst:11:12
+use Main.pst 13:5-13:11
+  type 'Square' @ Main.pst:7:5
+def Main.pst 13:12-13:14
+  case binding 'sq' @ Main.pst:13:12
+use Main.pst 14:9-14:16
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+def Main.pst 15:13-15:14
+  case binding 'm' @ Main.pst:15:13
+use Main.pst 15:17-15:24
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 15:25-15:26
+  case binding 'm' @ Main.pst:15:13
+def Main.pst 16:5-16:6
+  let 'n' @ Main.pst:16:5
+use Main.pst 21:14-21:15
+  let 'n' @ Main.pst:16:5
+def Main.pst 21:9-21:10
+  let 'k' @ Main.pst:21:9
+use Main.pst 22:7-22:8
+  let 'k' @ Main.pst:21:9
+def Main.pst 23:5-23:6
+  var 'z' @ Main.pst:23:5
+use Main.pst 24:1-24:2
+  var 'z' @ Main.pst:23:5
+use Main.pst 24:6-24:7
+  var 'z' @ Main.pst:23:5
+use Main.pst 26:7-26:14
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 26:15-26:16
+  var 'z' @ Main.pst:23:5
+use Main.pst 27:7-27:8
+  var 'z' @ Main.pst:23:5
+use Main.pst 28:5-28:6
+  var 'z' @ Main.pst:23:5
+use Main.pst 28:10-28:11
+  var 'z' @ Main.pst:23:5
+use Main.pst 29:4-29:5
+  var 'z' @ Main.pst:23:5
+use Main.pst 30:5-30:12
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 31:9-31:10
+  var 'z' @ Main.pst:23:5
+use Main.pst 32:5-32:12
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 34:5-34:12
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 35:13-35:14
+  var 'z' @ Main.pst:23:5
+def Main.pst 35:5-35:6
+  let 'w' @ Main.pst:35:5
+use Main.pst 36:1-36:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 36:11-36:12
+  let 'w' @ Main.pst:35:5
+def Main.pst 37:5-37:6
+  let 'm' @ Main.pst:37:5
+def Main.pst 38:5-38:7
+  let 'st' @ Main.pst:38:5
+use Main.pst 39:1-39:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 39:9-39:10
+  let 'm' @ Main.pst:37:5
+use Main.pst 39:15-39:17
+  let 'st' @ Main.pst:38:5
+use Main.pst 39:20-39:21
+  var 'z' @ Main.pst:23:5
+use Main.pst 39:33-39:35
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 39:36-39:43
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 39:45-39:47
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 40:12-40:15
+  function 'new' @ std/System.pst:136:21
+use Main.pst 41:14-41:21
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 41:9-41:13
+  builtin type 'List' @ built into unit System
+def Main.pst 41:5-41:7
+  let 'xs' @ Main.pst:41:5
+use Main.pst 42:1-42:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 42:9-42:11
+  let 'xs' @ Main.pst:41:5
+use Main.pst 42:16-42:19
+  function 'len' @ std/System.pst:123:21
+  function 'len' @ std/System.pst:124:21
+  function 'len' @ std/System.pst:295:17
+  function 'len' @ std/System.pst:410:17
+use Main.pst 42:20-42:27
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 42:29-42:31
+  let 'xs' @ Main.pst:41:5
+use Main.pst 4:13-4:19
+  type 'Circle' @ Main.pst:5:5
+use Main.pst 4:22-4:28
+  type 'Square' @ Main.pst:7:5
+use Main.pst 6:12-6:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 8:12-8:19
+  type 'Integer' @ std/System.pst:13:12
+Main.pst error E0206 13:12-13:14 "case binding 'sq' is never used"
+  fix "discard: replace with '_'"
+    edit 13:12-13:14 "_"
+Main.pst error E0100 15:5-15:12 "unknown name 'Missing'"
+Main.pst error E0100 25:1-25:3 "unknown name 'zz'"
+Main.pst error E0100 36:15-36:28 "unknown name 'undefinedHere'"
+Main.pst error E0100 39:48-39:52 "unit IO has no 'nope'"
+Main.pst error E0100 39:54-39:61 "unknown name 'Strings'"
+  fix "replace with 'String'"
+    edit 39:54-39:61 "String"
+  fix "replace with 'toString'"
+    edit 39:54-39:61 "toString"

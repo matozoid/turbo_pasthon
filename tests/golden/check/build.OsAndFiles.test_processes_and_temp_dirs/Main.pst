@@ -1,0 +1,29 @@
+program Main
+
+uses IO, OS, Strings
+
+writeln(programPath())
+case tempDir() of
+    Ok(d):
+        writeln(startsWith(d.value, prefix: "{env("TMPDIR").get()}/pst-"))
+        case create("{d.value}/f") of
+            Ok(f):
+                _ := close(f.value)
+            Err(e):
+                writeln(e.error)
+        writeln(removeDir(d.value).isOk())
+        writeln(removeFile("{d.value}/f").isOk())
+        writeln(removeFile("{d.value}/f").isOk())
+        writeln(removeDir(d.value).isOk())
+        writeln(isFile(d.value))
+    Err(e):
+        writeln(e.error)
+procedure show(r: Result[Integer, String])
+    case r of
+        Ok(c):
+            writeln(c.value)
+        Err(e):
+            writeln(e.error)
+show(run("/bin/sh", ["-c", "echo \"[$0] [$1]\"; exit 3", "a b", "é"]))
+show(run("/bin/sh", ["-c", "kill -9 $$"]))
+show(run("/missing", []))

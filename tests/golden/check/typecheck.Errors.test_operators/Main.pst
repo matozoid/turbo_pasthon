@@ -1,0 +1,8 @@
+program Main
+
+uses IO
+
+let a := 1 / 2
+let b := 1.0 div 2.0
+let c := "a" + "b"
+writeln("{a}{b}{c}")

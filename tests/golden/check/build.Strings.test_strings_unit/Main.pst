@@ -1,0 +1,8 @@
+program Main
+
+uses IO, Strings
+
+let s := "héllo"
+writeln("{s.byteLen()} {s.charCount()} {slice(s, 0, 3)}|{slice(s, 3, 6)}|{slice(s, 6, 6)}|")
+writeln("{slice(s, 1, 3).charCount()} {startsWith(s, prefix: "hé")}")
+writeln("{startsWith("he", prefix: "hello")} {startsWith("x", prefix: "")}")
