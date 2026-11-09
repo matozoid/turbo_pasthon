@@ -1,0 +1,13 @@
+program Main
+function f(x: Integer): Integer
+    requires x > 0
+    ensures result > old(x)
+    return x + 1
+procedure p(var x: Integer)
+    ensures x = old(x) + result
+    x := x + 1
+function old(): Integer
+    return 1
+test "t"
+    let y := f(1)
+    assert y > 0, "positive"

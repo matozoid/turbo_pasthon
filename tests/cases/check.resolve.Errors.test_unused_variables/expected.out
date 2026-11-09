@@ -1,0 +1,53 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+def Main.pst 5:5-5:6
+  var 'a' @ Main.pst:5:5
+    : Integer
+use Main.pst 6:8-6:15
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 6:5-6:6
+  var 'b' @ Main.pst:6:5
+    : Integer
+use Main.pst 7:1-7:2
+  var 'b' @ Main.pst:6:5
+def Main.pst 8:5-8:6
+  loop variable 'x' @ Main.pst:8:5
+    : Integer
+use Main.pst 9:5-9:12
+  procedure 'writeln' @ std/IO.pst:16:22
+def Main.pst 10:5-10:6
+  loop variable 'i' @ Main.pst:10:5
+    : Integer
+use Main.pst 11:5-11:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 12:6-12:12
+  function 'readln' @ std/IO.pst:141:24
+use Main.pst 13:5-13:9
+  type 'Some' @ std/System.pst:19:12
+def Main.pst 13:10-13:11
+  case binding 'v' @ Main.pst:13:10
+    : Some[String]
+use Main.pst 13:14-13:21
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 14:11-14:18
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 14:5-14:9
+  type 'None' @ std/System.pst:22:12
+Main.pst error E0206 5:5-5:6 "var 'a' is never used"
+  fix "discard: replace with '_'"
+    edit 5:1-5:6 "_"
+Main.pst error E0206 6:5-6:6 "var 'b' is never used"
+  fix "discard: replace with '_'"
+    edit 6:1-6:15 "_"
+Main.pst error E0206 8:5-8:6 "loop variable 'x' is never used"
+  fix "discard: replace with '_'"
+    edit 8:5-8:6 "_"
+Main.pst error E0206 13:10-13:11 "case binding 'v' is never used"
+  fix "discard: replace with '_'"
+    edit 13:10-13:11 "_"
+--- stderr

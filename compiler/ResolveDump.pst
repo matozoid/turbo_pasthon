@@ -1,9 +1,10 @@
 program ResolveDump
 
 ## Prints the symbol index and the diagnostics of resolving a program or unit in a
-## canonical form, which tests/test_port.py compares with golden files.
+## canonical form, which the cases in tests/cases compare.
 ##
-## Usage: `ResolveDump STD_DIR FILE`.
+## Usage: `ResolveDump STD_DIR FILE`. The index leaves out the references in the standard
+## units, unless FILE is one of them.
 
 uses IO, OS, Strings, Source, Diagnostics, Symbols, Resolve
 
@@ -30,7 +31,11 @@ if len(a) <> 2 then
     writelnErr("usage: ResolveDump STD_DIR FILE")
     exit(2)
 let r := resolve(a[1], stdDir: a[0])
+let std := "{a[0]}/"
+let ownStd := startsWith(a[1], prefix: std)
 for x in r.checker.index.refs do
+    if not ownStd and startsWith(x.file, prefix: std) then
+        continue
     var what := "use"
     if x.isDef then
         what := "def"

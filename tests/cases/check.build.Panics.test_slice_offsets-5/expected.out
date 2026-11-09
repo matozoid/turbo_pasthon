@@ -1,0 +1,14 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 3:10-3:17
+  unit 'Strings' @ std/Strings.pst:1:6
+use Main.pst 5:1-5:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 5:9-5:14
+  function 'slice' @ std/Strings.pst:14:21
+--- stderr

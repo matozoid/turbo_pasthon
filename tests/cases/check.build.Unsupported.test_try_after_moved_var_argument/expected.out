@@ -1,0 +1,110 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:8
+  type 'Box' @ Main.pst:6:5
+def Main.pst 7:9-7:14
+  field 'items' @ Main.pst:7:9
+def Main.pst 8:9-8:14
+  field 'lists' @ Main.pst:8:9
+def Main.pst 10:11-10:14
+  procedure 'put' @ Main.pst:10:11
+def Main.pst 13:10-13:11
+  function 'f' @ Main.pst:13:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 20:1-20:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 20:9-20:15
+  function 'isSome' @ std/System.pst:470:17
+use Main.pst 20:16-20:17
+  function 'f' @ Main.pst:13:10
+use Main.pst 20:18-20:22
+  type 'Some' @ std/System.pst:19:12
+use Main.pst 7:21-7:27
+  builtin type 'String' @ built into unit System
+use Main.pst 7:16-7:20
+  builtin type 'List' @ built into unit System
+use Main.pst 8:26-8:32
+  builtin type 'String' @ built into unit System
+use Main.pst 8:21-8:25
+  builtin type 'List' @ built into unit System
+use Main.pst 8:16-8:20
+  builtin type 'List' @ built into unit System
+use Main.pst 10:28-10:34
+  builtin type 'String' @ built into unit System
+use Main.pst 10:23-10:27
+  builtin type 'List' @ built into unit System
+def Main.pst 10:19-10:21
+  parameter 'xs' @ Main.pst:10:19
+    : List[String]
+use Main.pst 10:50-10:56
+  builtin type 'String' @ built into unit System
+use Main.pst 10:45-10:49
+  builtin type 'List' @ built into unit System
+def Main.pst 10:41-10:43
+  parameter 'ys' @ Main.pst:10:41
+    : List[String]
+use Main.pst 11:5-11:8
+  procedure 'add' @ std/System.pst:186:18
+use Main.pst 11:13-11:15
+  parameter 'xs' @ Main.pst:10:19
+use Main.pst 13:22-13:29
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 13:15-13:21
+  type 'Option' @ std/System.pst:23:12
+def Main.pst 13:12-13:13
+  parameter 'n' @ Main.pst:13:12
+    : Option[Integer]
+use Main.pst 13:40-13:47
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 13:33-13:39
+  type 'Option' @ std/System.pst:23:12
+use Main.pst 14:20-14:26
+  builtin type 'String' @ built into unit System
+use Main.pst 14:15-14:19
+  builtin type 'List' @ built into unit System
+def Main.pst 14:9-14:13
+  let 'none' @ Main.pst:14:9
+    : List[String]
+use Main.pst 15:14-15:17
+  type 'Box' @ Main.pst:6:5
+use Main.pst 15:37-15:41
+  let 'none' @ Main.pst:14:9
+def Main.pst 15:9-15:10
+  var 'b' @ Main.pst:15:9
+    : Box
+use Main.pst 16:14-16:15
+  var 'b' @ Main.pst:15:9
+def Main.pst 16:9-16:10
+  var 'c' @ Main.pst:16:9
+    : Box
+use Main.pst 17:5-17:8
+  procedure 'put' @ Main.pst:10:11
+use Main.pst 17:13-17:14
+  var 'b' @ Main.pst:15:9
+use Main.pst 17:30-17:31
+  var 'c' @ Main.pst:16:9
+use Main.pst 17:42-17:43
+  parameter 'n' @ Main.pst:13:12
+use Main.pst 18:12-18:16
+  type 'Some' @ std/System.pst:19:12
+use Main.pst 18:17-18:20
+  function 'len' @ std/System.pst:123:21
+use Main.pst 18:21-18:22
+  var 'b' @ Main.pst:15:9
+use Main.pst 15:18-15:23
+  field 'items' @ Main.pst:7:9
+use Main.pst 15:29-15:34
+  field 'lists' @ Main.pst:8:9
+use Main.pst 17:15-17:20
+  field 'items' @ Main.pst:7:9
+use Main.pst 17:32-17:37
+  field 'lists' @ Main.pst:8:9
+use Main.pst 17:22-17:24
+  parameter 'ys' @ Main.pst:10:41
+use Main.pst 18:23-18:28
+  field 'items' @ Main.pst:7:9
+--- stderr

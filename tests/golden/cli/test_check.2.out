@@ -1,4 +1,0 @@
-$ pst check Lib.pst --json
-exit 0
---- stdout
---- stderr

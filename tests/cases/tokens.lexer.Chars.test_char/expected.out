@@ -1,0 +1,7 @@
+$ $PST tokens lexer.Chars.test_char.pst
+exit 0
+--- stdout
+CharLit 1:1-1:4 "'a'" char 97
+Newline 1:4-1:4 "" -
+Eof 1:4-1:4 "" -
+--- stderr

@@ -1,0 +1,333 @@
+$ $PST ast parser.Declarations.test_spec_example.pst
+exit 0
+--- stdout
+File 1:1-59:22 kind="program"
+  name: Ident 1:9-1:18 name="Inventory"
+  uses[0]: Ident 3:6-3:8 name="IO"
+  uses[1]: Ident 3:10-3:17 name="Strings"
+  items[0]: TypeSection 5:1-14:21
+    decls[0]: TypeDecl 6:5-6:47 exported=false
+      name: Ident 6:5-6:11 name="Status"
+      body: EnumType 6:14-6:47
+        members[0]: Ident 6:15-6:21 name="Active"
+        members[1]: Ident 6:23-6:35 name="Discontinued"
+        members[2]: Ident 6:37-6:46 name="Backorder"
+    decls[1]: TypeDecl 8:5-11:23 exported=false
+      name: Ident 8:5-8:9 name="Item"
+      body: RecordType 8:12-11:23 c=false
+        fields[0]: FieldDecl 9:9-9:21 exported=false
+          name: Ident 9:9-9:13 name="name"
+          type: TypeName 9:15-9:21 parts=["String"] part_spans=[9:15-9:21]
+        fields[1]: FieldDecl 10:9-10:21 exported=false
+          name: Ident 10:9-10:12 name="qty"
+          type: TypeName 10:14-10:21 parts=["Integer"] part_spans=[10:14-10:21]
+        fields[2]: FieldDecl 11:9-11:23 exported=false
+          name: Ident 11:9-11:15 name="status"
+          type: TypeName 11:17-11:23 parts=["Status"] part_spans=[11:17-11:23]
+    decls[2]: TypeDecl 13:5-14:21 exported=false
+      name: Ident 13:5-13:10 name="Named"
+      body: TraitType 13:13-14:21
+        fields[0]: FieldDecl 14:9-14:21 exported=false
+          name: Ident 14:9-14:13 name="name"
+          type: TypeName 14:15-14:21 parts=["String"] part_spans=[14:15-14:21]
+  items[1]: ConstSection 16:1-17:18
+    decls[0]: ConstDecl 17:5-17:18 exported=false
+      name: Ident 17:5-17:11 name="MaxQty"
+      value: IntLit 17:14-17:18 value=1000
+  items[2]: Routine 19:1-25:24 exported=false unsafe=false
+    sig: Signature 19:1-19:75 is_function=true
+      name: Ident 19:10-19:17 name="restock"
+      params[0]: Param 19:18-19:32 is_var=true is_this=false is_varargs=false
+        names[0]: Ident 19:22-19:26 name="item"
+        type: TypeName 19:28-19:32 parts=["Item"] part_spans=[19:28-19:32]
+      params[1]: Param 19:34-19:49 is_var=false is_this=false is_varargs=false
+        names[0]: Ident 19:34-19:40 name="amount"
+        type: TypeName 19:42-19:49 parts=["Integer"] part_spans=[19:42-19:49]
+      result: TypeName 19:52-19:75 parts=["Result"] part_spans=[19:52-19:58]
+        args[0]: TypeName 19:59-19:66 parts=["Integer"] part_spans=[19:59-19:66]
+        args[1]: TypeName 19:68-19:74 parts=["String"] part_spans=[19:68-19:74]
+    requires[0]: Binary 20:14-20:24 op=">" op_span=20:21-20:22
+      left: Name 20:14-20:20 name="amount"
+      right: IntLit 20:23-20:24 value=0
+    ensures[0]: Binary 21:13-21:31 op="<=" op_span=21:22-21:24
+      left: FieldAccess 21:13-21:21
+        target: Name 21:13-21:17 name="item"
+        name: Ident 21:18-21:21 name="qty"
+      right: Name 21:25-21:31 name="MaxQty"
+    body: Block 22:5-25:24
+      stmts[0]: If 22:5-23:49
+        branches[0]: CondBlock 22:8-23:49
+          cond: Binary 22:8-22:34 op=">" op_span=22:26-22:27
+            left: Binary 22:8-22:25 op="+" op_span=22:17-22:18
+              left: FieldAccess 22:8-22:16
+                target: Name 22:8-22:12 name="item"
+                name: Ident 22:13-22:16 name="qty"
+              right: Name 22:19-22:25 name="amount"
+            right: Name 22:28-22:34 name="MaxQty"
+          body: Block 23:9-23:49
+            stmts[0]: Return 23:9-23:49
+              value: Call 23:16-23:49
+                callee: Name 23:16-23:19 name="Err"
+                args[0]: Arg 23:20-23:48 is_var=false
+                  value: InterpString 23:20-23:48
+                    parts[0]: FieldAccess 23:22-23:31
+                      target: Name 23:22-23:26 name="item"
+                      name: Ident 23:27-23:31 name="name"
+                    parts[1]: Text ": over capacity"
+      stmts[1]: Assign 24:5-24:34
+        target: FieldAccess 24:5-24:13
+          target: Name 24:5-24:9 name="item"
+          name: Ident 24:10-24:13 name="qty"
+        value: Binary 24:17-24:34 op="+" op_span=24:26-24:27
+          left: FieldAccess 24:17-24:25
+            target: Name 24:17-24:21 name="item"
+            name: Ident 24:22-24:25 name="qty"
+          right: Name 24:28-24:34 name="amount"
+      stmts[2]: Return 25:5-25:24
+        value: Call 25:12-25:24
+          callee: Name 25:12-25:14 name="Ok"
+          args[0]: Arg 25:15-25:23 is_var=false
+            value: FieldAccess 25:15-25:23
+              target: Name 25:15-25:19 name="item"
+              name: Ident 25:20-25:23 name="qty"
+  items[3]: Routine 27:1-31:45 exported=false unsafe=false
+    sig: Signature 27:1-27:38 is_function=true
+      name: Ident 27:10-27:18 name="describe"
+      params[0]: Param 27:19-27:29 is_var=false is_this=false is_varargs=false
+        names[0]: Ident 27:19-27:23 name="item"
+        type: TypeName 27:25-27:29 parts=["Item"] part_spans=[27:25-27:29]
+      result: TypeName 27:32-27:38 parts=["String"] part_spans=[27:32-27:38]
+    body: Block 28:5-31:45
+      stmts[0]: Return 28:5-31:45
+        value: CaseExpr 28:12-31:45
+          subject: FieldAccess 28:17-28:28
+            target: Name 28:17-28:21 name="item"
+            name: Ident 28:22-28:28 name="status"
+          arms[0]: CaseExprArm 29:9-29:48
+            labels[0]: ValueLabel 29:9-29:15
+              value: Name 29:9-29:15 name="Active"
+            value: InterpString 29:23-29:48
+              parts[0]: FieldAccess 29:25-29:34
+                target: Name 29:25-29:29 name="item"
+                name: Ident 29:30-29:34 name="name"
+              parts[1]: Text ": "
+              parts[2]: FieldAccess 29:38-29:46
+                target: Name 29:38-29:42 name="item"
+                name: Ident 29:43-29:46 name="qty"
+          arms[1]: CaseExprArm 30:9-30:42
+            labels[0]: ValueLabel 30:9-30:21
+              value: Name 30:9-30:21 name="Discontinued"
+            value: InterpString 30:23-30:42
+              parts[0]: FieldAccess 30:25-30:34
+                target: Name 30:25-30:29 name="item"
+                name: Ident 30:30-30:34 name="name"
+              parts[1]: Text ": gone"
+          arms[2]: CaseExprArm 31:9-31:45
+            labels[0]: ValueLabel 31:9-31:18
+              value: Name 31:9-31:18 name="Backorder"
+            value: InterpString 31:23-31:45
+              parts[0]: FieldAccess 31:25-31:34
+                target: Name 31:25-31:29 name="item"
+                name: Ident 31:30-31:34 name="name"
+              parts[1]: Text ": waiting"
+  items[4]: Routine 33:1-37:34 exported=false unsafe=false
+    sig: Signature 33:1-33:46 is_function=true
+      name: Ident 33:10-33:15 name="names"
+      type_params[0]: TypeParam 33:16-33:24
+        name: Ident 33:16-33:17 name="T"
+        bounds[0]: TypeName 33:19-33:24 parts=["Named"] part_spans=[33:19-33:24]
+      params[0]: Param 33:26-33:37 is_var=false is_this=false is_varargs=false
+        names[0]: Ident 33:26-33:28 name="xs"
+        type: TypeName 33:30-33:37 parts=["List"] part_spans=[33:30-33:34]
+          args[0]: TypeName 33:35-33:36 parts=["T"] part_spans=[33:35-33:36]
+      result: TypeName 33:40-33:46 parts=["String"] part_spans=[33:40-33:46]
+    body: Block 34:5-37:34
+      stmts[0]: VarDecl 34:5-34:34 mutable=true
+        name: Ident 34:9-34:14 name="parts"
+        type: TypeName 34:16-34:28 parts=["List"] part_spans=[34:16-34:20]
+          args[0]: TypeName 34:21-34:27 parts=["String"] part_spans=[34:21-34:27]
+        value: ListLit 34:32-34:34
+      stmts[1]: ForIn 35:5-36:31
+        vars[0]: Ident 35:9-35:10 name="x"
+        iterable: Name 35:14-35:16 name="xs"
+        body: Block 36:9-36:31
+          stmts[0]: ExprStmt 36:9-36:31
+            expr: Call 36:9-36:31
+              callee: Name 36:9-36:12 name="add"
+              args[0]: Arg 36:13-36:22 is_var=true
+                value: Name 36:17-36:22 name="parts"
+              args[1]: Arg 36:24-36:30 is_var=false
+                value: FieldAccess 36:24-36:30
+                  target: Name 36:24-36:25 name="x"
+                  name: Ident 36:26-36:30 name="name"
+      stmts[2]: Return 37:5-37:34
+        value: Call 37:12-37:34
+          callee: Name 37:12-37:16 name="join"
+          args[0]: Arg 37:17-37:22 is_var=false
+            value: Name 37:17-37:22 name="parts"
+          args[1]: Arg 37:24-37:33 is_var=false
+            name: Ident 37:24-37:27 name="sep"
+            value: StringLit 37:29-37:33 value=", "
+  items[5]: Routine 39:1-43:21 exported=false unsafe=false
+    sig: Signature 39:1-39:85 is_function=true
+      name: Ident 39:10-39:20 name="restockAll"
+      params[0]: Param 39:21-39:42 is_var=true is_this=false is_varargs=false
+        names[0]: Ident 39:25-39:30 name="items"
+        type: TypeName 39:32-39:42 parts=["List"] part_spans=[39:32-39:36]
+          args[0]: TypeName 39:37-39:41 parts=["Item"] part_spans=[39:37-39:41]
+      params[1]: Param 39:44-39:59 is_var=false is_this=false is_varargs=false
+        names[0]: Ident 39:44-39:50 name="amount"
+        type: TypeName 39:52-39:59 parts=["Integer"] part_spans=[39:52-39:59]
+      result: TypeName 39:62-39:85 parts=["Result"] part_spans=[39:62-39:68]
+        args[0]: TypeName 39:69-39:76 parts=["Integer"] part_spans=[39:69-39:76]
+        args[1]: TypeName 39:78-39:84 parts=["String"] part_spans=[39:78-39:84]
+    body: Block 40:5-43:21
+      stmts[0]: VarDecl 40:5-40:19 mutable=true
+        name: Ident 40:9-40:14 name="total"
+        value: IntLit 40:18-40:19 value=0
+      stmts[1]: ForRange 41:5-42:59 down=false
+        var: Ident 41:9-41:10 name="i"
+        start: IntLit 41:14-41:15 value=0
+        stop: Binary 41:19-41:33 op="-" op_span=41:30-41:31
+          left: Call 41:19-41:29
+            callee: Name 41:19-41:22 name="len"
+            args[0]: Arg 41:23-41:28 is_var=false
+              value: Name 41:23-41:28 name="items"
+          right: IntLit 41:32-41:33 value=1
+        body: Block 42:9-42:59
+          stmts[0]: Assign 42:9-42:59
+            target: Name 42:9-42:14 name="total"
+            value: Binary 42:18-42:59 op="+" op_span=42:24-42:25
+              left: Name 42:18-42:23 name="total"
+              right: Unary 42:26-42:59 op="try"
+                operand: Call 42:30-42:59
+                  callee: Name 42:30-42:37 name="restock"
+                  args[0]: Arg 42:38-42:50 is_var=true
+                    value: Index 42:42-42:50
+                      target: Name 42:42-42:47 name="items"
+                      items[0]: Name 42:48-42:49 name="i"
+                  args[1]: Arg 42:52-42:58 is_var=false
+                    value: Name 42:52-42:58 name="amount"
+      stmts[2]: Return 43:5-43:21
+        value: Call 43:12-43:21
+          callee: Name 43:12-43:14 name="Ok"
+          args[0]: Arg 43:15-43:20 is_var=false
+            value: Name 43:15-43:20 name="total"
+  items[6]: TestBlock 45:1-48:24 name="restock refuses over capacity"
+    body: Block 46:5-48:24
+      stmts[0]: VarDecl 46:5-46:66 mutable=true
+        name: Ident 46:9-46:11 name="it"
+        value: Call 46:15-46:66
+          callee: Name 46:15-46:19 name="Item"
+          args[0]: Arg 46:20-46:32 is_var=false
+            name: Ident 46:20-46:24 name="name"
+            value: StringLit 46:26-46:32 value="bolt"
+          args[1]: Arg 46:34-46:42 is_var=false
+            name: Ident 46:34-46:37 name="qty"
+            value: IntLit 46:39-46:42 value=999
+          args[2]: Arg 46:44-46:65 is_var=false
+            name: Ident 46:44-46:50 name="status"
+            value: FieldAccess 46:52-46:65
+              target: Name 46:52-46:58 name="Status"
+              name: Ident 46:59-46:65 name="Active"
+      stmts[1]: Assert 47:5-47:46
+        cond: Call 47:12-47:46
+          callee: FieldAccess 47:12-47:44
+            target: Call 47:12-47:38
+              callee: Name 47:12-47:19 name="restock"
+              args[0]: Arg 47:20-47:26 is_var=true
+                value: Name 47:24-47:26 name="it"
+              args[1]: Arg 47:28-47:37 is_var=false
+                name: Ident 47:28-47:34 name="amount"
+                value: IntLit 47:36-47:37 value=5
+            name: Ident 47:39-47:44 name="isErr"
+      stmts[2]: Assert 48:5-48:24
+        cond: Binary 48:12-48:24 op="=" op_span=48:19-48:20
+          left: FieldAccess 48:12-48:18
+            target: Name 48:12-48:14 name="it"
+            name: Ident 48:15-48:18 name="qty"
+          right: IntLit 48:21-48:24 value=999
+  items[7]: VarDecl 50:1-53:2 mutable=true
+    name: Ident 50:5-50:10 name="items"
+    value: ListLit 50:14-53:2
+      items[0]: Call 51:5-51:55
+        callee: Name 51:5-51:9 name="Item"
+        args[0]: Arg 51:10-51:22 is_var=false
+          name: Ident 51:10-51:14 name="name"
+          value: StringLit 51:16-51:22 value="bolt"
+        args[1]: Arg 51:24-51:31 is_var=false
+          name: Ident 51:24-51:27 name="qty"
+          value: IntLit 51:29-51:31 value=10
+        args[2]: Arg 51:33-51:54 is_var=false
+          name: Ident 51:33-51:39 name="status"
+          value: FieldAccess 51:41-51:54
+            target: Name 51:41-51:47 name="Status"
+            name: Ident 51:48-51:54 name="Active"
+      items[1]: Call 52:5-52:56
+        callee: Name 52:5-52:9 name="Item"
+        args[0]: Arg 52:10-52:21 is_var=false
+          name: Ident 52:10-52:14 name="name"
+          value: StringLit 52:16-52:21 value="nut"
+        args[1]: Arg 52:23-52:29 is_var=false
+          name: Ident 52:23-52:26 name="qty"
+          value: IntLit 52:28-52:29 value=0
+        args[2]: Arg 52:31-52:55 is_var=false
+          name: Ident 52:31-52:37 name="status"
+          value: FieldAccess 52:39-52:55
+            target: Name 52:39-52:45 name="Status"
+            name: Ident 52:46-52:55 name="Backorder"
+  items[8]: Case 54:1-56:40
+    subject: Call 54:6-54:38
+      callee: Name 54:6-54:16 name="restockAll"
+      args[0]: Arg 54:17-54:26 is_var=true
+        value: Name 54:21-54:26 name="items"
+      args[1]: Arg 54:28-54:37 is_var=false
+        name: Ident 54:28-54:34 name="amount"
+        value: IntLit 54:36-54:37 value=5
+    arms[0]: CaseArm 55:5-55:46
+      labels[0]: VariantLabel 55:5-55:10
+        variant: TypeName 55:5-55:7 parts=["Ok"] part_spans=[55:5-55:7]
+        binding: Ident 55:8-55:9 name="n"
+      body: ExprStmt 55:13-55:46
+        expr: Call 55:13-55:46
+          callee: Name 55:13-55:20 name="writeln"
+          args[0]: Arg 55:21-55:45 is_var=false
+            value: InterpString 55:21-55:45
+              parts[0]: Text "total stock: "
+              parts[1]: FieldAccess 55:36-55:43
+                target: Name 55:36-55:37 name="n"
+                name: Ident 55:38-55:43 name="value"
+    arms[1]: CaseArm 56:5-56:40
+      labels[0]: VariantLabel 56:5-56:11
+        variant: TypeName 56:5-56:8 parts=["Err"] part_spans=[56:5-56:8]
+        binding: Ident 56:9-56:10 name="e"
+      body: ExprStmt 56:13-56:40
+        expr: Call 56:13-56:40
+          callee: Name 56:13-56:20 name="writeln"
+          args[0]: Arg 56:21-56:39 is_var=false
+            value: InterpString 56:21-56:39
+              parts[0]: Text "error: "
+              parts[1]: FieldAccess 56:30-56:37
+                target: Name 56:30-56:31 name="e"
+                name: Ident 56:32-56:37 name="error"
+  items[9]: ForIn 57:1-58:29
+    vars[0]: Ident 57:5-57:9 name="item"
+    iterable: Name 57:13-57:18 name="items"
+    body: Block 58:5-58:29
+      stmts[0]: ExprStmt 58:5-58:29
+        expr: Call 58:5-58:29
+          callee: Name 58:5-58:12 name="writeln"
+          args[0]: Arg 58:13-58:28 is_var=false
+            value: Call 58:13-58:28
+              callee: FieldAccess 58:13-58:26
+                target: Name 58:13-58:17 name="item"
+                name: Ident 58:18-58:26 name="describe"
+  items[10]: ExprStmt 59:1-59:22
+    expr: Call 59:1-59:22
+      callee: Name 59:1-59:8 name="writeln"
+      args[0]: Arg 59:9-59:21 is_var=false
+        value: Call 59:9-59:21
+          callee: Name 59:9-59:14 name="names"
+          args[0]: Arg 59:15-59:20 is_var=false
+            value: Name 59:15-59:20 name="items"
+--- stderr

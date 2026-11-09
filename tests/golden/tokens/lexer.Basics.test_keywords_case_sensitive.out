@@ -1,5 +1,0 @@
-KwThis 1:1-1:5 "this" -
-KwThisType 1:6-1:10 "This" -
-Ident 1:11-1:13 "If" -
-Newline 1:13-1:13 "" -
-Eof 1:13-1:13 "" -

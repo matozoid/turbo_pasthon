@@ -1,7 +1,0 @@
-File 1:1-2:12 kind="program"
-  name: Ident 1:9-1:10 name="P"
-  items[0]: Assign 2:1-2:12
-    target: Name 2:1-2:2 name="x"
-    value: SetLit 2:6-2:12
-      items[0]: IntLit 2:7-2:8 value=1
-      items[1]: IntLit 2:10-2:11 value=2

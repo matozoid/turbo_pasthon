@@ -1,0 +1,26 @@
+program P
+## Doc one.
+##
+##   Doc two.
+export function f[T: Eq](a, b: T, var c: List[T] := [], ...): Integer
+    requires a = b
+    ensures result > 0
+    requires c
+    return 1
+function g()
+    return
+procedure h(): Integer
+    x()
+function k
+    x()
+function m(this, var this, x: Integer = 3): ref T
+    x()
+export unsafe procedure n()
+    x()
+unsafe export procedure o()
+    x()
+export x := 1
+procedure p()
+procedure q()
+    requires a
+procedure r() x()

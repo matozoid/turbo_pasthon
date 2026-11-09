@@ -1,0 +1,3 @@
+unit Other
+export function aliased(): Integer
+    return 1

@@ -1,5 +1,0 @@
-$ pst run Exit.pst
-exit 3
---- stdout
-0
---- stderr

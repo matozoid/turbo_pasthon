@@ -1,0 +1,27 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 5:10-5:13
+  function 'big' @ Main.pst:5:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 7:1-7:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 7:9-7:12
+  function 'get' @ std/System.pst:487:17
+use Main.pst 7:13-7:17
+  function 'find' @ std/System.pst:690:17
+use Main.pst 7:33-7:36
+  function 'big' @ Main.pst:5:10
+use Main.pst 5:17-5:24
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 5:14-5:15
+  parameter 'x' @ Main.pst:5:14
+    : Integer
+use Main.pst 5:27-5:34
+  builtin type 'Boolean' @ built into unit System
+use Main.pst 6:12-6:13
+  parameter 'x' @ Main.pst:5:14
+--- stderr

@@ -1,0 +1,6 @@
+$PST test Shop.pst
+$PST test Shop.pst --json --unchecked
+$PST test Shop.pst --filter double
+$PST test Lib.pst
+$PST test . --filter o
+$PST test Bad.pst --json

@@ -1,3 +1,0 @@
-File 1:1-1:1 kind="program"
-  name: Ident 1:1-1:1 name=""
-error E0045 1:1-1:1 "a file must start with 'program Name' or 'unit Name'"

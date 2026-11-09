@@ -1,0 +1,6 @@
+program P
+test "adds"
+    assert 1 + 1 = 2, "math"
+test x
+    assert true
+test "e"

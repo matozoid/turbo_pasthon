@@ -1,0 +1,6 @@
+let a := 'x'
+let b := ''
+let c := 'ab'
+let d := '\n'
+let e := '\u{E9}'
+let f := '\

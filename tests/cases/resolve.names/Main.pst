@@ -1,0 +1,23 @@
+program Main
+uses IO
+let count := 1
+var total := 2
+let unused := 3
+writeln(cuont)
+writeln(totl + count)
+writeln(nothingLikeIt)
+function f(x: Integer): Integer
+    return x + total
+type
+    R = record
+        a: Integer := count
+procedure p(a: Integer, b: Integer)
+    let a := 2
+    var b2 := a
+    writeln(b)
+for i := 1 to 3 do
+    let unusedToo := i
+for x in [1] do
+    writeln(1)
+for _ in [1] do
+    writeln(1)

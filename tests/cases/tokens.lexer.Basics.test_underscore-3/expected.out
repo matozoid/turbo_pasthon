@@ -1,0 +1,7 @@
+$ $PST tokens lexer.Basics.test_underscore-3.pst
+exit 0
+--- stdout
+Ident 1:1-1:4 "x_y" -
+Newline 1:4-1:4 "" -
+Eof 1:4-1:4 "" -
+--- stderr

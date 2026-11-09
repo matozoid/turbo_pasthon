@@ -1,7 +1,0 @@
-File 1:1-3:9 kind="program"
-  name: Ident 1:9-1:10 name="P"
-  items[0]: If 2:1-3:9
-    branches[0]: CondBlock 2:4-3:9
-      cond: Name 2:4-2:5 name="a"
-      body: Block 3:5-3:9
-        stmts[0]: Pass 3:5-3:9

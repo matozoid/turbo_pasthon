@@ -1,0 +1,5 @@
+$ $PST tokens tokens-empty.pst
+exit 0
+--- stdout
+Eof 1:1-1:1 "" -
+--- stderr

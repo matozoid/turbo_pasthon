@@ -1,0 +1,306 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:9
+  type 'Node' @ Main.pst:6:5
+def Main.pst 7:9-7:14
+  field 'value' @ Main.pst:7:9
+def Main.pst 8:9-8:13
+  field 'next' @ Main.pst:8:9
+def Main.pst 10:5-10:9
+  type 'Pair' @ Main.pst:10:5
+def Main.pst 11:9-11:10
+  field 'a' @ Main.pst:11:9
+def Main.pst 12:9-12:10
+  field 'n' @ Main.pst:12:9
+def Main.pst 14:10-14:13
+  function 'sum' @ Main.pst:14:10
+def Main.pst 21:11-21:15
+  procedure 'bump' @ Main.pst:21:11
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 24:10-24:13
+  function 'new' @ std/System.pst:136:21
+use Main.pst 24:14-24:18
+  type 'Node' @ Main.pst:6:5
+use Main.pst 24:35-24:39
+  type 'None' @ std/System.pst:22:12
+def Main.pst 24:5-24:6
+  let 'a' @ Main.pst:24:5
+    : ref Node
+use Main.pst 25:10-25:13
+  function 'new' @ std/System.pst:136:21
+use Main.pst 25:14-25:18
+  type 'Node' @ Main.pst:6:5
+use Main.pst 25:35-25:39
+  type 'Some' @ std/System.pst:19:12
+use Main.pst 25:40-25:41
+  let 'a' @ Main.pst:24:5
+def Main.pst 25:5-25:6
+  let 'b' @ Main.pst:25:5
+    : ref Node
+use Main.pst 26:1-26:6
+  procedure 'write' @ std/IO.pst:14:22
+use Main.pst 26:9-26:12
+  function 'sum' @ Main.pst:14:10
+use Main.pst 26:13-26:14
+  let 'b' @ Main.pst:25:5
+use Main.pst 27:1-27:2
+  let 'a' @ Main.pst:24:5
+use Main.pst 28:1-28:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 28:9-28:12
+  function 'sum' @ Main.pst:14:10
+use Main.pst 28:13-28:14
+  let 'b' @ Main.pst:25:5
+use Main.pst 29:16-29:17
+  let 'a' @ Main.pst:24:5
+def Main.pst 29:5-29:6
+  let 'c' @ Main.pst:29:5
+    : Node
+use Main.pst 30:1-30:2
+  let 'a' @ Main.pst:24:5
+use Main.pst 31:1-31:6
+  procedure 'write' @ std/IO.pst:14:22
+use Main.pst 31:9-31:10
+  let 'c' @ Main.pst:29:5
+use Main.pst 31:19-31:20
+  let 'a' @ Main.pst:24:5
+use Main.pst 31:29-31:32
+  function 'sum' @ Main.pst:14:10
+use Main.pst 31:33-31:34
+  let 'b' @ Main.pst:25:5
+use Main.pst 32:7-32:8
+  let 'a' @ Main.pst:24:5
+use Main.pst 32:13-32:17
+  type 'Node' @ Main.pst:6:5
+use Main.pst 32:34-32:38
+  type 'None' @ std/System.pst:22:12
+use Main.pst 33:1-33:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 33:11-33:12
+  let 'c' @ Main.pst:29:5
+use Main.pst 33:21-33:22
+  let 'a' @ Main.pst:24:5
+use Main.pst 33:31-33:34
+  function 'sum' @ Main.pst:14:10
+use Main.pst 33:35-33:36
+  let 'b' @ Main.pst:25:5
+use Main.pst 34:1-34:5
+  procedure 'bump' @ Main.pst:21:11
+use Main.pst 34:10-34:11
+  let 'a' @ Main.pst:24:5
+use Main.pst 35:1-35:4
+  procedure 'inc' @ std/System.pst:127:22
+use Main.pst 35:9-35:10
+  let 'a' @ Main.pst:24:5
+use Main.pst 36:11-36:12
+  let 'a' @ Main.pst:24:5
+def Main.pst 36:5-36:7
+  let 'a2' @ Main.pst:36:5
+    : ref Node
+use Main.pst 37:1-37:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 37:11-37:12
+  let 'a' @ Main.pst:24:5
+use Main.pst 37:21-37:23
+  let 'a2' @ Main.pst:36:5
+use Main.pst 37:26-37:27
+  let 'a' @ Main.pst:24:5
+use Main.pst 37:30-37:31
+  let 'a' @ Main.pst:24:5
+use Main.pst 37:34-37:35
+  let 'b' @ Main.pst:25:5
+use Main.pst 37:44-37:46
+  let 'a2' @ Main.pst:36:5
+use Main.pst 37:56-37:57
+  let 'a' @ Main.pst:24:5
+use Main.pst 38:1-38:6
+  procedure 'write' @ std/IO.pst:14:22
+use Main.pst 38:9-38:13
+  type 'Pair' @ Main.pst:10:5
+use Main.pst 38:17-38:18
+  let 'a' @ Main.pst:24:5
+use Main.pst 38:28-38:32
+  type 'Pair' @ Main.pst:10:5
+use Main.pst 38:36-38:38
+  let 'a2' @ Main.pst:36:5
+use Main.pst 38:48-38:52
+  type 'Pair' @ Main.pst:10:5
+use Main.pst 38:56-38:57
+  let 'a' @ Main.pst:24:5
+use Main.pst 38:67-38:71
+  type 'Pair' @ Main.pst:10:5
+use Main.pst 38:75-38:76
+  let 'b' @ Main.pst:25:5
+use Main.pst 39:12-39:13
+  let 'a' @ Main.pst:24:5
+use Main.pst 39:15-39:16
+  let 'b' @ Main.pst:25:5
+def Main.pst 39:5-39:7
+  var 'xs' @ Main.pst:39:5
+    : List[ref Node]
+use Main.pst 40:1-40:3
+  var 'xs' @ Main.pst:39:5
+use Main.pst 41:16-41:17
+  let 'a' @ Main.pst:24:5
+def Main.pst 41:5-41:6
+  let 'm' @ Main.pst:41:5
+    : Map[String, ref Node]
+use Main.pst 42:1-42:2
+  let 'm' @ Main.pst:41:5
+use Main.pst 43:1-43:6
+  procedure 'write' @ std/IO.pst:14:22
+use Main.pst 43:9-43:10
+  let 'b' @ Main.pst:25:5
+use Main.pst 43:19-43:20
+  let 'a' @ Main.pst:24:5
+use Main.pst 44:10-44:13
+  function 'new' @ std/System.pst:136:21
+def Main.pst 44:5-44:6
+  let 'n' @ Main.pst:44:5
+    : ref Integer
+use Main.pst 45:7-45:8
+  let 'n' @ Main.pst:44:5
+use Main.pst 45:19-45:20
+  let 'n' @ Main.pst:44:5
+use Main.pst 46:10-46:13
+  function 'new' @ std/System.pst:136:21
+def Main.pst 46:5-46:6
+  let 's' @ Main.pst:46:5
+    : ref String
+use Main.pst 47:7-47:8
+  let 's' @ Main.pst:46:5
+use Main.pst 47:21-47:22
+  let 's' @ Main.pst:46:5
+use Main.pst 48:1-48:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 48:17-48:18
+  let 'n' @ Main.pst:44:5
+use Main.pst 48:28-48:29
+  let 's' @ Main.pst:46:5
+use Main.pst 48:33-48:36
+  function 'len' @ std/System.pst:123:21
+use Main.pst 48:37-48:39
+  var 'xs' @ Main.pst:39:5
+use Main.pst 48:43-48:46
+  function 'len' @ std/System.pst:295:17
+use Main.pst 48:47-48:48
+  let 'm' @ Main.pst:41:5
+use Main.pst 7:16-7:23
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 8:26-8:30
+  type 'Node' @ Main.pst:6:5
+use Main.pst 8:15-8:21
+  type 'Option' @ std/System.pst:23:12
+use Main.pst 11:16-11:20
+  type 'Node' @ Main.pst:6:5
+use Main.pst 12:12-12:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 14:21-14:25
+  type 'Node' @ Main.pst:6:5
+def Main.pst 14:14-14:15
+  parameter 'n' @ Main.pst:14:14
+    : ref Node
+use Main.pst 14:28-14:35
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 15:18-15:19
+  parameter 'n' @ Main.pst:14:14
+def Main.pst 15:9-15:14
+  var 'total' @ Main.pst:15:9
+    : Integer
+use Main.pst 16:10-16:11
+  parameter 'n' @ Main.pst:14:14
+use Main.pst 17:9-17:13
+  type 'Some' @ std/System.pst:19:12
+def Main.pst 17:14-17:15
+  case binding 'm' @ Main.pst:17:14
+    : Some[ref Node]
+use Main.pst 17:18-17:23
+  var 'total' @ Main.pst:15:9
+use Main.pst 17:27-17:32
+  var 'total' @ Main.pst:15:9
+use Main.pst 17:35-17:38
+  function 'sum' @ Main.pst:14:10
+use Main.pst 17:39-17:40
+  case binding 'm' @ Main.pst:17:14
+use Main.pst 18:15-18:20
+  var 'total' @ Main.pst:15:9
+use Main.pst 18:24-18:29
+  var 'total' @ Main.pst:15:9
+use Main.pst 19:12-19:17
+  var 'total' @ Main.pst:15:9
+use Main.pst 21:23-21:30
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 21:20-21:21
+  parameter 'x' @ Main.pst:21:20
+    : Integer
+use Main.pst 22:5-22:6
+  parameter 'x' @ Main.pst:21:20
+use Main.pst 22:10-22:11
+  parameter 'x' @ Main.pst:21:20
+use Main.pst 15:20-15:25
+  field 'value' @ Main.pst:7:9
+use Main.pst 16:12-16:16
+  field 'next' @ Main.pst:8:9
+use Main.pst 17:41-17:46
+  field 'value' @ std/System.pst:20:16
+use Main.pst 18:9-18:13
+  type 'None' @ std/System.pst:22:12
+use Main.pst 24:19-24:24
+  field 'value' @ Main.pst:7:9
+use Main.pst 24:29-24:33
+  field 'next' @ Main.pst:8:9
+use Main.pst 25:19-25:24
+  field 'value' @ Main.pst:7:9
+use Main.pst 25:29-25:33
+  field 'next' @ Main.pst:8:9
+use Main.pst 27:3-27:8
+  field 'value' @ Main.pst:7:9
+use Main.pst 30:3-30:8
+  field 'value' @ Main.pst:7:9
+use Main.pst 31:11-31:16
+  field 'value' @ Main.pst:7:9
+use Main.pst 31:21-31:26
+  field 'value' @ Main.pst:7:9
+use Main.pst 32:18-32:23
+  field 'value' @ Main.pst:7:9
+use Main.pst 32:28-32:32
+  field 'next' @ Main.pst:8:9
+use Main.pst 33:13-33:18
+  field 'value' @ Main.pst:7:9
+use Main.pst 33:23-33:28
+  field 'value' @ Main.pst:7:9
+use Main.pst 34:12-34:17
+  field 'value' @ Main.pst:7:9
+use Main.pst 35:11-35:16
+  field 'value' @ Main.pst:7:9
+use Main.pst 37:13-37:18
+  field 'value' @ Main.pst:7:9
+use Main.pst 38:14-38:15
+  field 'a' @ Main.pst:11:9
+use Main.pst 38:20-38:21
+  field 'n' @ Main.pst:12:9
+use Main.pst 38:33-38:34
+  field 'a' @ Main.pst:11:9
+use Main.pst 38:40-38:41
+  field 'n' @ Main.pst:12:9
+use Main.pst 38:53-38:54
+  field 'a' @ Main.pst:11:9
+use Main.pst 38:59-38:60
+  field 'n' @ Main.pst:12:9
+use Main.pst 38:72-38:73
+  field 'a' @ Main.pst:11:9
+use Main.pst 38:78-38:79
+  field 'n' @ Main.pst:12:9
+use Main.pst 40:7-40:12
+  field 'value' @ Main.pst:7:9
+use Main.pst 42:8-42:13
+  field 'value' @ Main.pst:7:9
+use Main.pst 43:11-43:16
+  field 'value' @ Main.pst:7:9
+use Main.pst 43:21-43:26
+  field 'value' @ Main.pst:7:9
+--- stderr

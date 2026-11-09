@@ -1,0 +1,30 @@
+program P
+type
+    export E = (A, B, C,)
+    F = (A B)
+    G = (A,
+    S = 1..10
+    U = Integer | String | ref Node | function(Integer): String
+    V[T, N: Integer] = List[T]
+    W[T: Show + Eq] = Map[String, List[T]]
+    X = Geometry.Shape
+    Y = ref T
+    Z = procedure(Integer, String)
+    A = 1 +
+    B = Array[Integer, N * 2]
+    C = 3
+    D = record
+    T = trait
+        export x: Integer
+        function f(this): Integer
+        procedure g(var this, y: Integer)
+    R = record
+        ## A field.
+        export x: Integer := 3
+        y
+        z: Integer
+type
+export type
+    Q = Integer
+type Q = Integer
+type

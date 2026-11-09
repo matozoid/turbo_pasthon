@@ -1,4 +1,0 @@
-$ pst build Args.pst
-exit 0
---- stdout
---- stderr

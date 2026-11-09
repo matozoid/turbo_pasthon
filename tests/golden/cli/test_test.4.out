@@ -1,5 +1,0 @@
-$ pst test Lib.pst
-exit 0
---- stdout
-0 passed, 0 failed
---- stderr

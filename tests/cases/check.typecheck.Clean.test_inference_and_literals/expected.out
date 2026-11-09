@@ -1,0 +1,68 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+def Main.pst 5:5-5:6
+  let 'a' @ Main.pst:5:5
+    : Integer
+use Main.pst 6:8-6:13
+  builtin type 'Int32' @ built into unit System
+def Main.pst 6:5-6:6
+  let 'b' @ Main.pst:6:5
+    : Int32
+use Main.pst 7:8-7:14
+  builtin type 'Real32' @ built into unit System
+def Main.pst 7:5-7:6
+  let 'c' @ Main.pst:7:5
+    : Real32
+use Main.pst 8:14-8:19
+  builtin type 'Int32' @ built into unit System
+use Main.pst 8:9-8:13
+  builtin type 'List' @ built into unit System
+def Main.pst 8:5-8:7
+  let 'xs' @ Main.pst:8:5
+    : List[Int32]
+use Main.pst 9:12-9:18
+  builtin type 'String' @ built into unit System
+use Main.pst 9:20-9:27
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 9:8-9:11
+  type 'Map' @ std/System.pst:61:12
+def Main.pst 9:5-9:6
+  var 'm' @ Main.pst:9:5
+    : Map[String, Integer]
+use Main.pst 10:1-10:2
+  var 'm' @ Main.pst:9:5
+use Main.pst 10:11-10:12
+  let 'a' @ Main.pst:5:5
+use Main.pst 11:1-11:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 11:11-11:12
+  let 'a' @ Main.pst:5:5
+use Main.pst 11:15-11:16
+  let 'b' @ Main.pst:6:5
+use Main.pst 11:19-11:20
+  let 'c' @ Main.pst:7:5
+use Main.pst 11:23-11:26
+  function 'len' @ std/System.pst:123:21
+use Main.pst 11:27-11:29
+  let 'xs' @ Main.pst:8:5
+use Main.pst 11:33-11:34
+  var 'm' @ Main.pst:9:5
+use Main.pst 12:10-12:16
+  function 'toReal' @ std/System.pst:147:21
+use Main.pst 12:17-12:18
+  let 'a' @ Main.pst:5:5
+def Main.pst 12:5-12:6
+  let 'r' @ Main.pst:12:5
+    : Real
+use Main.pst 13:1-13:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 13:9-13:10
+  let 'r' @ Main.pst:12:5
+use Main.pst 14:1-14:8
+  procedure 'writeln' @ std/IO.pst:16:22
+--- stderr

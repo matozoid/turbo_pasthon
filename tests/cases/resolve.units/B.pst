@@ -1,0 +1,12 @@
+unit B
+uses A
+const
+    export Shared = 2
+export function shared(): Integer
+    return 1
+export function fromB(): Integer
+    return 1
+export function common(x: Integer := 0): Integer
+    return x
+const
+    export S = Shared

@@ -1,0 +1,40 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 5:11-5:12
+  procedure 'p' @ Main.pst:5:11
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 5:16-5:23
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 5:13-5:14
+  parameter 'n' @ Main.pst:5:13
+    : Integer
+use Main.pst 6:8-6:9
+  parameter 'n' @ Main.pst:5:13
+def Main.pst 7:13-7:14
+  let 'n' @ Main.pst:7:13
+    : Integer
+use Main.pst 8:9-8:16
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 8:17-8:18
+  let 'n' @ Main.pst:7:13
+use Main.pst 9:19-9:20
+  parameter 'n' @ Main.pst:5:13
+def Main.pst 9:9-9:10
+  loop variable 'i' @ Main.pst:9:9
+    : Integer
+use Main.pst 10:23-10:24
+  parameter 'n' @ Main.pst:5:13
+def Main.pst 10:13-10:14
+  loop variable 'i' @ Main.pst:10:13
+    : Integer
+use Main.pst 11:13-11:20
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 11:21-11:22
+  loop variable 'i' @ Main.pst:10:13
+Main.pst error E0205 7:13-7:14 "'n' is already declared in this routine (parameter, line 5); choose another name"
+Main.pst error E0205 10:13-10:14 "'i' is already declared in this routine (loop variable, line 9); choose another name"
+--- stderr

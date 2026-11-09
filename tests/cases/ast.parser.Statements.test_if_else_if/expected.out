@@ -1,0 +1,23 @@
+$ $PST ast parser.Statements.test_if_else_if.pst
+exit 0
+--- stdout
+File 1:1-7:8 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: If 2:1-7:8
+    branches[0]: CondBlock 2:4-3:8
+      cond: Name 2:4-2:5 name="a"
+      body: Block 3:5-3:8
+        stmts[0]: ExprStmt 3:5-3:8
+          expr: Call 3:5-3:8
+            callee: Name 3:5-3:6 name="f"
+    branches[1]: CondBlock 4:9-5:8
+      cond: Name 4:9-4:10 name="b"
+      body: Block 5:5-5:8
+        stmts[0]: ExprStmt 5:5-5:8
+          expr: Call 5:5-5:8
+            callee: Name 5:5-5:6 name="g"
+    else_body: Block 7:5-7:8
+      stmts[0]: ExprStmt 7:5-7:8
+        expr: Call 7:5-7:8
+          callee: Name 7:5-7:6 name="h"
+--- stderr

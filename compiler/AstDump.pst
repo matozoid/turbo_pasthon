@@ -1,7 +1,7 @@
 unit AstDump
 
 ## The `pst ast` command: prints the syntax tree and diagnostics of a source file in a
-## canonical form, which tests/test_port.py compares with golden files.
+## canonical form, which the cases in tests/cases compare.
 ##
 ## One node per line, indented by depth: `label Kind where scalars`.
 

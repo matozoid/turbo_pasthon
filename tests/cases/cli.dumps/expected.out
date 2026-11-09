@@ -1,0 +1,18 @@
+$ $PST tokens Args.pst > /dev/null
+exit 0
+--- stdout
+--- stderr
+$ $PST tokens missing.pst
+exit 1
+--- stdout
+--- stderr
+pst: error: missing.pst: No such file or directory
+$ $PST ast Args.pst > /dev/null
+exit 0
+--- stdout
+--- stderr
+$ $PST ast missing.pst
+exit 1
+--- stdout
+--- stderr
+pst: error: missing.pst: No such file or directory

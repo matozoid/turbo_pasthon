@@ -1,0 +1,14 @@
+unit Shop
+uses IO
+function double(x: Integer): Integer
+    return 2 * x
+test "double doubles"
+    assert double(2) = 4
+test "half é wrong"
+    writeln("about to fail")
+    assert double(1) = 3
+test "bounds"
+    let xs: List[Integer] := []
+    writeln(xs[1])
+test "halts"
+    halt(4)

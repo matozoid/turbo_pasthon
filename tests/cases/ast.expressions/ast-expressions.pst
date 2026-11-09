@@ -1,0 +1,28 @@
+program P
+x := -a + b * c div d mod e - f / g
+x := not a and b or not c = d
+x := a <> b
+x := a in b
+x := a <= b >= c
+x := try f(a, b: c, var d)
+x := f(a: 1, b)
+x := g[Integer](1) + h[ref T, function(): T, This]
+x := a.b.c[1, 2].d(3)
+x := [1, 2, 3] + [] + [x,]
+x := {} + {1, 2} + {"a": 1, "b": 2,} + {1,}
+x := {1: 2, 3}
+x := deref(p).x + deref p
+x := 1 + if a then 2 else 3
+x := 1 + case y of
+    1: 2
+x := if a then 1
+x := _ + 1
+x := 0x1F + 1_000 + 1.5e3 + 1_0.2_5 + 'a' + '\n' + true + false + This + this
+x := "a{b}c{d + 1}" + "{e}" + "{f}{g}"
+x := "a{b c}"
+x := ()
+x := (1
+x := f(1
+x := a.
+x := a.1
+x := case

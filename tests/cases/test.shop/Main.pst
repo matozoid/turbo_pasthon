@@ -1,0 +1,10 @@
+program Main
+
+uses IO, Shop
+
+writeln("the program's body doesn't run")
+
+test "uses a unit"
+    let s := "ok"
+    assert half(4) = 2
+    writeln(s)

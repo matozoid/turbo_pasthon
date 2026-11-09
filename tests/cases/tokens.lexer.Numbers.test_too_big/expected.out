@@ -1,0 +1,7 @@
+$ $PST tokens lexer.Numbers.test_too_big.pst
+exit 0
+--- stdout
+IntLit 1:1-1:21 "18446744073709551615" int 18446744073709551615
+Newline 1:21-1:21 "" -
+Eof 1:21-1:21 "" -
+--- stderr

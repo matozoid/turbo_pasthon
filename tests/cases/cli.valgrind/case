@@ -1,0 +1,1 @@
+$VALGRIND $PST build $ROOT/examples/Inventory.pst -o inventory

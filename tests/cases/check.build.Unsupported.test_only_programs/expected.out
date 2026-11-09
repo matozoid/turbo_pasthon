@@ -1,0 +1,10 @@
+$ $TOOLS/CheckDump $STD Lib.pst
+exit 0
+--- stdout
+def Lib.pst 1:6-1:9
+  unit 'Lib' @ Lib.pst:1:6
+def Lib.pst 3:17-3:20
+  function 'one' @ Lib.pst:3:17
+use Lib.pst 3:24-3:31
+  type 'Integer' @ std/System.pst:13:12
+--- stderr

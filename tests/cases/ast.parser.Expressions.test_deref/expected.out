@@ -1,0 +1,12 @@
+$ $PST ast parser.Expressions.test_deref.pst
+exit 0
+--- stdout
+File 1:1-2:16 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: Assign 2:1-2:16
+    target: Name 2:1-2:2 name="x"
+    value: FieldAccess 2:6-2:16
+      target: Deref 2:6-2:14
+        target: Name 2:12-2:13 name="p"
+      name: Ident 2:15-2:16 name="x"
+--- stderr

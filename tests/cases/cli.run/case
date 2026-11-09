@@ -1,0 +1,5 @@
+$PST run Args.pst x '-- y' --json
+$PST run Args.pst -- a 'b c'
+$PST run Exit.pst
+$PST run Exit.pst -- x
+$PST run --unchecked Bad.pst

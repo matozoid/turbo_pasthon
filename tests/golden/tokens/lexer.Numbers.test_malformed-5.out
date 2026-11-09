@@ -1,4 +1,0 @@
-IntLit 1:1-1:5 "0xZZ" int 0
-Newline 1:5-1:5 "" -
-Eof 1:5-1:5 "" -
-error E0007 1:1-1:5 "malformed number literal '0xZZ'"

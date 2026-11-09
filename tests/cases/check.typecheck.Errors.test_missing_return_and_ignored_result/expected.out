@@ -1,0 +1,25 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 5:10-5:11
+  function 'f' @ Main.pst:5:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 9:1-9:2
+  function 'f' @ Main.pst:5:10
+use Main.pst 5:15-5:22
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 5:12-5:13
+  parameter 'x' @ Main.pst:5:12
+    : Integer
+use Main.pst 5:25-5:32
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 6:8-6:9
+  parameter 'x' @ Main.pst:5:12
+Main.pst error E0501 5:10-5:11 "function 'f' doesn't return a value on every path; end it with a 'return'"
+Main.pst error E0502 9:1-9:5 "result of 'f' is ignored; use it, or discard it with '_ := ...'"
+  fix "discard the result"
+    edit 9:1-9:1 "_ := "
+--- stderr

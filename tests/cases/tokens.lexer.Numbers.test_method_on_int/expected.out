@@ -1,0 +1,9 @@
+$ $PST tokens lexer.Numbers.test_method_on_int.pst
+exit 0
+--- stdout
+IntLit 1:1-1:2 "1" int 1
+Dot 1:2-1:3 "." -
+Ident 1:3-1:6 "abs" -
+Newline 1:6-1:6 "" -
+Eof 1:6-1:6 "" -
+--- stderr

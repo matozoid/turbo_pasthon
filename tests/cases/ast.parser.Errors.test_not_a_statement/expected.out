@@ -1,0 +1,11 @@
+$ $PST ast parser.Errors.test_not_a_statement.pst
+exit 1
+--- stdout
+File 1:1-2:6 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: ExprStmt 2:1-2:6
+    expr: Binary 2:1-2:6 op="+" op_span=2:3-2:4
+      left: Name 2:1-2:2 name="a"
+      right: Name 2:5-2:6 name="b"
+error E0047 2:1-2:6 "this expression is not a statement; only calls and assignments are"
+--- stderr

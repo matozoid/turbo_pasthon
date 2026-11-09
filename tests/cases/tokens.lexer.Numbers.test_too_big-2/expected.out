@@ -1,0 +1,8 @@
+$ $PST tokens lexer.Numbers.test_too_big-2.pst
+exit 1
+--- stdout
+IntLit 1:1-1:21 "18446744073709551616" int 0
+Newline 1:21-1:21 "" -
+Eof 1:21-1:21 "" -
+error E0007 1:1-1:21 "integer literal '18446744073709551616' does not fit in 64 bits"
+--- stderr

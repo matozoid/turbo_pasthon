@@ -1,0 +1,7 @@
+$ $PST tokens lexer.Strings.test_unicode_escape.pst
+exit 0
+--- stdout
+StringLit 1:1-1:12 "\"\\u{1F600}\"" text "😀"
+Newline 1:12-1:12 "" -
+Eof 1:12-1:12 "" -
+--- stderr

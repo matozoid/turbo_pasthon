@@ -1,0 +1,3 @@
+program Main
+let x := 1
+writeln(x)

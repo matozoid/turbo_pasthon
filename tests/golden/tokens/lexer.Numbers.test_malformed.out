@@ -1,4 +1,0 @@
-IntLit 1:1-1:6 "12abc" int 0
-Newline 1:6-1:6 "" -
-Eof 1:6-1:6 "" -
-error E0007 1:1-1:6 "malformed number literal '12abc'"

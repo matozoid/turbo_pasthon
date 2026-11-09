@@ -1,4 +1,0 @@
-StringLit 1:1-1:11 "\"\\u{D800}\"" text "�"
-Newline 1:11-1:11 "" -
-Eof 1:11-1:11 "" -
-error E0005 1:2-1:10 "'\\u{D800}' is not a Unicode scalar value"

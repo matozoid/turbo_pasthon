@@ -1,0 +1,17 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def A.pst 1:6-1:7
+  unit 'A' @ A.pst:1:6
+def B.pst 1:6-1:7
+  unit 'B' @ B.pst:1:6
+use B.pst 3:6-3:7
+  unit 'A' @ A.pst:1:6
+use A.pst 3:6-3:7
+  unit 'B' @ B.pst:1:6
+use Main.pst 3:6-3:7
+  unit 'A' @ A.pst:1:6
+B.pst error E0107 3:6-3:7 "cyclic uses: A -> B -> A"
+--- stderr

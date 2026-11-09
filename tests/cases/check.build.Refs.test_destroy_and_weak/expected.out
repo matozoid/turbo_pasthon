@@ -1,0 +1,263 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:8
+  type 'Res' @ Main.pst:6:5
+def Main.pst 7:9-7:11
+  field 'id' @ Main.pst:7:9
+def Main.pst 8:9-8:12
+  field 'log' @ Main.pst:8:9
+def Main.pst 10:5-10:9
+  type 'Tree' @ Main.pst:10:5
+def Main.pst 11:9-11:13
+  field 'kids' @ Main.pst:11:9
+def Main.pst 12:9-12:15
+  field 'parent' @ Main.pst:12:9
+def Main.pst 13:9-13:13
+  field 'name' @ Main.pst:13:9
+def Main.pst 15:11-15:18
+  procedure 'destroy' @ Main.pst:15:11
+def Main.pst 20:10-20:14
+  function 'make' @ Main.pst:20:10
+def Main.pst 23:10-23:15
+  function 'alive' @ Main.pst:23:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 28:10-28:14
+  function 'make' @ Main.pst:20:10
+def Main.pst 28:5-28:6
+  let 'x' @ Main.pst:28:5
+    : ref Res
+use Main.pst 29:10-29:14
+  function 'weak' @ std/System.pst:138:21
+use Main.pst 29:15-29:16
+  let 'x' @ Main.pst:28:5
+def Main.pst 29:5-29:6
+  var 'w' @ Main.pst:29:5
+    : Weak[Res]
+use Main.pst 31:14-31:18
+  function 'make' @ Main.pst:20:10
+def Main.pst 31:9-31:10
+  let 'y' @ Main.pst:31:9
+    : ref Res
+use Main.pst 32:5-32:6
+  var 'w' @ Main.pst:29:5
+use Main.pst 32:10-32:14
+  function 'weak' @ std/System.pst:138:21
+use Main.pst 32:15-32:16
+  let 'y' @ Main.pst:31:9
+use Main.pst 33:15-33:16
+  let 'y' @ Main.pst:31:9
+def Main.pst 33:9-33:11
+  let 'y2' @ Main.pst:33:9
+    : ref Res
+use Main.pst 34:5-34:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 34:15-34:20
+  function 'alive' @ Main.pst:23:10
+use Main.pst 34:21-34:22
+  var 'w' @ Main.pst:29:5
+use Main.pst 34:26-34:28
+  let 'y2' @ Main.pst:33:9
+use Main.pst 35:1-35:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 35:11-35:16
+  function 'alive' @ Main.pst:23:10
+use Main.pst 35:17-35:18
+  var 'w' @ Main.pst:29:5
+use Main.pst 35:22-35:26
+  function 'weak' @ std/System.pst:138:21
+use Main.pst 35:27-35:28
+  let 'x' @ Main.pst:28:5
+use Main.pst 35:32-35:36
+  function 'weak' @ std/System.pst:138:21
+use Main.pst 35:37-35:38
+  let 'x' @ Main.pst:28:5
+use Main.pst 35:42-35:46
+  function 'weak' @ std/System.pst:138:21
+use Main.pst 35:47-35:48
+  let 'x' @ Main.pst:28:5
+use Main.pst 35:52-35:53
+  var 'w' @ Main.pst:29:5
+use Main.pst 36:1-36:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 36:9-36:13
+  function 'make' @ Main.pst:20:10
+use Main.pst 37:13-37:16
+  function 'new' @ std/System.pst:136:21
+use Main.pst 37:17-37:21
+  type 'Tree' @ Main.pst:10:5
+use Main.pst 37:40-37:44
+  type 'None' @ std/System.pst:22:12
+def Main.pst 37:5-37:9
+  let 'root' @ Main.pst:37:5
+    : ref Tree
+use Main.pst 38:12-38:15
+  function 'new' @ std/System.pst:136:21
+use Main.pst 38:16-38:20
+  type 'Tree' @ Main.pst:10:5
+use Main.pst 38:39-38:43
+  type 'Some' @ std/System.pst:19:12
+use Main.pst 38:44-38:48
+  function 'weak' @ std/System.pst:138:21
+use Main.pst 38:49-38:53
+  let 'root' @ Main.pst:37:5
+def Main.pst 38:5-38:8
+  let 'kid' @ Main.pst:38:5
+    : ref Tree
+use Main.pst 39:1-39:4
+  procedure 'add' @ std/System.pst:186:18
+use Main.pst 39:9-39:13
+  let 'root' @ Main.pst:37:5
+use Main.pst 39:20-39:23
+  let 'kid' @ Main.pst:38:5
+use Main.pst 40:6-40:9
+  let 'kid' @ Main.pst:38:5
+use Main.pst 41:5-41:9
+  type 'Some' @ std/System.pst:19:12
+def Main.pst 41:10-41:11
+  case binding 'p' @ Main.pst:41:10
+    : Some[Weak[Tree]]
+use Main.pst 42:14-42:17
+  function 'get' @ std/System.pst:463:17
+use Main.pst 42:18-42:19
+  case binding 'p' @ Main.pst:41:10
+use Main.pst 43:13-43:17
+  type 'Some' @ std/System.pst:19:12
+def Main.pst 43:18-43:19
+  case binding 'r' @ Main.pst:43:18
+    : Some[ref Tree]
+use Main.pst 43:22-43:29
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 43:32-43:33
+  case binding 'r' @ Main.pst:43:18
+use Main.pst 43:47-43:50
+  function 'len' @ std/System.pst:123:21
+use Main.pst 43:51-43:52
+  case binding 'r' @ Main.pst:43:18
+use Main.pst 44:19-44:26
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 45:11-45:18
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 46:1-46:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 7:13-7:20
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 8:19-8:25
+  builtin type 'String' @ built into unit System
+use Main.pst 8:14-8:18
+  builtin type 'List' @ built into unit System
+use Main.pst 11:24-11:28
+  type 'Tree' @ Main.pst:10:5
+use Main.pst 11:15-11:19
+  builtin type 'List' @ built into unit System
+use Main.pst 12:29-12:33
+  type 'Tree' @ Main.pst:10:5
+use Main.pst 12:24-12:28
+  builtin type 'Weak' @ built into unit System
+use Main.pst 12:17-12:23
+  type 'Option' @ std/System.pst:23:12
+use Main.pst 13:15-13:21
+  builtin type 'String' @ built into unit System
+use Main.pst 15:26-15:29
+  type 'Res' @ Main.pst:6:5
+def Main.pst 15:23-15:24
+  parameter 'r' @ Main.pst:15:23
+    : Res
+use Main.pst 16:5-16:6
+  parameter 'r' @ Main.pst:15:23
+use Main.pst 16:13-16:14
+  parameter 'r' @ Main.pst:15:23
+use Main.pst 17:5-17:8
+  procedure 'add' @ std/System.pst:186:18
+use Main.pst 17:13-17:14
+  parameter 'r' @ Main.pst:15:23
+use Main.pst 18:5-18:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 18:23-18:24
+  parameter 'r' @ Main.pst:15:23
+use Main.pst 18:30-18:33
+  function 'len' @ std/System.pst:123:21
+use Main.pst 18:34-18:35
+  parameter 'r' @ Main.pst:15:23
+use Main.pst 20:19-20:26
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 20:15-20:17
+  parameter 'id' @ Main.pst:20:15
+    : Integer
+use Main.pst 20:33-20:36
+  type 'Res' @ Main.pst:6:5
+use Main.pst 21:12-21:15
+  function 'new' @ std/System.pst:136:21
+use Main.pst 21:16-21:19
+  type 'Res' @ Main.pst:6:5
+use Main.pst 21:24-21:26
+  parameter 'id' @ Main.pst:20:15
+use Main.pst 23:24-23:27
+  type 'Res' @ Main.pst:6:5
+use Main.pst 23:19-23:23
+  builtin type 'Weak' @ built into unit System
+def Main.pst 23:16-23:17
+  parameter 'w' @ Main.pst:23:16
+    : Weak[Res]
+use Main.pst 23:31-23:38
+  builtin type 'Boolean' @ built into unit System
+use Main.pst 24:17-24:20
+  function 'get' @ std/System.pst:463:17
+use Main.pst 24:21-24:22
+  parameter 'w' @ Main.pst:23:16
+use Main.pst 25:9-25:13
+  type 'Some' @ std/System.pst:19:12
+use Main.pst 16:7-16:9
+  field 'id' @ Main.pst:7:9
+use Main.pst 16:15-16:17
+  field 'id' @ Main.pst:7:9
+use Main.pst 17:15-17:18
+  field 'log' @ Main.pst:8:9
+use Main.pst 18:25-18:27
+  field 'id' @ Main.pst:7:9
+use Main.pst 18:36-18:39
+  field 'log' @ Main.pst:8:9
+use Main.pst 21:20-21:22
+  field 'id' @ Main.pst:7:9
+use Main.pst 21:28-21:31
+  field 'log' @ Main.pst:8:9
+use Main.pst 26:9-26:13
+  type 'None' @ std/System.pst:22:12
+use Main.pst 34:29-34:31
+  field 'id' @ Main.pst:7:9
+use Main.pst 36:17-36:19
+  field 'id' @ Main.pst:7:9
+use Main.pst 37:22-37:26
+  field 'kids' @ Main.pst:11:9
+use Main.pst 37:32-37:38
+  field 'parent' @ Main.pst:12:9
+use Main.pst 37:46-37:50
+  field 'name' @ Main.pst:13:9
+use Main.pst 38:21-38:25
+  field 'kids' @ Main.pst:11:9
+use Main.pst 38:31-38:37
+  field 'parent' @ Main.pst:12:9
+use Main.pst 38:57-38:61
+  field 'name' @ Main.pst:13:9
+use Main.pst 39:14-39:18
+  field 'kids' @ Main.pst:11:9
+use Main.pst 40:10-40:16
+  field 'parent' @ Main.pst:12:9
+use Main.pst 42:20-42:25
+  field 'value' @ std/System.pst:20:16
+use Main.pst 43:34-43:39
+  field 'value' @ std/System.pst:20:16
+use Main.pst 43:40-43:44
+  field 'name' @ Main.pst:13:9
+use Main.pst 43:53-43:58
+  field 'value' @ std/System.pst:20:16
+use Main.pst 43:59-43:63
+  field 'kids' @ Main.pst:11:9
+use Main.pst 44:13-44:17
+  type 'None' @ std/System.pst:22:12
+use Main.pst 45:5-45:9
+  type 'None' @ std/System.pst:22:12
+--- stderr

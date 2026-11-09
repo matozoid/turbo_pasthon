@@ -1,0 +1,44 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:10
+  type 'Color' @ Main.pst:6:5
+def Main.pst 6:14-6:17
+  enum member 'Red' @ Main.pst:6:14
+def Main.pst 6:19-6:24
+  enum member 'Green' @ Main.pst:6:19
+def Main.pst 6:26-6:30
+  enum member 'Blue' @ Main.pst:6:26
+def Main.pst 8:10-8:14
+  function 'name' @ Main.pst:8:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 13:10-13:15
+  type 'Color' @ Main.pst:6:5
+def Main.pst 13:5-13:6
+  loop variable 'c' @ Main.pst:13:5
+    : Color
+use Main.pst 14:5-14:12
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 14:13-14:17
+  function 'name' @ Main.pst:8:10
+use Main.pst 14:18-14:19
+  loop variable 'c' @ Main.pst:13:5
+use Main.pst 8:18-8:23
+  type 'Color' @ Main.pst:6:5
+def Main.pst 8:15-8:16
+  parameter 'c' @ Main.pst:8:15
+    : Color
+use Main.pst 8:26-8:32
+  builtin type 'String' @ built into unit System
+use Main.pst 9:10-9:11
+  parameter 'c' @ Main.pst:8:15
+use Main.pst 10:9-10:12
+  enum member 'Red' @ Main.pst:6:14
+use Main.pst 11:9-11:14
+  enum member 'Green' @ Main.pst:6:19
+use Main.pst 11:16-11:20
+  enum member 'Blue' @ Main.pst:6:26
+--- stderr

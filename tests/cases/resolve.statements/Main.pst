@@ -1,0 +1,42 @@
+program Main
+uses IO
+type
+    Shape = Circle | Square
+    Circle = record
+        r: Integer
+    Square = record
+        s: Integer
+let s: Shape := Circle(r: 1)
+case s of
+    Circle(c):
+        writeln(c.r)
+    Square(sq):
+        writeln(1)
+    Missing(m): writeln(m)
+let n := case 3 of
+    1, 2: 10
+    3..5: 20
+    else: 0
+repeat
+    let k := n
+until k > 0
+var z := 0
+z := z + 1
+zz := 2
+defer writeln(z)
+while z < 3 do
+    z := z + 1
+if z > 1 then
+    writeln(1)
+else if z < 0 then
+    writeln(2)
+else
+    writeln(3)
+let w := if z > 1 then 1 else 2
+writeln("{w} {undefinedHere}")
+let m := {1: [2], 3: [4]}
+let st := {1, 2}
+writeln(m[1], st, -z, not true, IO.writeln, IO.nope, Strings.x)
+_ := deref(new(1))
+let xs: List[Integer] := []
+writeln(xs[0], len[Integer](xs))

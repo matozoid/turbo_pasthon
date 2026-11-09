@@ -1,0 +1,35 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 3:10-3:17
+  unit 'Strings' @ std/Strings.pst:1:6
+def Main.pst 5:5-5:6
+  var 'n' @ Main.pst:5:5
+    : Integer
+def Main.pst 6:5-6:6
+  var 'y' @ Main.pst:6:5
+    : String
+use Main.pst 7:7-7:8
+  var 'n' @ Main.pst:5:5
+use Main.pst 8:20-8:21
+  var 'n' @ Main.pst:5:5
+def Main.pst 8:9-8:10
+  let 'x' @ Main.pst:8:9
+    : String
+use Main.pst 9:5-9:6
+  var 'y' @ Main.pst:6:5
+use Main.pst 9:12-9:13
+  let 'x' @ Main.pst:8:9
+use Main.pst 10:5-10:6
+  var 'n' @ Main.pst:5:5
+use Main.pst 10:10-10:11
+  var 'n' @ Main.pst:5:5
+use Main.pst 11:1-11:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 11:9-11:10
+  var 'y' @ Main.pst:6:5
+--- stderr

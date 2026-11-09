@@ -1,0 +1,6 @@
+$PST
+$PST frob
+$PST build
+$PST build Args.pst -o
+$PST tokens Args.pst --json
+$PST ast --unchecked Args.pst

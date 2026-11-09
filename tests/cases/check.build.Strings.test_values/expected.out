@@ -1,0 +1,115 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 5:10-5:15
+  function 'greet' @ Main.pst:5:10
+def Main.pst 9:11-9:17
+  procedure 'append' @ Main.pst:9:11
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 3:10-3:17
+  unit 'Strings' @ std/Strings.pst:1:6
+def Main.pst 12:5-12:6
+  var 's' @ Main.pst:12:5
+    : String
+use Main.pst 13:10-13:11
+  var 's' @ Main.pst:12:5
+def Main.pst 13:5-13:6
+  let 't' @ Main.pst:13:5
+    : String
+use Main.pst 14:1-14:2
+  var 's' @ Main.pst:12:5
+use Main.pst 14:8-14:9
+  var 's' @ Main.pst:12:5
+use Main.pst 15:1-15:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 15:11-15:12
+  var 's' @ Main.pst:12:5
+use Main.pst 15:15-15:16
+  let 't' @ Main.pst:13:5
+use Main.pst 16:1-16:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 16:9-16:14
+  function 'greet' @ Main.pst:5:10
+use Main.pst 17:1-17:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 17:9-17:14
+  function 'greet' @ Main.pst:5:10
+def Main.pst 18:5-18:8
+  var 'acc' @ Main.pst:18:5
+    : String
+def Main.pst 19:5-19:6
+  loop variable 'i' @ Main.pst:19:5
+    : Integer
+use Main.pst 20:5-20:11
+  procedure 'append' @ Main.pst:9:11
+use Main.pst 20:16-20:19
+  var 'acc' @ Main.pst:18:5
+use Main.pst 20:27-20:35
+  function 'toString' @ std/System.pst:140:21
+use Main.pst 20:36-20:37
+  loop variable 'i' @ Main.pst:19:5
+use Main.pst 21:1-21:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 21:9-21:12
+  var 'acc' @ Main.pst:18:5
+use Main.pst 22:1-22:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 22:11-22:19
+  function 'toString' @ std/System.pst:140:21
+use Main.pst 22:27-22:35
+  function 'toString' @ std/System.pst:142:21
+use Main.pst 22:44-22:52
+  function 'toString' @ std/System.pst:143:21
+use Main.pst 22:66-22:69
+  function 'ord' @ std/System.pst:133:21
+use Main.pst 23:1-23:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 23:12-23:15
+  var 'acc' @ Main.pst:18:5
+use Main.pst 23:42-23:45
+  var 'acc' @ Main.pst:18:5
+use Main.pst 5:22-5:28
+  builtin type 'String' @ built into unit System
+def Main.pst 5:16-5:20
+  parameter 'name' @ Main.pst:5:16
+    : String
+use Main.pst 5:37-5:41
+  builtin type 'Char' @ built into unit System
+def Main.pst 5:30-5:35
+  parameter 'punct' @ Main.pst:5:30
+    : Char
+use Main.pst 5:51-5:57
+  builtin type 'String' @ built into unit System
+use Main.pst 6:23-6:27
+  parameter 'name' @ Main.pst:5:16
+use Main.pst 6:29-6:34
+  parameter 'punct' @ Main.pst:5:30
+def Main.pst 6:9-6:10
+  let 'g' @ Main.pst:6:9
+    : String
+use Main.pst 7:12-7:13
+  let 'g' @ Main.pst:6:9
+use Main.pst 9:25-9:31
+  builtin type 'String' @ built into unit System
+def Main.pst 9:22-9:23
+  parameter 's' @ Main.pst:9:22
+    : String
+use Main.pst 9:39-9:45
+  builtin type 'String' @ built into unit System
+def Main.pst 9:33-9:37
+  parameter 'tail' @ Main.pst:9:33
+    : String
+use Main.pst 10:5-10:6
+  parameter 's' @ Main.pst:9:22
+use Main.pst 10:12-10:13
+  parameter 's' @ Main.pst:9:22
+use Main.pst 10:15-10:19
+  parameter 'tail' @ Main.pst:9:33
+use Main.pst 17:20-17:25
+  parameter 'punct' @ Main.pst:5:30
+use Main.pst 20:21-20:25
+  parameter 'tail' @ Main.pst:9:33
+--- stderr

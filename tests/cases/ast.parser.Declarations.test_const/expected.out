@@ -1,0 +1,14 @@
+$ $PST ast parser.Declarations.test_const.pst
+exit 0
+--- stdout
+File 1:1-4:15 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: ConstSection 2:1-4:15
+    decls[0]: ConstDecl 3:5-3:20 exported=true
+      name: Ident 3:12-3:15 name="Max"
+      value: IntLit 3:18-3:20 value=10
+    decls[1]: ConstDecl 4:5-4:15 exported=false
+      name: Ident 4:5-4:8 name="Min"
+      value: Unary 4:11-4:15 op="-"
+        operand: Name 4:12-4:15 name="Max"
+--- stderr

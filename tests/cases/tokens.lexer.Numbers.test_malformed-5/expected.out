@@ -1,0 +1,8 @@
+$ $PST tokens lexer.Numbers.test_malformed-5.pst
+exit 1
+--- stdout
+IntLit 1:1-1:5 "0xZZ" int 0
+Newline 1:5-1:5 "" -
+Eof 1:5-1:5 "" -
+error E0007 1:1-1:5 "malformed number literal '0xZZ'"
+--- stderr

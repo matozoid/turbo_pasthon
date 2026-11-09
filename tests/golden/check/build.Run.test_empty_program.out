@@ -1,4 +1,0 @@
-def Main.pst 1:9-1:13
-  unit 'Main' @ Main.pst:1:9
-use Main.pst 3:6-3:8
-  unit 'IO' @ std/IO.pst:1:6

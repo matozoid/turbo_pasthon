@@ -1,4 +1,0 @@
-CharLit 1:1-1:5 "'ab'" char 0
-Newline 1:5-1:5 "" -
-Eof 1:5-1:5 "" -
-error E0008 1:1-1:5 "char literal must contain exactly one character, found 2"

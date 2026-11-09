@@ -1,0 +1,362 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:10
+  type 'Color' @ Main.pst:6:5
+def Main.pst 6:14-6:17
+  enum member 'Red' @ Main.pst:6:14
+def Main.pst 6:19-6:24
+  enum member 'Green' @ Main.pst:6:19
+def Main.pst 6:26-6:30
+  enum member 'Blue' @ Main.pst:6:26
+def Main.pst 7:5-7:10
+  type 'Point' @ Main.pst:7:5
+def Main.pst 8:9-8:10
+  field 'x' @ Main.pst:8:9
+def Main.pst 9:9-9:10
+  field 'y' @ Main.pst:9:9
+def Main.pst 10:9-10:14
+  field 'label' @ Main.pst:10:9
+def Main.pst 11:5-11:11
+  type 'Circle' @ Main.pst:11:5
+def Main.pst 12:9-12:10
+  field 'r' @ Main.pst:12:9
+def Main.pst 13:5-13:9
+  type 'Rect' @ Main.pst:13:5
+def Main.pst 14:9-14:10
+  field 'w' @ Main.pst:14:9
+def Main.pst 15:9-15:10
+  field 'h' @ Main.pst:15:9
+def Main.pst 16:5-16:10
+  type 'Shape' @ Main.pst:16:5
+def Main.pst 18:10-18:14
+  function 'area' @ Main.pst:18:10
+def Main.pst 23:11-23:15
+  procedure 'move' @ Main.pst:23:11
+def Main.pst 26:11-26:15
+  procedure 'bump' @ Main.pst:26:11
+def Main.pst 29:10-29:14
+  function 'find' @ Main.pst:29:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 34:10-34:15
+  type 'Point' @ Main.pst:7:5
+def Main.pst 34:5-34:6
+  var 'p' @ Main.pst:34:5
+    : Point
+use Main.pst 35:10-35:11
+  var 'p' @ Main.pst:34:5
+def Main.pst 35:5-35:6
+  let 'q' @ Main.pst:35:5
+    : Point
+use Main.pst 36:1-36:5
+  procedure 'move' @ Main.pst:23:11
+use Main.pst 36:10-36:11
+  var 'p' @ Main.pst:34:5
+use Main.pst 37:1-37:2
+  var 'p' @ Main.pst:34:5
+use Main.pst 38:1-38:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 38:11-38:12
+  var 'p' @ Main.pst:34:5
+use Main.pst 38:17-38:18
+  var 'p' @ Main.pst:34:5
+use Main.pst 38:23-38:24
+  var 'p' @ Main.pst:34:5
+use Main.pst 38:35-38:36
+  let 'q' @ Main.pst:35:5
+use Main.pst 38:41-38:42
+  let 'q' @ Main.pst:35:5
+use Main.pst 39:1-39:5
+  procedure 'bump' @ Main.pst:26:11
+use Main.pst 39:10-39:11
+  var 'p' @ Main.pst:34:5
+use Main.pst 40:1-40:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 40:9-40:10
+  var 'p' @ Main.pst:34:5
+use Main.pst 41:1-41:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 41:9-41:10
+  var 'p' @ Main.pst:34:5
+use Main.pst 41:13-41:14
+  let 'q' @ Main.pst:35:5
+use Main.pst 42:1-42:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 42:9-42:14
+  type 'Point' @ Main.pst:7:5
+use Main.pst 42:29-42:30
+  let 'q' @ Main.pst:35:5
+use Main.pst 43:10-43:15
+  type 'Color' @ Main.pst:6:5
+use Main.pst 43:16-43:21
+  enum member 'Green' @ Main.pst:6:19
+def Main.pst 43:5-43:6
+  let 'c' @ Main.pst:43:5
+    : Color
+use Main.pst 44:1-44:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 44:11-44:12
+  let 'c' @ Main.pst:43:5
+use Main.pst 44:15-44:18
+  function 'ord' @ std/System.pst:133:21
+use Main.pst 44:19-44:20
+  let 'c' @ Main.pst:43:5
+use Main.pst 44:24-44:29
+  type 'Color' @ Main.pst:6:5
+use Main.pst 44:30-44:34
+  enum member 'Blue' @ Main.pst:6:26
+use Main.pst 45:10-45:15
+  type 'Color' @ Main.pst:6:5
+use Main.pst 45:16-45:19
+  enum member 'Red' @ Main.pst:6:14
+use Main.pst 45:23-45:28
+  type 'Color' @ Main.pst:6:5
+use Main.pst 45:29-45:33
+  enum member 'Blue' @ Main.pst:6:26
+def Main.pst 45:5-45:6
+  loop variable 'k' @ Main.pst:45:5
+    : Color
+use Main.pst 46:5-46:10
+  procedure 'write' @ std/IO.pst:14:22
+use Main.pst 46:13-46:14
+  loop variable 'k' @ Main.pst:45:5
+use Main.pst 47:1-47:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 48:6-48:7
+  let 'c' @ Main.pst:43:5
+use Main.pst 49:10-49:17
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 50:18-50:25
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 51:13-51:18
+  type 'Shape' @ Main.pst:16:5
+use Main.pst 51:22-51:28
+  type 'Circle' @ Main.pst:11:5
+def Main.pst 51:5-51:11
+  var 'shapes' @ Main.pst:51:5
+    : Shape
+use Main.pst 52:1-52:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 52:9-52:13
+  function 'area' @ Main.pst:18:10
+use Main.pst 52:14-52:20
+  var 'shapes' @ Main.pst:51:5
+use Main.pst 53:1-53:7
+  var 'shapes' @ Main.pst:51:5
+use Main.pst 53:11-53:15
+  type 'Rect' @ Main.pst:13:5
+use Main.pst 54:1-54:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 54:9-54:13
+  function 'area' @ Main.pst:18:10
+use Main.pst 54:14-54:20
+  var 'shapes' @ Main.pst:51:5
+use Main.pst 55:1-55:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 55:9-55:13
+  function 'area' @ Main.pst:18:10
+use Main.pst 55:14-55:20
+  type 'Circle' @ Main.pst:11:5
+use Main.pst 56:6-56:10
+  function 'find' @ Main.pst:29:10
+use Main.pst 57:5-57:9
+  type 'Some' @ std/System.pst:19:12
+def Main.pst 57:10-57:11
+  case binding 'v' @ Main.pst:57:10
+    : Some[Integer]
+use Main.pst 57:14-57:21
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 57:29-57:30
+  case binding 'v' @ Main.pst:57:10
+use Main.pst 58:11-58:18
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 59:6-59:10
+  function 'find' @ Main.pst:29:10
+use Main.pst 60:5-60:9
+  type 'Some' @ std/System.pst:19:12
+def Main.pst 60:10-60:11
+  case binding 'v' @ Main.pst:60:10
+    : Some[Integer]
+use Main.pst 60:14-60:21
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 60:29-60:30
+  case binding 'v' @ Main.pst:60:10
+use Main.pst 61:11-61:18
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 62:15-62:22
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 62:8-62:14
+  type 'Option' @ std/System.pst:23:12
+use Main.pst 62:27-62:31
+  type 'Some' @ std/System.pst:19:12
+def Main.pst 62:5-62:6
+  let 'o' @ Main.pst:62:5
+    : Option[Integer]
+use Main.pst 63:1-63:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 63:9-63:10
+  let 'o' @ Main.pst:62:5
+use Main.pst 63:13-63:17
+  type 'Some' @ std/System.pst:19:12
+use Main.pst 64:1-64:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 64:9-64:10
+  let 'o' @ Main.pst:62:5
+use Main.pst 64:13-64:17
+  type 'None' @ std/System.pst:22:12
+def Main.pst 65:5-65:10
+  let 'label' @ Main.pst:65:5
+    : String
+use Main.pst 68:1-68:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 68:9-68:14
+  let 'label' @ Main.pst:65:5
+use Main.pst 8:12-8:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 9:12-9:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 10:16-10:22
+  builtin type 'String' @ built into unit System
+use Main.pst 12:12-12:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 14:12-14:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 15:12-15:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 16:13-16:19
+  type 'Circle' @ Main.pst:11:5
+use Main.pst 16:22-16:26
+  type 'Rect' @ Main.pst:13:5
+use Main.pst 18:18-18:23
+  type 'Shape' @ Main.pst:16:5
+def Main.pst 18:15-18:16
+  parameter 's' @ Main.pst:18:15
+    : Shape
+use Main.pst 18:26-18:33
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 19:17-19:18
+  parameter 's' @ Main.pst:18:15
+use Main.pst 20:9-20:15
+  type 'Circle' @ Main.pst:11:5
+def Main.pst 20:16-20:17
+  case binding 'c' @ Main.pst:20:16
+    : Circle
+use Main.pst 20:24-20:25
+  case binding 'c' @ Main.pst:20:16
+use Main.pst 20:30-20:31
+  case binding 'c' @ Main.pst:20:16
+use Main.pst 21:9-21:13
+  type 'Rect' @ Main.pst:13:5
+def Main.pst 21:14-21:15
+  case binding 'r' @ Main.pst:21:14
+    : Rect
+use Main.pst 21:18-21:19
+  case binding 'r' @ Main.pst:21:14
+use Main.pst 21:24-21:25
+  case binding 'r' @ Main.pst:21:14
+use Main.pst 23:23-23:28
+  type 'Point' @ Main.pst:7:5
+def Main.pst 23:20-23:21
+  parameter 'p' @ Main.pst:23:20
+    : Point
+use Main.pst 23:34-23:41
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 23:30-23:32
+  parameter 'dx' @ Main.pst:23:30
+    : Integer
+use Main.pst 24:5-24:6
+  parameter 'p' @ Main.pst:23:20
+use Main.pst 24:12-24:13
+  parameter 'p' @ Main.pst:23:20
+use Main.pst 24:18-24:20
+  parameter 'dx' @ Main.pst:23:30
+use Main.pst 26:23-26:30
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 26:20-26:21
+  parameter 'n' @ Main.pst:26:20
+    : Integer
+use Main.pst 27:5-27:6
+  parameter 'n' @ Main.pst:26:20
+use Main.pst 27:10-27:11
+  parameter 'n' @ Main.pst:26:20
+use Main.pst 29:18-29:25
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 29:15-29:16
+  parameter 'n' @ Main.pst:29:15
+    : Integer
+use Main.pst 29:35-29:42
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 29:28-29:34
+  type 'Option' @ std/System.pst:23:12
+use Main.pst 30:8-30:9
+  parameter 'n' @ Main.pst:29:15
+use Main.pst 31:16-31:20
+  type 'Some' @ std/System.pst:19:12
+use Main.pst 31:21-31:22
+  parameter 'n' @ Main.pst:29:15
+use Main.pst 32:12-32:16
+  type 'None' @ std/System.pst:22:12
+use Main.pst 20:26-20:27
+  field 'r' @ Main.pst:12:9
+use Main.pst 20:32-20:33
+  field 'r' @ Main.pst:12:9
+use Main.pst 21:20-21:21
+  field 'w' @ Main.pst:14:9
+use Main.pst 21:26-21:27
+  field 'h' @ Main.pst:15:9
+use Main.pst 24:7-24:8
+  field 'x' @ Main.pst:8:9
+use Main.pst 24:14-24:15
+  field 'x' @ Main.pst:8:9
+use Main.pst 34:16-34:17
+  field 'x' @ Main.pst:8:9
+use Main.pst 34:22-34:23
+  field 'y' @ Main.pst:9:9
+use Main.pst 36:13-36:15
+  parameter 'dx' @ Main.pst:23:30
+use Main.pst 37:3-37:8
+  field 'label' @ Main.pst:10:9
+use Main.pst 38:13-38:14
+  field 'x' @ Main.pst:8:9
+use Main.pst 38:19-38:20
+  field 'y' @ Main.pst:9:9
+use Main.pst 38:25-38:30
+  field 'label' @ Main.pst:10:9
+use Main.pst 38:37-38:38
+  field 'x' @ Main.pst:8:9
+use Main.pst 38:43-38:48
+  field 'label' @ Main.pst:10:9
+use Main.pst 39:12-39:13
+  field 'y' @ Main.pst:9:9
+use Main.pst 40:11-40:12
+  field 'y' @ Main.pst:9:9
+use Main.pst 42:15-42:16
+  field 'x' @ Main.pst:8:9
+use Main.pst 42:21-42:22
+  field 'y' @ Main.pst:9:9
+use Main.pst 49:5-49:8
+  enum member 'Red' @ Main.pst:6:14
+use Main.pst 50:5-50:10
+  enum member 'Green' @ Main.pst:6:19
+use Main.pst 50:12-50:16
+  enum member 'Blue' @ Main.pst:6:26
+use Main.pst 51:29-51:30
+  field 'r' @ Main.pst:12:9
+use Main.pst 53:16-53:17
+  field 'w' @ Main.pst:14:9
+use Main.pst 53:22-53:23
+  field 'h' @ Main.pst:15:9
+use Main.pst 55:21-55:22
+  field 'r' @ Main.pst:12:9
+use Main.pst 57:31-57:36
+  field 'value' @ std/System.pst:20:16
+use Main.pst 58:5-58:9
+  type 'None' @ std/System.pst:22:12
+use Main.pst 60:31-60:36
+  field 'value' @ std/System.pst:20:16
+use Main.pst 61:5-61:9
+  type 'None' @ std/System.pst:22:12
+--- stderr

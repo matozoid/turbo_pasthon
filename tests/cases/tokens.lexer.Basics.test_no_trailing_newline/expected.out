@@ -1,0 +1,7 @@
+$ $PST tokens lexer.Basics.test_no_trailing_newline.pst
+exit 0
+--- stdout
+Ident 1:1-1:2 "x" -
+Newline 1:2-1:2 "" -
+Eof 1:2-1:2 "" -
+--- stderr

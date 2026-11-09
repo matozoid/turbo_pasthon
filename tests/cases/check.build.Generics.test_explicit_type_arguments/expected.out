@@ -1,0 +1,26 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 5:10-5:17
+  function 'nothing' @ Main.pst:5:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 8:1-8:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 8:9-8:16
+  function 'nothing' @ Main.pst:5:10
+use Main.pst 8:17-8:24
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 8:30-8:34
+  type 'None' @ std/System.pst:22:12
+def Main.pst 5:18-5:19
+  type parameter 'T' @ Main.pst:5:18
+use Main.pst 5:31-5:32
+  type parameter 'T' @ Main.pst:5:18
+use Main.pst 5:24-5:30
+  type 'Option' @ std/System.pst:23:12
+use Main.pst 6:12-6:16
+  type 'None' @ std/System.pst:22:12
+--- stderr

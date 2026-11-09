@@ -1,0 +1,9 @@
+$ $PST tokens lexer.Basics.test_crlf_and_bom.pst
+exit 0
+--- stdout
+Ident 1:1-1:2 "a" -
+Newline 1:2-2:1 "\n" -
+Ident 2:1-2:2 "b" -
+Newline 2:2-3:1 "\n" -
+Eof 3:1-3:1 "" -
+--- stderr

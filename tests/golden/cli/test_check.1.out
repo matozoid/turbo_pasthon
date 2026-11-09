@@ -1,4 +1,0 @@
-$ pst check Args.pst
-exit 0
---- stdout
---- stderr

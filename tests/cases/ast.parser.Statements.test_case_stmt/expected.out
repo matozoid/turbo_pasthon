@@ -1,0 +1,31 @@
+$ $PST ast parser.Statements.test_case_stmt.pst
+exit 0
+--- stdout
+File 1:1-6:14 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: Case 2:1-6:14
+    subject: Name 2:6-2:7 name="s"
+    arms[0]: CaseArm 3:5-3:20
+      labels[0]: VariantLabel 3:5-3:14
+        variant: TypeName 3:5-3:11 parts=["Circle"] part_spans=[3:5-3:11]
+        binding: Ident 3:12-3:13 name="c"
+      body: ExprStmt 3:16-3:20
+        expr: Call 3:16-3:20
+          callee: Name 3:16-3:17 name="f"
+          args[0]: Arg 3:18-3:19 is_var=false
+            value: Name 3:18-3:19 name="c"
+    arms[1]: CaseArm 4:5-5:12
+      labels[0]: ValueLabel 4:5-4:10
+        value: Name 4:5-4:10 name="Empty"
+      labels[1]: VariantLabel 4:12-4:21
+        variant: TypeName 4:12-4:18 parts=["Square"] part_spans=[4:12-4:18]
+        binding: Ident 4:19-4:20 name="_"
+      body: Block 5:9-5:12
+        stmts[0]: ExprStmt 5:9-5:12
+          expr: Call 5:9-5:12
+            callee: Name 5:9-5:10 name="g"
+    arms[2]: CaseArm 6:5-6:14
+      body: ExprStmt 6:11-6:14
+        expr: Call 6:11-6:14
+          callee: Name 6:11-6:12 name="h"
+--- stderr

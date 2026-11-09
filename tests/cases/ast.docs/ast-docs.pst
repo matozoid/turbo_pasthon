@@ -1,0 +1,15 @@
+program P
+## Orphan.
+
+## The type.
+type
+    ## T doc.
+    T = Integer
+## The const.
+const
+    ## C doc.
+    C = 1  ## not a doc
+##No space.
+##  Two spaces.
+function f(): Integer
+    return 1

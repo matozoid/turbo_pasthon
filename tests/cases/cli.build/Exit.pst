@@ -1,0 +1,7 @@
+program Exit
+uses IO, OS
+writeln(len(args()))
+let xs: List[Integer] := []
+if len(args()) > 0 then
+    writeln(xs[0])
+exit(3)

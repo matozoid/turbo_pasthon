@@ -1,0 +1,7 @@
+$ $PST tokens lexer.Numbers.test_reals-3.pst
+exit 0
+--- stdout
+RealLit 1:1-1:7 "2.0E-2" real 2.0E-2
+Newline 1:7-1:7 "" -
+Eof 1:7-1:7 "" -
+--- stderr

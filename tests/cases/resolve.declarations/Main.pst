@@ -1,0 +1,32 @@
+program Main
+type
+    E = (A, B, A)
+    R = record
+        x: Integer
+        x: String
+    E = Integer
+    T[X, X] = List[X]
+    Tr = trait
+        f: Integer
+        procedure go(this)
+        function me(): This
+    Bad = This
+const
+    C = 1
+    C = 2
+function C(): Integer
+    return 1
+function g(): Integer
+    return 1
+function g(x: Integer): Integer
+    return x
+extern "pst"
+    function h(): Integer
+let e := E.C
+let e2 := E.B
+let e3 := E.Aa
+writeln(e, e2, e3)
+procedure use[T: Tr](t: T)
+    go(t)
+    writeln(this)
+    let q: This := t

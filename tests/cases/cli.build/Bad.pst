@@ -1,0 +1,8 @@
+program Bad
+uses IO
+function f(): Integer
+    return 1
+f()
+writeln(naïve)
+writeln(x𝄞)
+let s := 1   

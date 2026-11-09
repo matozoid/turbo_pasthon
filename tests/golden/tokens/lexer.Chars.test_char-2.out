@@ -1,3 +1,0 @@
-CharLit 1:1-1:5 "'\\n'" char 10
-Newline 1:5-1:5 "" -
-Eof 1:5-1:5 "" -

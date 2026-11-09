@@ -1,0 +1,8 @@
+$ $PST tokens lexer.Numbers.test_malformed-4.pst
+exit 1
+--- stdout
+IntLit 1:1-1:3 "1_" int 0
+Newline 1:3-1:3 "" -
+Eof 1:3-1:3 "" -
+error E0007 1:1-1:3 "malformed number literal '1_'; '_' may only appear between two digits"
+--- stderr

@@ -1,0 +1,3 @@
+mkdir s1 s2 && ln -s $STD s1/units && ln -s $STD s2/units
+$PST build $ROOT/compiler/Pst.pst -o s1/pst && cmp $PST s1/pst && echo same
+s1/pst build $ROOT/compiler/Pst.pst -o s2/pst && cmp s1/pst s2/pst && echo same

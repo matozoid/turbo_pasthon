@@ -1,6 +1,0 @@
-$ pst test Shop.pst --filter double
-exit 0
---- stdout
-ok   Shop.pst:5: double doubles
-1 passed, 0 failed
---- stderr

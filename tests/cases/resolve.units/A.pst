@@ -1,0 +1,14 @@
+unit A
+uses B
+type
+    export Kind = (One, Two)
+const
+    export Shared = 1
+export function shared(): Integer
+    return 1
+export function onlyA(): Integer
+    return 2
+function hidden(): Integer
+    return 3
+export function common(): Integer
+    return 1

@@ -1,0 +1,68 @@
+$ $PST ast ast-externs.pst
+exit 1
+--- stdout
+File 1:1-19:11 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: ExternBlock 2:1-14:36 library="libc.so.6"
+    decls[0]: ExternDecl 4:5-4:85 exported=true symbol="write" doc="Writes."
+      sig: Signature 4:12-4:74 is_function=true
+        name: Ident 4:21-4:26 name="write"
+        params[0]: Param 4:27-4:38 is_var=false is_this=false is_varargs=false
+          names[0]: Ident 4:27-4:29 name="fd"
+          type: TypeName 4:31-4:38 parts=["Integer"] part_spans=[4:31-4:38]
+        params[1]: Param 4:40-4:52 is_var=false is_this=false is_varargs=false
+          names[0]: Ident 4:40-4:43 name="buf"
+          type: TypeName 4:45-4:52 parts=["Pointer"] part_spans=[4:45-4:52]
+        params[2]: Param 4:54-4:64 is_var=false is_this=false is_varargs=false
+          names[0]: Ident 4:54-4:55 name="n"
+          type: TypeName 4:57-4:64 parts=["Integer"] part_spans=[4:57-4:64]
+        result: TypeName 4:67-4:74 parts=["Integer"] part_spans=[4:67-4:74]
+    decls[1]: ExternDecl 5:5-5:34 exported=false
+      sig: Signature 5:5-5:34 is_function=false
+        name: Ident 5:15-5:19 name="exit"
+        params[0]: Param 5:20-5:33 is_var=false is_this=false is_varargs=false
+          names[0]: Ident 5:20-5:24 name="code"
+          type: TypeName 5:26-5:33 parts=["Integer"] part_spans=[5:26-5:33]
+    decls[2]: TypeSection 7:5-13:19
+      decls[0]: TypeDecl 8:9-10:30 exported=false
+        name: Ident 8:9-8:11 name="Tm"
+        body: RecordType 8:14-10:30 c=true
+          fields[0]: FieldDecl 9:13-9:25 exported=true
+            name: Ident 9:13-9:16 name="sec"
+            type: TypeName 9:18-9:25 parts=["Integer"] part_spans=[9:18-9:25]
+          fields[1]: FieldDecl 10:13-10:30 exported=true
+            name: Ident 10:13-10:16 name="min"
+            type: TypeName 10:18-10:25 parts=["Integer"] part_spans=[10:18-10:25]
+            default: IntLit 10:29-10:30 value=3
+      decls[1]: TypeDecl 11:9-12:17 exported=false
+        name: Ident 11:9-11:10 name="G"
+        params[0]: TypeParam 11:11-11:12
+          name: Ident 11:11-11:12 name="T"
+        body: RecordType 11:16-12:17 c=true
+          fields[0]: FieldDecl 12:13-12:17 exported=true
+            name: Ident 12:13-12:14 name="a"
+            type: TypeName 12:16-12:17 parts=["T"] part_spans=[12:16-12:17]
+      decls[2]: TypeDecl 13:9-13:19 exported=false
+        name: Ident 13:9-13:10 name="E"
+        body: EnumType 13:13-13:19
+          members[0]: Ident 13:14-13:15 name="A"
+          members[1]: Ident 13:17-13:18 name="B"
+    decls[3]: ExternDecl 14:5-14:36 exported=false symbol=""
+      sig: Signature 14:5-14:26 is_function=true
+        name: Ident 14:14-14:15 name="f"
+        result: TypeName 14:19-14:26 parts=["Integer"] part_spans=[14:19-14:26]
+  items[1]: ExternBlock 15:1-16:18 library=""
+    decls[0]: ExternDecl 16:5-16:18 exported=false
+      sig: Signature 16:5-16:18 is_function=false
+        name: Ident 16:15-16:16 name="g"
+  items[2]: ErrorStmt 17:1-18:18
+  items[3]: ExternBlock 19:1-19:11 library="c"
+error E0040 6:5-6:6 "expected 'function' or 'procedure', found identifier 'x'"
+error E0903 10:29-10:30 "a C record field can't have a default"
+error E0903 11:11-11:12 "a C record can't be generic"
+error E0903 13:9-13:10 "only records can be declared in an extern block"
+error E0040 14:30-14:36 "C symbol name may not contain placeholders; write '\\{'"
+error E0040 15:8-15:13 "library name may not contain placeholders; write '\\{'"
+error E0040 17:7-18:1 "expected library name (a string), found end of line"
+error E0042 20:1-20:1 "expected an indented list of extern declarations"
+--- stderr

@@ -1,5 +1,0 @@
-File 1:1-2:11 kind="program"
-  name: Ident 1:9-1:10 name="P"
-  items[0]: Assign 2:1-2:11
-    target: Name 2:1-2:2 name="x"
-    value: BoolLit 2:6-2:11 value=false

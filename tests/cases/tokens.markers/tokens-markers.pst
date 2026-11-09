@@ -1,0 +1,11 @@
+function f()
+    return 1
+# end function f
+record
+# end record
+# end if  
+# end while x
+# end functionx
+# end trait T extra
+# endif
+    # end for

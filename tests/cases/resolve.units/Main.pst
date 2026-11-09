@@ -1,0 +1,11 @@
+program Main
+uses IO, A, B, A, Main, Missing, Prog, Missing, Alias, Bad, Raw
+writeln(shared, Shared)
+writeln(onlyA)
+writeln(A.hidden)
+writeln(A.Kind.One)
+writeln(A.Kind.Three)
+writeln(fromB(), common())
+let k: A.Kind := A.Kind.Two
+let j: A.Nope := k
+writeln(j)

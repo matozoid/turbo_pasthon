@@ -1,0 +1,6 @@
+$ $PST tokens lexer.Layout.test_marker_lookalikes_are_comments-4.pst
+exit 0
+--- stdout
+Eof 2:1-2:1 "" -
+comment 1:1-1:8 "#end if" false
+--- stderr

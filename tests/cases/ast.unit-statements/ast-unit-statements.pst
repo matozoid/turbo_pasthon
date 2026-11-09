@@ -1,0 +1,4 @@
+unit U
+x := 1
+function f(): Integer
+    return 1

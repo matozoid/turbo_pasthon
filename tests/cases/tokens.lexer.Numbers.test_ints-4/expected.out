@@ -1,0 +1,7 @@
+$ $PST tokens lexer.Numbers.test_ints-4.pst
+exit 0
+--- stdout
+IntLit 1:1-1:5 "0o17" int 15
+Newline 1:5-1:5 "" -
+Eof 1:5-1:5 "" -
+--- stderr

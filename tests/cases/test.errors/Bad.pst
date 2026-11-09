@@ -1,0 +1,4 @@
+unit Bad
+
+test "t"
+    assert 1

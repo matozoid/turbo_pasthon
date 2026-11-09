@@ -1,4 +1,0 @@
-StringLit 1:1-1:5 "\"\\q\"" text "q"
-Newline 1:5-1:5 "" -
-Eof 1:5-1:5 "" -
-error E0005 1:2-1:4 "invalid escape sequence '\\q'"

@@ -1,0 +1,2 @@
+uses IO
+writeln(1)

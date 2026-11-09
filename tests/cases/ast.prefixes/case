@@ -1,0 +1,1 @@
+n=$(wc -c < $ROOT/examples/Inventory.pst); i=0; while [ $i -lt $n ]; do head -c $i $ROOT/examples/Inventory.pst > p.pst; $PST ast p.pst > /dev/null; s=$?; [ $s -le 1 ] || echo "prefix $i: status $s"; i=$((i + 7)); done

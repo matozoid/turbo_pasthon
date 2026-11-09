@@ -1,0 +1,4 @@
+program Args
+uses IO, OS
+for a in args() do
+    writeln(a)

@@ -1,0 +1,4 @@
+$PST tokens Args.pst > /dev/null
+$PST tokens missing.pst
+$PST ast Args.pst > /dev/null
+$PST ast missing.pst

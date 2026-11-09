@@ -1,0 +1,41 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:10
+  type 'Color' @ Main.pst:6:5
+def Main.pst 6:14-6:17
+  enum member 'Red' @ Main.pst:6:14
+def Main.pst 6:19-6:24
+  enum member 'Green' @ Main.pst:6:19
+def Main.pst 6:26-6:30
+  enum member 'Blue' @ Main.pst:6:26
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 8:10-8:15
+  type 'Color' @ Main.pst:6:5
+use Main.pst 8:16-8:19
+  enum member 'Red' @ Main.pst:6:14
+def Main.pst 8:5-8:6
+  let 'c' @ Main.pst:8:5
+    : Color
+use Main.pst 9:6-9:7
+  let 'c' @ Main.pst:8:5
+use Main.pst 10:10-10:17
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 11:10-11:17
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 13:11-13:18
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 14:8-14:15
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 10:5-10:8
+  enum member 'Red' @ Main.pst:6:14
+use Main.pst 11:5-11:8
+  enum member 'Red' @ Main.pst:6:14
+Main.pst error E0602 9:1-11:20 "'case' doesn't cover Green, Blue; add arms for them, or 'else'"
+Main.pst error E0601 11:5-11:8 "'Red' is already covered by an earlier label"
+Main.pst error E0602 12:1-14:18 "'case' over Integer needs an 'else' arm"
+Main.pst error E0601 14:5-14:6 "this label overlaps an earlier one"
+--- stderr

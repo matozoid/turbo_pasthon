@@ -1,0 +1,17 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 5:8-5:12
+  builtin type 'Int8' @ built into unit System
+def Main.pst 5:5-5:6
+  var 'a' @ Main.pst:5:5
+    : Int8
+use Main.pst 6:1-6:4
+  procedure 'inc' @ std/System.pst:127:22
+use Main.pst 6:9-6:10
+  var 'a' @ Main.pst:5:5
+--- stderr

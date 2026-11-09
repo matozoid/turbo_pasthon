@@ -1,10 +1,11 @@
 program CheckDump
 
 ## Prints the symbol index, the types of local variables, and the diagnostics of
-## type-checking a program or unit in a canonical form, which tests/test_port.py
-## compares with golden files.
+## type-checking a program or unit in a canonical form, which the cases in tests/cases
+## compare.
 ##
-## Usage: `CheckDump STD_DIR FILE`.
+## Usage: `CheckDump STD_DIR FILE`. The index leaves out the references in the standard
+## units, unless FILE is one of them.
 
 uses IO, OS, Strings, Source, Diagnostics, Symbols, Resolve, Types, Typecheck
 
@@ -35,7 +36,11 @@ let r := checked.resolved
 var symTypes: Map[Integer, Type] := {}
 if checked.env.isSome() then
     symTypes := checked.env.get().symTypes
+let std := "{a[0]}/"
+let ownStd := startsWith(a[1], prefix: std)
 for x in r.checker.index.refs do
+    if not ownStd and startsWith(x.file, prefix: std) then
+        continue
     var what := "use"
     if x.isDef then
         what := "def"

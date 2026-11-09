@@ -1,0 +1,5 @@
+$PST check Args.pst
+$PST check Lib.pst --json
+$PST check Bad.pst
+$PST check --json Bad.pst
+$PST check missing.pst --json

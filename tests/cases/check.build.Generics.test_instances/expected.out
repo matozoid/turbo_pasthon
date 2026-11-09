@@ -1,0 +1,633 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:11
+  type 'Circle' @ Main.pst:6:5
+def Main.pst 7:9-7:10
+  field 'r' @ Main.pst:7:9
+def Main.pst 8:5-8:11
+  type 'Square' @ Main.pst:8:5
+def Main.pst 9:9-9:13
+  field 'side' @ Main.pst:9:9
+def Main.pst 10:5-10:9
+  type 'Pair' @ Main.pst:10:5
+def Main.pst 11:9-11:14
+  field 'first' @ Main.pst:11:9
+def Main.pst 12:9-12:15
+  field 'second' @ Main.pst:12:9
+def Main.pst 13:5-13:9
+  type 'Tree' @ Main.pst:13:5
+def Main.pst 14:5-14:9
+  type 'Leaf' @ Main.pst:14:5
+def Main.pst 15:5-15:9
+  type 'Node' @ Main.pst:15:5
+def Main.pst 16:9-16:13
+  field 'left' @ Main.pst:16:9
+def Main.pst 17:9-17:14
+  field 'value' @ Main.pst:17:9
+def Main.pst 18:9-18:14
+  field 'right' @ Main.pst:18:9
+def Main.pst 20:10-20:14
+  function 'area' @ Main.pst:20:10
+def Main.pst 23:10-23:14
+  function 'area' @ Main.pst:23:10
+def Main.pst 26:10-26:17
+  function 'biggest' @ Main.pst:26:10
+def Main.pst 29:10-29:17
+  function 'swapped' @ Main.pst:29:10
+def Main.pst 32:10-32:15
+  function 'first' @ Main.pst:32:10
+def Main.pst 37:10-37:16
+  function 'insert' @ Main.pst:37:10
+def Main.pst 45:10-45:14
+  function 'show' @ Main.pst:45:10
+def Main.pst 50:11-50:15
+  procedure 'swap' @ Main.pst:50:11
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+def Geo.pst 1:6-1:9
+  unit 'Geo' @ Geo.pst:1:6
+def Geo.pst 6:12-6:22
+  trait 'Measurable' @ Geo.pst:6:12
+def Geo.pst 7:18-7:22
+  function 'area' @ Geo.pst:7:18
+def Geo.pst 9:17-9:22
+  function 'total' @ Geo.pst:9:17
+def Geo.pst 12:17-12:25
+  function 'describe' @ Geo.pst:12:17
+def Geo.pst 15:10-15:15
+  function 'twice' @ Geo.pst:15:10
+def Geo.pst 18:10-18:16
+  function 'double' @ Geo.pst:18:10
+use Geo.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 3:10-3:13
+  unit 'Geo' @ Geo.pst:1:6
+use Main.pst 55:1-55:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 55:9-55:16
+  function 'biggest' @ Main.pst:26:10
+use Main.pst 56:1-56:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 56:9-56:16
+  function 'biggest' @ Main.pst:26:10
+use Main.pst 57:1-57:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 57:9-57:16
+  function 'biggest' @ Main.pst:26:10
+use Main.pst 58:10-58:17
+  function 'swapped' @ Main.pst:29:10
+use Main.pst 58:18-58:22
+  type 'Pair' @ Main.pst:10:5
+def Main.pst 58:5-58:6
+  let 'p' @ Main.pst:58:5
+    : Pair[String, Integer]
+use Main.pst 59:1-59:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 59:11-59:12
+  let 'p' @ Main.pst:58:5
+use Main.pst 59:21-59:22
+  let 'p' @ Main.pst:58:5
+use Main.pst 60:1-60:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 60:9-60:14
+  function 'first' @ Main.pst:32:10
+use Main.pst 60:15-60:19
+  type 'Some' @ std/System.pst:19:12
+use Main.pst 61:1-61:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 61:9-61:14
+  function 'first' @ Main.pst:32:10
+use Main.pst 61:15-61:21
+  unit 'System' @ std/System.pst:1:6
+use Main.pst 61:22-61:26
+  type 'None' @ std/System.pst:22:12
+use Main.pst 62:13-62:20
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 62:8-62:12
+  type 'Tree' @ Main.pst:13:5
+use Main.pst 62:25-62:29
+  type 'Leaf' @ Main.pst:14:5
+def Main.pst 62:5-62:6
+  var 't' @ Main.pst:62:5
+    : Tree[Integer]
+def Main.pst 63:5-63:6
+  var 'k' @ Main.pst:63:5
+    : Integer
+def Main.pst 64:5-64:6
+  loop variable 'i' @ Main.pst:64:5
+    : Integer
+use Main.pst 65:5-65:6
+  var 'k' @ Main.pst:63:5
+use Main.pst 65:10-65:11
+  var 'k' @ Main.pst:63:5
+use Main.pst 66:5-66:6
+  var 't' @ Main.pst:62:5
+use Main.pst 66:10-66:16
+  function 'insert' @ Main.pst:37:10
+use Main.pst 66:17-66:18
+  var 't' @ Main.pst:62:5
+use Main.pst 66:20-66:21
+  var 'k' @ Main.pst:63:5
+use Main.pst 67:1-67:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 67:9-67:13
+  function 'show' @ Main.pst:45:10
+use Main.pst 67:14-67:15
+  var 't' @ Main.pst:62:5
+use Main.pst 68:13-68:19
+  builtin type 'String' @ built into unit System
+use Main.pst 68:8-68:12
+  type 'Tree' @ Main.pst:13:5
+use Main.pst 68:24-68:28
+  type 'Leaf' @ Main.pst:14:5
+def Main.pst 68:5-68:6
+  var 's' @ Main.pst:68:5
+    : Tree[String]
+use Main.pst 69:1-69:2
+  var 's' @ Main.pst:68:5
+use Main.pst 69:6-69:12
+  function 'insert' @ Main.pst:37:10
+use Main.pst 69:13-69:14
+  var 's' @ Main.pst:68:5
+use Main.pst 70:1-70:2
+  var 's' @ Main.pst:68:5
+use Main.pst 70:6-70:12
+  function 'insert' @ Main.pst:37:10
+use Main.pst 70:13-70:14
+  var 's' @ Main.pst:68:5
+use Main.pst 71:1-71:2
+  var 's' @ Main.pst:68:5
+use Main.pst 71:6-71:12
+  function 'insert' @ Main.pst:37:10
+use Main.pst 71:13-71:14
+  var 's' @ Main.pst:68:5
+use Main.pst 72:1-72:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 72:9-72:13
+  function 'show' @ Main.pst:45:10
+use Main.pst 72:14-72:15
+  var 's' @ Main.pst:68:5
+def Main.pst 73:5-73:6
+  var 'x' @ Main.pst:73:5
+    : String
+def Main.pst 74:5-74:6
+  var 'y' @ Main.pst:74:5
+    : String
+use Main.pst 75:1-75:5
+  procedure 'swap' @ Main.pst:50:11
+use Main.pst 75:10-75:11
+  var 'x' @ Main.pst:73:5
+use Main.pst 75:17-75:18
+  var 'y' @ Main.pst:74:5
+use Main.pst 76:1-76:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 76:11-76:12
+  var 'x' @ Main.pst:73:5
+use Main.pst 76:15-76:16
+  var 'y' @ Main.pst:74:5
+use Main.pst 77:11-77:15
+  type 'Pair' @ Main.pst:10:5
+def Main.pst 77:5-77:7
+  var 'pc' @ Main.pst:77:5
+    : Pair[Integer, Integer]
+use Main.pst 78:1-78:5
+  procedure 'swap' @ Main.pst:50:11
+use Main.pst 78:10-78:12
+  var 'pc' @ Main.pst:77:5
+use Main.pst 78:24-78:26
+  var 'pc' @ Main.pst:77:5
+use Main.pst 79:1-79:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 79:11-79:13
+  var 'pc' @ Main.pst:77:5
+use Main.pst 79:22-79:24
+  var 'pc' @ Main.pst:77:5
+use Main.pst 80:1-80:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 80:9-80:14
+  function 'total' @ Geo.pst:9:17
+use Main.pst 80:15-80:21
+  type 'Circle' @ Main.pst:6:5
+use Main.pst 80:29-80:35
+  type 'Circle' @ Main.pst:6:5
+use Main.pst 81:1-81:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 81:9-81:14
+  function 'total' @ Geo.pst:9:17
+use Main.pst 81:15-81:21
+  type 'Square' @ Main.pst:8:5
+use Main.pst 81:32-81:38
+  type 'Square' @ Main.pst:8:5
+use Main.pst 82:1-82:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 82:9-82:17
+  function 'describe' @ Geo.pst:12:17
+use Main.pst 82:18-82:24
+  type 'Square' @ Main.pst:8:5
+use Main.pst 7:12-7:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 9:15-9:22
+  type 'Integer' @ std/System.pst:13:12
+def Main.pst 10:10-10:11
+  type parameter 'A' @ Main.pst:10:10
+def Main.pst 10:13-10:14
+  type parameter 'B' @ Main.pst:10:13
+use Main.pst 11:16-11:17
+  type parameter 'A' @ Main.pst:10:10
+use Main.pst 12:17-12:18
+  type parameter 'B' @ Main.pst:10:13
+def Main.pst 13:10-13:11
+  type parameter 'T' @ Main.pst:13:10
+use Main.pst 13:15-13:19
+  type 'Leaf' @ Main.pst:14:5
+use Main.pst 13:27-13:28
+  type parameter 'T' @ Main.pst:13:10
+use Main.pst 13:22-13:26
+  type 'Node' @ Main.pst:15:5
+def Main.pst 15:10-15:11
+  type parameter 'T' @ Main.pst:15:10
+use Main.pst 16:20-16:21
+  type parameter 'T' @ Main.pst:15:10
+use Main.pst 16:15-16:19
+  type 'Tree' @ Main.pst:13:5
+use Main.pst 17:16-17:17
+  type parameter 'T' @ Main.pst:15:10
+use Main.pst 18:21-18:22
+  type parameter 'T' @ Main.pst:15:10
+use Main.pst 18:16-18:20
+  type 'Tree' @ Main.pst:13:5
+use Main.pst 20:18-20:24
+  type 'Circle' @ Main.pst:6:5
+def Main.pst 20:15-20:16
+  parameter 'c' @ Main.pst:20:15
+    : Circle
+use Main.pst 20:27-20:34
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 21:16-21:17
+  parameter 'c' @ Main.pst:20:15
+use Main.pst 21:22-21:23
+  parameter 'c' @ Main.pst:20:15
+use Main.pst 23:18-23:24
+  type 'Square' @ Main.pst:8:5
+def Main.pst 23:15-23:16
+  parameter 's' @ Main.pst:23:15
+    : Square
+use Main.pst 23:27-23:34
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 24:12-24:13
+  parameter 's' @ Main.pst:23:15
+use Main.pst 24:21-24:22
+  parameter 's' @ Main.pst:23:15
+def Main.pst 26:18-26:19
+  type parameter 'T' @ Main.pst:26:18
+use Main.pst 26:21-26:28
+  builtin trait 'Ordered' @ built into unit System
+use Main.pst 26:36-26:37
+  type parameter 'T' @ Main.pst:26:18
+def Main.pst 26:30-26:31
+  parameter 'a' @ Main.pst:26:30
+    : T
+def Main.pst 26:33-26:34
+  parameter 'b' @ Main.pst:26:33
+    : T
+use Main.pst 26:40-26:41
+  type parameter 'T' @ Main.pst:26:18
+use Main.pst 27:15-27:16
+  parameter 'a' @ Main.pst:26:30
+use Main.pst 27:19-27:20
+  parameter 'b' @ Main.pst:26:33
+use Main.pst 27:26-27:27
+  parameter 'a' @ Main.pst:26:30
+use Main.pst 27:33-27:34
+  parameter 'b' @ Main.pst:26:33
+def Main.pst 29:18-29:19
+  type parameter 'A' @ Main.pst:29:18
+def Main.pst 29:21-29:22
+  type parameter 'B' @ Main.pst:29:21
+use Main.pst 29:32-29:33
+  type parameter 'A' @ Main.pst:29:18
+use Main.pst 29:35-29:36
+  type parameter 'B' @ Main.pst:29:21
+use Main.pst 29:27-29:31
+  type 'Pair' @ Main.pst:10:5
+def Main.pst 29:24-29:25
+  parameter 'p' @ Main.pst:29:24
+    : Pair[A, B]
+use Main.pst 29:45-29:46
+  type parameter 'B' @ Main.pst:29:21
+use Main.pst 29:48-29:49
+  type parameter 'A' @ Main.pst:29:18
+use Main.pst 29:40-29:44
+  type 'Pair' @ Main.pst:10:5
+use Main.pst 30:12-30:16
+  type 'Pair' @ Main.pst:10:5
+use Main.pst 30:24-30:25
+  parameter 'p' @ Main.pst:29:24
+use Main.pst 30:42-30:43
+  parameter 'p' @ Main.pst:29:24
+def Main.pst 32:16-32:17
+  type parameter 'T' @ Main.pst:32:16
+use Main.pst 32:30-32:31
+  type parameter 'T' @ Main.pst:32:16
+use Main.pst 32:23-32:29
+  type 'Option' @ std/System.pst:23:12
+def Main.pst 32:19-32:21
+  parameter 'xs' @ Main.pst:32:19
+    : Option[T]
+use Main.pst 32:44-32:45
+  type parameter 'T' @ Main.pst:32:16
+def Main.pst 32:34-32:42
+  parameter 'fallback' @ Main.pst:32:34
+    : T
+use Main.pst 32:48-32:49
+  type parameter 'T' @ Main.pst:32:16
+use Main.pst 33:17-33:19
+  parameter 'xs' @ Main.pst:32:19
+use Main.pst 34:9-34:13
+  type 'Some' @ std/System.pst:19:12
+def Main.pst 34:14-34:15
+  case binding 's' @ Main.pst:34:14
+    : Some[T]
+use Main.pst 34:18-34:19
+  case binding 's' @ Main.pst:34:14
+use Main.pst 35:15-35:23
+  parameter 'fallback' @ Main.pst:32:34
+def Main.pst 37:17-37:18
+  type parameter 'T' @ Main.pst:37:17
+use Main.pst 37:20-37:27
+  builtin trait 'Ordered' @ built into unit System
+use Main.pst 37:37-37:38
+  type parameter 'T' @ Main.pst:37:17
+use Main.pst 37:32-37:36
+  type 'Tree' @ Main.pst:13:5
+def Main.pst 37:29-37:30
+  parameter 't' @ Main.pst:37:29
+    : Tree[T]
+use Main.pst 37:44-37:45
+  type parameter 'T' @ Main.pst:37:17
+def Main.pst 37:41-37:42
+  parameter 'v' @ Main.pst:37:41
+    : T
+use Main.pst 37:53-37:54
+  type parameter 'T' @ Main.pst:37:17
+use Main.pst 37:48-37:52
+  type 'Tree' @ Main.pst:13:5
+use Main.pst 38:10-38:11
+  parameter 't' @ Main.pst:37:29
+use Main.pst 39:22-39:26
+  type 'Node' @ Main.pst:15:5
+use Main.pst 39:33-39:37
+  type 'Leaf' @ Main.pst:14:5
+use Main.pst 39:46-39:47
+  parameter 'v' @ Main.pst:37:41
+use Main.pst 39:56-39:60
+  type 'Leaf' @ Main.pst:14:5
+use Main.pst 40:9-40:13
+  type 'Node' @ Main.pst:15:5
+def Main.pst 40:14-40:15
+  case binding 'n' @ Main.pst:40:14
+    : Node[T]
+use Main.pst 41:16-41:17
+  parameter 'v' @ Main.pst:37:41
+use Main.pst 41:20-41:21
+  case binding 'n' @ Main.pst:40:14
+use Main.pst 42:24-42:28
+  type 'Node' @ Main.pst:15:5
+use Main.pst 42:35-42:41
+  function 'insert' @ Main.pst:37:10
+use Main.pst 42:42-42:43
+  case binding 'n' @ Main.pst:40:14
+use Main.pst 42:50-42:51
+  parameter 'v' @ Main.pst:37:41
+use Main.pst 42:61-42:62
+  case binding 'n' @ Main.pst:40:14
+use Main.pst 42:77-42:78
+  case binding 'n' @ Main.pst:40:14
+use Main.pst 43:20-43:24
+  type 'Node' @ Main.pst:15:5
+use Main.pst 43:31-43:32
+  case binding 'n' @ Main.pst:40:14
+use Main.pst 43:46-43:47
+  case binding 'n' @ Main.pst:40:14
+use Main.pst 43:62-43:68
+  function 'insert' @ Main.pst:37:10
+use Main.pst 43:69-43:70
+  case binding 'n' @ Main.pst:40:14
+use Main.pst 43:78-43:79
+  parameter 'v' @ Main.pst:37:41
+def Main.pst 45:15-45:16
+  type parameter 'T' @ Main.pst:45:15
+use Main.pst 45:18-45:27
+  trait 'Printable' @ std/System.pst:34:12
+use Main.pst 45:37-45:38
+  type parameter 'T' @ Main.pst:45:15
+use Main.pst 45:32-45:36
+  type 'Tree' @ Main.pst:13:5
+def Main.pst 45:29-45:30
+  parameter 't' @ Main.pst:45:29
+    : Tree[T]
+use Main.pst 45:42-45:48
+  builtin type 'String' @ built into unit System
+use Main.pst 46:17-46:18
+  parameter 't' @ Main.pst:45:29
+use Main.pst 48:9-48:13
+  type 'Node' @ Main.pst:15:5
+def Main.pst 48:14-48:15
+  case binding 'n' @ Main.pst:48:14
+    : Node[T]
+use Main.pst 48:20-48:24
+  function 'show' @ Main.pst:45:10
+use Main.pst 48:25-48:26
+  case binding 'n' @ Main.pst:48:14
+use Main.pst 48:34-48:35
+  case binding 'n' @ Main.pst:48:14
+use Main.pst 48:44-48:48
+  function 'show' @ Main.pst:45:10
+use Main.pst 48:49-48:50
+  case binding 'n' @ Main.pst:48:14
+def Main.pst 50:16-50:17
+  type parameter 'T' @ Main.pst:50:16
+use Main.pst 50:29-50:30
+  type parameter 'T' @ Main.pst:50:16
+def Main.pst 50:23-50:24
+  parameter 'a' @ Main.pst:50:23
+    : T
+def Main.pst 50:26-50:27
+  parameter 'b' @ Main.pst:50:26
+    : T
+use Main.pst 51:14-51:15
+  parameter 'a' @ Main.pst:50:23
+def Main.pst 51:9-51:10
+  let 't' @ Main.pst:51:9
+    : T
+use Main.pst 52:5-52:6
+  parameter 'a' @ Main.pst:50:23
+use Main.pst 52:10-52:11
+  parameter 'b' @ Main.pst:50:26
+use Main.pst 53:5-53:6
+  parameter 'b' @ Main.pst:50:26
+use Main.pst 53:10-53:11
+  let 't' @ Main.pst:51:9
+use Geo.pst 7:30-7:37
+  type 'Integer' @ std/System.pst:13:12
+def Geo.pst 9:23-9:24
+  type parameter 'T' @ Geo.pst:9:23
+use Geo.pst 9:26-9:36
+  trait 'Measurable' @ Geo.pst:6:12
+use Geo.pst 9:44-9:45
+  type parameter 'T' @ Geo.pst:9:23
+def Geo.pst 9:38-9:39
+  parameter 'a' @ Geo.pst:9:38
+    : T
+def Geo.pst 9:41-9:42
+  parameter 'b' @ Geo.pst:9:41
+    : T
+use Geo.pst 9:48-9:55
+  type 'Integer' @ std/System.pst:13:12
+use Geo.pst 10:12-10:17
+  function 'twice' @ Geo.pst:15:10
+use Geo.pst 10:18-10:19
+  parameter 'a' @ Geo.pst:9:38
+use Geo.pst 10:23-10:24
+  parameter 'b' @ Geo.pst:9:41
+def Geo.pst 12:26-12:27
+  type parameter 'T' @ Geo.pst:12:26
+use Geo.pst 12:29-12:39
+  trait 'Measurable' @ Geo.pst:6:12
+use Geo.pst 12:44-12:45
+  type parameter 'T' @ Geo.pst:12:26
+def Geo.pst 12:41-12:42
+  parameter 'x' @ Geo.pst:12:41
+    : T
+use Geo.pst 12:48-12:54
+  builtin type 'String' @ built into unit System
+use Geo.pst 13:19-13:24
+  function 'total' @ Geo.pst:9:17
+use Geo.pst 13:25-13:26
+  parameter 'x' @ Geo.pst:12:41
+use Geo.pst 13:28-13:29
+  parameter 'x' @ Geo.pst:12:41
+def Geo.pst 15:16-15:17
+  type parameter 'T' @ Geo.pst:15:16
+use Geo.pst 15:19-15:29
+  trait 'Measurable' @ Geo.pst:6:12
+use Geo.pst 15:34-15:35
+  type parameter 'T' @ Geo.pst:15:16
+def Geo.pst 15:31-15:32
+  parameter 'x' @ Geo.pst:15:31
+    : T
+use Geo.pst 15:38-15:45
+  type 'Integer' @ std/System.pst:13:12
+use Geo.pst 16:12-16:18
+  function 'double' @ Geo.pst:18:10
+use Geo.pst 16:19-16:20
+  parameter 'x' @ Geo.pst:15:31
+use Geo.pst 18:20-18:27
+  type 'Integer' @ std/System.pst:13:12
+def Geo.pst 18:17-18:18
+  parameter 'n' @ Geo.pst:18:17
+    : Integer
+use Geo.pst 18:30-18:37
+  type 'Integer' @ std/System.pst:13:12
+use Geo.pst 19:12-19:13
+  parameter 'n' @ Geo.pst:18:17
+use Main.pst 21:18-21:19
+  field 'r' @ Main.pst:7:9
+use Main.pst 21:24-21:25
+  field 'r' @ Main.pst:7:9
+use Main.pst 24:14-24:18
+  field 'side' @ Main.pst:9:9
+use Main.pst 24:23-24:27
+  field 'side' @ Main.pst:9:9
+use Main.pst 30:26-30:32
+  field 'second' @ Main.pst:12:9
+use Main.pst 30:44-30:49
+  field 'first' @ Main.pst:11:9
+use Main.pst 30:17-30:22
+  field 'first' @ Main.pst:11:9
+use Main.pst 30:34-30:40
+  field 'second' @ Main.pst:12:9
+use Main.pst 35:9-35:13
+  type 'None' @ std/System.pst:22:12
+use Main.pst 34:20-34:25
+  field 'value' @ std/System.pst:20:16
+use Main.pst 39:9-39:13
+  type 'Leaf' @ Main.pst:14:5
+use Main.pst 39:27-39:31
+  field 'left' @ Main.pst:16:9
+use Main.pst 39:39-39:44
+  field 'value' @ Main.pst:17:9
+use Main.pst 39:49-39:54
+  field 'right' @ Main.pst:18:9
+use Main.pst 41:22-41:27
+  field 'value' @ Main.pst:17:9
+use Main.pst 42:44-42:48
+  field 'left' @ Main.pst:16:9
+use Main.pst 42:63-42:68
+  field 'value' @ Main.pst:17:9
+use Main.pst 42:79-42:84
+  field 'right' @ Main.pst:18:9
+use Main.pst 42:29-42:33
+  field 'left' @ Main.pst:16:9
+use Main.pst 42:54-42:59
+  field 'value' @ Main.pst:17:9
+use Main.pst 42:70-42:75
+  field 'right' @ Main.pst:18:9
+use Main.pst 43:33-43:37
+  field 'left' @ Main.pst:16:9
+use Main.pst 43:48-43:53
+  field 'value' @ Main.pst:17:9
+use Main.pst 43:71-43:76
+  field 'right' @ Main.pst:18:9
+use Main.pst 43:25-43:29
+  field 'left' @ Main.pst:16:9
+use Main.pst 43:39-43:44
+  field 'value' @ Main.pst:17:9
+use Main.pst 43:55-43:60
+  field 'right' @ Main.pst:18:9
+use Main.pst 47:9-47:13
+  type 'Leaf' @ Main.pst:14:5
+use Main.pst 48:27-48:31
+  field 'left' @ Main.pst:16:9
+use Main.pst 48:36-48:41
+  field 'value' @ Main.pst:17:9
+use Main.pst 48:51-48:56
+  field 'right' @ Main.pst:18:9
+use Main.pst 58:23-58:28
+  field 'first' @ Main.pst:11:9
+use Main.pst 58:33-58:39
+  field 'second' @ Main.pst:12:9
+use Main.pst 59:13-59:18
+  field 'first' @ Main.pst:11:9
+use Main.pst 59:23-59:29
+  field 'second' @ Main.pst:12:9
+use Main.pst 60:24-60:32
+  parameter 'fallback' @ Main.pst:32:34
+use Main.pst 61:28-61:36
+  parameter 'fallback' @ Main.pst:32:34
+use Main.pst 77:16-77:21
+  field 'first' @ Main.pst:11:9
+use Main.pst 77:26-77:32
+  field 'second' @ Main.pst:12:9
+use Main.pst 78:13-78:18
+  field 'first' @ Main.pst:11:9
+use Main.pst 78:27-78:33
+  field 'second' @ Main.pst:12:9
+use Main.pst 79:14-79:19
+  field 'first' @ Main.pst:11:9
+use Main.pst 79:25-79:31
+  field 'second' @ Main.pst:12:9
+use Main.pst 80:22-80:23
+  field 'r' @ Main.pst:7:9
+use Main.pst 80:36-80:37
+  field 'r' @ Main.pst:7:9
+use Main.pst 81:22-81:26
+  field 'side' @ Main.pst:9:9
+use Main.pst 81:39-81:43
+  field 'side' @ Main.pst:9:9
+use Main.pst 82:25-82:29
+  field 'side' @ Main.pst:9:9
+--- stderr

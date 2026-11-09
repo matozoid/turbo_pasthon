@@ -1,0 +1,60 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 5:10-5:14
+  function 'size' @ Main.pst:5:10
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 8:12-8:16
+  type 'Real' @ std/System.pst:15:12
+use Main.pst 8:18-8:25
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 8:8-8:11
+  type 'Map' @ std/System.pst:61:12
+def Main.pst 8:5-8:6
+  var 'm' @ Main.pst:8:5
+    : Map[Real, Integer]
+use Main.pst 9:1-9:2
+  var 'm' @ Main.pst:8:5
+use Main.pst 10:12-10:18
+  builtin type 'String' @ built into unit System
+use Main.pst 10:20-10:27
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 10:8-10:11
+  type 'Map' @ std/System.pst:61:12
+use Main.pst 10:32-10:35
+  type 'Map' @ std/System.pst:61:12
+def Main.pst 10:5-10:6
+  let 'n' @ Main.pst:10:5
+    : Map[String, Integer]
+use Main.pst 11:1-11:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 11:11-11:14
+  function 'len' @ std/System.pst:295:17
+use Main.pst 11:15-11:16
+  let 'n' @ Main.pst:10:5
+use Main.pst 11:20-11:24
+  function 'size' @ Main.pst:5:10
+use Main.pst 11:25-11:26
+  let 'n' @ Main.pst:10:5
+def Main.pst 5:15-5:16
+  type parameter 'K' @ Main.pst:5:15
+def Main.pst 5:18-5:19
+  type parameter 'V' @ Main.pst:5:18
+use Main.pst 5:28-5:29
+  type parameter 'K' @ Main.pst:5:15
+use Main.pst 5:31-5:32
+  type parameter 'V' @ Main.pst:5:18
+use Main.pst 5:24-5:27
+  type 'Map' @ std/System.pst:61:12
+def Main.pst 5:21-5:22
+  parameter 'm' @ Main.pst:5:21
+    : Map[K, V]
+use Main.pst 5:36-5:43
+  type 'Integer' @ std/System.pst:13:12
+Main.pst error E0700 5:24-5:33 "K doesn't satisfy Hashable, required by 'Map'"
+Main.pst error E0700 8:8-8:26 "Real doesn't satisfy Hashable, required by 'Map'"
+Main.pst error E0306 10:32-10:35 "'Map' values are written as literals: '{k: v}', or '{}' where the type is known"
+--- stderr

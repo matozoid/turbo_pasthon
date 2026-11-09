@@ -1,0 +1,77 @@
+$ $PST ast ast-routines.pst
+exit 1
+--- stdout
+File 1:1-26:18 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: Routine 5:1-9:13 exported=true unsafe=false doc="Doc one.\n\n  Doc two."
+    sig: Signature 5:8-5:70 is_function=true
+      name: Ident 5:17-5:18 name="f"
+      type_params[0]: TypeParam 5:19-5:24
+        name: Ident 5:19-5:20 name="T"
+        bounds[0]: TypeName 5:22-5:24 parts=["Eq"] part_spans=[5:22-5:24]
+      params[0]: Param 5:26-5:33 is_var=false is_this=false is_varargs=false
+        names[0]: Ident 5:26-5:27 name="a"
+        names[1]: Ident 5:29-5:30 name="b"
+        type: TypeName 5:32-5:33 parts=["T"] part_spans=[5:32-5:33]
+      params[1]: Param 5:35-5:55 is_var=true is_this=false is_varargs=false
+        names[0]: Ident 5:39-5:40 name="c"
+        type: TypeName 5:42-5:49 parts=["List"] part_spans=[5:42-5:46]
+          args[0]: TypeName 5:47-5:48 parts=["T"] part_spans=[5:47-5:48]
+        default: ListLit 5:53-5:55
+      params[2]: Param 5:57-5:60 is_var=false is_this=false is_varargs=true
+      result: TypeName 5:63-5:70 parts=["Integer"] part_spans=[5:63-5:70]
+    requires[0]: Binary 6:14-6:19 op="=" op_span=6:16-6:17
+      left: Name 6:14-6:15 name="a"
+      right: Name 6:18-6:19 name="b"
+    requires[1]: Name 8:14-8:15 name="c"
+    ensures[0]: Binary 7:13-7:23 op=">" op_span=7:20-7:21
+      left: Name 7:13-7:19 name="result"
+      right: IntLit 7:22-7:23 value=0
+    body: Block 9:5-9:13
+      stmts[0]: Return 9:5-9:13
+        value: IntLit 9:12-9:13 value=1
+  items[1]: Routine 10:1-11:11 exported=false unsafe=false
+    sig: Signature 10:1-10:13 is_function=true
+      name: Ident 10:10-10:11 name="g"
+    body: Block 11:5-11:11
+      stmts[0]: Return 11:5-11:11
+  items[2]: Routine 12:1-13:8 exported=false unsafe=false
+    sig: Signature 12:1-12:23 is_function=false
+      name: Ident 12:11-12:12 name="h"
+      result: TypeName 12:16-12:23 parts=["Integer"] part_spans=[12:16-12:23]
+    body: Block 13:5-13:8
+      stmts[0]: ExprStmt 13:5-13:8
+        expr: Call 13:5-13:8
+          callee: Name 13:5-13:6 name="x"
+  items[3]: ErrorStmt 14:1-15:8
+  items[4]: ErrorStmt 16:1-17:8
+  items[5]: Routine 18:1-19:8 exported=true unsafe=true
+    sig: Signature 18:15-18:28 is_function=false
+      name: Ident 18:25-18:26 name="n"
+    body: Block 19:5-19:8
+      stmts[0]: ExprStmt 19:5-19:8
+        expr: Call 19:5-19:8
+          callee: Name 19:5-19:6 name="x"
+  items[6]: ErrorStmt 20:1-21:8
+  items[7]: ErrorStmt 22:1-22:14
+  items[8]: Routine 23:1-23:14 exported=false unsafe=false
+    sig: Signature 23:1-23:14 is_function=false
+      name: Ident 23:11-23:12 name="p"
+    body: Block 23:14-23:14
+  items[9]: Routine 24:1-25:15 exported=false unsafe=false
+    sig: Signature 24:1-24:14 is_function=false
+      name: Ident 24:11-24:12 name="q"
+    requires[0]: Name 25:14-25:15 name="a"
+    body: Block 24:14-24:14
+  items[10]: ErrorStmt 26:1-26:18
+error E0040 8:5-8:13 "'requires' must come before 'ensures'"
+error E0040 10:13-10:13 "function 'g' needs a result type ': T'; a routine without a result is a 'procedure'"
+error E0040 12:16-12:23 "procedure 'h' can't have a result type; use 'function'"
+error E0040 14:11-15:1 "expected '(' and the parameter list, found end of line"
+error E0040 16:39-16:40 "expected ')' to close the parameter list, found '='"
+error E0040 20:8-20:14 "write 'export unsafe', not 'unsafe export'"
+error E0040 22:8-22:9 "expected 'function' or 'procedure' after 'export', found identifier 'x'"
+error E0042 24:1-24:1 "expected the body of 'p'"
+error E0042 25:5-25:5 "expected statements in the body of 'q'"
+error E0040 26:15-26:16 "expected end of line, found identifier 'x'"
+--- stderr

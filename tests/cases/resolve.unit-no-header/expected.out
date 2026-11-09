@@ -1,0 +1,10 @@
+$ $TOOLS/ResolveDump $STD Main.pst
+exit 0
+--- stdout
+use Main.pst 1:6-1:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 2:1-2:8
+  procedure 'writeln' @ std/IO.pst:16:22
+  procedure 'writeln' @ std/IO.pst:18:22
+Main.pst error E0045 1:1-1:1 "a file must start with 'program Name' or 'unit Name'"
+--- stderr

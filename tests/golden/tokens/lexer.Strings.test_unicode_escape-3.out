@@ -1,4 +1,0 @@
-StringLit 1:1-1:7 "\"\\u{}\"" text "�"
-Newline 1:7-1:7 "" -
-Eof 1:7-1:7 "" -
-error E0005 1:2-1:6 "expected '\\u{XXXX}' with 1 to 6 hex digits"

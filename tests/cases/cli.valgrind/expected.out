@@ -1,0 +1,4 @@
+$ $VALGRIND $PST build $ROOT/examples/Inventory.pst -o inventory
+exit 0
+--- stdout
+--- stderr

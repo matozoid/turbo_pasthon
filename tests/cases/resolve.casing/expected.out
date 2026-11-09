@@ -1,0 +1,69 @@
+$ $TOOLS/ResolveDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 3:5-3:10
+  type 'point' @ Main.pst:3:5
+def Main.pst 4:9-4:10
+  field 'X' @ Main.pst:4:9
+def Main.pst 5:5-5:10
+  type 'Color' @ Main.pst:5:5
+def Main.pst 5:14-5:17
+  enum member 'red' @ Main.pst:5:14
+def Main.pst 5:19-5:24
+  enum member 'Green' @ Main.pst:5:19
+def Main.pst 7:5-7:8
+  const 'max' @ Main.pst:7:5
+def Main.pst 8:10-8:14
+  function 'Area' @ Main.pst:8:10
+use Main.pst 11:10-11:14
+  function 'Area' @ Main.pst:8:10
+use Main.pst 11:15-11:20
+  type 'point' @ Main.pst:3:5
+def Main.pst 11:5-11:6
+  let 'q' @ Main.pst:11:5
+use Main.pst 12:9-12:10
+  let 'q' @ Main.pst:11:5
+use Main.pst 4:12-4:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 8:18-8:23
+  type 'point' @ Main.pst:3:5
+def Main.pst 8:15-8:16
+  parameter 'p' @ Main.pst:8:15
+use Main.pst 8:26-8:33
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 9:16-9:17
+  parameter 'p' @ Main.pst:8:15
+def Main.pst 9:9-9:12
+  let 'Big' @ Main.pst:9:9
+use Main.pst 10:12-10:15
+  let 'Big' @ Main.pst:9:9
+use Main.pst 10:18-10:21
+  const 'max' @ Main.pst:7:5
+Main.pst error E0020 3:5-3:10 "type names are UpperCamel: 'Point', not 'point'"
+  fix "rename to 'Point'"
+    edit 3:5-3:10 "Point"
+    edit 11:15-11:20 "Point"
+    edit 8:18-8:23 "Point"
+Main.pst error E0020 4:9-4:10 "field names are lowerCamel: 'x', not 'X'"
+  fix "rename to 'x'"
+    edit 4:9-4:10 "x"
+Main.pst error E0020 5:14-5:17 "enum member names are UpperCamel: 'Red', not 'red'"
+  fix "rename to 'Red'"
+    edit 5:14-5:17 "Red"
+Main.pst error E0020 7:5-7:8 "const names are UpperCamel: 'Max', not 'max'"
+  fix "rename to 'Max'"
+    edit 7:5-7:8 "Max"
+    edit 10:18-10:21 "Max"
+Main.pst error E0020 8:10-8:14 "function names are lowerCamel: 'area', not 'Area'"
+  fix "rename to 'area'"
+    edit 8:10-8:14 "area"
+    edit 11:10-11:14 "area"
+Main.pst error E0020 9:9-9:12 "let names are lowerCamel: 'big', not 'Big'"
+  fix "rename to 'big'"
+    edit 9:9-9:12 "big"
+    edit 10:12-10:15 "big"
+Main.pst error E0100 12:1-12:8 "unknown name 'writeln'"
+Main.pst error E0040 13:11-13:18 "expected procedure name; names starting with '_' are discards"
+--- stderr

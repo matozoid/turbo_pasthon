@@ -1,0 +1,1 @@
+cd $ROOT/examples && $TOOLS/CheckDump $STD Inventory.pst

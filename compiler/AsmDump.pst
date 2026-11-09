@@ -1,7 +1,7 @@
 program AsmDump
 
 ## Runs an assembler script and prints the finished code, the read-only data and the
-## executable in hex, which tests/test_port.py compares with a golden file.
+## executable in hex, which the cases in tests/cases compare.
 ##
 ## Usage: `AsmDump SCRIPT`. Each line of the script is an assembler call: its name in
 ## snake case, then its arguments, separated by spaces. Integers are decimal, Booleans

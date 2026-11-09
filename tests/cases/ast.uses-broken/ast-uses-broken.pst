@@ -1,0 +1,3 @@
+program P
+uses IO,
+x := 1

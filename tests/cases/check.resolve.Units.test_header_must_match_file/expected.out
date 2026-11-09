@@ -1,0 +1,9 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Mian' @ Main.pst:1:9
+Main.pst error E0105 1:9-1:13 "program 'Mian' must be in a file named 'Mian.pst', not 'Main.pst'"
+  fix "rename to 'Main'"
+    edit 1:9-1:13 "Main"
+--- stderr

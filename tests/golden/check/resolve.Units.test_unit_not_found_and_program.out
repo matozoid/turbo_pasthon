@@ -1,6 +1,0 @@
-def Main.pst 1:9-1:13
-  unit 'Main' @ Main.pst:1:9
-def Other.pst 1:9-1:14
-  unit 'Other' @ Other.pst:1:9
-Main.pst error E0102 3:6-3:10 "unit 'Nope' not found: no 'Nope.pst' in . or the standard units"
-Main.pst error E0102 3:12-3:17 "'Other' is a program, not a unit"

@@ -1,0 +1,227 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 7:16-7:19
+  type 'Div' @ Main.pst:7:16
+def Main.pst 8:13-8:17
+  field 'quot' @ Main.pst:8:13
+def Main.pst 9:13-9:16
+  field 'rem' @ Main.pst:9:13
+def Main.pst 10:16-10:21
+  type 'Mixed' @ Main.pst:10:16
+def Main.pst 11:13-11:14
+  field 'a' @ Main.pst:11:13
+def Main.pst 12:13-12:14
+  field 'b' @ Main.pst:12:13
+def Main.pst 13:13-13:14
+  field 'c' @ Main.pst:13:13
+def Main.pst 14:14-14:17
+  function 'abs' @ Main.pst:14:14
+def Main.pst 15:14-15:20
+  function 'strlen' @ Main.pst:15:14
+def Main.pst 16:14-16:20
+  function 'printf' @ Main.pst:16:14
+def Main.pst 17:14-17:20
+  function 'malloc' @ Main.pst:17:14
+def Main.pst 18:15-18:19
+  procedure 'free' @ Main.pst:18:15
+def Main.pst 19:15-19:20
+  procedure 'qsort' @ Main.pst:19:15
+def Main.pst 20:14-20:18
+  function 'cdiv' @ Main.pst:20:14
+def Main.pst 21:14-21:20
+  function 'getenv' @ Main.pst:21:14
+def Main.pst 22:14-22:20
+  function 'setenv' @ Main.pst:22:14
+def Main.pst 25:14-25:18
+  function 'labs' @ Main.pst:25:14
+def Main.pst 27:10-27:17
+  function 'compare' @ Main.pst:27:10
+def Main.pst 30:17-30:28
+  function 'compareInts' @ Main.pst:30:17
+def Main.pst 35:18-35:26
+  procedure 'sortDemo' @ Main.pst:35:18
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 3:10-3:11
+  unit 'C' @ std/C.pst:1:6
+use Main.pst 45:1-45:9
+  procedure 'sortDemo' @ Main.pst:35:18
+use Main.pst 8:19-8:23
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 9:18-9:22
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 11:16-11:20
+  builtin type 'Int8' @ built into unit System
+use Main.pst 12:16-12:21
+  builtin type 'Int64' @ built into unit System
+use Main.pst 13:16-13:21
+  builtin type 'Int16' @ built into unit System
+use Main.pst 14:21-14:25
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 14:28-14:32
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 15:24-15:31
+  builtin type 'CString' @ built into unit C
+use Main.pst 15:34-15:39
+  type 'CSize' @ std/C.pst:10:12
+use Main.pst 16:26-16:33
+  builtin type 'CString' @ built into unit C
+use Main.pst 16:41-16:45
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 17:24-17:29
+  type 'CSize' @ std/C.pst:10:12
+use Main.pst 17:32-17:39
+  builtin type 'Pointer' @ built into unit C
+use Main.pst 18:23-18:30
+  builtin type 'Pointer' @ built into unit C
+use Main.pst 19:27-19:34
+  builtin type 'Pointer' @ built into unit C
+use Main.pst 19:39-19:44
+  type 'CSize' @ std/C.pst:10:12
+use Main.pst 19:52-19:57
+  type 'CSize' @ std/C.pst:10:12
+use Main.pst 19:73-19:80
+  builtin type 'Pointer' @ built into unit C
+use Main.pst 19:82-19:89
+  builtin type 'Pointer' @ built into unit C
+use Main.pst 19:92-19:96
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 20:22-20:26
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 20:31-20:35
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 20:38-20:41
+  type 'Div' @ Main.pst:7:16
+use Main.pst 21:27-21:34
+  builtin type 'CString' @ built into unit C
+use Main.pst 21:37-21:44
+  builtin type 'CString' @ built into unit C
+use Main.pst 22:27-22:34
+  builtin type 'CString' @ built into unit C
+use Main.pst 22:43-22:50
+  builtin type 'CString' @ built into unit C
+use Main.pst 22:63-22:67
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 22:70-22:74
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 25:22-25:27
+  type 'CLong' @ std/C.pst:9:12
+use Main.pst 25:30-25:35
+  type 'CLong' @ std/C.pst:9:12
+use Main.pst 27:21-27:28
+  builtin type 'Pointer' @ built into unit C
+def Main.pst 27:18-27:19
+  parameter 'a' @ Main.pst:27:18
+    : Pointer
+use Main.pst 27:33-27:40
+  builtin type 'Pointer' @ built into unit C
+def Main.pst 27:30-27:31
+  parameter 'b' @ Main.pst:27:30
+    : Pointer
+use Main.pst 27:43-27:47
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 28:12-28:23
+  function 'compareInts' @ Main.pst:30:17
+use Main.pst 28:24-28:25
+  parameter 'a' @ Main.pst:27:18
+use Main.pst 28:30-28:31
+  parameter 'b' @ Main.pst:27:30
+use Main.pst 30:32-30:39
+  builtin type 'Pointer' @ built into unit C
+def Main.pst 30:29-30:30
+  parameter 'a' @ Main.pst:30:29
+    : Pointer
+use Main.pst 30:44-30:51
+  builtin type 'Pointer' @ built into unit C
+def Main.pst 30:41-30:42
+  parameter 'b' @ Main.pst:30:41
+    : Pointer
+use Main.pst 30:54-30:58
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 31:20-31:24
+  function 'cast' @ std/C.pst:33:21
+use Main.pst 31:25-31:28
+  builtin type 'Ptr' @ built into unit C
+use Main.pst 31:29-31:33
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 31:36-31:37
+  parameter 'a' @ Main.pst:30:29
+def Main.pst 31:9-31:10
+  let 'x' @ Main.pst:31:9
+    : Int32
+use Main.pst 32:20-32:24
+  function 'cast' @ std/C.pst:33:21
+use Main.pst 32:25-32:28
+  builtin type 'Ptr' @ built into unit C
+use Main.pst 32:29-32:33
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 32:36-32:37
+  parameter 'b' @ Main.pst:30:41
+def Main.pst 32:9-32:10
+  let 'y' @ Main.pst:32:9
+    : Int32
+use Main.pst 33:15-33:16
+  let 'x' @ Main.pst:31:9
+use Main.pst 33:19-33:20
+  let 'y' @ Main.pst:32:9
+use Main.pst 33:37-33:38
+  let 'x' @ Main.pst:31:9
+use Main.pst 33:41-33:42
+  let 'y' @ Main.pst:32:9
+use Main.pst 36:14-36:18
+  function 'cast' @ std/C.pst:33:21
+use Main.pst 36:19-36:22
+  builtin type 'Ptr' @ built into unit C
+use Main.pst 36:23-36:27
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 36:30-36:36
+  function 'malloc' @ Main.pst:17:14
+def Main.pst 36:9-36:10
+  let 'p' @ Main.pst:36:9
+    : Ptr[Int32]
+def Main.pst 37:9-37:10
+  loop variable 'i' @ Main.pst:37:9
+    : Integer
+use Main.pst 38:15-38:16
+  let 'p' @ Main.pst:36:9
+use Main.pst 38:19-38:20
+  loop variable 'i' @ Main.pst:37:9
+use Main.pst 38:25-38:29
+  type 'CInt' @ std/C.pst:7:12
+use Main.pst 38:39-38:40
+  loop variable 'i' @ Main.pst:37:9
+use Main.pst 39:5-39:10
+  procedure 'qsort' @ Main.pst:19:15
+use Main.pst 39:11-39:15
+  function 'cast' @ std/C.pst:33:21
+use Main.pst 39:16-39:23
+  builtin type 'Pointer' @ built into unit C
+use Main.pst 39:25-39:26
+  let 'p' @ Main.pst:36:9
+use Main.pst 39:46-39:53
+  function 'compare' @ Main.pst:27:10
+def Main.pst 40:9-40:10
+  loop variable 'i' @ Main.pst:40:9
+    : Integer
+use Main.pst 41:9-41:14
+  procedure 'write' @ std/IO.pst:14:22
+use Main.pst 41:23-41:24
+  let 'p' @ Main.pst:36:9
+use Main.pst 41:27-41:28
+  loop variable 'i' @ Main.pst:40:9
+use Main.pst 42:5-42:12
+  procedure 'writeln' @ std/IO.pst:18:22
+use Main.pst 43:5-43:9
+  procedure 'free' @ Main.pst:18:15
+use Main.pst 43:10-43:14
+  function 'cast' @ std/C.pst:33:21
+use Main.pst 43:15-43:22
+  builtin type 'Pointer' @ built into unit C
+use Main.pst 43:24-43:25
+  let 'p' @ Main.pst:36:9
+use Main.pst 28:27-28:28
+  parameter 'b' @ Main.pst:30:41
+--- stderr

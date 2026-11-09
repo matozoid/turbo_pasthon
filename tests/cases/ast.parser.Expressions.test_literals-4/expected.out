@@ -1,0 +1,9 @@
+$ $PST ast parser.Expressions.test_literals-4.pst
+exit 0
+--- stdout
+File 1:1-2:8 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: Assign 2:1-2:8
+    target: Name 2:1-2:2 name="x"
+    value: EmptyBraces 2:6-2:8
+--- stderr

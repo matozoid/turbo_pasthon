@@ -1,0 +1,6 @@
+$ $PST test Bad.pst
+exit 1
+--- stdout
+0 passed, 0 failed
+--- stderr
+Bad.pst:4:12: error E0300: expected Boolean, found Integer

@@ -1,7 +1,7 @@
 unit LexDump
 
 ## The `pst tokens` command: prints the tokens, comments and diagnostics of a source
-## file in a canonical form, which tests/test_port.py compares with golden files.
+## file in a canonical form, which the cases in tests/cases compare.
 
 uses IO, OS, Strings, Source, Tokens, Diagnostics, Lexer
 

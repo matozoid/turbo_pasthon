@@ -1,0 +1,8 @@
+$PST build Args.pst
+stat -c %a Args
+$PST build Args.pst -o a.out
+stat -c %a a.out
+$PST build --unchecked --output e Exit.pst
+stat -c %a e
+$PST build Bad.pst --json
+$PST build Lib.pst

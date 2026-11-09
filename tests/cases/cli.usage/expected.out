@@ -1,0 +1,66 @@
+$ $PST
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst tokens FILE
+       pst ast FILE
+pst: error: missing command
+$ $PST frob
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst tokens FILE
+       pst ast FILE
+pst: error: unknown command 'frob'
+$ $PST build
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst tokens FILE
+       pst ast FILE
+pst: error: missing FILE or PATH
+$ $PST build Args.pst -o
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst tokens FILE
+       pst ast FILE
+pst: error: argument -o/--output: expected one argument
+$ $PST tokens Args.pst --json
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst tokens FILE
+       pst ast FILE
+pst: error: unrecognized argument '--json'
+$ $PST ast --unchecked Args.pst
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst tokens FILE
+       pst ast FILE
+pst: error: unrecognized argument '--unchecked'

@@ -1,0 +1,77 @@
+program P
+var x: Integer := 1
+let y := 2
+var z
+let w: Integer
+var _ := 3
+_ := f()
+_n := g()
+x := if a then 1 else if b then 2 else 3
+x := case y of
+    1, 2: 3
+    4..5: 6
+    Circle(c): c
+    Square(_): 0
+    else: 7
+case y of
+    1: a()
+    2:
+        b()
+    Some(v): c(v)
+    else: d()
+case y of
+    1:
+for i := 10 downto 1 do
+    a()
+for k, v in m do
+    a()
+for _ in xs do
+    a()
+for _ := 1 to 2 do
+    a()
+for i = 1 to 2 do
+    a()
+for i := 1 do
+    a()
+while a do
+    break
+    continue
+repeat
+    a()
+until b
+repeat
+    a()
+if a then
+    b()
+else if c then
+    d()
+else
+    e()
+if a then b()
+defer a()
+defer
+    a()
+return
+return 1
+return case x of
+    1: 2
+assert a
+assert a, "m"
+requires a
+else
+until a
+const C = 1
+function f()
+    procedure g()
+        x()
+    type T = Integer
+    return 1
+x = 1
+x + 1
+f() := 2
+deref(p) := 3
+a.b[c] := 4
+try f()
+1 < 2 < 3
+x := 1 2
+x := (1 +

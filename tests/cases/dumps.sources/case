@@ -1,0 +1,4 @@
+for f in $ROOT/std/*.pst $ROOT/examples/*.pst $ROOT/compiler/*.pst; do $PST tokens $f > /dev/null || echo $f; done
+for f in $ROOT/std/*.pst $ROOT/examples/*.pst $ROOT/compiler/*.pst; do $PST ast $f > /dev/null || echo $f; done
+for f in $ROOT/std/*.pst $ROOT/examples/*.pst $ROOT/compiler/*.pst; do $TOOLS/ResolveDump $STD $f; done | grep -E '^([^ ]+ )?error E[0-9]{4} ' || echo none
+for f in $ROOT/std/*.pst $ROOT/examples/*.pst $ROOT/compiler/*.pst; do $TOOLS/CheckDump $STD $f; done | grep -E '^([^ ]+ )?error E[0-9]{4} ' || echo none

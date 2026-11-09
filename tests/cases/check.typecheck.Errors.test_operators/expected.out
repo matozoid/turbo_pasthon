@@ -1,0 +1,28 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+def Main.pst 5:5-5:6
+  let 'a' @ Main.pst:5:5
+    : <error>
+def Main.pst 6:5-6:6
+  let 'b' @ Main.pst:6:5
+    : <error>
+def Main.pst 7:5-7:6
+  let 'c' @ Main.pst:7:5
+    : <error>
+use Main.pst 8:1-8:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 8:11-8:12
+  let 'a' @ Main.pst:5:5
+use Main.pst 8:14-8:15
+  let 'b' @ Main.pst:6:5
+use Main.pst 8:17-8:18
+  let 'c' @ Main.pst:7:5
+Main.pst error E0305 5:12-5:13 "'/' works on Real only; use 'div' for integer division"
+Main.pst error E0305 6:14-6:17 "'div' works on integers only; use '/' for Real"
+Main.pst error E0305 7:14-7:15 "'+' can't combine String and String; build strings with interpolation: \"{a}{b}\""
+--- stderr

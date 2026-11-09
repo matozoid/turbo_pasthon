@@ -1,0 +1,14 @@
+program Main
+type
+    point = record
+        X: Integer
+    Color = (red, Green)
+const
+    max = 3
+function Area(p: point): Integer
+    let Big := p.X
+    return Big + max
+let q := Area(point(X: 1))
+writeln(q)
+procedure _hidden()
+    writeln(1)

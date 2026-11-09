@@ -1,0 +1,7 @@
+$ $PST tokens lexer.Strings.test_plain.pst
+exit 0
+--- stdout
+StringLit 1:1-1:17 "\"hi\\n\\\"x\\\" \\{y}\"" text "hi\n\"x\" {y}"
+Newline 1:17-1:17 "" -
+Eof 1:17-1:17 "" -
+--- stderr

@@ -1,0 +1,9 @@
+$ $PST tokens lexer.Basics.test_keywords_case_sensitive.pst
+exit 0
+--- stdout
+KwThis 1:1-1:5 "this" -
+KwThisType 1:6-1:10 "This" -
+Ident 1:11-1:13 "If" -
+Newline 1:13-1:13 "" -
+Eof 1:13-1:13 "" -
+--- stderr

@@ -1,4 +1,0 @@
-$ pst build --unchecked --output e Exit.pst
-exit 0
---- stdout
---- stderr

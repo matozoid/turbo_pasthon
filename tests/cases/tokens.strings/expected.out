@@ -1,0 +1,31 @@
+$ $PST tokens tokens-strings.pst
+exit 1
+--- stdout
+KwLet 1:1-1:4 "let" -
+Ident 1:5-1:6 "s" -
+Assign 1:7-1:9 ":=" -
+StringBegin 1:10-1:13 "\"a{" text "a"
+Ident 1:13-1:14 "b" -
+StringMid 1:14-1:17 "}c{" text "c"
+Ident 1:17-1:18 "d" -
+Plus 1:19-1:20 "+" -
+StringBegin 1:21-1:24 "\"x{" text "x"
+Ident 1:24-1:25 "y" -
+StringEnd 1:25-1:28 "}z\"" text "z"
+StringEnd 1:28-1:31 "}e\"" text "e"
+Newline 1:31-2:1 "\n" -
+KwLet 2:1-2:4 "let" -
+Ident 2:5-2:6 "t" -
+Assign 2:7-2:9 ":=" -
+StringLit 2:10-2:15 "\"{ }\"" text "{ }"
+Newline 2:15-3:1 "\n" -
+KwLet 3:1-3:4 "let" -
+Ident 3:5-3:6 "u" -
+Assign 3:7-3:9 ":=" -
+StringLit 3:10-3:16 "\"\\{x}\"" text "{x}"
+Newline 3:16-4:1 "\n" -
+Eof 4:1-4:1 "" -
+error E0030 2:11-2:14 "empty placeholder '{}'; write '\\{' for a literal brace"
+  fix "escape the brace"
+    edit 2:11-2:12 "\\{"
+--- stderr

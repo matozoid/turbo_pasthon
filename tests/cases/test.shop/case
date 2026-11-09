@@ -1,0 +1,7 @@
+$PST test Shop.pst
+$PST test Main.pst
+$PST test Shop.pst --filter doubles
+$PST test Shop.pst --filter nothing
+$PST test . --filter s
+$PST test Shop.pst --json --filter half
+${VALGRIND:+$VALGRIND --trace-children=yes} $PST test Main.pst

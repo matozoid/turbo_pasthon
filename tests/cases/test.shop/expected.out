@@ -1,0 +1,59 @@
+$ $PST test Shop.pst
+exit 1
+--- stdout
+ok   Shop.pst:11: double doubles
+FAIL Shop.pst:14: half is wrong
+    about to fail
+    panic P0020: assertion failed: half(5) = 3
+        at Shop.pst:16:5
+FAIL Shop.pst:18: panics on bounds
+    panic P0001: index out of bounds
+        at Shop.pst:20:13
+FAIL Shop.pst:22: halts
+    exit status 4
+1 passed, 3 failed
+--- stderr
+$ $PST test Main.pst
+exit 0
+--- stdout
+ok   Main.pst:7: uses a unit
+1 passed, 0 failed
+--- stderr
+$ $PST test Shop.pst --filter doubles
+exit 0
+--- stdout
+ok   Shop.pst:11: double doubles
+1 passed, 0 failed
+--- stderr
+$ $PST test Shop.pst --filter nothing
+exit 0
+--- stdout
+0 passed, 0 failed
+--- stderr
+$ $PST test . --filter s
+exit 1
+--- stdout
+ok   Main.pst:7: uses a unit
+ok   Shop.pst:11: double doubles
+FAIL Shop.pst:14: half is wrong
+    about to fail
+    panic P0020: assertion failed: half(5) = 3
+        at Shop.pst:16:5
+FAIL Shop.pst:18: panics on bounds
+    panic P0001: index out of bounds
+        at Shop.pst:20:13
+FAIL Shop.pst:22: halts
+    exit status 4
+2 passed, 3 failed
+--- stderr
+$ $PST test Shop.pst --json --filter half
+exit 1
+--- stdout
+{"file": "Shop.pst", "line": 14, "col": 1, "endLine": 16, "endCol": 23, "test": "half is wrong", "passed": false, "output": "about to fail\npanic P0020: assertion failed: half(5) = 3\n    at Shop.pst:16:5\n"}
+--- stderr
+$ ${VALGRIND:+$VALGRIND --trace-children=yes} $PST test Main.pst
+exit 0
+--- stdout
+ok   Main.pst:7: uses a unit
+1 passed, 0 failed
+--- stderr

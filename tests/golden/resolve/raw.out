@@ -1,4 +1,0 @@
-def Main.pst 1:9-1:13
-  unit 'Main' @ Main.pst:1:9
-Cut.pst error E0000 1:1-1:1 "invalid UTF-8 byte 0xE2"
-Raw.pst error E0000 1:1-1:1 "invalid UTF-8 byte 0xED"

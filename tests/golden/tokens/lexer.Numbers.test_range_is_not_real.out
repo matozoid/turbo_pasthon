@@ -1,5 +1,0 @@
-IntLit 1:1-1:2 "0" int 0
-Dotdot 1:2-1:4 ".." -
-IntLit 1:4-1:5 "9" int 9
-Newline 1:5-1:5 "" -
-Eof 1:5-1:5 "" -

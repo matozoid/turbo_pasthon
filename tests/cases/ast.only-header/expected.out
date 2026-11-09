@@ -1,0 +1,6 @@
+$ $PST ast ast-only-header.pst
+exit 0
+--- stdout
+File 1:1-1:7 kind="unit"
+  name: Ident 1:6-1:7 name="U"
+--- stderr

@@ -1,6 +1,0 @@
-$ pst run Args.pst -- a b c
-exit 0
---- stdout
-a
-b c
---- stderr

@@ -1,0 +1,24 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+def Main.pst 5:5-5:6
+  let 'a' @ Main.pst:5:5
+    : Integer
+use Main.pst 6:1-6:2
+  let 'a' @ Main.pst:5:5
+use Main.pst 7:13-7:14
+  let 'a' @ Main.pst:5:5
+def Main.pst 7:5-7:6
+  let 'b' @ Main.pst:7:5
+    : Integer
+use Main.pst 8:1-8:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 8:11-8:12
+  let 'b' @ Main.pst:7:5
+Main.pst error E0340 6:1-6:2 "can't assign to let binding 'a' (declare it with 'var')"
+Main.pst error E0802 7:31-7:34 "this branch is String, but the first is Integer; all branches must have the same type"
+--- stderr

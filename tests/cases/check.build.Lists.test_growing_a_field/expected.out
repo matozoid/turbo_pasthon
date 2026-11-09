@@ -1,0 +1,176 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:8
+  type 'Bag' @ Main.pst:6:5
+def Main.pst 7:9-7:14
+  field 'items' @ Main.pst:7:9
+def Main.pst 8:11-8:17
+  procedure 'addLen' @ Main.pst:8:11
+def Main.pst 10:11-10:18
+  procedure 'addSeen' @ Main.pst:10:11
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 12:10-12:13
+  type 'Bag' @ Main.pst:6:5
+def Main.pst 12:5-12:6
+  var 'b' @ Main.pst:12:5
+    : Bag
+def Main.pst 13:5-13:6
+  loop variable 'i' @ Main.pst:13:5
+    : Integer
+use Main.pst 14:5-14:8
+  procedure 'add' @ std/System.pst:186:18
+use Main.pst 14:13-14:14
+  var 'b' @ Main.pst:12:5
+use Main.pst 14:22-14:25
+  function 'len' @ std/System.pst:123:21
+use Main.pst 14:26-14:27
+  var 'b' @ Main.pst:12:5
+use Main.pst 15:1-15:7
+  procedure 'addLen' @ Main.pst:8:11
+use Main.pst 15:12-15:13
+  var 'b' @ Main.pst:12:5
+use Main.pst 15:21-15:22
+  var 'b' @ Main.pst:12:5
+use Main.pst 16:1-16:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 16:11-16:12
+  var 'b' @ Main.pst:12:5
+use Main.pst 16:28-16:29
+  var 'b' @ Main.pst:12:5
+def Main.pst 17:5-17:6
+  loop variable 'i' @ Main.pst:17:5
+    : Integer
+use Main.pst 18:5-18:11
+  procedure 'remove' @ std/System.pst:192:18
+use Main.pst 18:16-18:17
+  var 'b' @ Main.pst:12:5
+use Main.pst 18:25-18:28
+  function 'len' @ std/System.pst:123:21
+use Main.pst 18:29-18:30
+  var 'b' @ Main.pst:12:5
+def Main.pst 19:5-19:6
+  loop variable 'i' @ Main.pst:19:5
+    : Integer
+use Main.pst 20:5-20:15
+  procedure 'removeLast' @ std/System.pst:200:18
+use Main.pst 20:20-20:21
+  var 'b' @ Main.pst:12:5
+use Main.pst 21:1-21:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 21:9-21:12
+  function 'len' @ std/System.pst:123:21
+use Main.pst 21:13-21:14
+  var 'b' @ Main.pst:12:5
+use Main.pst 22:10-22:13
+  function 'new' @ std/System.pst:136:21
+use Main.pst 22:14-22:17
+  type 'Bag' @ Main.pst:6:5
+def Main.pst 22:5-22:6
+  let 'r' @ Main.pst:22:5
+    : ref Bag
+def Main.pst 23:5-23:6
+  loop variable 'i' @ Main.pst:23:5
+    : Integer
+use Main.pst 24:5-24:8
+  procedure 'add' @ std/System.pst:186:18
+use Main.pst 24:13-24:14
+  let 'r' @ Main.pst:22:5
+use Main.pst 24:22-24:23
+  loop variable 'i' @ Main.pst:23:5
+use Main.pst 25:1-25:8
+  procedure 'addSeen' @ Main.pst:10:11
+use Main.pst 25:13-25:14
+  let 'r' @ Main.pst:22:5
+use Main.pst 25:22-25:23
+  let 'r' @ Main.pst:22:5
+use Main.pst 26:1-26:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 26:11-26:14
+  function 'len' @ std/System.pst:123:21
+use Main.pst 26:15-26:16
+  let 'r' @ Main.pst:22:5
+use Main.pst 26:26-26:27
+  let 'r' @ Main.pst:22:5
+use Main.pst 7:21-7:28
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 7:16-7:20
+  builtin type 'List' @ built into unit System
+use Main.pst 8:31-8:38
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 8:26-8:30
+  builtin type 'List' @ built into unit System
+def Main.pst 8:22-8:24
+  parameter 'xs' @ Main.pst:8:22
+    : List[Integer]
+use Main.pst 8:44-8:47
+  type 'Bag' @ Main.pst:6:5
+def Main.pst 8:41-8:42
+  parameter 'b' @ Main.pst:8:41
+    : Bag
+use Main.pst 9:5-9:8
+  procedure 'add' @ std/System.pst:186:18
+use Main.pst 9:13-9:15
+  parameter 'xs' @ Main.pst:8:22
+use Main.pst 9:17-9:20
+  function 'len' @ std/System.pst:123:21
+use Main.pst 9:21-9:22
+  parameter 'b' @ Main.pst:8:41
+use Main.pst 10:32-10:39
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 10:27-10:31
+  builtin type 'List' @ built into unit System
+def Main.pst 10:23-10:25
+  parameter 'xs' @ Main.pst:10:23
+    : List[Integer]
+use Main.pst 10:49-10:52
+  type 'Bag' @ Main.pst:6:5
+def Main.pst 10:42-10:43
+  parameter 'r' @ Main.pst:10:42
+    : ref Bag
+use Main.pst 11:5-11:8
+  procedure 'add' @ std/System.pst:186:18
+use Main.pst 11:13-11:15
+  parameter 'xs' @ Main.pst:10:23
+use Main.pst 11:17-11:20
+  function 'len' @ std/System.pst:123:21
+use Main.pst 11:21-11:22
+  parameter 'r' @ Main.pst:10:42
+use Main.pst 9:23-9:28
+  field 'items' @ Main.pst:7:9
+use Main.pst 11:23-11:28
+  field 'items' @ Main.pst:7:9
+use Main.pst 12:14-12:19
+  field 'items' @ Main.pst:7:9
+use Main.pst 14:15-14:20
+  field 'items' @ Main.pst:7:9
+use Main.pst 14:28-14:33
+  field 'items' @ Main.pst:7:9
+use Main.pst 15:14-15:19
+  field 'items' @ Main.pst:7:9
+use Main.pst 16:13-16:18
+  field 'items' @ Main.pst:7:9
+use Main.pst 16:30-16:35
+  field 'items' @ Main.pst:7:9
+use Main.pst 18:18-18:23
+  field 'items' @ Main.pst:7:9
+use Main.pst 18:31-18:36
+  field 'items' @ Main.pst:7:9
+use Main.pst 20:22-20:27
+  field 'items' @ Main.pst:7:9
+use Main.pst 21:15-21:20
+  field 'items' @ Main.pst:7:9
+use Main.pst 22:18-22:23
+  field 'items' @ Main.pst:7:9
+use Main.pst 24:15-24:20
+  field 'items' @ Main.pst:7:9
+use Main.pst 25:15-25:20
+  field 'items' @ Main.pst:7:9
+use Main.pst 26:17-26:22
+  field 'items' @ Main.pst:7:9
+use Main.pst 26:28-26:33
+  field 'items' @ Main.pst:7:9
+--- stderr

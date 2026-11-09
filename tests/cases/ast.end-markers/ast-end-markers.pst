@@ -1,0 +1,51 @@
+program P
+if a then
+    b()
+# end if
+while a do
+    b()
+# end for
+function f(x: Integer): Integer
+    return x
+# end function g
+procedure q()
+    b()
+# end procedure
+# end procedure
+repeat
+    b()
+until a
+# end repeat
+x := 1
+# end if
+# end while
+type
+    R = record
+        a: Integer
+    # end record R
+    T = trait
+        b: Integer
+    # end trait X
+defer
+    b()
+# end defer
+defer b()
+# end defer
+case x of
+    1: b()
+# end case
+for i := 1 to 2 do
+    b()
+# end for
+for v in xs do
+    b()
+# end for
+test "t"
+    b()
+# end test
+extern "c"
+    function f(): Integer
+# end extern
+if a then
+    b(
+# end if

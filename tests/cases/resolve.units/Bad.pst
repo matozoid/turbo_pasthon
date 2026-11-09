@@ -1,0 +1,4 @@
+unit Bad
+uses Bad
+const
+    export X = 1

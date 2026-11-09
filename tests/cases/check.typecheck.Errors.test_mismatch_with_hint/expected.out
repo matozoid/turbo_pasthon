@@ -1,0 +1,18 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 5:8-5:12
+  type 'Real' @ std/System.pst:15:12
+def Main.pst 5:5-5:6
+  let 'x' @ Main.pst:5:5
+    : Real
+use Main.pst 6:1-6:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 6:9-6:10
+  let 'x' @ Main.pst:5:5
+Main.pst error E0300 5:16-5:17 "expected Real, found Integer; convert with toReal(...)"
+--- stderr

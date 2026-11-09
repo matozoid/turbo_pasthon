@@ -1,0 +1,1 @@
+$TOOLS/CheckDump $STD does-not-exist.pst

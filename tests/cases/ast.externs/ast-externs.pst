@@ -1,0 +1,19 @@
+program P
+extern "libc.so.6"
+    ## Writes.
+    export function write(fd: Integer, buf: Pointer, n: Integer): Integer as "write"
+    procedure exit(code: Integer)
+    x := 1
+    type
+        Tm = record
+            sec: Integer
+            min: Integer := 3
+        G[T] = record
+            a: T
+        E = (A, B)
+    function f(): Integer as "a{b}"
+extern "{x}"
+    procedure g()
+extern
+    procedure g()
+extern "c"

@@ -1,0 +1,4 @@
+$VALGRIND $PST tokens $ROOT/compiler/Lexer.pst > /dev/null
+$VALGRIND $PST ast $ROOT/compiler/Lexer.pst > /dev/null
+$VALGRIND $TOOLS/ResolveDump $STD $ROOT/compiler/Lexer.pst > /dev/null
+$VALGRIND $TOOLS/CheckDump $STD $ROOT/examples/Inventory.pst > /dev/null

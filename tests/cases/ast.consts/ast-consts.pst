@@ -1,0 +1,8 @@
+program P
+const
+    A = 1
+    export B := 2
+    C
+    D = 1 + 
+    E = "x"
+const

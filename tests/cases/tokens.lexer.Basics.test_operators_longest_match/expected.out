@@ -1,0 +1,15 @@
+$ $PST tokens lexer.Basics.test_operators_longest_match.pst
+exit 0
+--- stdout
+Ident 1:1-1:2 "a" -
+Dotdot 1:2-1:4 ".." -
+Ident 1:4-1:5 "b" -
+Ellipsis 1:6-1:9 "..." -
+Le 1:10-1:12 "<=" -
+Ne 1:13-1:15 "<>" -
+Ge 1:16-1:18 ">=" -
+Assign 1:19-1:21 ":=" -
+Arrow 1:22-1:24 "=>" -
+Newline 1:24-1:24 "" -
+Eof 1:24-1:24 "" -
+--- stderr

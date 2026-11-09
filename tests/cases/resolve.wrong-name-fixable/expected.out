@@ -1,0 +1,9 @@
+$ $TOOLS/ResolveDump $STD Prog_2.pst
+exit 0
+--- stdout
+def Prog_2.pst 1:6-1:10
+  unit 'Main' @ Prog_2.pst:1:6
+Prog_2.pst error E0105 1:6-1:10 "unit 'Main' must be in a file named 'Main.pst', not 'Prog_2.pst'"
+  fix "rename to 'Prog_2'"
+    edit 1:6-1:10 "Prog_2"
+--- stderr

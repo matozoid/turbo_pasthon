@@ -1,0 +1,26 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 3:10-3:12
+  unit 'OS' @ std/OS.pst:1:6
+use Main.pst 5:1-5:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 5:9-5:19
+  function 'currentDir' @ std/OS.pst:81:24
+use Main.pst 6:1-6:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 6:9-6:15
+  function 'isFile' @ std/OS.pst:100:17
+use Main.pst 7:1-7:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 7:9-7:15
+  function 'isFile' @ std/OS.pst:100:17
+use Main.pst 8:1-8:8
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 8:9-8:15
+  function 'isFile' @ std/OS.pst:100:17
+--- stderr

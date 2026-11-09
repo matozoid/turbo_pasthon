@@ -1,0 +1,14 @@
+$ $PST ast parser.Errors.test_if_expr_errors.pst
+exit 1
+--- stdout
+File 1:1-2:17 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: Assign 2:1-2:17
+    target: Name 2:1-2:2 name="x"
+    value: IfExpr 2:6-2:17
+      branches[0]: CondExpr 2:9-2:17
+        cond: Name 2:9-2:10 name="a"
+        value: IntLit 2:16-2:17 value=1
+      else_value: ErrorExpr 2:17-2:17
+error E0801 2:17-2:17 "an 'if' expression needs an 'else' branch"
+--- stderr
