@@ -2051,10 +2051,7 @@ procedure caseOf(
                         add(var bound, vl)
                 else:
                     pass
-        if len(bound) > 0 then
-            if len(labels) > 1 then
-                unsupported(g, bound[0].span, "a binding in an arm with several labels")
-                return
+        if len(bound) > 0 then  # alone in its arm (E0603)
             load(a, Rax, Rbp, disp: slot)
             load(a, Rax, Rax, disp: Fields)
             let bt := subT(g, symType(g, refSym(g, bound[0].binding.span).get()))

@@ -856,7 +856,8 @@ case expr of
       Circle(c): return Pi * c.r * c.r
       Rect(r):   return r.w * r.h
   ```
-  The binding is optional: `None: return 0`.
+  The binding is optional: `None: return 0`. A label that binds needs an arm of its own
+  (`E0603`): in `X(x), Y(y):` one of the two would hold nothing.
 
 Expression forms of `if` and `case` are described in §9.3.
 

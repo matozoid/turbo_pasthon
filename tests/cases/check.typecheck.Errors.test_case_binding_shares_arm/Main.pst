@@ -1,0 +1,18 @@
+program Main
+
+uses IO
+
+type
+    X = record
+        n: Integer
+    Y = record
+        n: Integer
+    S = X | Y
+
+let s: S := X(n: 1)
+case s of
+    X(x), Y(y): writeln(x.n + y.n)
+case s of
+    X(_), Y(y): writeln(y.n)
+case s of
+    X(_), Y(_): writeln(0)

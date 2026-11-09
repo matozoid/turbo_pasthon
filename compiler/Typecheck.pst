@@ -2353,6 +2353,13 @@ procedure caseLabels(tc: ref TC, var info: CaseInfo, labels: List[Label])
         case label of
             VariantLabel(v):
                 variantLabel(tc, var info, v)
+                if len(labels) > 1 and symAt(tc, v.binding.span).isSome() then
+                    fail(
+                        tc,
+                        v.binding.span,
+                        "E0603",
+                        "a label that binds the variant needs an arm of its own",
+                    )
             ValueLabel(v):
                 if info.kind = "union" or info.kind = "enum" then
                     _ := namedLabel(tc, var info, v.value, true)

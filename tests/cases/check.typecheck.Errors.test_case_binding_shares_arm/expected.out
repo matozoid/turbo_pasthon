@@ -1,0 +1,83 @@
+$ $TOOLS/CheckDump $STD Main.pst
+exit 0
+--- stdout
+def Main.pst 1:9-1:13
+  unit 'Main' @ Main.pst:1:9
+def Main.pst 6:5-6:6
+  type 'X' @ Main.pst:6:5
+def Main.pst 7:9-7:10
+  field 'n' @ Main.pst:7:9
+def Main.pst 8:5-8:6
+  type 'Y' @ Main.pst:8:5
+def Main.pst 9:9-9:10
+  field 'n' @ Main.pst:9:9
+def Main.pst 10:5-10:6
+  type 'S' @ Main.pst:10:5
+use Main.pst 3:6-3:8
+  unit 'IO' @ std/IO.pst:1:6
+use Main.pst 12:8-12:9
+  type 'S' @ Main.pst:10:5
+use Main.pst 12:13-12:14
+  type 'X' @ Main.pst:6:5
+def Main.pst 12:5-12:6
+  let 's' @ Main.pst:12:5
+    : S
+use Main.pst 13:6-13:7
+  let 's' @ Main.pst:12:5
+use Main.pst 14:5-14:6
+  type 'X' @ Main.pst:6:5
+def Main.pst 14:7-14:8
+  case binding 'x' @ Main.pst:14:7
+    : X
+use Main.pst 14:11-14:12
+  type 'Y' @ Main.pst:8:5
+def Main.pst 14:13-14:14
+  case binding 'y' @ Main.pst:14:13
+    : Y
+use Main.pst 14:17-14:24
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 14:25-14:26
+  case binding 'x' @ Main.pst:14:7
+use Main.pst 14:31-14:32
+  case binding 'y' @ Main.pst:14:13
+use Main.pst 15:6-15:7
+  let 's' @ Main.pst:12:5
+use Main.pst 16:5-16:6
+  type 'X' @ Main.pst:6:5
+use Main.pst 16:11-16:12
+  type 'Y' @ Main.pst:8:5
+def Main.pst 16:13-16:14
+  case binding 'y' @ Main.pst:16:13
+    : Y
+use Main.pst 16:17-16:24
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 16:25-16:26
+  case binding 'y' @ Main.pst:16:13
+use Main.pst 17:6-17:7
+  let 's' @ Main.pst:12:5
+use Main.pst 18:5-18:6
+  type 'X' @ Main.pst:6:5
+use Main.pst 18:11-18:12
+  type 'Y' @ Main.pst:8:5
+use Main.pst 18:17-18:24
+  procedure 'writeln' @ std/IO.pst:16:22
+use Main.pst 7:12-7:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 9:12-9:19
+  type 'Integer' @ std/System.pst:13:12
+use Main.pst 10:9-10:10
+  type 'X' @ Main.pst:6:5
+use Main.pst 10:13-10:14
+  type 'Y' @ Main.pst:8:5
+use Main.pst 12:15-12:16
+  field 'n' @ Main.pst:7:9
+use Main.pst 14:27-14:28
+  field 'n' @ Main.pst:7:9
+use Main.pst 14:33-14:34
+  field 'n' @ Main.pst:9:9
+use Main.pst 16:27-16:28
+  field 'n' @ Main.pst:9:9
+Main.pst error E0603 14:7-14:8 "a label that binds the variant needs an arm of its own"
+Main.pst error E0603 14:13-14:14 "a label that binds the variant needs an arm of its own"
+Main.pst error E0603 16:13-16:14 "a label that binds the variant needs an arm of its own"
+--- stderr
