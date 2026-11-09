@@ -400,7 +400,7 @@ function castable(t: Type): Boolean
     return isInteger(t) or t = prim("Pointer") or t = prim("CString") or isBuiltin(t, "Ptr")
 
 ## The number of type arguments of a builtin generic; 0 for other builtin types.
-function arityOf(name: String): Integer
+export function arityOf(name: String): Integer
     if name = "List" or name = "Weak" or name = "Ptr" then
         return 1
     if name = "Array" then
@@ -4446,6 +4446,29 @@ export function implementation(tc: ref TC, typeSym, tr: ref Symbol): Option[List
             None:
                 pass
     return Some(out)
+
+## Whether the types bound in `s` satisfy their parameters' trait bounds, as `file` sees
+## them; parameters left unbound in `vars` are inferred into `s`.
+export function boundsHold(
+    env: ref Env,
+    file: String,
+    tparams: List[ref Symbol],
+    var s: Subst,
+    vars: Vars,
+): Boolean
+    if not (file in env.byFile) then
+        return true
+    let tc := newTC(env, env.byFile[file])  # not `checker`: kept in `env`, it would be a cycle
+    for tp in tparams do
+        if tp.id in s then
+            for b in bounds(env, tp) do
+                case subst(b, s) of
+                    TraitT(tr):
+                        if not satisfies(tc, s[tp.id], tr, var s, vars, 0) then
+                            return false
+                    else:
+                        pass
+    return true
 
 function satisfiesPlain(tc: ref TC, t, wanted: Type): Boolean
     case wanted of

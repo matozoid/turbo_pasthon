@@ -1511,6 +1511,7 @@ one-shot commands with JSON output. Each command takes a position as `File.pst:l
 | `pst query symbols [File.pst]` | symbols of one file, or the project |
 | `pst query impls Measurable` | types and functions satisfying a trait |
 | `pst query callers restock` / `callees restock` | call graph edges |
+| `pst query accepts Item` | what `x.` can call on a value of that type (§6.6) |
 | `pst query instances largest` | every generic instance and where each is created |
 | `pst query explain E0502` | error code documentation |
 
@@ -1527,7 +1528,7 @@ prints `"symbols"` and `"references"`:
 All query output has a stable, versioned schema (`"schema": "pst-query/1"`).
 
 So far `pst query` has `def`, `refs`, `type`, `hover`, `complete`, `impls`, `callers`,
-`callees` and `symbols`. Each prints one JSON
+`callees`, `accepts` and `symbols`. Each prints one JSON
 object with `"schema"` and one list:
 
 - `def` gives `"locations"`: the defining names, one per overload the name may mean.
@@ -1550,6 +1551,12 @@ object with `"schema"` and one list:
   `"calls"` locations. It searches like `refs`.
 - `callees` on a routine gives `"callees"`: one entry per routine declared in source that
   it calls, as `"callee"`, with the `"calls"` locations in its declaration.
+- `accepts` on a type, or on a value, gives `"symbols"`, each with `"name"`, `"kind"`,
+  `"location"` and `"declaration"`: the routines whose first parameter takes a value of
+  that type, so `x.f()` can call them (§6.6), with generic routines whose bounds the
+  type satisfies. A generic type stands for any of its instances. The routines are those
+  the file of the position (or of the name's declaration) sees: its own, and the exports
+  of the units it uses.
 - `symbols [PATH]` gives `"symbols"` like hover's: the types, constants, routines, fields
   and enum members declared in a file, or in the `.pst` files of a directory (by default
   the current one).
@@ -1610,7 +1617,7 @@ Configure it in an agent with the command `pst mcp --root <project-dir>`.
 | `pst_impls` | `trait` | types and functions satisfying it |
 | `pst_callers` / `pst_callees` | `symbol` | call graph edges |
 | `pst_instances` | `symbol` | generic instances and where they are created |
-| `pst_accepts` | `type` | visible functions whose first parameter accepts that type, i.e. what `x.` can call (§6.6) |
+| `pst_accepts` | `file`, `line`, `col` or `type` | visible functions whose first parameter accepts that type, i.e. what `x.` can call (§6.6) |
 | `pst_rename` | `symbol`, `newName`, `dryRun?` | edits across units, refused on conflicts |
 | `pst_explain` | `code` | documentation for an error code |
 
@@ -1625,7 +1632,8 @@ Configure it in an agent with the command `pst mcp --root <project-dir>`.
   tools are re-checked automatically before the next tool call.
 
 So far `pst mcp [--root DIR]` has `pst_check`, `pst_symbols`, `pst_index`, `pst_def`,
-`pst_refs`, `pst_type`, `pst_hover`, `pst_impls`, `pst_callers`, `pst_callees`, `pst_fmt`,
+`pst_refs`, `pst_type`, `pst_hover`, `pst_impls`, `pst_callers`, `pst_callees`,
+`pst_accepts`, `pst_fmt`,
 `pst_apply_fix`, `pst_rename`, `pst_run` and `pst_test`. It reads
 one JSON-RPC message per line and answers `initialize`, `ping`, `tools/list` and
 `tools/call`; notifications are ignored. It runs in the root (by default the current

@@ -308,8 +308,22 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
             add(var items, symbolInfo(a, sym))
         return Ok(answer("symbols", items))
     if a.checked.env.isNone() then
-        return Ok(answer("types", items))
+        return Ok(answer(if request = "accepts" then "symbols" else "types", items))
     let env := a.checked.env.get()
+    if request = "accepts" then
+        var seen: Map[Integer, Boolean] := {}
+        for sym in targets do
+            case valueTypeOf(env, sym) of
+                Some(t):
+                    for f in acceptorsOf(a, file, ty: t.value) do
+                        if not (f.id in seen) then
+                            seen[f.id] := true
+                            let b := brief(f)
+                            let head := quote(headOf(a, f))
+                            add(var items, "{slice(b, 0, byteLen(b) - 1)},\"declaration\":{head}}")
+                None:
+                    pass
+        return Ok(answer("symbols", items))
     for sym in targets do
         case typeOfSym(env, sym) of
             Some(t):

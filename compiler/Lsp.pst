@@ -808,6 +808,44 @@ function visibleRoutines(a: Analysis, path: String): List[ref Symbol]
                     add(var out, sym)
     return out
 
+## The routines `path` sees whose first parameter takes a `ty`: what `x.` can call on a
+## value of that type (§6.6).
+export function acceptorsOf(a: Analysis, path: String, ty: Type): List[ref Symbol]
+    var out: List[ref Symbol] := []
+    if a.checked.env.isNone() then
+        return out
+    let env := a.checked.env.get()
+    for sym in visibleRoutines(a, path) do
+        let g := sig(env, sym)
+        if len(g.params) > 0 then
+            var vars: Vars := {}
+            for tp in g.tparams do
+                vars[tp.id] := true
+            var sub: Subst := {}
+            if unify(g.params[0].ty, ty, var sub, vars) and boundsHold(env, path, g.tparams, var sub, vars) then
+                add(var out, sym)
+    return out
+
+## The type of the values a symbol names: what a type name stands for (any instance of a
+## generic one), else the type of a value as in `typeOfSym`.
+export function valueTypeOf(env: ref Env, sym: ref Symbol): Option[Type]
+    if sym.kind = Kind.TypeSym then
+        let d := decl(env, sym)
+        if d.kind = "alias" then
+            return Some(d.alias)
+        var args: List[Type] := []
+        for _ in d.params do
+            add(var args, errorT())
+        return Some(named(sym, args))
+    if sym.kind = Kind.BuiltinType then
+        if arityOf(sym.name) = 0 then
+            return Some(prim(sym.name))
+        var args: List[Type] := []
+        while len(args) < arityOf(sym.name) do
+            add(var args, errorT())
+        return Some(builtin(sym.name, args))
+    return typeOfSym(env, sym)
+
 ## The routine of this file whose declaration holds `offset`, as a span; None outside any.
 function enclosingRoutine(a: Analysis, path: String, offset: Integer): Option[Span]
     for r in a.checked.resolved.checker.index.refs do
@@ -847,15 +885,8 @@ procedure members(var c: Completions, a: Analysis, path: String, receiver: ref S
                     offer(var c, a, sym: m, rank: "0")
         None:
             pass
-    for sym in visibleRoutines(a, path) do
-        let g := sig(env, sym)
-        if len(g.params) > 0 then
-            var vars: Vars := {}
-            for tp in g.tparams do
-                vars[tp.id] := true
-            var sub: Subst := {}
-            if unify(g.params[0].ty, ty, var sub, vars) then
-                offer(var c, a, sym: sym, rank: "1")
+    for sym in acceptorsOf(a, path, ty: ty) do
+        offer(var c, a, sym: sym, rank: "1")
 
 ## Names at the position: the locals declared before it in the same routine (or main
 ## body), the document's own top-level names, the exports of the units it uses, and

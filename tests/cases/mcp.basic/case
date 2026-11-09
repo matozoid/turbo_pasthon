@@ -4,3 +4,5 @@ $PST mcp --root proj < session.jsonl | sed 's|\\"file\\":\\"/[^"]*/|\\"file\\":\
 echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | $PST mcp | grep -o '"name":"pst_[a-z]*"'
 $PST mcp --root nope < /dev/null
 $PST mcp extra
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pst_accepts","arguments":{"type":"Square"}}}' | $PST mcp --root proj | grep -o 'declaration\\":\\"[^\\]*'
+echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"pst_accepts","arguments":{}}}' | $PST mcp --root proj

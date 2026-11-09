@@ -54,7 +54,7 @@ usage: pst check FILE [--json]
        pst fmt PATH [--check]
        pst lsp
        pst mcp [--root DIR]
-       pst query def|refs|type|hover|impls|callers|callees FILE:LINE:COL|NAME
+       pst query def|refs|type|hover|impls|callers|callees|accepts FILE:LINE:COL|NAME
        pst query complete FILE:LINE:COL
        pst query symbols [PATH]
        pst index [PATH]
@@ -99,7 +99,7 @@ usage: pst check FILE [--json]
        pst fmt PATH [--check]
        pst lsp
        pst mcp [--root DIR]
-       pst query def|refs|type|hover|impls|callers|callees FILE:LINE:COL|NAME
+       pst query def|refs|type|hover|impls|callers|callees|accepts FILE:LINE:COL|NAME
        pst query complete FILE:LINE:COL
        pst query symbols [PATH]
        pst index [PATH]
@@ -146,3 +146,46 @@ exit 1
 --- stdout
 --- stderr
 pst: error: expected FILE:LINE:COL, got 'twice'
+$ $PST query accepts Square | grep -o '"declaration":"[^"]*"'
+exit 0
+--- stdout
+"declaration":"function area(sq: Square): Integer"
+"declaration":"procedure inc[T](var x: T)"
+"declaration":"procedure inc[T](var x: T, n: Integer)"
+"declaration":"procedure dec[T](var x: T)"
+"declaration":"procedure dec[T](var x: T, n: Integer)"
+"declaration":"function ord[T](x: T): Integer"
+"declaration":"function new[T](value: T): ref T"
+--- stderr
+$ $PST query accepts Shapes.pst:13:23 | grep -o '"name":"[a-zA-Z]*"'
+exit 0
+--- stdout
+"name":"total"
+"name":"len"
+"name":"inc"
+"name":"inc"
+"name":"dec"
+"name":"dec"
+"name":"ord"
+"name":"new"
+"name":"add"
+"name":"remove"
+"name":"removeLast"
+"name":"insert"
+"name":"sort"
+"name":"concat"
+"name":"iter"
+--- stderr
+$ $PST query accepts Shapes.pst:16:9 | grep -o '"name":"[a-zA-Z]*"'
+exit 0
+--- stdout
+"name":"inc"
+"name":"inc"
+"name":"dec"
+"name":"dec"
+"name":"ord"
+"name":"new"
+"name":"toString"
+"name":"toReal"
+"name":"halt"
+--- stderr

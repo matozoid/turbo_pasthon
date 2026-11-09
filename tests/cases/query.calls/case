@@ -21,3 +21,6 @@ $PST query def area
 $PST query def nope
 $PST query def a.b.c
 $PST query complete twice
+$PST query accepts Square | grep -o '"declaration":"[^"]*"'
+$PST query accepts Shapes.pst:13:23 | grep -o '"name":"[a-zA-Z]*"'
+$PST query accepts Shapes.pst:16:9 | grep -o '"name":"[a-zA-Z]*"'

@@ -33,6 +33,7 @@ exit 0
 "name":"pst_type"
 "name":"pst_hover"
 "name":"pst_impls"
+"name":"pst_accepts"
 "name":"pst_callers"
 "name":"pst_callees"
 "name":"pst_run"
@@ -56,10 +57,26 @@ usage: pst check FILE [--json]
        pst fmt PATH [--check]
        pst lsp
        pst mcp [--root DIR]
-       pst query def|refs|type|hover|impls|callers|callees FILE:LINE:COL|NAME
+       pst query def|refs|type|hover|impls|callers|callees|accepts FILE:LINE:COL|NAME
        pst query complete FILE:LINE:COL
        pst query symbols [PATH]
        pst index [PATH]
        pst tokens FILE
        pst ast FILE
 pst: error: unrecognized argument 'extra'
+$ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pst_accepts","arguments":{"type":"Square"}}}' | $PST mcp --root proj | grep -o 'declaration\\":\\"[^\\]*'
+exit 0
+--- stdout
+declaration\":\"function area(sq: Square): Integer
+declaration\":\"procedure inc[T](var x: T)
+declaration\":\"procedure inc[T](var x: T, n: Integer)
+declaration\":\"procedure dec[T](var x: T)
+declaration\":\"procedure dec[T](var x: T, n: Integer)
+declaration\":\"function ord[T](x: T): Integer
+declaration\":\"function new[T](value: T): ref T
+--- stderr
+$ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"pst_accepts","arguments":{}}}' | $PST mcp --root proj
+exit 0
+--- stdout
+{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"expected 'file', 'line' and 'col', or 'type'"}],"isError":true}}
+--- stderr

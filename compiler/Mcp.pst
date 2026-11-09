@@ -124,6 +124,16 @@ function tools(): String
             required: ["trait"],
         ),
         tool(
+            "pst_accepts",
+            description: "The routines whose first parameter takes a type, i.e. what `x.` can call on its values, as seen where the type (or value) is declared.",
+            properties: [at[0], at[1], at[2], property(
+                "type",
+                kind: "string",
+                description: "Instead of a position: a type or value's name, Unit.name or Type.name.",
+            )],
+            required: [],
+        ),
+        tool(
             "pst_callers",
             description: "The routines (or unit levels) that call a routine, with the calls' locations.",
             properties: named,
@@ -676,6 +686,9 @@ function call(name: String, arguments: JValue, stdDir: String): Result[String, S
     else if name = "pst_impls" then
         request := "impls"
         key := "trait"
+    else if name = "pst_accepts" then
+        request := "accepts"
+        key := "type"
     else
         return Err("unknown tool '{name}'")
     case positionOf(arguments, key: key) of
