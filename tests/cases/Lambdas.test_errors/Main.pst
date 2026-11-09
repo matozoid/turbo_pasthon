@@ -1,10 +1,13 @@
 program Main
 
-uses IO
+uses IO, C
 
 type
     Person = record
         name: String
+
+extern "libc.so.6"
+    function on_exit(f: procedure(CInt, Pointer), arg: Pointer): CInt
 
 var n := 0
 let f := x => x
@@ -23,3 +26,6 @@ m(1)
 function inc2(var v: Integer): Integer
     v := v + 1
     return v
+
+unsafe procedure hook(tag: String)
+    _ := on_exit((status, arg) => writeln("{tag} {status}"), arg: cast[Pointer](0))

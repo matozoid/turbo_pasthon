@@ -4101,7 +4101,7 @@ procedure callback(g: ref Em, e: Expr, t: Type)
     expr(g, e)
     if g.bad then
         return
-    let k := "lookup|{key(t)}"
+    let k := "lookup|{key(t)}|{where(g, exprSpan(e))}"
     if not (k in g.labels) then
         g.labels[k] := newLabel(g.a, "lookup")
         add(var g.lookups, Lookup(label: g.labels[k], ty: t, span: exprSpan(e)))
@@ -4127,7 +4127,8 @@ function thunkOf(g: ref Em, target: String, t: Type, span: Span): String
     return lbl
 
 ## rax := the thunk of the routine at address rax, of function type `lk.ty`: one of the
-## routines used as values, since only a named routine is a function value (SPEC §4.11).
+## routines used as values. A lambda that captures variables is a block of its own, which
+## C can't call; it panics (SPEC §10.3).
 procedure lookup(g: ref Em, lk: Lookup)
     let a := g.a
     label(a, lk.label)
@@ -4140,7 +4141,7 @@ procedure lookup(g: ref Em, lk: Lookup)
             leaCode(a, Rax, label: thunkOf(g, tk.target, lk.ty, lk.span))
             ret(a)
             label(a, next)
-    ret(a)
+    jmp(a, panic(g, "P0012", "a function value passed to C captures variables", span: lk.span))
 
 ## C passes reals in xmm registers and the rest in the integer ones, counted apart, and
 ## what doesn't fit, or a C record over 16 bytes, on the stack; the routine takes each

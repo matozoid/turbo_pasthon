@@ -147,6 +147,12 @@ export function explanations(): List[Explanation]
             meaning: "`ensures` violated",
         ),
         Explanation(
+            code: "P0012",
+            section: "12",
+            title: "Errors and panics",
+            meaning: "function value passed to C captures variables (§10.3)",
+        ),
+        Explanation(
             code: "P0020",
             section: "12",
             title: "Errors and panics",
@@ -574,6 +580,12 @@ export function explanations(): List[Explanation]
             section: "16.3",
             title: "Type errors",
             meaning: "lambda with a different number of parameters than the function type expected",
+        ),
+        Explanation(
+            code: "E0808",
+            section: "16.3",
+            title: "Type errors",
+            meaning: "lambda that captures variables passed to C (§10.3)",
         ),
         Explanation(
             code: "E0901",

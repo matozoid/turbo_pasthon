@@ -1208,7 +1208,9 @@ extern "libm.so.6"
 ### 10.3 Callbacks
 A top-level, non-generic Pasthon function whose signature is C-compatible can be passed
 where C expects a function pointer, by name or as any value of its function type (§4.11).
-C may call it any number of times while the program runs.
+C may call it any number of times while the program runs. So can a lambda that captures no
+variables. A lambda that captures some can't be: C calls it without them. Passed directly
+to an extern routine it is an error (`E0808`); passed as a value it panics (`P0012`).
 
 ### 10.4 unsafe
 Dereferencing `Ptr[T]`/`Pointer`, pointer arithmetic (`p + n`, in units of `T`), `cast[T](x)`
@@ -1353,6 +1355,7 @@ v0.1 is single-threaded, but the design is fixed now so v0.1 doesn't rule it out
 | `P0009` | `Char(i)` of a value that isn't a Unicode scalar value |
 | `P0010` | `requires` violated |
 | `P0011` | `ensures` violated |
+| `P0012` | function value passed to C captures variables (§10.3) |
 | `P0020` | `assert` failed |
 
 `halt(code)` exits immediately (deferred statements do not run).
@@ -1975,6 +1978,7 @@ already has a lexical error are not reported.
 | `E0805` | `for` expression whose `if` gives no value in any branch, only `continue` or `break` |
 | `E0806` | lambda where no function type is expected |
 | `E0807` | lambda with a different number of parameters than the function type expected |
+| `E0808` | lambda that captures variables passed to C (§10.3) |
 | `E0901` | type isn't C-compatible (extern signature, C record field, C varargs argument; §10.1) |
 | `E0902` | unsafe operation outside an `unsafe` routine (§10.4) |
 | `E0903` | invalid declaration in an extern block's `type` section (§10.5) |

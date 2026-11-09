@@ -1,0 +1,12 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 70
+--- stdout
+-5 -4 1 2 8 
+8 2 1 -4 -5 
+--- stderr
+panic P0012: a function value passed to C captures variables
+    at Main.pst:23:50

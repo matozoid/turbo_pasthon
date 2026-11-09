@@ -238,6 +238,10 @@ type
         fors: List[Type]
         ## How many lambdas the expression being checked is inside.
         lambdas: Integer
+        ## The lambdas whose bodies are being checked, innermost last.
+        open: List[Lambda]
+        ## The ids of the lambdas that capture variables.
+        capturing: Map[Integer, Boolean]
         inDefer: Boolean
         inEnsures: Boolean
         ## Ids of the arguments of `new` calls, for resources().
@@ -625,6 +629,8 @@ function newTC(env: ref Env, u: ref Unit): ref TC
         loops: [],
         fors: [],
         lambdas: 0,
+        open: [],
+        capturing: {},
         inDefer: false,
         inEnsures: false,
         newArgs: {},
@@ -2160,6 +2166,7 @@ function lambda(tc: ref TC, x: Lambda, expected: Type): Type
             t := params[i]
         setType(tc, symAt(tc, x.params[i].span), t)
     tc.lambdas := tc.lambdas + 1
+    add(var tc.open, x)
     if not ok then
         _ := expr(tc, x.body, noType())
     else if result = voidT() then
@@ -2173,6 +2180,7 @@ function lambda(tc: ref TC, x: Lambda, expected: Type): Type
             )
     else
         _ := check(tc, x.body, result)
+    removeLast(var tc.open)
     tc.lambdas := tc.lambdas - 1
     if not ok then
         return errorT()
@@ -2947,6 +2955,25 @@ function mapLit(tc: ref TC, x: MapLit, expected: Type): Type
 
 # names
 
+## Whether `g` is a C routine's: one declared in an `extern` block.
+function isExternSig(g: Sig): Boolean
+    case g.sym of
+        Some(s):
+            return s.value.isExtern
+        None:
+            return false
+
+## Notes the open lambdas that `s`, a local read in their bodies, is declared outside
+## of: they capture it.
+procedure noteCapture(tc: ref TC, s: ref Symbol)
+    case s.span of
+        Some(sp):
+            for l in tc.open do
+                if sp.value.start < l.span.start or sp.value.end > l.span.end then
+                    tc.capturing[l.id] := true
+        None:
+            pass
+
 function symValue(tc: ref TC, syms: List[ref Symbol], span: Span, expected: Type): Type
     let s := syms[0]
     if isRoutine(s.kind) then
@@ -2955,6 +2982,7 @@ function symValue(tc: ref TC, syms: List[ref Symbol], span: Span, expected: Type
     if k = Kind.ResultSym then
         return tc.result
     if isLocal(k) then
+        noteCapture(tc, s)
         return getOr(tc.env.symTypes, s.id, default: errorT())
     if k = Kind.ConstSym then
         return constType(tc.env, s)
@@ -4436,6 +4464,17 @@ procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Sp
                 tc.types[exprId(a.expr)] := want
         else if known(a.flex) then
             _ := check(tc, a.expr, want)
+        case unparen(a.expr) of
+            Lambda(l):
+                if isExternSig(g) and l.id in tc.capturing then
+                    fail(
+                        tc,
+                        l.span,
+                        "E0808",
+                        "C calls this lambda without its captured variables; pass a lambda that captures none, or a named function",
+                    )
+            else:
+                pass
         case a.name of
             Some(nm):
                 case p.sym of

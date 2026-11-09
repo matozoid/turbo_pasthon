@@ -1,0 +1,35 @@
+program Main
+
+uses IO, C
+
+extern "libc.so.6"
+    function malloc(n: CSize): Pointer
+    procedure free(p: Pointer)
+    procedure qsort(base: Pointer, n: CSize, size: CSize, cmp: function(Pointer, Pointer): CInt)
+
+unsafe function compare(a: Pointer, b: Pointer): CInt
+    let x := deref(cast[Ptr[CInt]](a))
+    let y := deref(cast[Ptr[CInt]](b))
+    return if x < y then -1 else if x > y then 1 else 0
+
+## Sorts five numbers with C's `qsort`, descending if `desc`; with `capture`, the
+## comparison captures `desc`, which C can't call.
+unsafe procedure demo(desc, capture: Boolean)
+    let p := cast[Ptr[CInt]](malloc(20))
+    for i := 0 to 4 do
+        deref(p + i) := CInt(3 * i - 4) * (if i mod 2 = 0 then 1 else -1)
+    if capture then
+        let cmp: function(Pointer, Pointer): CInt := (a, b) => if desc then compare(b, b: a) else compare(a, b: b)
+        qsort(cast[Pointer](p), 5, size: 4, cmp: cmp)
+    else if desc then
+        qsort(cast[Pointer](p), 5, size: 4, cmp: (a, b) => compare(b, b: a))
+    else
+        qsort(cast[Pointer](p), 5, size: 4, cmp: (a, b) => compare(a, b: b))
+    for i := 0 to 4 do
+        write("{deref(p + i)} ")
+    writeln()
+    free(cast[Pointer](p))
+
+demo(false, capture: false)
+demo(true, capture: false)
+demo(true, capture: true)
