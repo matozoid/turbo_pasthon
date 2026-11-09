@@ -1,0 +1,8 @@
+program Main
+
+uses IO
+
+var a: Int8 := 127
+inc(var a)
+let x := 300
+writeln("{a} {UInt8(x)}")

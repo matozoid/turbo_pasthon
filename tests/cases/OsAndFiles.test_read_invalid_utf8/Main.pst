@@ -1,0 +1,14 @@
+program Main
+
+uses IO, Strings
+
+case open("bad") of
+    Ok(f):
+        case readAll(f.value) of
+            Ok(t):
+                write(t.value)
+                writeln(charCount(t.value))
+            Err(e):
+                writeln(e.error)
+    Err(e):
+        writeln(e.error)

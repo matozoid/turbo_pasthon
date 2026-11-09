@@ -1,0 +1,6 @@
+program Main
+
+uses IO
+
+var xs := [1]
+insert(var xs, 2, x: 0)

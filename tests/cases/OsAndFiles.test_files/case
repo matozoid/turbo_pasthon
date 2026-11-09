@@ -1,0 +1,5 @@
+$PST build Main.pst -o main
+$VALGRIND ./main
+od -An -tx1 bin
+test -x bin && echo 'bin is executable'
+test -x text || echo 'text is not executable'

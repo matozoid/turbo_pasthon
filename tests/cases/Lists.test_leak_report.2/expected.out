@@ -1,0 +1,9 @@
+$ $PST build Main.pst -o main --unchecked
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+done
+--- stderr

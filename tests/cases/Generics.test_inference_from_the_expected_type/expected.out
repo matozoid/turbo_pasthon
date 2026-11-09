@@ -1,0 +1,12 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main
+exit 0
+--- stdout
+zero
+A 5
+B -2
+true
+--- stderr

@@ -1,0 +1,12 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+42 3
+3 7 false true
+-3 100 300
+3 2
+--- stderr

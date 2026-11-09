@@ -1,0 +1,29 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ mkdir dir/d
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main
+exit 0
+--- stdout
+true
+false
+false
+4
+a
+b
+d
+é
+dir/missing: No such file or directory
+2
+127
+--- stderr
+$ cat dir/a
+exit 0
+--- stdout
+out
+err
+--- stderr

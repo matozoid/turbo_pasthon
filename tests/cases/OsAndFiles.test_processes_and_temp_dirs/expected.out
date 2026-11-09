@@ -1,0 +1,27 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ mkdir t
+exit 0
+--- stdout
+--- stderr
+$ TMPDIR="$PWD/t" $VALGRIND ./main
+exit 0
+--- stdout
+main
+true
+false
+true
+false
+true
+false
+[a b] [é]
+3
+-9
+127
+--- stderr
+$ ls -A t
+exit 0
+--- stdout
+--- stderr

@@ -1,0 +1,5 @@
+$ $PST build Lib.pst -o main
+exit 1
+--- stdout
+--- stderr
+Lib.pst:1:6: error E0990: only a program can be built; a unit is compiled with the program that uses it

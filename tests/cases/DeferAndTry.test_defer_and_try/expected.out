@@ -1,0 +1,33 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main
+exit 0
+--- stdout
+  body
+  inner
+  end
+  second
+  first
+  leaving ab+cde
+  both done
+ok ab+cde=3
+  leaving ab+bad
+  both done
+err not a number: bad
+  leaving bad+x
+  both done
+err not a number: bad
+  pick done
+some p2
+  pick done
+none
+[a][skip][bc][stop]
+ok 3
+[a][bad]err not a number: bad
+  check done
+err not a number: bad
+  check done
+ok 1
+--- stderr

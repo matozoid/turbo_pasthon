@@ -1,0 +1,27 @@
+program Main
+
+uses IO
+
+function fact(n: Integer): Integer
+    requires n >= 0
+    if n <= 1 then
+        return 1
+    return n * fact(n - 1)
+
+procedure bump(var x: Integer, by: Integer := 10)
+    ensures x = old(x) + by
+    x := x + by
+
+procedure twice(var x: Integer)
+    bump(var x)
+    bump(x: var x, by: 1)
+
+function sum6(a, b, c, d, e, f: Integer): Integer
+    return a + 2 * b + 3 * c + 4 * d + 5 * e + 6 * f
+
+writeln(fact(20))
+var b := 5
+twice(var b)
+writeln(b)
+writeln(sum6(1, 2, 3, fact(3), 5, 6))
+writeln(3.fact())

@@ -1,0 +1,29 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main
+exit 0
+--- stdout
+3
+169
+7
+5
+true
+true
+false
+[a][b][][c]
+x, yé, z
+[]
+[hi there]
+[]
+a+=b+=c
+123
+-9223372036854775808
+'9223372036854775808' doesn't fit in an Integer
+7
+'-' is not an integer
+'12a' is not an integer
+hé�!
+[]
+--- stderr

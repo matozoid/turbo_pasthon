@@ -1,0 +1,45 @@
+program Main
+
+uses IO, C
+
+extern "libc.so.6"
+    type
+        export Div = record
+            quot: CInt
+            rem: CInt
+        export Mixed = record
+            a: Int8
+            b: Int64
+            c: Int16
+    function abs(x: CInt): CInt
+    function strlen(s: CString): CSize
+    function printf(fmt: CString, ...): CInt
+    function malloc(n: CSize): Pointer
+    procedure free(p: Pointer)
+    procedure qsort(base: Pointer, n: CSize, size: CSize, cmp: function(Pointer, Pointer): CInt)
+    function cdiv(a: CInt, b: CInt): Div as "div"
+    function getenv(name: CString): CString
+    function setenv(name: CString, value: CString, overwrite: CInt): CInt
+
+extern "libm.so.6"
+    function labs(x: CLong): CLong
+
+function compare(a: Pointer, b: Pointer): CInt
+    return compareInts(a, b: b)
+
+unsafe function compareInts(a: Pointer, b: Pointer): CInt
+    let x := deref(cast[Ptr[CInt]](a))
+    let y := deref(cast[Ptr[CInt]](b))
+    return if x < y then -1 else if x > y then 1 else 0
+
+unsafe procedure sortDemo()
+    let p := cast[Ptr[CInt]](malloc(20))
+    for i := 0 to 4 do
+        deref(p + i) := CInt(10 - 3 * i)
+    qsort(cast[Pointer](p), 5, size: 4, cmp: compare)
+    for i := 0 to 4 do
+        write("{deref(p + i)} ")
+    writeln()
+    free(cast[Pointer](p))
+
+sortDemo()

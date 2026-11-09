@@ -1,0 +1,10 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+true true true true true
+true false true true true
+--- stderr

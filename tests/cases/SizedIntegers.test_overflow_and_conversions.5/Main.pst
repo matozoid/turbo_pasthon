@@ -1,0 +1,6 @@
+program Main
+
+uses IO
+
+let x := 300
+writeln(UInt8(x))

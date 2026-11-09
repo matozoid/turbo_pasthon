@@ -1,0 +1,6 @@
+program Main
+
+uses IO
+
+var xs: List[Integer] := []
+remove(var xs, 0)

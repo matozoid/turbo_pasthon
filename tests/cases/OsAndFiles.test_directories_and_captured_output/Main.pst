@@ -1,0 +1,23 @@
+program Main
+
+uses IO, OS
+
+writeln(isDir("dir"))
+writeln(isDir("dir/a"))
+writeln(isDir("dir/missing"))
+case listDir("dir") of
+    Ok(names):
+        var sorted := names.value
+        sort(var sorted)
+        writeln(len(sorted))
+        for n in sorted do
+            writeln(n)
+    Err(e):
+        writeln(e.error)
+case listDir("dir/missing") of
+    Ok(_):
+        writeln("found")
+    Err(e):
+        writeln(e.error)
+writeln(run("/bin/sh", ["-c", "echo out; echo err >&2; exit 2"], output: "dir/a").getOr(-1))
+writeln(run("/bin/true", [], output: "dir/missing/x").getOr(-1))

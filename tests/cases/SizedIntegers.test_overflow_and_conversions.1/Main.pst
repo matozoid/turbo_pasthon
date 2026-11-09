@@ -1,0 +1,6 @@
+program Main
+
+uses IO
+
+var a: Int8 := 127
+inc(var a)

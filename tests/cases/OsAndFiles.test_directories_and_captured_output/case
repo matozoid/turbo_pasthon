@@ -1,0 +1,4 @@
+$PST build Main.pst -o main
+mkdir dir/d
+$VALGRIND ./main
+cat dir/a

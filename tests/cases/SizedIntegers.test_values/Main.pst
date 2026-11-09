@@ -1,0 +1,16 @@
+program Main
+
+uses IO
+
+var a: Int8 := 127
+var u: UInt8 := 250
+var w: UInt64 := 18446744073709551615
+let i: Int32 := -2147483648
+writeln("{a} {u} {w} {i}")
+inc(var u, 5)
+dec(var w)
+writeln("{u} {w} {UInt64(5) < w} {w div 3} {w mod 10}")
+writeln("{Int64(i) - 1} {UInt16(65535)} {Int8(a - 100)} {Int16(a) * 3}")
+for x := UInt8(254) to 255 do
+    write(x)
+writeln()

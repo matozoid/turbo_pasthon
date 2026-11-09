@@ -1,0 +1,71 @@
+program Main
+
+uses IO
+
+type
+    Inner = record
+        name: String
+        n: Integer
+    Outer = record
+        inner: Inner
+        tag: String
+    Value = Integer | String | Inner
+    Tree = Leaf | Node
+    Leaf = record
+    Node = record
+        left: Tree
+        value: Integer
+        right: Tree
+
+procedure rename(var s: String, text: String)
+    s := text
+
+function make(n: Integer): Outer
+    return Outer(inner: Inner(name: "in{n}", n: n), tag: "t{n}")
+
+function describe(v: Value): String
+    return case v of
+        Integer(i): "int {i}"
+        String(s): "str {s}"
+        Inner(r): "inner {r.name}"
+
+function sum(t: Tree): Integer
+    case t of
+        Leaf: return 0
+        Node(n): return sum(n.left) + n.value + sum(n.right)
+
+function parse(s: String): Result[Integer, String]
+    if s = "one" then
+        return Ok(1)
+    return Err("bad: {s}")
+
+var a := make(1)
+var b := a
+a.inner.name := "changed"
+rename(var a.inner.name, text: "renamed {a.tag}")
+writeln("{a.inner.name} {b.inner.name} {make(5).inner.name}")
+b.inner.n := 7
+writeln("{a.inner.n} {b.inner.n}")
+writeln(a = b)
+b := a
+writeln(a = b)
+writeln(describe(a.inner.n))
+writeln(describe("x"))
+writeln(describe(a.inner))
+var t: Tree := Node(left: Node(left: Leaf, value: 1, right: Leaf), value: 2, right: Node(left: Leaf, value: 3, right: Leaf))
+writeln(sum(t))
+var i := 0
+while true do
+    i := i + 1
+    case parse(if i = 1 then "one" else "two") of
+        Ok(v): writeln("ok {v.value}")
+        Err(e):
+            writeln(e.error)
+            break
+var total := 0
+for k := 1 to 10000 do
+    let o := make(k)
+    var c := o
+    c.inner.n := k
+    total := total + c.inner.n - o.inner.n
+writeln(total)

@@ -1,0 +1,9 @@
+program Main
+
+uses IO
+
+writeln("Hello, world!")
+write("ünï ")
+IO.writeln("ok")
+writeln()
+write("")

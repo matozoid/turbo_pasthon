@@ -1,0 +1,10 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ PST_TEST='x' ./main
+exit 0
+--- stdout
+true false
+false false true
+--- stderr

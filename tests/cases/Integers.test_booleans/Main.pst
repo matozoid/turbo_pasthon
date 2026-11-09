@@ -1,0 +1,8 @@
+program Main
+
+uses IO
+
+let a := 3
+let t := a > 2 and a < 5
+writeln("{t} {not t} {a = 3 or a div 0 = 1} {a <> 3 and a div 0 = 1}")
+writeln(if a >= 3 then 10 else 20)

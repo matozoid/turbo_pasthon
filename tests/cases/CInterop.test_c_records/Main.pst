@@ -1,0 +1,41 @@
+program Main
+
+uses IO, C
+
+extern "libc.so.6"
+    type
+        export Div = record
+            quot: CInt
+            rem: CInt
+        export Mixed = record
+            a: Int8
+            b: Int64
+            c: Int16
+    function abs(x: CInt): CInt
+    function strlen(s: CString): CSize
+    function printf(fmt: CString, ...): CInt
+    function malloc(n: CSize): Pointer
+    procedure free(p: Pointer)
+    procedure qsort(base: Pointer, n: CSize, size: CSize, cmp: function(Pointer, Pointer): CInt)
+    function cdiv(a: CInt, b: CInt): Div as "div"
+    function getenv(name: CString): CString
+    function setenv(name: CString, value: CString, overwrite: CInt): CInt
+
+extern "libm.so.6"
+    function labs(x: CLong): CLong
+
+unsafe procedure demo()
+    var d := Div(quot: 1, rem: 2)
+    let q := addr(var d.quot)
+    deref(q) := 42
+    inc(var d.rem)
+    writeln("{d.quot} {d.rem}")
+    var e := d
+    e.rem := 7
+    writeln("{d.rem} {e.rem} {d = e} {d = Div(quot: 42, rem: 3)}")
+    let m := Mixed(a: -3, b: 100, c: 300)
+    writeln("{m.a} {m.b} {m.c}")
+
+demo()
+let r := cdiv(17, b: 5)
+writeln("{r.quot} {r.rem}")

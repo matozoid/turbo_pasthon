@@ -1,0 +1,53 @@
+program Main
+
+uses IO, Strings
+
+const
+    Name = "pst"
+    Banner = "<{Name}>"
+
+function find(s: String): Integer
+    for i := 0 to s.byteLen() - 1 do
+        let rest := slice(s, i, s.byteLen())
+        var j := 0
+        while true do
+            let tmp := "{rest}{j}"
+            if startsWith(tmp, prefix: "x") then
+                return i
+            j := j + 1
+            if j > 2 then
+                break
+    return -1
+
+procedure shout(var s: String)
+    ensures s.byteLen() = old(s).byteLen() + 1
+    ensures startsWith(s, prefix: old(s))
+    s := "{s}!"
+
+function pick(b: Boolean): String
+    return if b then "yes {Banner}" else Name
+
+writeln("{find("abxd")} {find("ab")}")
+var s := "hey"
+shout(var s)
+shout(var s)
+s := s
+writeln(s)
+writeln("{pick(true)} {pick(false)} {Banner}")
+var k := 0
+repeat
+    let a := "a{k}"
+    k := k + 1
+    for i := 1 to 3 do
+        let w := "{a}{i}"
+        if w = "a12" then
+            break
+        if i = 1 then
+            continue
+        _ := w
+    let b := "{a}b"
+    if b = "a3b" then
+        break
+until a = "a5"
+writeln(k)
+_ := pick(true)

@@ -1,0 +1,10 @@
+$ $PST build Main.pst -o main --unchecked
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 70
+--- stdout
+--- stderr
+panic P0020: assertion failed: 1 + 1 = 3: math
+    at Main.pst:5:1

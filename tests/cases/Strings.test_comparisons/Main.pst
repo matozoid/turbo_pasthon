@@ -1,0 +1,7 @@
+program Main
+
+uses IO, Strings
+
+let e := ""
+writeln("{'a' < 'b'} {"abc" < "abd"} {"ab" < "abc"} {"b" > "abc"} {"x" = "x"}")
+writeln("{e = ""} {"a" <> "a"} {"é" > "z"} {e < "a"} {"b" >= "b"}")

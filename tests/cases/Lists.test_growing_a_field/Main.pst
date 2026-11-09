@@ -1,0 +1,26 @@
+program Main
+
+uses IO
+
+type
+    Bag = record
+        items: List[Integer]
+procedure addLen(var xs: List[Integer], b: Bag)
+    add(var xs, len(b.items))
+procedure addSeen(var xs: List[Integer], r: ref Bag)
+    add(var xs, len(r.items))
+var b := Bag(items: [])
+for i := 1 to 100000 do
+    add(var b.items, len(b.items) + 1)
+addLen(var b.items, b)
+writeln("{b.items[99999]} {b.items[100000]}")
+for i := 1 to 50000 do
+    remove(var b.items, len(b.items) - 1)
+for i := 1 to 50000 do
+    removeLast(var b.items)
+writeln(len(b.items))
+let r := new(Bag(items: []))
+for i := 1 to 100000 do
+    add(var r.items, i)
+addSeen(var r.items, r)  # `r` can see `r.items`, so it is copied
+writeln("{len(r.items)} {r.items[100000]}")

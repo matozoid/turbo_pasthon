@@ -1,0 +1,11 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+é
+true
+57344
+--- stderr

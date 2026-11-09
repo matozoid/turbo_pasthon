@@ -1,0 +1,10 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ PST_TEST="$(printf '\166\377')" $VALGRIND ./main
+exit 0
+--- stdout
+v�
+3
+--- stderr

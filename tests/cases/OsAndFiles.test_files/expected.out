@@ -1,0 +1,28 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main
+exit 0
+--- stdout
+true
+héllo
+world
+0 1 255 
+./missing: No such file or directory
+--- stderr
+$ od -An -tx1 bin
+exit 0
+--- stdout
+ 00 01 ff
+--- stderr
+$ test -x bin && echo 'bin is executable'
+exit 0
+--- stdout
+bin is executable
+--- stderr
+$ test -x text || echo 'text is not executable'
+exit 0
+--- stdout
+text is not executable
+--- stderr

@@ -1,0 +1,8 @@
+program Main
+
+uses IO, OS
+
+writeln(currentDir())
+writeln(isFile("./f"))
+writeln(isFile("."))
+writeln(isFile("./missing"))

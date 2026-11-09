@@ -1,0 +1,4 @@
+unit Lib
+
+export function one(): Integer
+    return 1

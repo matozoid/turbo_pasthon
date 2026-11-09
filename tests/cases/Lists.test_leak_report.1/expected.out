@@ -1,0 +1,10 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 70
+--- stdout
+done
+--- stderr
+leak: 8 blocks still alive at exit

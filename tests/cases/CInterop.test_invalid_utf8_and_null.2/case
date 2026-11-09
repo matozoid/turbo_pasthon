@@ -1,0 +1,2 @@
+$PST build Main.pst -o main
+PST_TEST='x' ./main

@@ -1,0 +1,12 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main
+exit 0
+--- stdout
+0 1 2 3 3 5 7 8 9 9
+apple b fig pear 
+bdac
+abcd
+--- stderr

@@ -1,0 +1,82 @@
+program Main
+
+uses IO, Geo
+
+type
+    Circle = record
+        r: Integer
+    Square = record
+        side: Integer
+    Pair[A, B] = record
+        first: A
+        second: B
+    Tree[T] = Leaf | Node[T]
+    Leaf = record
+    Node[T] = record
+        left: Tree[T]
+        value: T
+        right: Tree[T]
+
+function area(c: Circle): Integer
+    return 3 * c.r * c.r
+
+function area(s: Square): Integer
+    return s.side * s.side
+
+function biggest[T: Ordered](a, b: T): T
+    return if a > b then a else b
+
+function swapped[A, B](p: Pair[A, B]): Pair[B, A]
+    return Pair(first: p.second, second: p.first)
+
+function first[T](xs: Option[T], fallback: T): T
+    return case xs of
+        Some(s): s.value
+        None: fallback
+
+function insert[T: Ordered](t: Tree[T], v: T): Tree[T]
+    case t of
+        Leaf: return Node(left: Leaf, value: v, right: Leaf)
+        Node(n):
+            if v < n.value then
+                return Node(left: insert(n.left, v), value: n.value, right: n.right)
+            return Node(left: n.left, value: n.value, right: insert(n.right, v))
+
+function show[T: Printable](t: Tree[T]): String
+    return case t of
+        Leaf: ""
+        Node(n): "{show(n.left)}{n.value} {show(n.right)}"
+
+procedure swap[T](var a, b: T)
+    let t := a
+    a := b
+    b := t
+
+writeln(biggest(3, 7))
+writeln(biggest("pear", "apple"))
+writeln(biggest('x', 'y'))
+let p := swapped(Pair(first: 1, second: "one"))
+writeln("{p.first} {p.second}")
+writeln(first(Some(5), fallback: 0))
+writeln(first(System.None, fallback: "none"))
+var t: Tree[Integer] := Leaf
+var k := 5
+for i := 1 to 6 do
+    k := k * 7 mod 11
+    t := insert(t, k)
+writeln(show(t))
+var s: Tree[String] := Leaf
+s := insert(s, "m")
+s := insert(s, "c")
+s := insert(s, "x")
+writeln(show(s))
+var x := "left"
+var y := "right"
+swap(var x, var y)
+writeln("{x} {y}")
+var pc := Pair(first: 1, second: 2)
+swap(var pc.first, var pc.second)
+writeln("{pc.first} {pc.second}")
+writeln(total(Circle(r: 1), Circle(r: 2)))
+writeln(total(Square(side: 3), Square(side: 4)))
+writeln(describe(Square(side: 2)))

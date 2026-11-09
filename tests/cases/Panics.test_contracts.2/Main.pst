@@ -1,0 +1,8 @@
+program Main
+
+uses IO
+
+function f(n: Integer): Integer
+    ensures result > n
+    return n
+writeln(f(3))

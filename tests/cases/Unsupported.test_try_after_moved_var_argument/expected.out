@@ -1,0 +1,5 @@
+$ $PST build Main.pst -o main
+exit 1
+--- stdout
+--- stderr
+Main.pst:17:38: error E0990: 'try' in a call after a 'var' argument that isn't a whole variable is not supported by the code generator yet

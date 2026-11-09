@@ -1,0 +1,5 @@
+$ $PST build Main.pst -o main
+exit 1
+--- stdout
+--- stderr
+Main.pst:12:12: error E0720: generic instances nest more than 64 deep here: 'deep' keeps instantiating itself with a bigger type

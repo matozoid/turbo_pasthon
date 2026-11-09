@@ -1,0 +1,14 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+abc ab
+Hello, wörld!
+Hello, xé
+1234
+-12 true € 😀 65
+same
+--- stderr

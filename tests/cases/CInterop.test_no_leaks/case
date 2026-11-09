@@ -1,0 +1,2 @@
+$PST build Main.pst -o main
+PST_TEST="$(printf '\166\377')" $VALGRIND ./main

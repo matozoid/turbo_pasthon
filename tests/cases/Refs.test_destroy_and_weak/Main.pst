@@ -1,0 +1,46 @@
+program Main
+
+uses IO
+
+type
+    Res = record
+        id: Integer
+        log: List[String]
+
+    Tree = record
+        kids: List[ref Tree]
+        parent: Option[Weak[Tree]]
+        name: String
+
+procedure destroy(var r: Res)
+    r.id := r.id * 10
+    add(var r.log, "bye")
+    writeln("destroy {r.id} {len(r.log)}")
+
+function make(id: Integer): ref Res
+    return new(Res(id: id, log: []))
+
+function alive(w: Weak[Res]): Boolean
+    return case get(w) of
+        Some(_): true
+        None: false
+
+let x := make(1)
+var w := weak(x)
+if true then
+    let y := make(2)
+    w := weak(y)
+    let y2 := y
+    writeln("{alive(w)} {y2.id}")
+writeln("{alive(w)} {weak(x) = weak(x)} {weak(x) = w}")
+writeln(make(3).id)
+let root := new(Tree(kids: [], parent: None, name: "root"))
+let kid := new(Tree(kids: [], parent: Some(weak(root)), name: "kid"))
+add(var root.kids, kid)
+case kid.parent of
+    Some(p):
+        case get(p.value) of
+            Some(r): writeln("{r.value.name} {len(r.value.kids)}")
+            None: writeln("orphan")
+    None: writeln("no parent")
+writeln("end")

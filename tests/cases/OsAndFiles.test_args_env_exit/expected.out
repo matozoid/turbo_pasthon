@@ -1,0 +1,14 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ PST_TEST="$(printf '\150\303\251')" $VALGRIND ./main one 'two words' ''
+exit 3
+--- stdout
+[one]
+[two words]
+[]
+hé
+true
+--- stderr
+to stderr

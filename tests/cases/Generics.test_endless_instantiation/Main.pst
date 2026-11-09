@@ -1,0 +1,14 @@
+program Main
+
+uses IO
+
+type
+    Box[T] = record
+        item: T
+
+function deep[T](x: T, n: Integer): Integer
+    if n = 0 then
+        return 0
+    return deep(Box(item: x), n - 1) + 1
+
+writeln(deep(1, 3))

@@ -1,0 +1,21 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main
+exit 0
+--- stdout
+7
+pear
+y
+one 1
+5
+none
+2 3 4 6 9 10 
+c m x 
+right left
+2 1
+18
+34
+area 4
+--- stderr

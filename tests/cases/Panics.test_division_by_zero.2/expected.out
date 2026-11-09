@@ -1,0 +1,10 @@
+$ $PST build Main.pst -o main --unchecked
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 70
+--- stdout
+--- stderr
+panic P0004: division by zero
+    at Main.pst:6:11

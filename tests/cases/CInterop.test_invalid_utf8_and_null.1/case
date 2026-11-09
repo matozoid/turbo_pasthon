@@ -1,0 +1,2 @@
+$PST build Main.pst -o main
+PST_TEST="$(printf '\141\377\303\050\355\240\200\360\237\230\200\342\202')" ./main

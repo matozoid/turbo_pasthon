@@ -1,0 +1,2 @@
+$PST build Main.pst -o main
+PST_TEST="$(printf '\150\303\251')" $VALGRIND ./main one 'two words' ''

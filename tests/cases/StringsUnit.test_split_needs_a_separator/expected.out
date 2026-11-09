@@ -1,0 +1,10 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 70
+--- stdout
+--- stderr
+panic P0010: requires violated: byteLen(sep) > 0
+    at Strings.pst:66:14

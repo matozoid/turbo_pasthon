@@ -1,0 +1,5 @@
+program Main
+
+uses IO
+
+assert 1 + 1 = 3, "math"

@@ -1,0 +1,19 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main
+exit 0
+--- stdout
+renamed t1 in1 in5
+1 7
+false
+true
+int 1
+str x
+inner renamed t1
+6
+ok 1
+bad: two
+0
+--- stderr

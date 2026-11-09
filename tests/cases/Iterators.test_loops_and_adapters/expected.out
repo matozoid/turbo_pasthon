@@ -1,0 +1,13 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main
+exit 0
+--- stdout
+Red Green Blue [h][é][€][𝄞] 3 2 1
+6 10 a!b!c! a1 b2 c3 0=a 1=b 2=c
+5 7 15 2
+true true false
+1 42
+--- stderr

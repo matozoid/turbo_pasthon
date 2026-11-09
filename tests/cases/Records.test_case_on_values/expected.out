@@ -1,0 +1,15 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+circle 1
+rect
+rect
+1 2 0
+lower digit other
+nothing
+yes
+--- stderr

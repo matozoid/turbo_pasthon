@@ -1,0 +1,16 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main
+exit 0
+--- stdout
+true 2
+destroy 20 1
+false true false
+destroy 30 1
+3
+root 1
+end
+destroy 10 1
+--- stderr

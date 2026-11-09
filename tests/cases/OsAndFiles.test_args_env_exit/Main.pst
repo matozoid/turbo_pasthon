@@ -1,0 +1,14 @@
+program Main
+
+uses IO, OS
+
+for a in args() do
+    writeln("[{a}]")
+case env("PST_TEST") of
+    Some(v):
+        writeln(v.value)
+    None:
+        writeln("unset")
+writeln(env("PST_NOT_SET_ANYWHERE").isNone())
+writelnErr("to stderr")
+exit(3)

@@ -1,0 +1,8 @@
+program Main
+
+uses IO
+
+function nothing[T](): Option[T]
+    return None
+
+writeln(nothing[Integer]() = None)

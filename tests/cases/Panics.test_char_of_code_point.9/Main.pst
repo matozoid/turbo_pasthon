@@ -1,0 +1,7 @@
+program Main
+
+uses IO
+
+writeln(Char(233))
+writeln(Char(0x10FFFF) = '\u{10FFFF}')
+writeln(ord(Char(57344)))

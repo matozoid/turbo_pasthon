@@ -1,0 +1,4 @@
+$PST build Main.pst -o main
+mkdir t
+TMPDIR="$PWD/t" $VALGRIND ./main
+ls -A t

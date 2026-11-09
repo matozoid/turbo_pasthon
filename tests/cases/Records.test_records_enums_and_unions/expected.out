@@ -1,0 +1,23 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+11 2 moved / 1 p
+3
+false
+true
+Green 1 Blue
+Red Green Blue 
+not red
+12
+12
+3
+some 8
+none
+true
+false
+high
+--- stderr

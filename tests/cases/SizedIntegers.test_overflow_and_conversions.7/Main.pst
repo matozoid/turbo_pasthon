@@ -1,0 +1,6 @@
+program Main
+
+uses IO
+
+let w: UInt64 := 18446744073709551615
+writeln(Int64(w))
