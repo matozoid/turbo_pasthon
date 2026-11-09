@@ -59,15 +59,23 @@ const
     # descriptor has count ListCount and one kind word, for all its elements. DEq is 0,
     # or the distance from the descriptor to the code of the type's equality routine;
     # DDrop the same for a routine called with the block in rdi when its last reference
-    # goes.
+    # goes; DName the distance to the type's name, NUL-terminated, for leak reports.
     DCount = 0
     DSize = 8
     DId = 16
     DEq = 24
     DDrop = 32
-    DKinds = 40
+    DName = 40
+    DKinds = 48
     ## The kind word of a slot holding a reference.
     Managed = 1
+    # In a checked build each heap block follows a prefix: the next and the previous live
+    # block (the latter as the address of the word pointing to this block), and the data
+    # label of where it was allocated (SPEC §11).
+    Prefix = 32
+    Next = 0
+    PrevAt = 8
+    Site = 16
     # A `ref T` box: the header, the value, then its weak cell or 0. A cell: the header,
     # then the box, or 0 once the box is gone.
     Value = 16
@@ -223,6 +231,9 @@ type
         types: Map[String, Map[Integer, Type]]
         calls: Map[String, Map[Integer, Match]]
         f: ref Frame
+        ## In a checked build, while compiling a routine's code: the data label of the
+        ## place being compiled, which runtime calls record for leak reports.
+        site: String
         ## Source text per file, for `text`.
         bad: Boolean
 
@@ -623,12 +634,13 @@ function fieldIndex(g: ref Em, t: Type, name: String): Integer
             return i
     return 0
 
-## The data label of the descriptor for blocks of `k` holding `parts`, with equality
-## routine `eq` and drop routine `drop` (code labels) if not "".
+## The data label of the descriptor for blocks of `k`, named `name`, holding `parts`,
+## with equality routine `eq` and drop routine `drop` (code labels) if not "".
 function descriptor(
     g: ref Em,
     k: String,
     parts: List[Type],
+    name: String,
     eq: String := "",
     drop: String := "",
 ): String
@@ -639,9 +651,11 @@ function descriptor(
         word(var bs, len(g.descs))
         word(var bs, 0)
         word(var bs, 0)
+        word(var bs, 0)
         for p in parts do
             word(var bs, slotKind(g, p))
         let lbl := data(g.a, bs, align: 8)
+        dataRef(g.a, lbl, offset: DName, target: cText(g, name))
         g.descs[k] := lbl
         if eq <> "" then
             codeRef(g.a, lbl, offset: DEq, label: eq)
@@ -660,7 +674,7 @@ function slotKind(g: ref Em, t: Type): Integer
 
 ## The descriptor of union `t`'s blocks holding variant `i`.
 function variantDesc(g: ref Em, t: Type, i: Integer, v: Type): String
-    return descriptor(g, "{key(t)}/{i}", [v])
+    return descriptor(g, "{key(t)}/{i}", [v], name: show(t))
 
 ## The descriptor of lists of type `t`.
 function listDesc(g: ref Em, t: Type): String
@@ -672,8 +686,11 @@ function listDesc(g: ref Em, t: Type): String
         word(var bs, len(g.descs))
         word(var bs, 0)
         word(var bs, 0)
+        word(var bs, 0)
         word(var bs, slotKind(g, arg0(t)))
-        g.descs[k] := data(g.a, bs, align: 8)
+        let lbl := data(g.a, bs, align: 8)
+        dataRef(g.a, lbl, offset: DName, target: cText(g, show(t)))
+        g.descs[k] := lbl
     return g.descs[k]
 
 ## The descriptor of `ref T` boxes (SPEC §4.9): `=` compares identity, and the drop
@@ -699,6 +716,7 @@ function boxDesc(g: ref Em, t: Type, span: Span): String
             g,
             k,
             [t, builtin("Weak", [t])],
+            name: "ref {show(t)}",
             eq: runtime(g, "rt_ref_eq"),
             drop: dropLabel,
         )
@@ -722,7 +740,7 @@ procedure boxDrop(g: ref Em, d: BoxDrop)
 ## rax := a new block with descriptor `desc`; its fields are the caller's.
 procedure newBlock(g: ref Em, desc: String)
     leaData(g.a, Rdi, label: desc)
-    call(g.a, runtime(g, "rt_new"))
+    callRuntime(g, "rt_new")
 
 ## Computes `e` into rax as a value of type `want`: a variant is put into its union
 ## (SPEC §4.7, the only implicit conversion).
@@ -777,13 +795,50 @@ function text(g: ref Em, span: Span): String
     return Source.sub(g.units[g.f.file].src, span.start, end: span.end)
 
 function where(g: ref Em, span: Span): String
+    return "{place(g, span)}:{span.col}"
+
+## The file and line of `span`.
+function place(g: ref Em, span: Span): String
     var path := ""
     let u := get(g.units, g.f.file)
     if u.isSome() and u.get().std then
         path := basename(g.f.file)
     else
         path := relative(g.f.file, dirname(g.main.path))
-    return "{path}:{span.line}:{span.col}"
+    return "{path}:{span.line}"
+
+## The data label of `t` as a NUL-terminated C string.
+function cText(g: ref Em, t: String): String
+    var bs := utf8(t)
+    add(var bs, Byte(0))
+    return data(g.a, bs)
+
+## Compiles `e`, with its place recorded for leak reports in a checked build.
+procedure expr(g: ref Em, e: Expr)
+    let outer := g.site
+    if g.checked then
+        g.site := cText(g, place(g, exprSpan(e)))
+    exprHere(g, e)
+    g.site := outer
+
+## Compiles `s`, with its place recorded for leak reports in a checked build.
+procedure stmt(g: ref Em, s: Stmt)
+    let outer := g.site
+    if g.checked then
+        g.site := cText(g, place(g, stmtSpan(s)))
+    stmtHere(g, s)
+    g.site := outer
+
+## Calls runtime routine `name`, first recording the place being compiled in a checked
+## build.
+procedure callRuntime(g: ref Em, name: String)
+    let a := g.a
+    if g.checked and g.site <> "" then
+        push(a, R11)
+        leaData(a, R11, label: g.site)
+        storeGlobal(a, "site", src: R11)
+        pop(a, R11)
+    call(a, runtime(g, name))
 
 ## A label that panics with `code` at `span`.
 function panic(g: ref Em, code, message: String, span: Span): String
@@ -951,6 +1006,7 @@ export function build(result: Checked, checked: Boolean := true, tests: Boolean 
         types: types,
         calls: calls,
         f: newFrame(main.path, None, exit: ""),
+        site: "",
         bad: false,
     ))
     return run(g)
@@ -1441,7 +1497,7 @@ procedure block(g: ref Em, body: ArmBody)
         return
     removeLast(var g.f.scopes)
 
-procedure stmt(g: ref Em, s: Stmt)
+procedure stmtHere(g: ref Em, s: Stmt)
     let a := g.a
     case s of
         VarDecl(x):
@@ -2093,7 +2149,7 @@ procedure labelCompare(g: ref Em, t: Type, slot: Integer, e: Expr)
         push(a, Rax)
         mov(a, Rsi, Rax)
         load(a, Rdi, Rbp, disp: slot)
-        call(a, runtime(g, "rt_str_cmp"))
+        callRuntime(g, "rt_str_cmp")
         drop(g, 1)
         cmpImm(a, Rax, value: 0)
     else
@@ -2131,7 +2187,7 @@ procedure address(g: ref Em, e: Expr, insert: Boolean := false)
                 if g.bad then
                     return
                 mov(a, Rdi, Rax)
-                call(a, runtime(g, "rt_unique"))
+                callRuntime(g, "rt_unique")
                 addImm(a, Rax, value: Fields + 8 * fieldIndex(g, unboxed(t), fa.name.name))
                 return
         Index(x):
@@ -2148,7 +2204,7 @@ procedure address(g: ref Em, e: Expr, insert: Boolean := false)
                 if g.bad then
                     return
                 mov(a, Rdi, Rax)
-                call(a, runtime(g, "rt_unique"))
+                callRuntime(g, "rt_unique")
                 pop(a, Rcx)
                 element(g, Rax, Rcx, span: x.span)
                 return
@@ -2194,9 +2250,9 @@ procedure mapEntry(g: ref Em, e: Index, insert: Boolean)
     pop(a, Rdi)
     pop(a, Rcx)
     push(a, Rax)
-    call(a, runtime(g, "rt_unique"))
+    callRuntime(g, "rt_unique")
     lea(a, Rdi, Rax, disp: Fields + 8 * fieldIndex(g, t, "values"))
-    call(a, runtime(g, "rt_unique"))
+    callRuntime(g, "rt_unique")
     pop(a, Rcx)
     element(g, Rax, Rcx, span: e.span)
 
@@ -2279,7 +2335,7 @@ procedure cplace(g: ref Em, e0: Expr)
     if g.bad then
         return
     mov(a, Rdi, Rax)
-    call(a, runtime(g, "rt_unique"))
+    callRuntime(g, "rt_unique")
     addImm(a, Rax, value: Fields)
 
 ## Stores the owned value rcx of type `t` at address rax of `place`, releasing what it
@@ -2353,7 +2409,7 @@ procedure newCBlock(g: ref Em, t: Type, span: Span)
     var parts: List[Type] := []
     for k := 1 to words do
         add(var parts, integerT())
-    newBlock(g, descriptor(g, key(t), parts))
+    newBlock(g, descriptor(g, key(t), parts, name: show(t)))
     push(a, Rax)
     lea(a, Rdi, Rax, disp: Fields)
     xor32(a, Rsi, Rsi)
@@ -2407,7 +2463,7 @@ procedure storeC(g: ref Em, t: Type, span: Span)
 # -------------------------------------------------------------------- expressions
 
 ## Computes `e` into rax (an owned reference, for a string).
-procedure expr(g: ref Em, e: Expr)
+procedure exprHere(g: ref Em, e: Expr)
     let t := typeOfExpr(g, e)
     if t <> noneT() and t <> voidT() then
         valueType(g, t, exprSpan(e))
@@ -2562,7 +2618,7 @@ procedure eListLit(g: ref Em, x: ListLit, e: Expr)
         save(g, arg0(t))
     leaData(a, Rdi, label: listDesc(g, t))
     movImm(a, Rsi, value: len(x.items))
-    call(a, runtime(g, "rt_list_new"))
+    callRuntime(g, "rt_list_new")
     for i := len(x.items) - 1 downto 0 do
         pop(a, Rcx)
         store(a, Rax, disp: Elems + 8 * i, src: Rcx)
@@ -2701,7 +2757,7 @@ procedure loadSym(g: ref Em, sym: ref Symbol, e: Expr)
         movImm(a, Rax, value: i)
         return
     if sym.kind = Kind.TypeSym and kind(g, t) = "record" then  # `None`
-        newBlock(g, descriptor(g, key(t), []))
+        newBlock(g, descriptor(g, key(t), [], name: show(t)))
         return
     if isRoutine(sym.kind) then
         if not isRoutineNode(sym) or len(sig(g.env, sym).tparams) > 0 then
@@ -2891,7 +2947,7 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
         push(a, Rax)
         load(a, Rdi, Rsp, disp: 8)
         mov(a, Rsi, Rax)
-        call(a, runtime(g, "rt_eq"))
+        callRuntime(g, "rt_eq")
         drop(g, 2)
         if op = "<>" then
             xorImm32(a, Rax, value: 1)
@@ -2900,7 +2956,7 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
         push(a, Rax)
         load(a, Rdi, Rsp, disp: 8)
         mov(a, Rsi, Rax)
-        call(a, runtime(g, "rt_str_cmp"))
+        callRuntime(g, "rt_str_cmp")
         drop(g, 2)
         cmpImm(a, Rax, value: 0)
         setcc(a, compareCC(op), Rax)
@@ -3068,7 +3124,7 @@ procedure stringOf(g: ref Em, parts: List[InterpPart])
         save(g, stringT())
     mov(a, Rdi, Rsp)
     lea(a, Rsi, Rsp, disp: 8 * len(parts))
-    call(a, runtime(g, "rt_concat"))
+    callRuntime(g, "rt_concat")
     addImm(a, Rsp, value: 8 * len(parts))
 
 ## Computes `e` and converts it to a String (`toString`). An enum member's string is
@@ -3085,15 +3141,15 @@ procedure toString(g: ref Em, e: Expr)
     let a := g.a
     if isInt(t) then
         if intSigned(t) then
-            call(a, runtime(g, "rt_int_to_str"))
+            callRuntime(g, "rt_int_to_str")
         else
-            call(a, runtime(g, "rt_uint_to_str"))
+            callRuntime(g, "rt_uint_to_str")
     else if t = realT() then
-        call(a, runtime(g, "rt_real_to_str"))
+        callRuntime(g, "rt_real_to_str")
     else if t = booleanT() then
-        call(a, runtime(g, "rt_bool_to_str"))
+        callRuntime(g, "rt_bool_to_str")
     else if t = charT() then
-        call(a, runtime(g, "rt_char_to_str"))
+        callRuntime(g, "rt_char_to_str")
     else if isEnum then
         var names: List[Byte] := []
         for m in decl(g.env, namedSym(t).get()).members do
@@ -3101,7 +3157,7 @@ procedure toString(g: ref Em, e: Expr)
                 add(var names, b)
             add(var names, Byte(0))
         leaData(a, Rsi, label: data(a, names))
-        call(a, runtime(g, "rt_enum_name"))
+        callRuntime(g, "rt_enum_name")
 
 ## Computes `e`, of type `t`, and calls the `toString` that makes `t` Printable, found
 ## where `t` became concrete, as bound members are.
@@ -3739,7 +3795,7 @@ procedure construct(g: ref Em, c: Call, m: Match)
         eq := sysLabel(g, c.span, "mapEquals", argsOf(t))
         if g.bad then
             return
-    newBlock(g, descriptor(g, key(t), fieldTypes(g, t), eq: eq))
+    newBlock(g, descriptor(g, key(t), fieldTypes(g, t), name: show(t), eq: eq))
     for i := len(m.params) - 1 downto 0 do
         pop(a, Rcx)
         store(a, Rax, disp: Fields + 8 * i, src: Rcx)
@@ -3792,7 +3848,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
             movImm(a, Rsi, value: 2)
         else
             movImm(a, Rsi, value: 1)
-        call(a, runtime(g, "rt_write_str"))
+        callRuntime(g, "rt_write_str")
     else if sysU and n = "toString" then
         toString(g, args[0])
     else if sysU and n = "ord" and (
@@ -3886,7 +3942,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
             return
         load(a, Rdi, Rsp)
         mov(a, Rsi, Rax)
-        call(a, runtime(g, "rt_decode_utf8"))
+        callRuntime(g, "rt_decode_utf8")
         drop(g, 1)
     else if sysU and n = "utf8Width" then
         expr(g, args[0])
@@ -3910,7 +3966,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         lea(a, Rsi, Rax, disp: BytesAt)
         load(a, Rdx, Rax, disp: Len)
         movImm(a, Rdi, value: 2)
-        call(a, runtime(g, "rt_write"))
+        callRuntime(g, "rt_write")
         movImm(a, Rdi, value: PanicStatus)
         exitProgram(g)
     else if sysU and n = "hash" then
@@ -3921,9 +3977,9 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         if managed(g, t) then
             push(a, Rax)
             mov(a, Rdi, Rax)
-            call(a, runtime(g, "rt_hash"))
+            callRuntime(g, "rt_hash")
             drop(g, 1)
-        call(a, runtime(g, "rt_mix"))
+        callRuntime(g, "rt_mix")
     else if sysU and n = "vacate" then
         expr(g, args[1])
         if g.bad then
@@ -3933,7 +3989,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         if g.bad then
             return
         mov(a, Rdi, Rax)
-        call(a, runtime(g, "rt_unique"))
+        callRuntime(g, "rt_unique")
         pop(a, Rcx)
         element(g, Rax, Rcx, span: c.span)
         if managed(g, targ0(g, m)) then
@@ -3990,7 +4046,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         load(a, Rax, Rax, disp: Cell)
         testR(a, Rax, Rax)
         jcc(a, "ne", label: made)
-        newBlock(g, descriptor(g, "cell", [integerT()]))  # held by the box
+        newBlock(g, descriptor(g, "cell", [integerT()], name: "weak cell"))  # held by the box
         load(a, Rcx, Rsp)
         store(a, Rax, disp: Target, src: Rcx)
         store(a, Rcx, disp: Cell, src: Rax)
@@ -4020,7 +4076,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
             return
         mov(a, Rdi, Rax)
         pop(a, Rsi)
-        call(a, runtime(g, "rt_list_resize"))
+        callRuntime(g, "rt_list_resize")
     else if u = "C" and n = "toCString" then
         let k := exprKey(g, c.id)
         if not (k in g.f.keep) then
@@ -4050,7 +4106,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         testR(a, Rax, Rax)
         jcc(a, "e", label: panic(g, "P0007", "null C string", span: c.span))
         mov(a, Rdi, Rax)
-        call(a, runtime(g, "rt_from_cstring"))
+        callRuntime(g, "rt_from_cstring")
     else if u = "C" and n = "fromCBytes" then
         expr(g, args[0])
         if g.bad then
@@ -4061,7 +4117,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
             return
         mov(a, Rsi, Rax)
         pop(a, Rdi)
-        call(a, runtime(g, "rt_from_bytes"))
+        callRuntime(g, "rt_from_bytes")
     else if u = "OS" and n = "argv" then
         loadGlobal(a, Rax, name: "args")
         addImm(a, Rax, value: 8)  # past argc
@@ -4092,7 +4148,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         push(a, Rax)
         load(a, Rdi, Rsp, disp: 8)
         mov(a, Rsi, Rax)
-        call(a, runtime(g, "rt_starts_with"))
+        callRuntime(g, "rt_starts_with")
         drop(g, 2)
     else if u = "Strings" and n = "slice" then
         sliceOf(g, c, args)
@@ -4175,7 +4231,7 @@ procedure sliceOf(g: ref Em, c: Call, args: List[Expr])
         cmpImm(a, Rcx, value: 0x80)  # a continuation byte
         jcc(a, "e", label: inside)
         label(a, ok)
-    call(a, runtime(g, "rt_slice"))
+    callRuntime(g, "rt_slice")
     drop(g, 1)
 
 # ------------------------------------------------------------------------ runtime
@@ -4311,7 +4367,7 @@ procedure rtWriteStr(g: ref Em)
     lea(a, Rsi, Rdi, disp: BytesAt)
     load(a, Rdx, Rdi, disp: Len)
     mov(a, Rdi, Rcx)
-    call(a, runtime(g, "rt_write"))
+    callRuntime(g, "rt_write")
     drop(g, 1)
     ret(a)
 
@@ -4319,7 +4375,7 @@ procedure rtWriteStr(g: ref Em)
 procedure rtPanic(g: ref Em)
     let a := g.a
     movImm(a, Rdi, value: 2)
-    call(a, runtime(g, "rt_write"))
+    callRuntime(g, "rt_write")
     movImm(a, Rdi, value: PanicStatus)
     exitProgram(g)
 
@@ -4394,16 +4450,18 @@ procedure rtRelease(g: ref Em)
     cmpMemImm(a, Rdx, disp: 0, value: Managed)
     jcc(a, "ne", label: skip)
     load(a, Rdi, R8)
-    call(a, runtime(g, "rt_release"))
+    call(g.a, runtime(g, "rt_release"))
     label(a, skip)
     add(a, Rdx, R9)
     addImm(a, R8, value: 8)
     decR(a, Rcx)
     jmp(a, loop)
     label(a, free)
+    mov(a, Rdi, Rsi)
     if g.checked then
         countBlocks(g, -1)
-    mov(a, Rdi, Rsi)
+        addImm(a, Rdi, value: -Prefix)
+        unlinkBlock(g, Rdi)
     ccall(g, "free")
     popAll(a, callerSaved())
     label(a, done)
@@ -4416,9 +4474,9 @@ procedure rtRefEq(g: ref Em)
     cmp(a, Rdi, Rsi)
     setcc(a, "e", Rax)
     movzx8(a, Rax, Rax)
-    call(a, runtime(g, "rt_release"))
+    call(g.a, runtime(g, "rt_release"))
     mov(a, Rdi, Rsi)
-    call(a, runtime(g, "rt_release"))
+    call(g.a, runtime(g, "rt_release"))
     ret(a)
 
 ## rax := a new block with descriptor rdi and refcount 1. Its fields are the caller's to
@@ -4427,7 +4485,7 @@ procedure rtNew(g: ref Em)
     let a := g.a
     push(a, Rdi)
     load(a, Rdi, Rdi, disp: DSize)
-    call(a, runtime(g, "rt_alloc"))
+    callRuntime(g, "rt_alloc")
     pop(a, Rcx)
     storeImm(a, Rax, disp: Rc, value: 1)
     store(a, Rax, disp: Desc, src: Rcx)
@@ -4442,7 +4500,7 @@ procedure rtListNew(g: ref Em)
     mov(a, Rdi, Rsi)
     shlImm(a, Rdi, n: 3)
     addImm(a, Rdi, value: Elems)
-    call(a, runtime(g, "rt_alloc"))
+    callRuntime(g, "rt_alloc")
     pop(a, Rsi)
     pop(a, Rcx)
     storeImm(a, Rax, disp: Rc, value: 1)
@@ -4466,7 +4524,7 @@ procedure rtListResize(g: ref Em)
     pushAll(a, saved)
     mov(a, Rbx, Rdi)  # the variable
     mov(a, R12, Rsi)  # the new length
-    call(a, runtime(g, "rt_unique"))
+    callRuntime(g, "rt_unique")
     mov(a, R13, Rax)  # the list
     load(a, Rcx, R13, disp: Cap)
     cmp(a, R12, Rcx)
@@ -4481,9 +4539,16 @@ procedure rtListResize(g: ref Em)
     mov(a, Rsi, R14)
     shlImm(a, Rsi, n: 3)
     addImm(a, Rsi, value: Elems)
+    if g.checked then
+        addImm(a, Rdi, value: -Prefix)
+        addImm(a, Rsi, value: Prefix)
+        unlinkBlock(g, Rdi)
     ccall(g, "realloc")
     testR(a, Rax, Rax)
     jcc(a, "e", label: runtime(g, "rt_oom"))
+    if g.checked then
+        linkBlock(g, Rax)
+        addImm(a, Rax, value: Prefix)
     mov(a, R13, Rax)
     store(a, R13, disp: Cap, src: R14)
     store(a, Rbx, disp: 0, src: R13)
@@ -4544,7 +4609,7 @@ procedure rtUnique(g: ref Em)
     load(a, Rdi, Rax, disp: Desc)
     cmpMemImm(a, Rdi, disp: DCount, value: ListCount)
     jcc(a, "e", label: lst)
-    call(a, runtime(g, "rt_new"))
+    callRuntime(g, "rt_new")
     mov(a, R13, Rax)  # the copy
     lea(a, Rdi, R13, disp: Fields)
     lea(a, Rsi, R12, disp: Fields)
@@ -4555,7 +4620,7 @@ procedure rtUnique(g: ref Em)
     jmp(a, copied)
     label(a, lst)  # the same capacity; the count and the elements
     load(a, Rsi, R12, disp: Cap)
-    call(a, runtime(g, "rt_list_new"))
+    callRuntime(g, "rt_list_new")
     mov(a, R13, Rax)
     lea(a, Rdi, R13, disp: Count)
     lea(a, Rsi, R12, disp: Count)
@@ -4609,7 +4674,7 @@ procedure rtEq(g: ref Em)
     jcc(a, "ne", label: no)
     testR(a, Rax, Rax)
     jcc(a, "ne", label: rec)
-    call(a, runtime(g, "rt_str_cmp"))
+    callRuntime(g, "rt_str_cmp")
     testR(a, Rax, Rax)
     jcc(a, "ne", label: no)
     jmp(a, yes)
@@ -4647,7 +4712,7 @@ procedure rtEq(g: ref Em)
     jcc(a, "e", label: real)
     testR(a, Rax, Rax)
     jcc(a, "e", label: plain)
-    call(a, runtime(g, "rt_eq"))
+    callRuntime(g, "rt_eq")
     testR(a, Rax, Rax)
     jcc(a, "e", label: no)
     jmp(a, nxt)
@@ -4706,7 +4771,7 @@ procedure rtHash(g: ref Em)
     cmpMemImm(a, R13, disp: 0, value: Managed)
     jcc(a, "ne", label: plain)
     mov(a, Rdi, Rax)
-    call(a, runtime(g, "rt_hash"))
+    callRuntime(g, "rt_hash")
     label(a, plain)
     xor(a, Rbx, Rax)
     movImm(a, R11, value: FnvPrime)
@@ -4774,20 +4839,55 @@ procedure rtEnumName(g: ref Em)
     label(a, found)
     mov(a, Rdi, R12)
     mov(a, Rsi, Rax)
-    call(a, runtime(g, "rt_str_from"))
+    callRuntime(g, "rt_str_from")
     pop(a, R12)
     pop(a, Rbx)
     ret(a)
 
-## rax := malloc(rdi). Running out of memory is fatal. A checked build counts the blocks.
+## rax := malloc(rdi). Running out of memory is fatal. A checked build counts the blocks,
+## and links each into the list of live ones with the place that allocated it.
 procedure rtAlloc(g: ref Em)
     let a := g.a
+    if g.checked then
+        addImm(a, Rdi, value: Prefix)
     ccall(g, "malloc")
     testR(a, Rax, Rax)
     jcc(a, "e", label: runtime(g, "rt_oom"))
     if g.checked then
         countBlocks(g, 1)
+        linkBlock(g, Rax)
+        loadGlobal(a, Rcx, name: "site")
+        store(a, Rax, disp: Site, src: Rcx)
+        addImm(a, Rax, value: Prefix)
     ret(a)
+
+## Puts the block whose prefix is at `r` first in the list of live blocks. Uses rcx and
+## rdx.
+procedure linkBlock(g: ref Em, r: Integer)
+    let a := g.a
+    let alone := newLabel(a, "k")
+    loadGlobal(a, Rcx, name: "live")
+    store(a, r, disp: Next, src: Rcx)
+    leaGlobal(a, Rdx, name: "live")
+    store(a, r, disp: PrevAt, src: Rdx)
+    testR(a, Rcx, Rcx)
+    jcc(a, "e", label: alone)
+    store(a, Rcx, disp: PrevAt, src: r)
+    label(a, alone)
+    storeGlobal(a, "live", src: r)
+
+## Takes the block whose prefix is at `r` out of the list of live blocks. Uses rcx and
+## rdx.
+procedure unlinkBlock(g: ref Em, r: Integer)
+    let a := g.a
+    let last := newLabel(a, "k")
+    load(a, Rcx, r, disp: Next)
+    load(a, Rdx, r, disp: PrevAt)
+    store(a, Rdx, disp: 0, src: Rcx)
+    testR(a, Rcx, Rcx)
+    jcc(a, "e", label: last)
+    store(a, Rcx, disp: PrevAt, src: Rdx)
+    label(a, last)
 
 ## Adds `n` to the count of live blocks. Uses rcx.
 procedure countBlocks(g: ref Em, n: Integer)
@@ -4797,17 +4897,166 @@ procedure countBlocks(g: ref Em, n: Integer)
     storeGlobal(a, "blocks", src: Rcx)
 
 ## Reports the blocks still alive at the end of the program, and exits with status 70
-## (SPEC §12).
+## (SPEC §11): how many, then how many of each type allocated at each place, most first.
+## It doesn't return, so it keeps no register.
 procedure rtLeak(g: ref Em)
     let a := g.a
+    let l := labels(a, "lk", 12)
+    let byKey := l[0]
+    let byCount := l[1]
     movImm(a, Rdi, value: 2)
-    var bs := utf8("leak: %ld blocks still alive at exit\n")
-    add(var bs, Byte(0))
-    leaData(a, Rsi, label: data(a, bs))
+    leaData(a, Rsi, label: cText(g, "leak: %ld blocks still alive at exit\n"))
     loadGlobal(a, Rdx, name: "blocks")
     ccall(g, "dprintf")
+    # rbx := the live blocks' (place, type name) pairs, r14 of them
+    loadGlobal(a, Rdi, name: "blocks")
+    shlImm(a, Rdi, n: 4)
+    ccall(g, "malloc")
+    mov(a, Rbx, Rax)
+    mov(a, R13, Rax)
+    loadGlobal(a, R12, name: "live")
+    label(a, l[2])
+    testR(a, R12, R12)
+    jcc(a, "e", label: l[3])
+    load(a, Rax, R12, disp: Site)
+    testR(a, Rax, Rax)
+    jcc(a, "ne", label: l[4])
+    leaData(a, Rax, label: cText(g, ""))
+    label(a, l[4])
+    store(a, R13, disp: 0, src: Rax)
+    load(a, Rcx, R12, disp: Prefix + Desc)
+    leaData(a, Rax, label: cText(g, "String"))
+    testR(a, Rcx, Rcx)
+    jcc(a, "e", label: l[5])
+    load(a, Rax, Rcx, disp: DName)
+    add(a, Rax, Rcx)
+    label(a, l[5])
+    store(a, R13, disp: 8, src: Rax)
+    addImm(a, R13, value: 16)
+    load(a, R12, R12, disp: Next)
+    jmp(a, l[2])
+    label(a, l[3])
+    mov(a, R14, R13)
+    sub(a, R14, Rbx)
+    shrImm(a, R14, n: 4)
+    # Equal texts share their data, so sorting by address brings equal pairs together.
+    mov(a, Rdi, Rbx)
+    mov(a, Rsi, R14)
+    movImm(a, Rdx, value: 16)
+    leaCode(a, Rcx, label: byKey)
+    ccall(g, "qsort")
+    # r15 := the groups (count, place, type name), r13 of them
+    movImm(a, Rdi, value: 24)
+    imul(a, Rdi, R14)
+    ccall(g, "malloc")
+    mov(a, R15, Rax)
+    xor32(a, R13, R13)
+    xor32(a, R12, R12)  # the pair
+    label(a, l[6])
+    cmp(a, R12, R14)
+    jcc(a, "e", label: l[7])
+    mov(a, Rax, R12)
+    shlImm(a, Rax, n: 4)
+    add(a, Rax, Rbx)
+    load(a, Rcx, Rax, disp: 0)
+    load(a, Rdx, Rax, disp: 8)
+    movImm(a, Rsi, value: 24)
+    imul(a, Rsi, R13)
+    add(a, Rsi, R15)  # the next group
+    testR(a, R13, R13)
+    jcc(a, "e", label: l[8])
+    cmpMem(a, Rcx, Rsi, disp: 8 - 24)
+    jcc(a, "ne", label: l[8])
+    cmpMem(a, Rdx, Rsi, disp: 16 - 24)
+    jcc(a, "ne", label: l[8])
+    load(a, Rax, Rsi, disp: -24)
+    incR(a, Rax)
+    store(a, Rsi, disp: -24, src: Rax)
+    jmp(a, l[9])
+    label(a, l[8])
+    storeImm(a, Rsi, disp: 0, value: 1)
+    store(a, Rsi, disp: 8, src: Rcx)
+    store(a, Rsi, disp: 16, src: Rdx)
+    incR(a, R13)
+    label(a, l[9])
+    incR(a, R12)
+    jmp(a, l[6])
+    label(a, l[7])
+    mov(a, Rdi, R15)
+    mov(a, Rsi, R13)
+    movImm(a, Rdx, value: 24)
+    leaCode(a, Rcx, label: byCount)
+    ccall(g, "qsort")
+    mov(a, Rbx, R15)
+    label(a, l[10])
+    testR(a, R13, R13)
+    jcc(a, "e", label: l[11])
+    movImm(a, Rdi, value: 2)
+    load(a, Rdx, Rbx, disp: 0)
+    load(a, R8, Rbx, disp: 8)
+    load(a, Rcx, Rbx, disp: 16)
+    leaData(a, Rsi, label: cText(g, "  %ld \u{D7} %s allocated at %s\n"))
+    load8(a, Rax, R8)
+    testR(a, Rax, Rax)
+    let print := newLabel(a, "lk")
+    jcc(a, "ne", label: print)
+    leaData(a, Rsi, label: cText(g, "  %ld \u{D7} %s\n"))
+    label(a, print)
+    ccall(g, "dprintf")
+    addImm(a, Rbx, value: 24)
+    decR(a, R13)
+    jmp(a, l[10])
+    label(a, l[11])
     movImm(a, Rdi, value: PanicStatus)
     exitProgram(g)
+    # qsort's comparisons, called from C: of two pairs by their addresses, and of two
+    # groups by count (most first), place and type name.
+    let differ := newLabel(a, "lk")
+    let above := newLabel(a, "lk")
+    label(a, byKey)
+    load(a, Rax, Rdi, disp: 0)
+    load(a, Rcx, Rsi, disp: 0)
+    cmp(a, Rax, Rcx)
+    jcc(a, "ne", label: differ)
+    load(a, Rax, Rdi, disp: 8)
+    load(a, Rcx, Rsi, disp: 8)
+    cmp(a, Rax, Rcx)
+    jcc(a, "ne", label: differ)
+    xor32(a, Rax, Rax)
+    ret(a)
+    label(a, differ)
+    movImm(a, Rax, value: 1)
+    jcc(a, "a", label: above)
+    movImm(a, Rax, value: -1)
+    label(a, above)
+    ret(a)
+    let fewer := newLabel(a, "lk")
+    let done := newLabel(a, "lk")
+    label(a, byCount)
+    load(a, Rax, Rdi, disp: 0)
+    load(a, Rcx, Rsi, disp: 0)
+    cmp(a, Rax, Rcx)
+    jcc(a, "l", label: fewer)
+    movImm(a, Rax, value: -1)
+    jcc(a, "g", label: done)
+    push(a, Rdi)
+    push(a, Rsi)
+    load(a, Rdi, Rdi, disp: 8)
+    load(a, Rsi, Rsi, disp: 8)
+    ccall(g, "strverscmp")  # line 9 before line 10
+    pop(a, Rsi)
+    pop(a, Rdi)
+    extend(a, Rax, bits: 32, signed: true)
+    testR(a, Rax, Rax)
+    jcc(a, "ne", label: done)
+    load(a, Rdi, Rdi, disp: 16)
+    load(a, Rsi, Rsi, disp: 16)
+    ccall(g, "strcmp")
+    ret(a)
+    label(a, fewer)
+    movImm(a, Rax, value: 1)
+    label(a, done)
+    ret(a)
 
 procedure rtOom(g: ref Em)
     let a := g.a
@@ -4823,7 +5072,7 @@ procedure rtStrNew(g: ref Em)
     push(a, Rbx)
     mov(a, Rbx, Rdi)
     addImm(a, Rdi, value: BytesAt + 1)
-    call(a, runtime(g, "rt_alloc"))
+    callRuntime(g, "rt_alloc")
     storeImm(a, Rax, disp: Rc, value: 1)
     storeImm(a, Rax, disp: Desc, value: 0)
     store(a, Rax, disp: Len, src: Rbx)
@@ -4843,7 +5092,7 @@ procedure rtStrFrom(g: ref Em)
     mov(a, Rbx, Rdi)
     mov(a, R12, Rsi)
     mov(a, Rdi, Rsi)
-    call(a, runtime(g, "rt_str_new"))
+    callRuntime(g, "rt_str_new")
     mov(a, R13, Rax)
     lea(a, Rdi, Rax, disp: BytesAt)
     mov(a, Rsi, Rbx)
@@ -5015,7 +5264,7 @@ procedure rtFromBytes(g: ref Em)
     mov(a, Rdi, R14)
     mov(a, Rsi, R15)
     sub(a, Rsi, R14)
-    call(a, runtime(g, "rt_utf8_len"))
+    callRuntime(g, "rt_utf8_len")
     testR(a, Rax, Rax)
     jcc(a, "e", label: invalid)
     add(a, R12, Rax)
@@ -5027,7 +5276,7 @@ procedure rtFromBytes(g: ref Em)
     jmp(a, count)
     label(a, alloc)
     mov(a, Rdi, R12)
-    call(a, runtime(g, "rt_str_new"))
+    callRuntime(g, "rt_str_new")
     store(a, Rax, disp: Chars, src: R13)
     mov(a, R14, Rbx)
     mov(a, Rbx, Rax)
@@ -5043,7 +5292,7 @@ procedure rtFromBytes(g: ref Em)
     mov(a, Rdi, R14)
     mov(a, Rsi, R15)
     sub(a, Rsi, R14)
-    call(a, runtime(g, "rt_utf8_len"))
+    callRuntime(g, "rt_utf8_len")
     testR(a, Rax, Rax)
     jcc(a, "e", label: replace)
     label(a, one)
@@ -5091,7 +5340,7 @@ procedure rtConcat(g: ref Em)
     jmp(a, total)
     label(a, alloc)
     mov(a, Rdi, R14)
-    call(a, runtime(g, "rt_str_new"))
+    callRuntime(g, "rt_str_new")
     store(a, Rax, disp: Chars, src: R15)
     mov(a, R14, Rax)  # the result
     lea(a, R15, Rax, disp: BytesAt)  # where the next part goes
@@ -5129,7 +5378,7 @@ procedure rtIntToStr(g: ref Em, fmt: String)
     ccall(g, "snprintf")
     mov(a, Rdi, Rsp)
     mov(a, Rsi, Rax)
-    call(a, runtime(g, "rt_str_from"))
+    callRuntime(g, "rt_str_from")
     addImm(a, Rsp, value: 32)
     ret(a)
 
@@ -5240,7 +5489,7 @@ procedure rtRealToStr(g: ref Em)
     label(a, make)
     mov(a, Rdi, Rsp)
     mov(a, Rsi, R13)
-    call(a, runtime(g, "rt_str_from"))
+    callRuntime(g, "rt_str_from")
     addImm(a, Rsp, value: 48)
     popAll(a, saved)
     ret(a)
@@ -5290,7 +5539,7 @@ procedure rtCharToStr(g: ref Em)
     add(a, Rdx, Rax)  # the prefix bits and the remaining value don't overlap
     store8(a, Rcx, disp: 0, src: Rdx)
     mov(a, Rdi, Rsp)
-    call(a, runtime(g, "rt_str_from"))
+    callRuntime(g, "rt_str_from")
     addImm(a, Rsp, value: 8)
     ret(a)
 

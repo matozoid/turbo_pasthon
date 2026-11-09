@@ -1,0 +1,21 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 70
+--- stdout
+done
+--- stderr
+leak: 17 blocks still alive at exit
+  2 × List[Integer] allocated at Main.pst:15
+  2 × Node allocated at Main.pst:15
+  2 × String allocated at Main.pst:15
+  2 × ref Node allocated at Main.pst:15
+  2 × Option[ref Node] allocated at Main.pst:16
+  2 × Some[ref Node] allocated at Main.pst:16
+  1 × List[Integer] allocated at Main.pst:12
+  1 × Node allocated at Main.pst:12
+  1 × ref Node allocated at Main.pst:12
+  1 × Option[ref Node] allocated at Main.pst:18
+  1 × Some[ref Node] allocated at Main.pst:18

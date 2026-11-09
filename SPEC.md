@@ -1174,10 +1174,21 @@ unsafe procedure fill(s: Ptr[SdlSurface])
 
 - **Automatic reference counting.** `String`, records, unions, `List`, `Map`, `Set` and `ref T` are refcounted.
 - Increments and decrements are inserted by the compiler. Destruction is deterministic: memory is freed as soon as the last owner goes away.
-- **No cycle collector.** Strong cycles leak, so use `Weak[T]`. A checked build counts the
-  heap blocks it allocates and frees; if any are still alive when the program (or a test
-  block) reaches its end, it prints `leak: N blocks still alive at exit` to stderr and exits
-  with status 70. `halt`, `OS.exit` and panics end the program without this check.
+- **No cycle collector.** Strong cycles leak, so use `Weak[T]`. A checked build keeps track
+  of the heap blocks it allocates and frees, and of the file and line of the code that
+  allocated each. If any are still alive when the program (or a test block) reaches its
+  end, it prints `leak: N blocks still alive at exit` to stderr, then a line per type and
+  place, most blocks first, and exits with status 70:
+
+  ```
+  leak: 8 blocks still alive at exit
+    2 × ref Node allocated at Main.pst:9
+    2 × Option[ref Node] allocated at Main.pst:11
+  ```
+
+  A union value counts as two blocks, the union's and the variant's (`Some[ref Node]`). A
+  block made outside any code, by the runtime itself, has no place. `halt`, `OS.exit` and
+  panics end the program without this check.
 - Primitives, enums, arrays and C records (§10.5) live inline (stack or embedded). Strings, records and unions
   are pointers to refcounted heap blocks, shared on copy and copied before they're changed
   (§4.6). A union value's block records which variant it holds.

@@ -160,6 +160,12 @@ export function data(a: ref Assembler, value: List[Byte], align: Integer := 1): 
 export procedure codeRef(a: ref Assembler, data: String, offset: Integer, label: String)
     add(var a.codeRefs, CodeRef(data: data, offset: offset, label: label))
 
+## Makes the 8 bytes at `offset` in data `data` hold the distance from the start of
+## `data` to data `target`.
+export procedure dataRef(a: ref Assembler, data: String, offset: Integer, target: String)
+    let distance := a.dataLabels[target] - a.dataLabels[data]
+    setLE(var a.rodata, a.dataLabels[data] + offset, distance, n: 8)
+
 procedure rel32(a: ref Assembler, label: String, kind: String := "code")
     add(var a.fixups, Fixup(pos: len(a.code), label: label, kind: kind))
     putLE(var a.code, 0, n: 4)
@@ -349,6 +355,10 @@ export procedure leaData(a: ref Assembler, dst: Integer, label: String)
 ## `mov dst, [rip + global]`.
 export procedure loadGlobal(a: ref Assembler, dst: Integer, name: String)
     global(a, 0x8B, dst, name: name)
+
+## `lea dst, [rip + global]`.
+export procedure leaGlobal(a: ref Assembler, dst: Integer, name: String)
+    global(a, 0x8D, dst, name: name)
 
 ## `mov [rip + global], src`.
 export procedure storeGlobal(a: ref Assembler, name: String, src: Integer)

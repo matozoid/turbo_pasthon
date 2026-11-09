@@ -1,0 +1,22 @@
+program Main
+
+uses IO
+
+type
+    Node = record
+        name: String
+        tags: List[Integer]
+        next: Option[ref Node]
+
+function ring(n: Integer): ref Node
+    let first := new(Node(name: "first", tags: [], next: None))
+    var last := first
+    for i := 2 to n do
+        let node := new(Node(name: "node {i}", tags: [i], next: None))
+        last.next := Some(node)
+        last := node
+    last.next := Some(first)
+    return first
+
+_ := ring(3)
+writeln("done")
