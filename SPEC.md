@@ -1511,8 +1511,15 @@ one-shot commands with JSON output. Each command takes a position as `File.pst:l
 | `pst query instances largest` | every generic instance and where each is created |
 | `pst query explain E0502` | error code documentation |
 
-`pst index --json` writes the complete symbol index (§15.6) in one document, so an agent
-can load the whole project's structure in one call instead of opening files.
+`pst index [PATH] --json` writes the complete symbol index (§15.6) in one document, so an
+agent can load the whole project's structure in one call instead of opening files. It
+checks the file, or the `.pst` files of the directory (by default the current one), and
+prints `"symbols"` and `"references"`:
+
+- each symbol is like hover's, with an `"id"`: every symbol declared or used in the
+  files, including those of the standard units and built-ins;
+- each reference is a location with the `"symbol"` id it means and `"isDef"`: every name
+  in the files.
 
 All query output has a stable, versioned schema (`"schema": "pst-query/1"`).
 

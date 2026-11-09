@@ -266,3 +266,58 @@ export function querySymbols(files: List[String], stdDir: String): Result[String
                 seen[key] := true
                 add(var items, symbolInfo(a, sym))
     return Ok(answer("symbols", items))
+
+## The key that names `sym` across checks: where it is defined, or its name and kind for a
+## built-in.
+function symbolKey(sym: ref Symbol): String
+    if sym.span.isSome() and sym.file <> "" then
+        return "{sym.file}:{sym.span.get().start}"
+    return ":{sym.name}:{name(sym.kind)}"
+
+## The symbol index of `files` (SPEC §15.5): every symbol defined or used in them, with an
+## `"id"`, and every name in them, with the `"symbol"` it means.
+export function queryIndex(files: List[String], stdDir: String): Result[String, String]
+    var paths: List[String] := []
+    var wantFile: Map[String, Boolean] := {}
+    for f in files do
+        add(var paths, absolute(f))
+        wantFile[absolute(f)] := true
+    var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)
+    case serverFor(stdDir, paths) of
+        Ok(made):
+            s := made.value
+        Err(e):
+            return Err(e.error)
+    var symbols: List[String] := []
+    var ids: Map[String, Integer] := {}
+    var refs: List[String] := []
+    var seen: Map[String, Boolean] := {}
+    ## A file's names are taken from the first check that covers it.
+    var covered: Map[String, Boolean] := {}
+    for path in paths do
+        if path in covered then
+            continue
+        let a := analyze(s, path)
+        var here: Map[String, Boolean] := {}
+        for r in a.checked.resolved.checker.index.refs do
+            if r.file in covered or not (r.file in wantFile) then
+                continue
+            here[r.file] := true
+            for sym in r.targets do
+                let key := symbolKey(sym)
+                if not (key in ids) then
+                    ids[key] := len(symbols)
+                    let info := symbolInfo(a, sym)
+                    add(var symbols, "\{\"id\":{len(symbols)},{slice(info, 1, byteLen(info))}")
+                let at := "{r.file}:{r.span.start}:{ids[key]}"
+                if at in seen then
+                    continue
+                seen[at] := true
+                let where := location(r.file, r.span)
+                let tail := "\"symbol\":{ids[key]},\"isDef\":{r.isDef}}"
+                add(var refs, "{slice(where, 0, byteLen(where) - 1)},{tail}")
+        covered[path] := true
+        for f, _ in here do
+            covered[f] := true
+    let listed := "\"symbols\":[{join(symbols, sep: ",")}]"
+    return Ok("\{\"schema\":{quote(Schema)},{listed},\"references\":[{join(refs, sep: ",")}]}")

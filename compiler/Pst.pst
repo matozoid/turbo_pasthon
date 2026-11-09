@@ -1,14 +1,13 @@
 program Pst
 
 ## The command line tool (SPEC §15): `check`, `build`, `run`, `test`, `fmt`, `lsp` and
-## `query`, and
-## the `tokens` and `ast` dumps. The standard units are found in
+## `query`, `index`, and the `tokens` and `ast` dumps. The standard units are found in
 ## `units` next to the executable.
 
 uses IO, OS, Strings, Source, Ast, Diagnostics, Typecheck, Emit, Fmt, Lsp, Query, LexDump, AstDump
 
 const
-    Usage = "usage: pst check FILE [--json]\n       pst build FILE [-o OUT] [--unchecked] [--json]\n       pst run [--unchecked] FILE [-- ARGS]\n       pst test PATH [--filter TEXT] [--unchecked] [--json]\n       pst fmt PATH [--check]\n       pst lsp\n       pst query def|refs|type|hover|complete FILE:LINE:COL\n       pst query impls|callers|callees FILE:LINE:COL\n       pst query symbols [PATH]\n       pst tokens FILE\n       pst ast FILE"
+    Usage = "usage: pst check FILE [--json]\n       pst build FILE [-o OUT] [--unchecked] [--json]\n       pst run [--unchecked] FILE [-- ARGS]\n       pst test PATH [--filter TEXT] [--unchecked] [--json]\n       pst fmt PATH [--check]\n       pst lsp\n       pst query def|refs|type|hover|complete FILE:LINE:COL\n       pst query impls|callers|callees FILE:LINE:COL\n       pst query symbols [PATH]\n       pst index [PATH]\n       pst tokens FILE\n       pst ast FILE"
 
 type
     Options = record
@@ -40,12 +39,23 @@ function parseArgs(a: List[String]): Options
         check: false,
         rest: [],
     )
-    if not (
-        o.command in ["check", "build", "run", "test", "fmt", "lsp", "query", "tokens", "ast"]
-    ) then
+    if not (o.command in [
+        "check",
+        "build",
+        "run",
+        "test",
+        "fmt",
+        "lsp",
+        "query",
+        "index",
+        "tokens",
+        "ast",
+    ]) then
         usage("unknown command '{o.command}'")
     if o.command = "query" then
         return queryArgs(a, o)
+    if o.command = "index" then
+        return indexArgs(a, o)
     let dump := o.command in ["tokens", "ast", "fmt", "lsp"]
     var i := 1
     while i < len(a) do
@@ -114,6 +124,20 @@ function queryArgs(a: List[String], o: Options): Options
         usage("unknown query '{q.filter}'")
     if len(words) > 2 or (q.filter <> "symbols" and len(words) <> 2) then
         usage("unrecognized argument '{words[len(words) - 1]}'")
+    return q
+
+## The arguments of `pst index`: the path in `file`, by default the current directory.
+## `--json` is accepted, since the output is always JSON.
+function indexArgs(a: List[String], o: Options): Options
+    var q := o
+    for i := 1 to len(a) - 1 do
+        if a[i] = "--json" then
+            continue
+        if startsWith(a[i], prefix: "-") or q.file <> "" then
+            usage("unrecognized argument '{a[i]}'")
+        q.file := a[i]
+    if q.file = "" then
+        q.file := "."
     return q
 
 ## The directory part of `path`: `.` if it has none.
@@ -386,6 +410,14 @@ else if o.command = "query" then
     else
         result := queryAt(o.filter, position: o.file, stdDir: stdDir)
     case result of
+        Ok(text):
+            writeln(text.value)
+        Err(e):
+            fatal(e.error)
+else if o.command = "index" then
+    if not (isFile(o.file) or isDir(o.file)) then
+        fatal("can't read '{o.file}'")
+    case queryIndex(sourceFiles(o.file), stdDir: stdDir) of
         Ok(text):
             writeln(text.value)
         Err(e):

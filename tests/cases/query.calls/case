@@ -1,4 +1,4 @@
-# `pst query` (SPEC §15.5): completion, implementations, callers and callees.
+# `pst query` (SPEC §15.5): completion, implementations, callers and callees; `pst index`.
 $PST query complete Main.pst:10:14
 $PST query complete Main.pst:9:11
 $PST query impls Shapes.pst:4:12
@@ -9,3 +9,7 @@ $PST query callers Main.pst:5:10
 $PST query callees Shapes.pst:13:17
 $PST query callees Main.pst:8:5
 $PST query callers
+$PST index --json | sed 's|"file":"/[^"]*/|"file":"STD/|g'
+$PST index Shapes.pst | grep -o '"name":"[a-zA-Z]*","kind":"[a-z ]*"'
+$PST index Nope.pst
+$PST index Main.pst Shapes.pst

@@ -11,6 +11,7 @@ usage: pst check FILE [--json]
        pst query def|refs|type|hover|complete FILE:LINE:COL
        pst query impls|callers|callees FILE:LINE:COL
        pst query symbols [PATH]
+       pst index [PATH]
        pst tokens FILE
        pst ast FILE
 pst: error: missing command
@@ -27,6 +28,7 @@ usage: pst check FILE [--json]
        pst query def|refs|type|hover|complete FILE:LINE:COL
        pst query impls|callers|callees FILE:LINE:COL
        pst query symbols [PATH]
+       pst index [PATH]
        pst tokens FILE
        pst ast FILE
 pst: error: unknown command 'frob'
@@ -43,6 +45,7 @@ usage: pst check FILE [--json]
        pst query def|refs|type|hover|complete FILE:LINE:COL
        pst query impls|callers|callees FILE:LINE:COL
        pst query symbols [PATH]
+       pst index [PATH]
        pst tokens FILE
        pst ast FILE
 pst: error: missing FILE or PATH
@@ -59,6 +62,7 @@ usage: pst check FILE [--json]
        pst query def|refs|type|hover|complete FILE:LINE:COL
        pst query impls|callers|callees FILE:LINE:COL
        pst query symbols [PATH]
+       pst index [PATH]
        pst tokens FILE
        pst ast FILE
 pst: error: argument -o/--output: expected one argument
@@ -75,6 +79,7 @@ usage: pst check FILE [--json]
        pst query def|refs|type|hover|complete FILE:LINE:COL
        pst query impls|callers|callees FILE:LINE:COL
        pst query symbols [PATH]
+       pst index [PATH]
        pst tokens FILE
        pst ast FILE
 pst: error: unrecognized argument '--json'
@@ -91,6 +96,7 @@ usage: pst check FILE [--json]
        pst query def|refs|type|hover|complete FILE:LINE:COL
        pst query impls|callers|callees FILE:LINE:COL
        pst query symbols [PATH]
+       pst index [PATH]
        pst tokens FILE
        pst ast FILE
 pst: error: unrecognized argument '--unchecked'

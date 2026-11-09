@@ -288,7 +288,11 @@ function firstLine(a: Analysis, file: String, span: Span): String
 
 ## A symbol's declaration, in short.
 export function headOf(a: Analysis, sym: ref Symbol): String
-    let kind := name(sym.kind)
+    var kind := name(sym.kind)
+    if sym.kind = Kind.UnitSym then
+        for u in a.checked.resolved.units do
+            if u.path = sym.file then
+                kind := u.parsed.file.kind
     var head := "{kind} {sym.name}"
     case sym.node of
         Routine(r):
