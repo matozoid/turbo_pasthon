@@ -1179,11 +1179,13 @@ function stmt(p: ref State): Parsed[Stmt]
         step(p)
         let body := try armBody(p)
         return Ok(Defer(span: finish(p, start), body: body, endMarker: None))
-    if k = TokenKind.KwBreak or k = TokenKind.KwContinue then
+    if k = TokenKind.KwBreak or k = TokenKind.KwContinue or k = TokenKind.KwPass then
         step(p)
         try endLine(p)
         if k = TokenKind.KwBreak then
             return Ok(Break(span: start))
+        if k = TokenKind.KwPass then
+            return Ok(Pass(span: start))
         return Ok(Continue(span: start))
     if k = TokenKind.KwReturn then
         step(p)

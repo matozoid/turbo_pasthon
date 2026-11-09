@@ -171,6 +171,11 @@ class Integers(unittest.TestCase):
                 writeln("minus two")
             else
                 writeln("other")
+            case n of
+                0: writeln("zero")
+                else: pass
+            if n > 0 then
+                pass
             """)
         self.assertEqual(out, "321.. 25\nminus two\n")
 

@@ -57,7 +57,7 @@ _CLOSER = {"(": ")", "[": "]", "{": "}"}
 # Inside open brackets, a line that starts like this, at or left of the indentation of
 # the line that opened them, can't be a continuation: the brackets were never closed.
 _STATEMENT_START_RE = re.compile(
-    r"(?:(?:var|let|if|while|for|repeat|case|defer|break|continue|return|assert|function"
+    r"(?:(?:var|let|if|while|for|repeat|case|defer|break|continue|pass|return|assert|function"
     r"|procedure|type|const|extern|test|export|unsafe|uses|program|unit)\b"
     r"|[A-Za-z_][A-Za-z0-9_.]*\s*:=(?!=)"
     r"|# end )"

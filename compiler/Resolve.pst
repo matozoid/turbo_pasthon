@@ -681,7 +681,7 @@ function lookup(r: ref Resolver, name: String): Lookup
             Some(u):
                 return Lookup(symbols: [u.value.symbol], ambiguous: [])
             None:
-                pass()
+                pass
     var routines := own
     var others: List[ref Symbol] := []
     var otherUnits: List[ref Unit] := []
@@ -708,10 +708,6 @@ function lookup(r: ref Resolver, name: String): Lookup
 ## The symbols `name` refers to in a declaration of the resolver's unit.
 export function unitLookup(r: ref Resolver, name: String): List[ref Symbol]
     return lookup(r, name).symbols
-
-## Does nothing.
-procedure pass()
-    return
 
 ## Every name visible here, in order.
 function visibleNames(r: ref Resolver): List[String]
@@ -846,7 +842,7 @@ function staticTarget(r: ref Resolver, e: Expr): Option[ref Symbol]
                 None:
                     return None
         else:
-            pass()
+            pass
     expr(r, e)
     return None
 
@@ -934,7 +930,7 @@ function typeExpr(r: ref Resolver, t: TypeExpr): List[ref Symbol]
                 Some(res):
                     _ := typeExpr(r, res.value)
                 None:
-                    pass()
+                    pass
     return []
 
 procedure typeOrExpr(r: ref Resolver, x: TypeOrExpr)
@@ -993,7 +989,7 @@ procedure typeDecl(r: ref Resolver, d: TypeDecl)
                 signature(r, sig)
             r.inTrait := false
         EnumType(_):
-            pass()
+            pass
     popTypeParams(r)
 
 # ----------------------------------------------------------------------- routines
@@ -1003,19 +999,19 @@ procedure paramTypes(r: ref Resolver, p: Param)
         Some(t):
             _ := typeExpr(r, t.value)
         None:
-            pass()
+            pass
     case p.default of
         Some(d):
             expr(r, d.value)
         None:
-            pass()
+            pass
 
 procedure resultType(r: ref Resolver, sig: Signature)
     case sig.result of
         Some(t):
             _ := typeExpr(r, t.value)
         None:
-            pass()
+            pass
 
 ## Resolves a signature without a body (extern, trait member).
 procedure signature(r: ref Resolver, sig: Signature)
@@ -1078,7 +1074,7 @@ procedure optExpr(r: ref Resolver, e: Option[Expr])
         Some(x):
             expr(r, x.value)
         None:
-            pass()
+            pass
 
 procedure stmt(r: ref Resolver, s: Stmt)
     case s of
@@ -1089,7 +1085,7 @@ procedure stmt(r: ref Resolver, s: Stmt)
                     _ := typeExpr(r, t.value)
                     last := spanOfType(t.value)
                 None:
-                    pass()
+                    pass
             expr(r, v.value)
             var kind := Kind.LetSym
             if v.mutable then
@@ -1114,7 +1110,7 @@ procedure stmt(r: ref Resolver, s: Stmt)
                 Some(b):
                     block(r, b.value)
                 None:
-                    pass()
+                    pass
         While(w):
             expr(r, w.cond)
             block(r, w.body)
@@ -1152,7 +1148,7 @@ procedure stmt(r: ref Resolver, s: Stmt)
             expr(r, a.cond)
             optExpr(r, a.message)
         else:
-            pass()
+            pass
 
 procedure labels(r: ref Resolver, ls: List[Label])
     for label in ls do
@@ -1244,7 +1240,7 @@ procedure expr(r: ref Resolver, e: Expr)
                 if r.hasCtx then
                     pop(r)
         else:
-            pass()
+            pass
 
 # ------------------------------------------------------------------------- naming
 

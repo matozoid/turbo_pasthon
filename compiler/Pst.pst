@@ -169,10 +169,6 @@ function lines(text: String): List[String]
         removeLast(var ls)
     return ls
 
-## Does nothing: an `else` arm that ignores the other cases.
-procedure pass()
-    return
-
 ## The test blocks of a file.
 function testsOf(file: SourceFile): List[TestBlock]
     var tests: List[TestBlock] := []
@@ -183,9 +179,9 @@ function testsOf(file: SourceFile): List[TestBlock]
                     TestBlock(t):
                         add(var tests, t)
                     else:
-                        pass()
+                        pass
             else:
-                pass()
+                pass
     return tests
 
 type

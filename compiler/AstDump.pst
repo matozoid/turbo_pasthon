@@ -302,6 +302,7 @@ procedure stmt(s: Stmt, d: Integer, label: String)
             armBody(x.body, c, label: one("body"))
         Break(x): line(d, label, kind: "Break", span: x.span, scalars: "")
         Continue(x): line(d, label, kind: "Continue", span: x.span, scalars: "")
+        Pass(x): line(d, label, kind: "Pass", span: x.span, scalars: "")
         Return(x):
             line(d, label, kind: "Return", span: x.span, scalars: "")
             optExpr(x.value, c, label: one("value"))

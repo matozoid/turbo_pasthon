@@ -139,6 +139,7 @@ class Statements(unittest.TestCase):
             "(ForRange (Ident i) (IntLit 9) (IntLit 0) :down (Block [(Break)])) "
             "(ForIn [(Ident _) (Ident v)] (Name m) (Block [(Continue)]))",
         )
+        self.assertEqual(tree("if a then\n    pass\n"), "(If [(CondBlock (Name a) (Block [(Pass)]))])")
 
     def test_case_stmt(self):
         self.assertEqual(

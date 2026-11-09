@@ -54,6 +54,7 @@ class TokenKind(Enum):
     NOT = "not"
     OF = "of"
     OR = "or"
+    PASS = "pass"
     PROCEDURE = "procedure"
     PROGRAM = "program"
     RECORD = "record"

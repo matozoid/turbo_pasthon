@@ -353,6 +353,11 @@ class Continue(Node):
 
 
 @dataclass(eq=False)
+class Pass(Node):
+    """Does nothing: the body of a block or case arm with nothing to do."""
+
+
+@dataclass(eq=False)
 class Return(Node):
     value: Expr | None
 
@@ -370,7 +375,7 @@ class ErrorStmt(Node):
 
 Stmt = Union[
     VarDecl, Assign, Discard, ExprStmt, If, While, Repeat, ForRange, ForIn, Case, Defer,
-    Break, Continue, Return, Assert, ErrorStmt,
+    Break, Continue, Pass, Return, Assert, ErrorStmt,
 ]  # fmt: skip
 
 

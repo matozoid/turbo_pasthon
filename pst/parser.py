@@ -770,10 +770,10 @@ class _Parser:
             self.advance()
             body = self.block() if self.at(K.NEWLINE) else self.stmt()
             return A.Defer(self.finish(start), body)
-        if k in (K.BREAK, K.CONTINUE):
+        if k in (K.BREAK, K.CONTINUE, K.PASS):
             self.advance()
             self.end_line()
-            return (A.Break if k is K.BREAK else A.Continue)(start)
+            return {K.BREAK: A.Break, K.CONTINUE: A.Continue, K.PASS: A.Pass}[k](start)
         if k is K.RETURN:
             self.advance()
             if self.at(K.NEWLINE):

@@ -746,6 +746,8 @@ class Emitter:
                 self.coerce(s.value, self.sub(self.env.sig(self.f.sym).result))
             self.release_scopes(1)  # the parameters are released after `ensures`
             a.jmp(self.f.exit)
+        elif isinstance(s, A.Pass):
+            pass
         elif isinstance(s, A.Assert):
             message = f"assertion failed: {self.text(s.cond)}"
             if s.message is not None:

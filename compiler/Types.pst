@@ -418,7 +418,7 @@ export function unify(pattern, actual: Type, var s: Subst, vars: Vars): Boolean
                         s[p.sym.id] := actual
                         return true
         else:
-            pass()
+            pass
     case pattern of
         BuiltinT(p):
             case actual of
@@ -452,7 +452,3 @@ export function unify(pattern, actual: Type, var s: Subst, vars: Vars): Boolean
                     return false
         else:
             return pattern = actual
-
-## Does nothing.
-procedure pass()
-    return

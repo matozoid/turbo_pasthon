@@ -323,6 +323,10 @@ type
     export Continue = record
         export span: Span
 
+    ## Does nothing: the body of a block or case arm with nothing to do.
+    export Pass = record
+        export span: Span
+
     export Return = record
         export span: Span
         export value: Option[Expr]
@@ -335,7 +339,7 @@ type
     export ErrorStmt = record
         export span: Span
 
-    export Stmt = VarDecl | Assign | Discard | ExprStmt | If | While | Repeat | ForRange | ForIn | Case | Defer | Break | Continue | Return | Assert | ErrorStmt
+    export Stmt = VarDecl | Assign | Discard | ExprStmt | If | While | Repeat | ForRange | ForIn | Case | Defer | Break | Continue | Pass | Return | Assert | ErrorStmt
 
     # ---------------------------------------------------------------- declarations
 
@@ -510,6 +514,7 @@ export function stmtSpan(s: Stmt): Span
         Defer(x): return x.span
         Break(x): return x.span
         Continue(x): return x.span
+        Pass(x): return x.span
         Return(x): return x.span
         Assert(x): return x.span
         ErrorStmt(x): return x.span

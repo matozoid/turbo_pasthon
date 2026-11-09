@@ -281,7 +281,7 @@ function isWordCharOrOther(c: Char): Boolean
 function startsStatement(lx: State, i: Integer): Boolean
     let words := [
         "var", "let", "if", "while", "for", "repeat", "case", "defer", "break", "continue",
-        "return", "assert", "function", "procedure", "type", "const", "extern", "test",
+        "pass", "return", "assert", "function", "procedure", "type", "const", "extern", "test",
         "export", "unsafe", "uses", "program", "unit",
     ]
     for w in words do

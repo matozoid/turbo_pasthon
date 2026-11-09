@@ -93,10 +93,11 @@ Casing is enforced (error `E0020`), decided by the first letter:
 and       as        assert    break     case      const     continue
 defer     div       do        downto    else      ensures   export
 extern    false     for       function  if        in        let
-mod       not       of        or        procedure program   record
-ref       repeat    requires  return    test      then      this
-This      to        trait     true      try       type      unit
-unsafe    until     uses      var       while     deref     _
+mod       not       of        or        pass      procedure program
+record    ref       repeat    requires  return    test      then
+this      This      to        trait     true      try       type
+unit      unsafe    until     uses      var       while     deref
+_
 ```
 
 ### 2.7 Literals
@@ -829,8 +830,14 @@ case expr of
 
 Expression forms of `if` and `case` are described in §9.3.
 
-### 7.7 break / continue / return
+### 7.7 break / continue / return / pass
 As usual. `break`/`continue` apply to the innermost loop (`continue` not in `repeat`, §7.4).
+`pass` does nothing; it fills a block or `case` arm that has nothing to do:
+```pascal
+case shape of
+    Circle(c): draw(c)
+    else: pass
+```
 
 ### 7.8 defer
 ```pascal
@@ -1482,7 +1489,7 @@ externDecl  = ["export"] signature ["as" STRING] ;
 testBlk     = "test" STRING block ;
 
 stmt        = varDecl | assign | callStmt | ifStmt | whileStmt | repeatStmt
-            | forStmt | caseStmt | deferStmt | "break" NEWLINE | "continue" NEWLINE
+            | forStmt | caseStmt | deferStmt | "break" NEWLINE | "continue" NEWLINE | "pass" NEWLINE
             | "return" (rhs | NEWLINE) | DISCARD ":=" rhs
             | "assert" expr ["," expr] NEWLINE ;
 varDecl     = ("var" | "let") IDENT [":" typeExpr] ":=" rhs ;
