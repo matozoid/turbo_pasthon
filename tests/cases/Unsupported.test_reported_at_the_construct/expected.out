@@ -2,6 +2,4 @@ $ $PST build Main.pst -o main
 exit 1
 --- stdout
 --- stderr
-Main.pst:5:5: error E0990: variable 'r' of type Real is not supported by the code generator yet
 Main.pst:6:9: error E0990: converting Real to a string is not supported by the code generator yet
-Main.pst:7:6: error E0990: a value of type Real is not supported by the code generator yet

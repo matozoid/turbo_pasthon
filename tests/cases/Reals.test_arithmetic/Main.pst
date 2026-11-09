@@ -1,0 +1,41 @@
+program Main
+
+uses IO
+
+type
+    P = record
+        x: Real
+        y: Real
+
+function scale(p: P, k: Real): P
+    return P(x: p.x * k, y: p.y * k)
+
+let a := 1.5
+let b := -2.25
+writeln(round(a * 4.0))
+writeln(toInt(a + b))
+writeln(toInt(10.0 / 3.0 * 3000.0))
+writeln("{a < b} {a > b} {a <= 1.5} {b >= 0.0} {a = 1.5} {a <> 1.5}")
+let nan := 0.0 / 0.0
+writeln("{nan = nan} {nan <> nan} {nan < 1.0} {nan >= 1.0}")
+let inf := 1.0 / 0.0
+writeln("{inf > 1.0e308} {-inf < -1.0e308}")
+writeln("{round(2.5)} {round(-2.5)} {round(0.49999999999999994)} {round(-0.5)} {round(1.4)}")
+writeln("{toInt(-7.9)} {toInt(7.9)} {toReal(3) = 3.0}")
+let p := scale(P(x: 1.0, y: 2.0), k: 0.5)
+writeln(toInt(p.y * 100.0))
+var xs: List[Real] := [0.1, 0.2]
+writeln(xs[0] + xs[1] = 0.3)
+writeln(0.1 + 0.2 = 0.30000000000000004)
+writeln(1.0e-320 > 0.0)
+writeln(toInt(2.5e-324 * 1.0e300 * 1.0e24))
+writeln(toInt(4.9e-324 * 1.0e300 * 1.0e24))
+writeln(toInt(1.7976931348623157e308 / 1.0e300))
+writeln(toInt(1.0e18))
+let q := P(x: 0.0 / 0.0, y: 1.0)
+writeln(
+    "{q = q} {P(x: 0.0, y: 1.0) = P(x: -0.0, y: 1.0)} {[nan] = [nan]} {[1.5, 2.0] = [1.5, 2.0]}",
+)
+var ys := xs
+ys[0] := 9.0
+writeln(toInt(xs[0] * 10.0))

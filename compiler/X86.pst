@@ -25,6 +25,8 @@ const
     export R13 = 13
     export R14 = 14
     export R15 = 15
+    export Xmm0 = 0
+    export Xmm1 = 1
 
 type
     ## A rel32 to fill in: at `pos`, to `label` of kind "code", "data", "got" or "global".
@@ -437,6 +439,46 @@ export procedure incR(a: ref Assembler, r: Integer)
 export procedure decR(a: ref Assembler, r: Integer)
     emit(a, [rex(true, 0, rm: r), 0xFF, 0xC8 + low(r)])
 
+## An SSE2 instruction `prefix [rex] 0F op modrm`, with registers as both operands.
+procedure sse(a: ref Assembler, prefix, op, reg, rm: Integer, w: Boolean := false)
+    emit(a, [prefix])
+    let x := rex(w, reg, rm: rm)
+    if x <> 0x40 then
+        emit(a, [x])
+    emit(a, [0x0F, op, modrm(reg, rm: rm)])
+
+## `movq xmm, r64`: the bits of a general register into an xmm register.
+export procedure movqToXmm(a: ref Assembler, x, r: Integer)
+    sse(a, 0x66, 0x6E, x, rm: r, w: true)
+
+## `movq r64, xmm`: the bits of an xmm register into a general register.
+export procedure movqFromXmm(a: ref Assembler, r, x: Integer)
+    sse(a, 0x66, 0x7E, x, rm: r, w: true)
+
+## `addsd`, `subsd`, `mulsd` or `divsd dst, src` for the operator `op`.
+export procedure realOp(a: ref Assembler, op: String, dst, src: Integer)
+    var code := 0x58
+    if op = "-" then
+        code := 0x5C
+    else if op = "*" then
+        code := 0x59
+    else if op = "/" then
+        code := 0x5E
+    sse(a, 0xF2, code, dst, rm: src)
+
+## `ucomisd x, y`: compares two reals; unordered (a NaN) sets ZF, PF and CF.
+export procedure ucomisd(a: ref Assembler, x, y: Integer)
+    sse(a, 0x66, 0x2E, x, rm: y)
+
+## `cvtsi2sd x, r64`: a signed integer to a real.
+export procedure cvtsi2sd(a: ref Assembler, x, r: Integer)
+    sse(a, 0xF2, 0x2A, x, rm: r, w: true)
+
+## `cvttsd2si r64, x`: a real to a signed integer, truncating; the integer
+## 0x8000000000000000 if it doesn't fit.
+export procedure cvttsd2si(a: ref Assembler, r, x: Integer)
+    sse(a, 0xF2, 0x2C, r, rm: x, w: true)
+
 ## The number of a condition code, for jcc: `jcc(a, "e", l)` jumps if equal.
 function cc(name: String): Integer
     let names := [
@@ -450,15 +492,15 @@ function cc(name: String): Integer
         "a",
         "s",
         "ns",
-        "",
-        "",
+        "p",
+        "np",
         "l",
         "ge",
         "le",
         "g",
     ]
     let i := indexOf(names, name)
-    assert i >= 0 and name <> "", "unknown condition"
+    assert i >= 0, "unknown condition"
     return i
 
 ## Sets the low byte of `r` to 1 if the condition holds, else 0.

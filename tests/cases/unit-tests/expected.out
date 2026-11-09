@@ -27,10 +27,12 @@ ok   std/System.pst:793: iterators
 $ $PST test $ROOT/compiler
 exit 0
 --- stdout
+ok   compiler/Decimal.pst:179: exact and rounded literals
+ok   compiler/Decimal.pst:188: the edges of the range
 ok   compiler/Difflib.pst:90: close matches, best first
 ok   compiler/Paths.pst:120: dirname and basename
 ok   compiler/Paths.pst:126: stripExt
 ok   compiler/Paths.pst:132: join and normalize
 ok   compiler/Paths.pst:139: relative
-5 passed, 0 failed
+7 passed, 0 failed
 --- stderr

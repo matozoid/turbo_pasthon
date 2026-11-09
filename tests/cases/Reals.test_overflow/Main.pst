@@ -1,0 +1,8 @@
+program Main
+
+uses IO
+
+let big := 1.0e19
+writeln(toInt(-9.2233720368547758e18))
+writeln(round(-big / 10.0))
+writeln(toInt(big))

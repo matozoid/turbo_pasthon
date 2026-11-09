@@ -1,0 +1,23 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 70
+--- stdout
+-9223372036854775808
+-1000000000000000000
+--- stderr
+panic P0002: integer overflow
+    at Main.pst:8:9
+$ $PST build --unchecked Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+-9223372036854775808
+-1000000000000000000
+-9223372036854775808
+--- stderr

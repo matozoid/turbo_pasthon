@@ -1000,7 +1000,15 @@ function largest[T: Ordered](xs: List[T]): Option[T]
 - `/` works on Real only. `div` and `mod` work on integers only. `div` truncates toward
   zero and `a mod b` takes the sign of `a`, so `a = (a div b) * b + a mod b`:
   `-7 div 2 = -3`, `-7 mod 2 = -1`. `x mod -1` is `0`; `Integer.min div -1` overflows.
-- Division by zero panics (`P0004`), in `--unchecked` builds too.
+- Integer division by zero panics (`P0004`), in `--unchecked` builds too.
+- `Real` arithmetic is IEEE-754 double precision, rounding to nearest: `1.0 / 0.0` is
+  infinity and `0.0 / 0.0` a NaN, without a panic. A comparison with a NaN is false,
+  except `<>`, which is true; `0.0 = -0.0`. Structural `=` compares reals the same way,
+  so a record holding a NaN is unequal to itself. A literal is the double nearest its
+  decimal value (ties to even); one too large is infinity.
+- `toInt(r)` truncates toward zero and `round(r)` rounds half away from zero
+  (`round(2.5) = 3`, `round(-2.5) = -3`). A result outside `Integer`, or a NaN, panics
+  (`P0002`) in checked builds.
 - `and`, `or`, `not` work on Boolean only (short-circuit). Bitwise ops are library functions in the `Bits` unit (§14).
 - Mixed numeric types are an error. Convert explicitly: `toReal(i)`, `toInt(r)` (truncates), `round(r)`, `Int32(x)` (checked narrowing). `ord(c)` is a `Char`'s code point and
   `Char(i)` the `Char` of code point `i`; it panics (`P0009`) if `i` is negative, above
@@ -1324,7 +1332,8 @@ diagnostics; they exit with status 1 if there are errors.
 
 `scripts/bootstrap.sh` builds the tool into `build/pst` (with `build/units`). The seed is
 `$PST_SEED` if set, else the latest GitHub release. The seed builds stage 1, stage 1 builds
-stage 2, and the two must be identical. A tag `v*` makes the release workflow publish
+stage 2 and stage 2 builds stage 3; stages 2 and 3 must be identical (stage 1 differs when
+the code generation changed since the seed). A tag `v*` makes the release workflow publish
 `pst-linux-x86_64.tar.gz` (`pst` and `units/`). The compiler may only use the features
 that the latest release compiles.
 
