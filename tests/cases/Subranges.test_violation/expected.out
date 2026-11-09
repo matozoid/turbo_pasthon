@@ -1,0 +1,21 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 70
+--- stdout
+9
+--- stderr
+panic P0003: subrange violation
+    at Main.pst:9:12
+$ $PST build Main.pst -o main --unchecked
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+9
+10
+--- stderr

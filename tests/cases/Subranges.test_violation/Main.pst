@@ -1,0 +1,15 @@
+program Main
+
+uses IO
+
+type
+    Digit = 0..9
+
+function next(d: Digit): Digit
+    return d + 1
+
+var d: Digit := 8
+d := next(d)
+writeln(d)
+d := next(d)
+writeln(d)

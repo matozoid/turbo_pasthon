@@ -1,0 +1,38 @@
+program Main
+
+uses IO
+
+type
+    Digit = 0..9
+    Letter = 'a'..'z'
+    Color = (Red, Green, Blue)
+    Warm = Color.Red..Color.Green
+    Box = record
+        d: Digit
+
+function next(d: Digit): Digit
+    return d + 1
+
+let d: Digit := 4
+writeln(d)
+writeln(d + 3)
+writeln("d is {d}, ord {ord(d)}")
+let l: Letter := 'q'
+writeln(l)
+writeln(Letter('c'))
+let w: Warm := Color.Green
+writeln(w)
+var b := Box(d: 7)
+b.d := next(b.d)
+writeln(b.d)
+var total := 0
+let ds: List[Digit] := [1, 2, 3]
+for x in ds do
+    total := total + x
+writeln(total)
+case b.d of
+    8: writeln("eight")
+    else: writeln("other")
+var n := 12
+n := n - 3
+writeln(Digit(n))

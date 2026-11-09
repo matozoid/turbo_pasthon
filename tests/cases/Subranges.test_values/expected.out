@@ -1,0 +1,18 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+4
+7
+d is 4, ord 4
+q
+c
+Green
+8
+6
+eight
+9
+--- stderr

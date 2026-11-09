@@ -572,6 +572,8 @@ function supportedIn(
     let kd := kind(g, t)
     if kd = "enum" then
         return true
+    if kd = "subrange" then
+        return supportedIn(g, base(g.env, t), var seen, var done)
     if kd <> "record" and kd <> "union" then
         return false
     var parts: List[Type] := []
@@ -723,9 +725,30 @@ procedure coerce(g: ref Em, e: Expr, want: Type)
     if g.bad then
         return
     let have := typeOfExpr(g, e)
-    if want = noneT() or have = want or kind(g, want) <> "union" then
+    if want = noneT() or have = want then
         return
-    wrap(g, have, want: want, span: exprSpan(e))
+    if kind(g, want) = "subrange" then
+        inRange(g, want, exprSpan(e))
+    else if kind(g, want) = "union" then
+        wrap(g, have, want: want, span: exprSpan(e))
+
+## Checks, in checked builds, that the value in rax is within subrange `t` (panic
+## `P0003`).
+procedure inRange(g: ref Em, t: Type, span: Span)
+    if not g.checked then
+        return
+    case ordinalRange(g.env, t) of
+        Some(r):
+            let a := g.a
+            let bad := panic(g, "P0003", "subrange violation", span: span)
+            movImm(a, Rcx, value: r.value.lo)
+            cmp(a, Rax, Rcx)
+            jcc(a, "l", label: bad)
+            movImm(a, Rcx, value: r.value.hi)
+            cmp(a, Rax, Rcx)
+            jcc(a, "g", label: bad)
+        None:
+            pass
 
 ## Puts the variant in rax, of type `have`, into a new block of union `want`.
 procedure wrap(g: ref Em, have, want: Type, span: Span)
@@ -2982,7 +3005,7 @@ procedure stringOf(g: ref Em, parts: List[InterpPart])
 ## Computes `e` and converts it to a String (`toString`). An enum member's string is
 ## its name.
 procedure toString(g: ref Em, e: Expr)
-    let t := typeOfExpr(g, e)
+    let t := base(g.env, typeOfExpr(g, e))
     let isEnum := kind(g, t) = "enum"
     if t <> stringT() and t <> booleanT() and t <> charT() and not isEnum and not isInt(t) then
         unsupported(g, exprSpan(e), "converting {show(t)} to a string")
@@ -3272,8 +3295,14 @@ function movable(g: ref Em, place: Expr, others: List[Expr], types: List[Type]):
 ## value doesn't fit. `Char(i)` converts a code point.
 procedure convert(g: ref Em, c: Call)
     let a := g.a
-    let src := typeOfExpr(g, c.args[0].value)
-    let dst := typeOfExpr(g, c)
+    let src := base(g.env, typeOfExpr(g, c.args[0].value))
+    let target := typeOfExpr(g, c)
+    let dst := base(g.env, target)
+    if src = dst then  # to or from a subrange
+        expr(g, c.args[0].value)
+        if not g.bad and target <> dst then
+            inRange(g, target, c.span)
+        return
     if dst = charT() and isInt(src) then  # `Char(i)`: checked in every build
         expr(g, c.args[0].value)
         if g.bad then
@@ -3285,6 +3314,8 @@ procedure convert(g: ref Em, c: Call)
         subImm(a, Rcx, value: 0xD800)
         cmpImm(a, Rcx, value: 0x7FF)
         jcc(a, "be", label: bad)  # a surrogate
+        if target <> dst then
+            inRange(g, target, c.span)
         return
     if not (isInt(src) and isInt(dst)) then
         unsupported(g, c.span, "converting {show(src)} to {show(dst)}")
@@ -3292,12 +3323,12 @@ procedure convert(g: ref Em, c: Call)
     expr(g, c.args[0].value)
     if g.bad then
         return
-    if src = dst then
-        return
     if g.checked and (src = uint64T()) <> (dst = uint64T()) and (src = uint64T() or not intSigned(dst)) then
         testR(a, Rax, Rax)  # UInt64 above Int64's range, or a negative value to UInt64
         jcc(a, "s", label: panic(g, "P0002", "integer overflow", span: c.span))
     fit(g, dst, c.span)
+    if target <> dst then
+        inRange(g, target, c.span)
 
 ## Calls a C function (SPEC §10.1) through the GOT, with the System V ABI. C records of
 ## up to 16 bytes are passed and returned in registers.
@@ -3620,6 +3651,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
     else if sysU and n = "ord" and (
         typeOfExpr(g, args[0]) = charT()
         or kind(g, typeOfExpr(g, args[0])) = "enum"
+        or kind(g, typeOfExpr(g, args[0])) = "subrange"
     ) then
         expr(g, args[0])
     else if sysU and n = "halt" then
