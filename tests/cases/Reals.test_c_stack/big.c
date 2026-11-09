@@ -17,3 +17,9 @@ long callLate(long (*f)(long, long, long, long, long, long, Mix, float)) {
     Mix m = {9, 0.5f};
     return f(1, 2, 3, 4, 5, 6, m, 1.25f);
 }
+typedef struct { long n; double x; } Duo;
+void callMade(Pt (*fp)(double), Mix (*fm)(int), Big (*fb)(long), Duo (*fd)(long, double)) {
+    Pt p = fp(2.0); Mix m = fm(3); Big b = fb(4); Duo d = fd(5, 6.5);
+    printf("made: (%g,%g) {%d,%g} {%ld,%ld,%ld} {%ld,%g}\n", p.x, p.y, m.n, m.f, b.a, b.b, b.c, d.n, d.x);
+    fflush(stdout);
+}

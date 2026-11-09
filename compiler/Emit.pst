@@ -3777,26 +3777,15 @@ procedure callback(g: ref Em, e: Expr, t: Type)
         unsupported(g, exprSpan(e), "a callback other than the name of a top-level routine")
         return
     var params: List[Type] := []
+    var result := voidT()
     case t of
         FuncT(ft):
             params := ft.params
+            result := ft.result
         else:
             pass
     let k := "thunk|{sym.get().id}"
     if not (k in g.labels) then
-        for p in params do
-            if managed(g, p) and not isCRecord(g, p) then
-                unsupported(g, exprSpan(e), "a callback taking {show(p)}")
-                return
-        var result := voidT()
-        case t of
-            FuncT(ft):
-                result := ft.result
-            else:
-                pass
-        if managed(g, result) then
-            unsupported(g, exprSpan(e), "a callback returning {show(result)}")
-            return
         let lbl := newLabel(g.a, "thunk")
         g.labels[k] := lbl
         let target := labelOf(g, exprSpan(e), sym.get(), [], sites: {})
@@ -3814,7 +3803,9 @@ procedure callback(g: ref Em, e: Expr, t: Type)
 ## thunk saves C's argument registers in its frame and puts each argument together in a
 ## slot there: a small integer extended, since C leaves its upper bits undefined, and a C
 ## record copied into a new block, which the routine owns. Then it calls the routine and
-## returns a real result in xmm0.
+## returns a real result in xmm0, and a C record result as `cCall` takes it: up to 16 bytes
+## word by word in rax, rdx, xmm0, xmm1, a bigger one copied to where C's hidden first
+## argument points.
 ##
 ## The frame: C's integer argument registers at rbp-8 down, its xmm ones at rbp-56 down,
 ## two words gathering a C record from registers at rbp-128, and the slots at rbp-136 down.
@@ -3834,6 +3825,9 @@ procedure thunk(g: ref Em, th: Thunk)
     var ints := 0
     var xmms := 0
     var stack := 16  # the next of C's stack arguments
+    let big := isCRecord(g, th.result) and cLayout(g, th.result, th.span).size > 16
+    if big then
+        ints := 1
     for i := 0 to n - 1 do
         let t := th.params[i]
         var from := stack
@@ -3889,7 +3883,32 @@ procedure thunk(g: ref Em, th: Thunk)
         else
             load(a, argReg(i), Rbp, disp: -136 - 8 * i)
     call(a, th.target)
-    if th.result = realT() then
+    if big then
+        store(a, Rbp, disp: -128, src: Rax)
+        lea(a, Rsi, Rax, disp: Fields)
+        load(a, Rdi, Rbp, disp: -8)
+        movImm(a, Rdx, value: cLayout(g, th.result, th.span).size)
+        ccall(g, "memcpy")
+        load(a, Rdi, Rbp, disp: -128)
+        release(g, reg: Rdi)
+        load(a, Rax, Rbp, disp: -8)
+    else if isCRecord(g, th.result) then
+        let sse := sseWords(g, th.result, th.span)
+        for w := 0 to len(sse) - 1 do
+            load(a, R11, Rax, disp: Fields + 8 * w)
+            store(a, Rbp, disp: -128 + 8 * w, src: R11)
+        release(g)
+        var wordInts := 0
+        var wordXmms := 0
+        for w := 0 to len(sse) - 1 do
+            if sse[w] then
+                load(a, R11, Rbp, disp: -128 + 8 * w)
+                movqToXmm(a, wordXmms, r: R11)
+                wordXmms := wordXmms + 1
+            else
+                load(a, [Rax, Rdx][wordInts], Rbp, disp: -128 + 8 * w)
+                wordInts := wordInts + 1
+    else if th.result = realT() then
         movqToXmm(a, Xmm0, r: Rax)
     else if th.result = real32T() then
         movdToXmm(a, Xmm0, r: Rax)

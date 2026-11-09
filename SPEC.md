@@ -1170,13 +1170,12 @@ unsafe procedure fill(s: Ptr[SdlSurface])
 - Outside `unsafe`, a C record is used like any record: construction, field access, `=`.
   Assignment copies the bytes.
 - Only C records can be passed to C by value or through `Ptr[T]`.
-- C calls follow System V: integer arguments go in 6 registers and reals in 8 xmm ones,
-  the rest on the stack (a `Real32` passed to `...` is promoted to `double`, as in C). A C
-  record of up to 16 bytes passed or returned by value goes word by word: a word holding
-  only reals in the next xmm register, any other in the next integer one, or the whole
-  record on the stack when the registers run out. A bigger one goes on the stack, and one
-  returned is written to memory the caller passes.
-- v0.1 code generator limit (`E0990`): callbacks can't return C records by value.
+- C calls and callbacks (§10.3) follow System V: integer arguments go in 6 registers and
+  reals in 8 xmm ones, the rest on the stack (a `Real32` passed to `...` is promoted to
+  `double`, as in C). A C record of up to 16 bytes passed or returned by value goes word
+  by word: a word holding only reals in the next xmm register, any other in the next
+  integer one, or the whole record on the stack when the registers run out. A bigger one
+  goes on the stack, and one returned is written to memory the caller passes.
 
 ---
 

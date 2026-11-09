@@ -2,5 +2,4 @@ $ $PST build Main.pst -o main
 exit 1
 --- stdout
 --- stderr
-Main.pst:21:10: error E0990: a callback other than the name of a top-level routine is not supported by the code generator yet
-Main.pst:22:10: error E0990: a callback returning Pair is not supported by the code generator yet
+Main.pst:13:10: error E0990: a callback other than the name of a top-level routine is not supported by the code generator yet

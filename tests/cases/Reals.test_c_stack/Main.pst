@@ -18,6 +18,9 @@ extern "./libbig.so"
         export Mix = record
             n: CInt
             f: CFloat
+        export Duo = record
+            n: CLong
+            x: CDouble
     function sumBig(b: Big): CLong
     function makeBig(a: CLong, b: CLong, c: CLong): Big
     function late(
@@ -56,6 +59,24 @@ extern "./libbig.so"
     function callLate(
         f: function(CLong, CLong, CLong, CLong, CLong, CLong, Mix, CFloat): CLong,
     ): CLong
+    procedure callMade(
+        fp: function(CDouble): Pt,
+        fm: function(CInt): Mix,
+        fb: function(CLong): Big,
+        fd: function(CLong, CDouble): Duo,
+    )
+
+function makePt(x: CDouble): Pt
+    return Pt(x: x, y: x * 2.0)
+
+function makeMix(n: CInt): Mix
+    return Mix(n: n, f: 0.75)
+
+function makeBigOne(a: CLong): Big
+    return Big(a: a, b: a * 10, c: a * 100)
+
+function makeDuo(n: CLong, x: CDouble): Duo
+    return Duo(n: n * 2, x: x)
 
 function onBack(
     p: Pt,
@@ -138,3 +159,4 @@ writeln(late(
 ))
 writeln(callBack(onBack))
 writeln(callLate(onLate))
+callMade(makePt, fm: makeMix, fb: makeBigOne, fd: makeDuo)
