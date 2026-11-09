@@ -1171,9 +1171,10 @@ unsafe procedure fill(s: Ptr[SdlSurface])
 - Only C records can be passed to C by value or through `Ptr[T]`.
 - v0.1 code generator limits (`E0990`): C records are passed and returned by value only up
   to 16 bytes; a C call takes at most 6 integer register arguments; callbacks can't take C
-  records by value, or take or return `Real` or `Real32`; real arguments go in up to 8
-  xmm registers (a `Real32` passed to `...` is promoted to `double`, as in C), but reals
-  can't be in C memory (C record fields, `Ptr[Real]`).
+  records by value; real arguments go in up to 8 xmm registers (a `Real32` passed to
+  `...` is promoted to `double`, as in C). A C record passed or returned by value goes
+  word by word as System V says: a word holding only reals in the next xmm register, any
+  other in the next integer one.
 
 ---
 

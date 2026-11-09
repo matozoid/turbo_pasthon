@@ -1,0 +1,84 @@
+program Main
+
+uses IO, C
+
+# libffi calls the callbacks the way C code would.
+extern "libffi.so.8"
+    function prepCif(
+        cif: Pointer,
+        abi: CInt,
+        n: CUInt,
+        result: Pointer,
+        args: Pointer,
+    ): CInt as "ffi_prep_cif"
+    procedure callMixed(
+        cif: Pointer,
+        f: function(CDouble, CInt, CFloat): CDouble,
+        result: Pointer,
+        args: Pointer,
+    ) as "ffi_call"
+    procedure callSingle(
+        cif: Pointer,
+        f: function(CInt, CFloat): CFloat,
+        result: Pointer,
+        args: Pointer,
+    ) as "ffi_call"
+
+extern "libc.so.6"
+    function dlsym(handle: Pointer, name: CString): Pointer
+    function malloc(n: CSize): Pointer
+    procedure free(p: Pointer)
+
+const
+    Unix64 = 2  # FFI_DEFAULT_ABI on x86-64
+
+function mixed(x: CDouble, n: CInt, y: CFloat): CDouble
+    writeln("mixed({x}, {n}, {y})")
+    return x * toReal(Integer(n)) + Real(y)
+
+function single(n: CInt, y: CFloat): CFloat
+    writeln("single({n}, {y})")
+    return y * Real32(0.5) - Real32(toReal(Integer(n)))
+
+unsafe function ffiType(name: String): Pointer
+    return dlsym(cast[Pointer](0), name: toCString("ffi_type_{name}"))
+
+unsafe procedure demo()
+    let cif := malloc(64)
+    let types := cast[Ptr[Pointer]](malloc(24))
+    let values := cast[Ptr[Pointer]](malloc(24))
+    let x := cast[Ptr[Real]](malloc(8))
+    let n := cast[Ptr[CInt]](malloc(8))
+    let y := cast[Ptr[Real32]](malloc(8))
+    let out := malloc(8)
+    deref(x) := 2.5
+    deref(n) := 3
+    deref(y) := 0.25
+    deref(types) := ffiType("double")
+    deref(types + 1) := ffiType("sint32")
+    deref(types + 2) := ffiType("float")
+    deref(values) := cast[Pointer](x)
+    deref(values + 1) := cast[Pointer](n)
+    deref(values + 2) := cast[Pointer](y)
+    _ := prepCif(cif, CInt(Unix64), 3, result: ffiType("double"), args: cast[Pointer](types))
+    callMixed(cif, mixed, result: out, args: cast[Pointer](values))
+    writeln(deref(cast[Ptr[Real]](out)))
+    deref(types) := ffiType("sint32")
+    deref(types + 1) := ffiType("float")
+    deref(values) := cast[Pointer](n)
+    deref(values + 1) := cast[Pointer](y)
+    _ := prepCif(cif, CInt(Unix64), 2, result: ffiType("float"), args: cast[Pointer](types))
+    callSingle(cif, single, result: out, args: cast[Pointer](values))
+    writeln(deref(cast[Ptr[Real32]](out)))
+    for p in [
+        cif,
+        cast[Pointer](types),
+        cast[Pointer](values),
+        cast[Pointer](x),
+        cast[Pointer](n),
+        cast[Pointer](y),
+        out,
+    ] do
+        free(p)
+
+demo()

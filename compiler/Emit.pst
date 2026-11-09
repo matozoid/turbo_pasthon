@@ -138,6 +138,7 @@ type
         label: String
         target: String
         params: List[Type]
+        result: Type
 
     ## The drop routine of a box type, and the destroy hook it calls ("" for none).
     BoxDrop = record
@@ -3771,14 +3772,13 @@ procedure callback(g: ref Em, e: Expr, t: Type)
     let k := "thunk|{sym.get().id}"
     if not (k in g.labels) then
         for p in params do
-            if managed(g, p) or isRealT(p) then
+            if managed(g, p) then
                 unsupported(g, exprSpan(e), "a callback taking {show(p)}")
                 return
+        var result := voidT()
         case t of
             FuncT(ft):
-                if isRealT(ft.result) then
-                    unsupported(g, exprSpan(e), "a callback returning {show(ft.result)}")
-                    return
+                result := ft.result
             else:
                 pass
         let lbl := newLabel(g.a, "thunk")
@@ -3786,18 +3786,51 @@ procedure callback(g: ref Em, e: Expr, t: Type)
         let target := labelOf(g, exprSpan(e), sym.get(), [], sites: {})
         if g.bad then
             return
-        add(var g.thunks, Thunk(label: lbl, target: target, params: params))
+        add(var g.thunks, Thunk(label: lbl, target: target, params: params, result: result))
     leaCode(g.a, Rax, label: g.labels[k])
 
-## C passes small integers with undefined upper bits: extend them, then go on to the
-## routine.
+## C passes reals in xmm registers and the rest in the integer ones, counted apart; the
+## routine takes each argument in the integer register of its position. The thunk moves
+## them there, last first (an argument's C register is never after its own), extends
+## small integers, whose upper bits C leaves undefined, and goes on to the routine; or
+## calls it and returns a real result in xmm0.
 procedure thunk(g: ref Em, th: Thunk)
-    label(g.a, th.label)
-    var i := 0
-    while i < len(th.params) and i < 6 do
-        widen(g, th.params[i], reg: argReg(i))
-        i := i + 1
-    jmp(g.a, th.target)
+    let a := g.a
+    label(a, th.label)
+    var n := len(th.params)
+    if n > 6 then
+        n := 6
+    var ints: List[Integer] := []  # the C register of each argument
+    var reals := 0
+    var others := 0
+    for i := 0 to n - 1 do
+        if isRealT(th.params[i]) then
+            add(var ints, reals)
+            reals := reals + 1
+        else
+            add(var ints, others)
+            others := others + 1
+    for i := n - 1 downto 0 do
+        let t := th.params[i]
+        if t = realT() then
+            movqFromXmm(a, argReg(i), x: ints[i])
+        else if t = real32T() then
+            movdFromXmm(a, argReg(i), x: ints[i])
+        else
+            if ints[i] <> i then
+                mov(a, argReg(i), argReg(ints[i]))
+            widen(g, t, reg: argReg(i))
+    if not isRealT(th.result) then
+        jmp(a, th.target)
+        return
+    subImm(a, Rsp, value: 8)
+    call(a, th.target)
+    addImm(a, Rsp, value: 8)
+    if th.result = realT() then
+        movqToXmm(a, Xmm0, r: Rax)
+    else
+        movdToXmm(a, Xmm0, r: Rax)
+    ret(a)
 
 ## The file whose visibility resolves the bound members of a type argument `t`: where it
 ## became concrete (SPEC §8.2).

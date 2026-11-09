@@ -1,0 +1,12 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+mixed(2.5, 3, 0.25)
+7.75
+single(3, 0.25)
+-2.875
+--- stderr
