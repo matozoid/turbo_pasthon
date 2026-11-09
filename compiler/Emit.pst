@@ -3825,8 +3825,8 @@ function boxesOf(g: ref Em, e: Expr): Map[String, Boolean]
     return boxes
 
 ## Whether a value of type `t` can hold a `ref` or `Weak` to one of the types `boxes`.
-## `seen`: the types already visited. A function value can't: it is a top-level routine,
-## which holds nothing.
+## `seen`: the types already visited. A function value may: a lambda holds what it
+## captures, which its type doesn't tell.
 function reaches(
     g: ref Em,
     t: Type,
@@ -3849,6 +3849,8 @@ function reaches(
                 if reaches(g, u, boxes, seen: var seen) then
                     return true
             return false
+        FuncT(_):
+            return true
         else:
             pass
     let kd := kind(g, t)

@@ -3,6 +3,8 @@ program Main
 uses IO
 
 type
+    Shelf = record
+        items: List[String]
     Person = record
         name: String
         age: Integer
@@ -96,3 +98,12 @@ var thunks: List[function(): Integer] := []
 for i := 1 to 3 do
     add(var thunks, () => i * 10)
 writeln(for th in thunks do th())
+
+# A lambda can reach a box, so a `var` field of it is copied, not moved out
+let shelf := new(Shelf(items: ["a", "b"]))
+grow(var shelf.items, peek: () => len(shelf.items))
+writeln(len(shelf.items))
+
+procedure grow(var xs: List[String], peek: function(): Integer)
+    add(var xs, "x")
+    writeln("the shelf still has {peek()}")

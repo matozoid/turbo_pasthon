@@ -746,8 +746,9 @@ Every call that may mutate an argument shows `var` at that argument.
   Where no program can tell the difference, the compiler *moves* the value out instead
   of copying it. That is unless another `var` place of the call uses its variable, or
   the place is in a box (`r.items` with `r: ref T`) that the callee may reach through
-  an argument: one whose type can hold a `ref` or `Weak` to that box's type. Without
-  mutable globals, arguments are the only way in. So `add(var p.items, x)` and
+  an argument: one whose type can hold a `ref` or `Weak` to that box's type, or a function
+  value, since a lambda may have captured one. Without mutable globals, arguments are the
+  only way in. So `add(var p.items, x)` and
   `add(var p.items, Item(at: len(p.items)))` are O(1), not a copy of the list.
 - The `var` arguments of one call must be separate places: not the same variable, field
   or element, and not one inside the other (`E0523`): `swap(var p, var p.x)` is an error.
