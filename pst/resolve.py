@@ -23,7 +23,7 @@ from .parser import ParseResult, parse
 from .source import Span, normalize
 from .symbols import LOCALS, LOWER_CAMEL, ROUTINES, UPPER_CAMEL, Index, Kind, Symbol
 
-STD_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "units")
+STD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "std")
 
 _BUILTIN_TYPES = {
     "System": [

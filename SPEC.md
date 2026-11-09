@@ -235,7 +235,7 @@ in the file. No `forward` declarations are needed. Mutual recursion works.
 - Using a name that `X` declares but doesn't export is `E0109`.
 
 ### 3.6 Standard units
-The standard units (§14) are ordinary `.pst` files shipped with the compiler (`pst/units/`).
+The standard units (§14) are ordinary `.pst` files shipped with the compiler (`std/` in the repository; installed as `units/` next to the `pst` executable).
 Primitive types, the built-in generic types (`List`, `Map`, `Set`, `Array`, `Weak`), the
 traits `Equatable`, `Ordered`, `Hashable`, `Sendable`, and the C types `CString`, `Ptr`,
 `Pointer` are provided by the compiler as names in `System` (`C` for the C types). Routines

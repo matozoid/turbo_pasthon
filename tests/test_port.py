@@ -269,7 +269,7 @@ def check_dump(path: str, std_dir: str = STD_DIR) -> str:
 def source_files() -> list[Path]:
     return sorted(
         p
-        for d in ("pst/units", "examples", "compiler")
+        for d in ("std", "examples", "compiler")
         for p in (ROOT / d).glob("*.pst")
     )
 
