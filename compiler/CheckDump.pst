@@ -1,8 +1,8 @@
 program CheckDump
 
 ## Prints the symbol index, the types of local variables, and the diagnostics of
-## type-checking a program or unit in a canonical form, to compare the type checker
-## with the Python one (tests/test_port.py).
+## type-checking a program or unit in a canonical form, which tests/test_port.py
+## compares with golden files.
 ##
 ## Usage: `CheckDump STD_DIR FILE`.
 

@@ -1,0 +1,7 @@
+$ pst run Exit.pst -- x
+exit 70
+--- stdout
+1
+--- stderr
+panic P0001: index out of bounds
+    at Exit.pst:6:13

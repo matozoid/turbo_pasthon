@@ -1,7 +1,6 @@
 unit Paths
 
-## POSIX path operations, as Python's `posixpath` does them, so that the port names files
-## exactly as the Python compiler does.
+## POSIX path operations, as Python's `posixpath` does them.
 
 uses OS, Strings
 

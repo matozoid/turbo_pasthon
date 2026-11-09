@@ -1,0 +1,15 @@
+$ pst test Shop.pst
+exit 1
+--- stdout
+ok   Shop.pst:5: double doubles
+FAIL Shop.pst:7: half é wrong
+    about to fail
+    panic P0020: assertion failed: double(1) = 3
+        at Shop.pst:9:5
+FAIL Shop.pst:10: bounds
+    panic P0001: index out of bounds
+        at Shop.pst:12:13
+FAIL Shop.pst:13: halts
+    exit status 4
+1 passed, 3 failed
+--- stderr

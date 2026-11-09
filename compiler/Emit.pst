@@ -34,9 +34,9 @@ unit Emit
 ## and the emitter marks the owned references among them (`save`), so the failure path
 ## releases exactly those before it returns.
 ##
-## Anything the code generator can't compile is reported as `E0990`. The Python emitter
-## abandons the construct with an exception; here `unsupported` sets `bad`, which makes
-## the emitting routines return at once until the statement being compiled ends.
+## Anything the code generator can't compile is reported as `E0990`: `unsupported` sets
+## `bad`, which makes the emitting routines return at once until the statement being
+## compiled ends.
 
 uses Strings, Bits, Source, Diagnostics, Ast, Symbols, Resolve, Types, Typecheck, Paths, X86, Elf
 

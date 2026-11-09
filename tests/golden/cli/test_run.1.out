@@ -1,0 +1,7 @@
+$ pst run Args.pst x -- y --json
+exit 0
+--- stdout
+x
+-- y
+--json
+--- stderr

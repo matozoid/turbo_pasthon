@@ -1,7 +1,7 @@
 program ResolveDump
 
 ## Prints the symbol index and the diagnostics of resolving a program or unit in a
-## canonical form, to compare the resolver with the Python one (tests/test_port.py).
+## canonical form, which tests/test_port.py compares with golden files.
 ##
 ## Usage: `ResolveDump STD_DIR FILE`.
 

@@ -1296,16 +1296,16 @@ test "largest of empty list is None"
 | `pst index [path] --json` | dump the whole project's symbol index (§15.5) |
 | `pst tokens FILE` / `pst ast FILE` | debugging dumps of the lexer and parser |
 
-`python3 -m pst` is the Python compiler; `compiler/Pst.pst` is the same tool in Pasthon
-(`check`, `build`, `run`, `test`, `tokens` and `ast`), which finds the standard units in
-`units` next to its executable. Its `tokens` and `ast` print the port's own text format, one
-token or node per line, then the diagnostics; they exit with status 1 if there are errors.
+`compiler/Pst.pst` is the tool, written in Pasthon. It has `check`, `build`, `run`, `test`,
+`tokens` and `ast` so far, and finds the standard units in `units` next to its executable.
+`tokens` and `ast` print their own text format, one token or node per line, then the
+diagnostics; they exit with status 1 if there are errors.
 
-`scripts/bootstrap.sh` builds the port into `build/pst` (with `build/units`). The seed is
-`$PST_SEED` if set, else the latest GitHub release, else the Python compiler. The seed builds
-stage 1, stage 1 builds stage 2, and the two must be identical. A tag `v*` makes the release
-workflow publish `pst-linux-x86_64.tar.gz` (`pst` and `units/`). The port may only use the
-features that the latest release compiles.
+`scripts/bootstrap.sh` builds the tool into `build/pst` (with `build/units`). The seed is
+`$PST_SEED` if set, else the latest GitHub release. The seed builds stage 1, stage 1 builds
+stage 2, and the two must be identical. A tag `v*` makes the release workflow publish
+`pst-linux-x86_64.tar.gz` (`pst` and `units/`). The compiler may only use the features
+that the latest release compiles.
 
 ### 15.1 Diagnostics
 Human format: `Main.pst:12:5: error E0502: result of 'restock' is ignored`.

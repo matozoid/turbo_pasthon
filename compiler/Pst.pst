@@ -1,7 +1,7 @@
 program Pst
 
-## The command line tool (SPEC §15): `check`, `build`, `run` and `test`, as
-## `python3 -m pst`, and the `tokens` and `ast` dumps. The standard units are found in
+## The command line tool (SPEC §15): `check`, `build`, `run` and `test`, and the `tokens`
+## and `ast` dumps. The standard units are found in
 ## `units` next to the executable.
 
 uses IO, OS, Strings, Source, Ast, Diagnostics, Typecheck, Emit, LexDump, AstDump

@@ -1,0 +1,5 @@
+$ pst check missing.pst --json
+exit 1
+--- stdout
+{"file": "missing.pst", "line": 1, "col": 1, "endLine": 1, "endCol": 1, "severity": "error", "code": "E0000", "message": "No such file or directory", "fixes": []}
+--- stderr

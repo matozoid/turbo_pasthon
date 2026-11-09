@@ -1,14 +1,13 @@
 program AsmDump
 
 ## Runs an assembler script and prints the finished code, the read-only data and the
-## executable in hex, to compare the assembler and the ELF writer with the Python ones
-## (tests/test_port.py).
+## executable in hex, which tests/test_port.py compares with a golden file.
 ##
-## Usage: `AsmDump SCRIPT`. Each line of the script is an assembler call: its name as the
-## Python assembler spells it, then its arguments, separated by spaces. Integers are
-## decimal, Booleans `true` or `false`. `data NAME ALIGN BYTES` and `new_label NAME HINT`
-## bind NAME to the label they return (BYTES is comma-separated, or `-` for none); a later
-## argument NAME stands for it. `track` and `untrack` start and stop tracking the stack.
+## Usage: `AsmDump SCRIPT`. Each line of the script is an assembler call: its name in
+## snake case, then its arguments, separated by spaces. Integers are decimal, Booleans
+## `true` or `false`. `data NAME ALIGN BYTES` and `new_label NAME HINT` bind NAME to the
+## label they return (BYTES is comma-separated, or `-` for none); a later argument NAME
+## stands for it. `track` and `untrack` start and stop tracking the stack.
 
 uses IO, OS, Strings, X86, Elf
 

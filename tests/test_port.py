@@ -3,7 +3,8 @@
 Each front end stage has a dump (a command of the port's tool, or a program in
 ``compiler/``) that prints its result in a canonical form, which must match a golden file in
 ``tests/golden/``. With ``PST_UPDATE_GOLDEN=1`` the tests write the golden files instead.
-The code generator and the command line tool are compared with the Python compiler.
+The command line tool's runs must match golden files too, and the compiler must build
+itself.
 """
 
 import os
@@ -15,8 +16,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from pst.emit import build
-from pst.resolve import check
 from tests.tool import COMPILER, ROOT, STD_DIR, build_tool, install, pst_tool
 
 _NATIVE = platform.system() == "Linux" and platform.machine() == "x86_64"
@@ -308,7 +307,7 @@ PARSER_SNIPPETS = {
 
 class _FrontEnd(_Differential):
     """A dump that also runs on the ``.pst`` files in its golden directory, which are the
-    inputs of the Python compiler's lexer and parser tests."""
+    inputs of the former Python compiler's lexer and parser tests."""
 
     def test_golden_inputs(self):
         paths = sorted((GOLDEN / self.kind).glob("*.pst"))
@@ -488,7 +487,7 @@ def main_file(d: Path) -> Path:
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
 class Check(_Differential):
     """Resolution and type checking of the programs in the directories of
-    ``tests/golden/check``, taken from the Python compiler's tests."""
+    ``tests/golden/check``, taken from the former Python compiler's tests."""
 
     kind = "check"
     tool = "CheckDump"
@@ -588,95 +587,10 @@ class Asm(unittest.TestCase):
         self.compare("", "empty")
 
 
-def build_inputs(out: str) -> list[tuple[Path, bool]]:
-    """Copies the programs that the build tests compile into ``out``, one directory each,
-    and returns their main files, each with whether it is built checked. The tests run
-    with building skipped."""
-    import io
-    import tests.test_build as tb
-
-    inputs = []
-
-    def skip(path, checked=True):
-        d = Path(out, str(len(inputs)))
-        shutil.copytree(os.path.dirname(os.path.abspath(path)), d)
-        inputs.append((d / os.path.basename(path), checked))
-        raise unittest.SkipTest("only collecting")
-
-    os.makedirs(tb._TMP.name, exist_ok=True)  # removed if test_build already ran
-    saved = tb.pst_build
-    tb.pst_build = skip
-    try:
-        suite = unittest.defaultTestLoader.loadTestsFromModule(tb)
-        unittest.TextTestRunner(stream=io.StringIO()).run(suite)
-    finally:
-        tb.pst_build = saved
-    return inputs
-
-
-@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
-class Build(unittest.TestCase):
-    """The code generator: the port's executable and diagnostics must be the Python
-    compiler's, byte for byte."""
-
-    @classmethod
-    def setUpClass(cls):
-        cls.exe = pst_tool()
-
-    def compare(self, path: Path, checked: bool = True, under: tuple = ()):
-        result = check(str(path))
-        diagnostics = list(result.diagnostics)
-        want = None
-        if not result.has_errors:
-            built = build(result, checked)
-            diagnostics += built.diagnostics
-            want = built.executable
-        out = Path(_TMP.name, "built")
-        out.unlink(missing_ok=True)
-        args = [self.exe, "build", str(path), "-o", str(out)] + ([] if checked else ["--unchecked"])
-        r = subprocess.run([*under, *args], capture_output=True, timeout=600)
-        self.assertEqual(r.stderr.decode(), "".join(d.human() + "\n" for d in diagnostics))
-        self.assertEqual(r.returncode, 0 if want is not None else 1)
-        if want is not None:
-            self.assertTrue(out.read_bytes() == want, f"{path.name}: the executables differ")
-            self.assertEqual(out.stat().st_mode & 0o777, 0o755)
-
-    def test_build_tests(self):
-        inputs = build_inputs(tempfile.mkdtemp(dir=_TMP.name))
-        self.assertGreater(len(inputs), 50)
-        for path, checked in inputs:
-            with self.subTest(str(path)):
-                self.compare(path, checked)
-
-    def test_programs(self):
-        for path in (ROOT / "examples" / "Inventory.pst",
-                     COMPILER / "AsmDump.pst", COMPILER / "Pst.pst"):
-            with self.subTest(path.name):
-                self.compare(path)
-
-    def test_unchecked(self):
-        self.compare(ROOT / "examples" / "Inventory.pst", checked=False)
-
-    def test_errors(self):
-        path = Path(_TMP.name, "Broken.pst")
-        path.write_text("program Broken\n\nlet x: Integer := true\n")
-        self.compare(path)
-
-    def test_missing_file(self):
-        self.compare(Path(_TMP.name, "does-not-exist.pst"))
-
-    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
-    def test_valgrind(self):
-        self.compare(
-            ROOT / "examples" / "Inventory.pst",
-            under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"),
-        )
-
-
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
 class Cli(unittest.TestCase):
-    """The port's command line tool (compiler/Pst.pst) against ``python3 -m pst``: the
-    same output, exit status and executables."""
+    """The command line tool (compiler/Pst.pst): its exit status and output, which must
+    match the golden files in ``tests/golden/cli``, one per run."""
 
     PROGRAMS = {
         "Args.pst": "program Args\nuses IO, OS\nfor a in args() do\n    writeln(a)\n",
@@ -705,21 +619,24 @@ class Cli(unittest.TestCase):
         for name, text in cls.PROGRAMS.items():
             (cls.work / name).write_text(text)
 
-    def compare(self, *args: str, outputs: tuple = ()):
-        def run(command):
-            for o in outputs:
-                Path(self.work, o).unlink(missing_ok=True)
-            r = subprocess.run([*command, *args], cwd=self.work, capture_output=True, timeout=600)
-            return (r.returncode, r.stdout.decode(), r.stderr.decode(),
-                    [Path(self.work, o).read_bytes() for o in outputs])
+    def setUp(self):
+        self.runs = 0
 
-        env = {**os.environ, "PYTHONPATH": str(ROOT)}
-        r = subprocess.run(["python3", "-m", "pst", *args], cwd=self.work, capture_output=True,
-                           env=env, timeout=600)
-        want = (r.returncode, r.stdout.decode(), r.stderr.decode(),
-                [Path(self.work, o).read_bytes() for o in outputs])
-        self.assertEqual(run([self.exe]), want)
-        return want
+    def compare(self, *args: str, outputs: tuple = ()):
+        """Runs ``pst args`` and compares the result with the next golden file of the test;
+        each file in ``outputs`` must be written, as an executable."""
+        for o in outputs:
+            Path(self.work, o).unlink(missing_ok=True)
+        r = subprocess.run([self.exe, *args], cwd=self.work, capture_output=True, timeout=600)
+        self.runs += 1
+        name = f"{self.id().rsplit('.', 1)[1]}.{self.runs}.out"
+        stdout, stderr = r.stdout.decode(), r.stderr.decode()
+        assert_golden(self, GOLDEN / "cli" / name,
+                      f"$ pst {' '.join(args)}\nexit {r.returncode}\n--- stdout\n{stdout}"
+                      f"--- stderr\n{stderr}")
+        for o in outputs:
+            self.assertEqual(Path(self.work, o).stat().st_mode & 0o777, 0o755)
+        return r.returncode, stdout, stderr
 
     def test_check(self):
         self.assertEqual(self.compare("check", "Args.pst")[0], 0)
@@ -734,7 +651,6 @@ class Cli(unittest.TestCase):
         self.compare("build", "--unchecked", "--output", "e", "Exit.pst", outputs=("e",))
         self.assertEqual(self.compare("build", "Bad.pst", "--json")[0], 1)
         self.assertEqual(self.compare("build", "Lib.pst")[0], 1)
-        self.assertEqual(os.stat(self.work / "Args").st_mode & 0o777, 0o755)
 
     def test_run(self):
         self.assertEqual(self.compare("run", "Args.pst", "x", "-- y", "--json")[1],
@@ -763,6 +679,14 @@ class Cli(unittest.TestCase):
                 self.assertEqual(r.returncode, 1)
                 self.assertIn(b"pst: error:", r.stderr)
 
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_valgrind(self):
+        out = Path(_TMP.name, "inventory")
+        r = subprocess.run(["valgrind", "-q", "--leak-check=full", "--error-exitcode=9", self.exe,
+                            "build", str(ROOT / "examples" / "Inventory.pst"), "-o", str(out)],
+                           capture_output=True, timeout=600)
+        self.assertEqual((r.returncode, r.stderr.decode()), (0, ""))
+
     def test_usage(self):
         for args in ([], ["frob"], ["build"], ["build", "Args.pst", "-o"],
                      ["tokens", "Args.pst", "--json"], ["ast", "--unchecked", "Args.pst"]):
@@ -773,8 +697,8 @@ class Cli(unittest.TestCase):
 
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
 class Bootstrap(unittest.TestCase):
-    """The port compiles itself: the Python-built compiler and the compilers it builds
-    are the same executable, byte for byte."""
+    """The compiler compiles itself: it and the compilers it builds are the same
+    executable, byte for byte."""
 
     def test_fixpoint(self):
         compiler = pst_tool()

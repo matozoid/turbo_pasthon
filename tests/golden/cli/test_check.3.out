@@ -1,0 +1,12 @@
+$ pst check Bad.pst
+exit 1
+--- stdout
+--- stderr
+Bad.pst:5:1: error E0502: result of 'f' is ignored; use it, or discard it with '_ := ...'
+Bad.pst:6:11: error E0006: unexpected character 'ï' (U+00EF)
+Bad.pst:7:9: error E0100: unknown name 'x'
+Bad.pst:7:10: error E0006: unexpected character '𝄞' (U+1D11E)
+Bad.pst:8:5: error E0206: let 's' is never used
+Bad.pst:8:12: error E0006: unexpected character '' (U+0001)
+Bad.pst:8:14: error E0006: unexpected character '' (U+007F)
+Bad.pst:8:16: error E0006: unexpected character '' (U+000C)

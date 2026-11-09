@@ -1,0 +1,8 @@
+$ pst test Shop.pst --json --unchecked
+exit 1
+--- stdout
+{"file": "Shop.pst", "line": 5, "col": 1, "endLine": 6, "endCol": 25, "test": "double doubles", "passed": true, "output": ""}
+{"file": "Shop.pst", "line": 7, "col": 1, "endLine": 9, "endCol": 25, "test": "half \u00e9 wrong", "passed": false, "output": "about to fail\npanic P0020: assertion failed: double(1) = 3\n    at Shop.pst:9:5\n"}
+{"file": "Shop.pst", "line": 10, "col": 1, "endLine": 12, "endCol": 19, "test": "bounds", "passed": true, "output": "134465\n"}
+{"file": "Shop.pst", "line": 13, "col": 1, "endLine": 14, "endCol": 12, "test": "halts", "passed": false, "output": ""}
+--- stderr

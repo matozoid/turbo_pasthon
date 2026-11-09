@@ -20,7 +20,7 @@ jobs:
       - name: Build the compiler
         run: scripts/bootstrap.sh
       - name: Test
-        run: PST=build/pst python3 -m unittest discover -s tests -t .
+        run: python3 -m unittest discover -s tests -t .
       - name: Package
         run: scripts/package.sh
       - name: Publish
