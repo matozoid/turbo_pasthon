@@ -1,0 +1,33 @@
+$ $PST test Spin.pst --timeout 1
+exit 1
+--- stdout
+FAIL Spin.pst:3: spins
+    timed out after 1 s
+ok   Spin.pst:8: quick
+1 passed, 1 failed
+--- stderr
+$ $PST test Spin.pst --timeout 1 --json
+exit 1
+--- stdout
+{"file": "Spin.pst", "line": 3, "col": 1, "endLine": 6, "endCol": 19, "test": "spins", "passed": false, "timedOut": true, "output": "timed out after 1 s\n"}
+{"file": "Spin.pst", "line": 8, "col": 1, "endLine": 9, "endCol": 21, "test": "quick", "passed": true, "timedOut": false, "output": ""}
+--- stderr
+$ $PST test Spin.pst --timeout 0
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--timeout SECONDS] [--unchecked] [--json]
+       pst fmt PATH [--check]
+       pst lsp
+       pst mcp [--root DIR]
+       pst query def|refs|type|hover|impls|callers|callees|accepts|instances FILE:LINE:COL|NAME
+       pst query complete FILE:LINE:COL
+       pst query explain CODE
+       pst query symbols [PATH]
+       pst index [PATH]
+       pst tokens FILE
+       pst ast FILE
+pst: error: argument --timeout: expected a positive number of seconds

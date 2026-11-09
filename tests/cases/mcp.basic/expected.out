@@ -55,7 +55,7 @@ exit 2
 usage: pst check FILE [--json]
        pst build FILE [-o OUT] [--unchecked] [--json]
        pst run [--unchecked] FILE [-- ARGS]
-       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst test PATH [--filter TEXT] [--timeout SECONDS] [--unchecked] [--json]
        pst fmt PATH [--check]
        pst lsp
        pst mcp [--root DIR]

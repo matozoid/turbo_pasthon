@@ -49,7 +49,7 @@ FAIL Shop.pst:22: halts
 $ $PST test Shop.pst --json --filter half
 exit 1
 --- stdout
-{"file": "Shop.pst", "line": 14, "col": 1, "endLine": 16, "endCol": 23, "test": "half is wrong", "passed": false, "output": "about to fail\npanic P0020: assertion failed: half(5) = 3\n    at Shop.pst:16:5\n"}
+{"file": "Shop.pst", "line": 14, "col": 1, "endLine": 16, "endCol": 23, "test": "half is wrong", "passed": false, "timedOut": false, "output": "about to fail\npanic P0020: assertion failed: half(5) = 3\n    at Shop.pst:16:5\n"}
 --- stderr
 $ ${VALGRIND:+$VALGRIND --trace-children=yes} $PST test Main.pst
 exit 0

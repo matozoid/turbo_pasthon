@@ -7,7 +7,7 @@ program Pst
 uses IO, OS, Strings, Source, Ast, Diagnostics, Typecheck, Emit, Fmt, Lsp, Mcp, Query, Paths, LexDump, AstDump
 
 const
-    Usage = "usage: pst check FILE [--json]\n       pst build FILE [-o OUT] [--unchecked] [--json]\n       pst run [--unchecked] FILE [-- ARGS]\n       pst test PATH [--filter TEXT] [--unchecked] [--json]\n       pst fmt PATH [--check]\n       pst lsp\n       pst mcp [--root DIR]\n       pst query def|refs|type|hover|impls|callers|callees|accepts|instances FILE:LINE:COL|NAME\n       pst query complete FILE:LINE:COL\n       pst query explain CODE\n       pst query symbols [PATH]\n       pst index [PATH]\n       pst tokens FILE\n       pst ast FILE"
+    Usage = "usage: pst check FILE [--json]\n       pst build FILE [-o OUT] [--unchecked] [--json]\n       pst run [--unchecked] FILE [-- ARGS]\n       pst test PATH [--filter TEXT] [--timeout SECONDS] [--unchecked] [--json]\n       pst fmt PATH [--check]\n       pst lsp\n       pst mcp [--root DIR]\n       pst query def|refs|type|hover|impls|callers|callees|accepts|instances FILE:LINE:COL|NAME\n       pst query complete FILE:LINE:COL\n       pst query explain CODE\n       pst query symbols [PATH]\n       pst index [PATH]\n       pst tokens FILE\n       pst ast FILE"
 
 type
     Options = record
@@ -17,6 +17,8 @@ type
         json: Boolean
         unchecked: Boolean
         filter: String
+        ## Seconds a test may run, or 0 for no limit.
+        timeout: Integer
         check: Boolean
         rest: List[String]
 
@@ -36,6 +38,7 @@ function parseArgs(a: List[String]): Options
         json: false,
         unchecked: false,
         filter: "",
+        timeout: 0,
         check: false,
         rest: [],
     )
@@ -81,6 +84,17 @@ function parseArgs(a: List[String]): Options
             if i = len(a) then
                 usage("argument --filter: expected one argument")
             o.filter := a[i]
+            i := i + 1
+        else if x = "--timeout" and o.command = "test" then
+            if i = len(a) then
+                usage("argument --timeout: expected one argument")
+            case parseInt(a[i]) of
+                Ok(n):
+                    if n.value <= 0 then
+                        usage("argument --timeout: expected a positive number of seconds")
+                    o.timeout := n.value
+                Err(_):
+                    usage("argument --timeout: expected a positive number of seconds")
             i := i + 1
         else if startsWith(x, prefix: "-") or o.file <> "" then
             usage("unrecognized argument '{x}'")
@@ -300,7 +314,7 @@ function testFile(path: String, stdDir: String, o: Options, tmp: String): Tally
         if find(t.name, sub: o.filter).isNone() then
             continue
         var code := 1
-        case run(exe, ["{i}"], output: output) of
+        case runFor(exe, ["{i}"], timeout: o.timeout, output: output) of
             Ok(c):
                 code := c.value
             Err(e):
@@ -312,19 +326,22 @@ function testFile(path: String, stdDir: String, o: Options, tmp: String): Tally
             Err(e):
                 fatal(e.error)
         let ok := code = 0
+        let timedOut := code = -14 and o.timeout > 0
+        if timedOut then
+            text := "{text}timed out after {o.timeout} s\n"
         if ok then
             tally.passed := tally.passed + 1
         else
             tally.failed := tally.failed + 1
         if o.json then
-            writeln("\{\"file\": {jsonString(path)}, {jsonSpan(t.span)}, \"test\": {jsonString(t.name)}, \"passed\": {ok}, \"output\": {jsonString(text)}}")
+            writeln("\{\"file\": {jsonString(path)}, {jsonSpan(t.span)}, \"test\": {jsonString(t.name)}, \"passed\": {ok}, \"timedOut\": {timedOut}, \"output\": {jsonString(text)}}")
         else if ok then
             writeln("ok   {path}:{t.span.line}: {t.name}")
         else
             writeln("FAIL {path}:{t.span.line}: {t.name}")
             for l in lines(text) do
                 writeln("    {l}")
-            if code <> 70 then
+            if code <> 70 and not timedOut then
                 writeln("    exit status {code}")
     _ := removeFile(output)
     _ := removeFile(exe)

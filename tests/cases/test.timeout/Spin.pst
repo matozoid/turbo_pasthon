@@ -1,0 +1,9 @@
+program Spin
+
+test "spins"
+    var n := 0
+    while true do
+        n := n + 1
+
+test "quick"
+    assert 1 + 1 = 2

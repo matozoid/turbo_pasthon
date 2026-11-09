@@ -1260,23 +1260,25 @@ test "largest of empty list is None"
 - `test` blocks are top-level, in any file. They are checked with the file, but compiled only
   by `pst test`.
 - Tests can call non-exported functions of their own unit.
-- `pst test PATH [--filter text] [--unchecked] [--json]` runs the tests of a file (a program or
-  a unit), or of each `.pst` file directly in a directory, in name order. Each file is checked
-  and built on its own, with the units it uses; their tests don't run. A program's body
-  doesn't run either.
+- `pst test PATH [--filter text] [--timeout seconds] [--unchecked] [--json]` runs the tests
+  of a file (a program or a unit), or of each `.pst` file directly in a directory, in name
+  order. Each file is checked and built on its own, with the units it uses; their tests
+  don't run. A program's body doesn't run either.
 - Each test runs in its own process: test block number *i* of the file (counting from 0) is
   run by the test executable with argument *i*. A test passes if its process exits with
   status 0, so a panic or a `halt` with another status fails it. `--filter` runs only the
-  tests whose name contains the text.
+  tests whose name contains the text. `--timeout` ends a test still running after that many
+  seconds, with the signal SIGALRM, and fails it with the line `timed out after N s`.
 - Output, on standard output: one line per test, `ok   Shop.pst:10: double doubles` or
   `FAIL Shop.pst:13: half is wrong`; after a failure, what the test wrote to standard output
   and standard error, indented by 4 spaces, and `exit status N` unless it panicked (status
-  70); then `P passed, F failed`. Diagnostics go to standard error. The exit status is 1 if a
+  70) or timed out; then `P passed, F failed`. Diagnostics go to standard error. The exit status is 1 if a
   test failed or a file didn't build, else 0.
 - With `--json`, diagnostics and tests are printed as one JSON object per line, without the
-  summary. A test's object is its block's position (§15.1), `"test"` (its name), `"passed"`
-  and `"output"`: `{"file": "Shop.pst", "line": 13, "col": 1, "endLine": 15, "endCol": 23,
-  "test": "half is wrong", "passed": false, "output": "panic P0020: ..."}`.
+  summary. A test's object is its block's position (§15.1), `"test"` (its name), `"passed"`,
+  `"timedOut"` and `"output"`: `{"file": "Shop.pst", "line": 13, "col": 1, "endLine": 15,
+  "endCol": 23, "test": "half is wrong", "passed": false, "timedOut": false, "output":
+  "panic P0020: ..."}`.
 
 ---
 
@@ -1303,7 +1305,7 @@ test "largest of empty list is None"
 |---|---|
 | `pst build Main.pst [-o out] [--unchecked]` | compile to an ELF executable |
 | `pst run Main.pst [-- args]` | build to a temp dir and run |
-| `pst test PATH [--filter text]` | run `test` blocks (§13) |
+| `pst test PATH [--filter text] [--timeout seconds]` | run `test` blocks (§13) |
 | `pst check [path] --json` | type-check only, emit diagnostics |
 | `pst fmt PATH [--check]` | canonical formatter (§15.3) |
 | `pst lsp` | language server over stdio, for human editors (§15.4) |
@@ -1617,7 +1619,7 @@ Configure it in an agent with the command `pst mcp --root <project-dir>`.
 |---|---|---|
 | `pst_check` | `paths?` | diagnostics with fixes (§15.1) |
 | `pst_apply_fix` | `file`, `line`, `col`, `code` | applies a diagnostic's fix to disk; returns the edits made and new diagnostics |
-| `pst_test` | `paths?`, `filter?` | per-test pass/fail, with assertion messages and positions |
+| `pst_test` | `paths?`, `filter?`, `timeoutMs?` | per-test pass/fail, with assertion messages and positions |
 | `pst_run` | `file`, `args?`, `stdin?`, `timeoutMs?` | exit code, stdout, stderr, panic code and position if any |
 | `pst_fmt` | `paths?`, `check?` | formatted files, or the list of files that differ |
 | `pst_index` | `paths?` | complete symbol index |
@@ -1676,7 +1678,8 @@ so it needs no watching.
   `"diagnostics"`, the `"exitCode"` (or `"signal"`, or `"timedOut": true`), `"stdout"`,
   `"stderr"` and, if it panicked, the `"panic"` with `"code"`, `"message"`, `"file"`,
   `"line"` and `"col"`.
-- `pst_test` runs `pst test --json` on the `.pst` files of `paths`, with `filter`. It
+- `pst_test` runs `pst test --json` on the `.pst` files of `paths`, with `filter`, and
+  `--timeout` from `timeoutMs` (by default 10000, rounded up to whole seconds). It
   gives the numbers `"passed"` and `"failed"`, the `"tests"` as `pst test --json` prints
   them, and the other `"diagnostics"`.
 - A tool that fails, such as on an unreadable file or a name that means nothing, gives

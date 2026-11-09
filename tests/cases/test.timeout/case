@@ -1,0 +1,3 @@
+$PST test Spin.pst --timeout 1
+$PST test Spin.pst --timeout 1 --json
+$PST test Spin.pst --timeout 0

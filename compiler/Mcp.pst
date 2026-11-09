@@ -250,6 +250,11 @@ function tools(): String
                     kind: "string",
                     description: "Only tests whose names contain this text.",
                 ),
+                property(
+                    "timeoutMs",
+                    kind: "integer",
+                    description: "When to end each test, in milliseconds, rounded up to seconds; by default 10000.",
+                ),
             ],
             required: [],
         ),
@@ -685,7 +690,9 @@ function runTests(arguments: JValue): Result[String, String]
     case filesOf(pathsOf(arguments)) of
         Ok(files):
             for file in files.value do
-                var args := ["test", file, "--json"]
+                let timeoutMs := asInteger(field(arguments, key: "timeoutMs")).getOr(10000)
+                let seconds := if timeoutMs > 0 then (timeoutMs + 999) div 1000 else 1
+                var args := ["test", file, "--json", "--timeout", "{seconds}"]
                 case asString(field(arguments, key: "filter")) of
                     Some(f):
                         args := concat(args, ["--filter", f.value])
