@@ -1,0 +1,21 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+[Ann, Bob]
+[1, 4, 9, 16, 25, 36, 49, 64, 81, 100]
+[3, 2, 1]
+[apple: 3, pear: 5]
+[Ann]
+1-2 2-3 3-4 
+[1, 2, 3, 2, 4]
+[[1, 2, 3], [2, 4, 6], [3, 6, 9]]
+2
+[1, 22]
+bad: x
+0
+[-, 0, +]
+--- stderr

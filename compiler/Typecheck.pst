@@ -233,6 +233,9 @@ type
         inUnsafe: Boolean
         tparams: List[ref Symbol]
         loops: List[LoopInfo]
+        ## The element types of the `for` expressions being checked, innermost last;
+        ## unknown until the first value.
+        fors: List[Type]
         inDefer: Boolean
         inEnsures: Boolean
         ## Ids of the arguments of `new` calls, for resources().
@@ -618,6 +621,7 @@ function newTC(env: ref Env, u: ref Unit): ref TC
         inUnsafe: false,
         tparams: [],
         loops: [],
+        fors: [],
         inDefer: false,
         inEnsures: false,
         newArgs: {},
@@ -1800,6 +1804,8 @@ procedure walkStmt(tc: ref TC, s: Stmt)
         Assert(a):
             walkExpr(tc, a.cond, noParent())
             walkOptExpr(tc, a.message)
+        ForValue(v):
+            walkOptExpr(tc, v.value)
         else:
             pass
 
@@ -1984,6 +1990,8 @@ procedure walkChildren(tc: ref TC, e: Expr)
             for arm in x.arms do
                 walkLabels(tc, arm.labels)
                 walkExpr(tc, arm.value, none)
+        ForExpr(x):
+            walkStmt(tc, x.loop)
         else:
             pass
 
@@ -2106,9 +2114,36 @@ function stmt(tc: ref TC, s: Stmt): Boolean
                     pass
         Pass(_):
             pass
+        ForValue(v):
+            forValue(tc, v)
         ErrorStmt(_):
             pass
     return false
+
+## A `for` expression: its loops are checked as statements, and its values give the
+## element type, as the items of a list literal do.
+function forExpr(tc: ref TC, x: ForExpr, expected: Type): Type
+    var elem := noType()
+    if isBuiltin(expected, "List") then
+        elem := argsOf(expected)[0]
+    add(var tc.fors, elem)
+    _ := stmt(tc, x.loop)
+    elem := tc.fors[len(tc.fors) - 1]
+    removeLast(var tc.fors)
+    if not known(elem) or hasError(elem) then
+        return errorT()
+    return builtin("List", [elem])
+
+procedure forValue(tc: ref TC, v: ForValue)
+    case v.value of
+        Some(e):
+            let n := len(tc.fors)
+            if known(tc.fors[n - 1]) then
+                _ := check(tc, e.value, tc.fors[n - 1])
+            else
+                tc.fors[n - 1] := value(tc, e.value, noType())
+        None:
+            pass
 
 procedure leave(tc: ref TC, span: Span, word: String)
     let n := len(tc.loops)
@@ -2689,6 +2724,8 @@ function expr(tc: ref TC, e: Expr, expected: Type): Type
             t := index(tc, x, expected)
         Call(x):
             t := callExpr(tc, x, expected)
+        ForExpr(x):
+            t := forExpr(tc, x, expected)
     tc.types[exprId(e)] := t
     return t
 

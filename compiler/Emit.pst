@@ -93,6 +93,15 @@ type
         ## Scopes outside the loop's body.
         depth: Integer
 
+    ## A `for` expression being compiled: its list is on the stack, `stackAt` words from
+    ## the bottom; `add` adds an element, `brk` is the end and `depth` the scopes outside.
+    ForT = record
+        stackAt: Integer
+        add: String
+        elem: Type
+        brk: String
+        depth: Integer
+
     ## What a scope releases when it ends: a reference-counted slot, or a `defer` to run.
     Entry = record
         slot: Integer
@@ -111,6 +120,7 @@ type
         ## parameters and `old` values, released in the epilogue.
         scopes: List[List[Entry]]
         loops: List[LoopT]
+        fors: List[ForT]
         resultSlot: Option[Integer]
         posts: List[Expr]
         ## File and id of an `old` call -> its slot.
@@ -306,6 +316,7 @@ function newFrame(file: String, sym: Option[ref Symbol], exit: String): ref Fram
         size: 0,
         scopes: [first],
         loops: [],
+        fors: [],
         resultSlot: None,
         posts: [],
         old: {},
@@ -1386,9 +1397,43 @@ function exprKids(e: Expr): List[Expr]
                 for lb in arm.labels do
                     labelExprs(var out, lb)
                 add(var out, arm.value)
+        ForExpr(x):
+            loopExprs(var out, x.loop)
         else:
             pass
     return out
+
+## The expressions in the statements a `for` expression is written as (`ForExpr`).
+procedure loopExprs(var out: List[Expr], s: Stmt)
+    case s of
+        ForRange(x):
+            add(var out, x.start)
+            add(var out, x.stop)
+            for b in x.body.stmts do
+                loopExprs(var out, b)
+        ForIn(x):
+            add(var out, x.iterable)
+            for b in x.body.stmts do
+                loopExprs(var out, b)
+        If(x):
+            for br in x.branches do
+                add(var out, br.cond)
+                for b in br.body.stmts do
+                    loopExprs(var out, b)
+            case x.elseBody of
+                Some(eb):
+                    for b in eb.value.stmts do
+                        loopExprs(var out, b)
+                None:
+                    pass
+        ForValue(x):
+            case x.value of
+                Some(v):
+                    add(var out, v.value)
+                None:
+                    pass
+        else:
+            pass
 
 procedure labelExprs(var out: List[Expr], lb: Label)
     case lb of
@@ -1679,6 +1724,8 @@ procedure stmtHere(g: ref Em, s: Stmt)
             jmp(a, g.f.exit)
         Pass(_):
             pass
+        ForValue(x):
+            forValue(g, x)
         Assert(x):
             var message := "assertion failed: {text(g, exprSpan(x.cond))}"
             case x.message of
@@ -1702,6 +1749,50 @@ procedure stmtHere(g: ref Em, s: Stmt)
             jcc(a, "e", label: panic(g, "P0020", message, span: x.span))
         ErrorStmt(x):
             unsupported(g, x.span, "the 'ErrorStmt' statement")
+
+## `for ... do e` of type `t`: a new list on the stack, then the loops, whose `ForValue`s
+## add to it.
+procedure forExpr(g: ref Em, x: ForExpr, t: Type)
+    let a := g.a
+    let adder := sysLabel(g, x.span, "add", argsOf(t))  # the first `add` is the List one
+    if g.bad then
+        return
+    leaData(a, Rdi, label: listDesc(g, t))
+    movImm(a, Rsi, value: 0)
+    callRuntime(g, "rt_list_new")
+    save(g, t)
+    let fin := newLabel(a, "fend")
+    add(var g.f.fors, ForT(
+        stackAt: len(a.stack),
+        add: adder,
+        elem: arg0(t),
+        brk: fin,
+        depth: len(g.f.scopes),
+    ))
+    stmt(g, x.loop)
+    if g.bad then
+        return
+    removeLast(var g.f.fors)
+    label(a, fin)
+    pop(a, Rax)
+
+## Adds a value to the list of the innermost `for` expression, or ends it (`break`).
+procedure forValue(g: ref Em, x: ForValue)
+    let a := g.a
+    let ft := g.f.fors[len(g.f.fors) - 1]
+    case x.value of
+        Some(v):
+            coerce(g, v.value, ft.elem)
+            if g.bad then
+                return
+            mov(a, Rsi, Rax)
+            lea(a, Rdi, Rsp, disp: 8 * (len(a.stack) - ft.stackAt))
+            call(a, ft.add)
+        None:
+            releaseScopes(g, ft.depth)
+            if g.bad then
+                return
+            jmp(a, ft.brk)
 
 procedure loop(g: ref Em, body: Block, brk, cont: String)
     add(var g.f.loops, LoopT(brk: brk, cont: cont, depth: len(g.f.scopes)))
@@ -2654,6 +2745,8 @@ procedure exprHere(g: ref Em, e: Expr)
             label(a, fin)
         CaseExpr(x):
             caseOf(g, x.subject, [], exprArms: x.arms, result: t, isExpr: true)
+        ForExpr(x):
+            forExpr(g, x, t)
         Call(x):
             let k := exprKey(g, x.id)
             if k in g.f.old then

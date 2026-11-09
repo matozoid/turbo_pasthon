@@ -649,7 +649,7 @@ them compile to direct calls with no allocation:
 `find(it, pred): Option[T]`.
 
 In v0.1, `f` and `pred` are named functions (`map(iter(xs), double)`). In v0.2, `for`
-expressions replace `map` and `filter` (§18a.1). In v0.3, lambdas make the remaining
+expressions (§9.4) replace `map` and `filter` (§18a.1). In v0.3, lambdas make the remaining
 `pred`s inline (§18a.2): `any(iter(xs), x => x < 0)`.
 
 ---
@@ -836,6 +836,7 @@ for key, value in map do      # Map only
 - The loop variable is a fresh `let` binding scoped to the body. `for ... in` is defined by
   the iterator protocol (§4.14).
 - The bounds of `to`/`downto` are evaluated once.
+- Where a value is expected, `for` is an expression that builds a list (§9.4).
 
 ### 7.6 case
 ```pascal
@@ -1068,6 +1069,58 @@ Rules:
 - **Prefer the expression.** A statement `if`/`case` whose every branch only assigns the
   same variable gets warning `W0801` from `pst check`, with a fix that rewrites it to the
   expression form.
+
+### 9.4 for expressions
+`for` is an expression too, like `if` and `case` (§9.3), and by the same rule: the
+form is chosen by position. In statement position it is the loop of §7.5, with its body on
+the following lines. Where a value is expected, `do` is followed by a single expression,
+and the value is a list of its results:
+
+```pascal
+let names := for p in people do p.name
+let squares := for i := 1 to 10 do i * i
+let labels := for key, value in stock do "{key}: {value}"
+let adults := for p in people do if p.age >= 18 then p.name else continue
+let pairs := (
+    for a in xs
+    for b in neighbours(a)
+    do if a < b then Pair(first: a, second: b) else continue
+)
+let total := sum(iter(for item in items do item.qty * item.price))
+```
+
+- A `for` expression is one or more `for` clauses, then `do e`. A clause is any loop head
+  of §7.5 (`x in e`, `k, v in m`, `i := a to b`, `i := a downto b`). Several clauses nest:
+  a later clause runs once for each item of the earlier ones and sees their names. Only the
+  expression form takes more than one clause.
+- The value is a new `List[T]`, where `T` is the type of `e`, in loop order. It is built as
+  the statement loops would build it:
+  ```pascal
+  var r: List[T] := []
+  for a in xs do
+      for b in neighbours(a) do
+          add(var r, e)
+  ```
+  So loop variables are fresh `let` bindings and sources are snapshots (§4.14).
+- **Skipping and stopping.** When `e` is an `if` expression, a branch may be `continue` or
+  `break` instead of a value. `continue` adds nothing for this item and goes on with the
+  next one. `break` adds nothing and ends the whole `for` expression, whatever the number
+  of clauses. At least one branch must be a value, and the branches that are values give
+  `T` (`E0805` otherwise; `E0802` if they differ). Nowhere else are `continue` and `break`
+  expressions, and an `if` expression still requires `else` (`E0801`).
+- No function values are involved. `try` in a clause or in `e` returns from the enclosing
+  function, as in a loop: `for s in parts do try parseInt(s)`.
+- **Eager.** The loops run to the end before the value exists. An endless iterator needs a
+  `break`, or is cut off first:
+  ```pascal
+  let small := for n in naturals() do if n * n < 1000 then n * n else break
+  let first := for n in take(naturals(), 10) do n * n
+  ```
+  A loop that stops on what it has collected so far ("the first ten primes") is written as
+  a statement.
+- **Layout and precedence** are those of the `if` expression: a single line, or wrapped in
+  parentheses, and parenthesized when it is an operand (`E0803`). `e` extends as far as it
+  can, so an `if` expression there needs no parentheses.
 
 ---
 
@@ -1441,7 +1494,8 @@ except for adding a trailing comma to a broken group and rewriting `else` + `if`
   group of one item with no groups or `and`/`or` inside only if that item fits on its own
   line; otherwise the line stays long.
 - A parenthesized expression gets no trailing comma; without commas, it breaks before each
-  `and` and `or` at its own level instead.
+  `and` and `or` at its own level instead, and a `for` expression also before each `for`
+  clause after the first and before `do`.
 - A group stays broken if it ends with a trailing comma, holds a comment, or holds a broken
   group that isn't its last item (or any broken group, in a parenthesized expression with
   its own `and` or `or`). Formatting formatted code changes nothing. To keep a short list one item per line, end it with a
@@ -1820,8 +1874,8 @@ the block it closes.
 | `E0048` | declaration not allowed here (types, routines, externs, tests are top level only) |
 | `E0049` | block doesn't start on a new line (`if a then f()`) |
 
-The parser also reports `E0101`, `E0104`, `E0201`, `E0202`, `E0801`, `E0803`, `E0804`, and
-`E0903` where they are purely syntactic.
+The parser also reports `E0101`, `E0104`, `E0201`, `E0202`, `E0801`, `E0803`, `E0804`,
+`E0805`, and `E0903` where they are purely syntactic.
 
 Recovery: an error skips the rest of its line and any block indented under it, leaving an
 error node, so one mistake gives one diagnostic. Syntax errors on a logical line that
@@ -1893,8 +1947,9 @@ already has a lexical error are not reported.
 | `E0720` | generic instances nest more than 64 deep (§8) |
 | `E0801` | `if` expression without `else` |
 | `E0802` | `if` / `case` expression branches of different types |
-| `E0803` | `if` expression used as an operand without parentheses |
+| `E0803` | `if` or `for` expression used as an operand without parentheses |
 | `E0804` | `case` expression that isn't the whole right side of `:=`, `var`, `let`, or `return` |
+| `E0805` | `for` expression whose `if` gives no value in any branch, only `continue` or `break` |
 | `E0901` | type isn't C-compatible (extern signature, C record field, C varargs argument; §10.1) |
 | `E0902` | unsafe operation outside an `unsafe` routine (§10.4) |
 | `E0903` | invalid declaration in an extern block's `type` section (§10.5) |
@@ -1927,60 +1982,11 @@ None at the moment.
 
 ## 18a. Planned
 
-### 18a.1 v0.2: `for` expressions
+### 18a.1 v0.2: removing `map` and `filter`
 
-`for` becomes an expression too, like `if` and `case` (§9.3), and by the same rule: the
-form is chosen by position. In statement position it is the loop of §7.5, with its body on
-the following lines. Where a value is expected, `do` is followed by a single expression,
-and the value is a list of its results:
-
-```pascal
-let names := for p in people do p.name
-let squares := for i := 1 to 10 do i * i
-let labels := for key, value in stock do "{key}: {value}"
-let adults := for p in people do if p.age >= 18 then p.name else continue
-let pairs := (
-    for a in xs
-    for b in neighbours(a)
-    do if a < b then Pair(first: a, second: b) else continue
-)
-let total := sum(iter(for item in items do item.qty * item.price))
-```
-
-- A `for` expression is one or more `for` clauses, then `do e`. A clause is any loop head
-  of §7.5 (`x in e`, `k, v in m`, `i := a to b`, `i := a downto b`). Several clauses nest:
-  a later clause runs once for each item of the earlier ones and sees their names. Only the
-  expression form takes more than one clause.
-- The value is a new `List[T]`, where `T` is the type of `e`, in loop order. It is built as
-  the statement loops would build it:
-  ```pascal
-  var r: List[T] := []
-  for a in xs do
-      for b in neighbours(a) do
-          add(var r, e)
-  ```
-  So loop variables are fresh `let` bindings and sources are snapshots (§4.14).
-- **Skipping and stopping.** When `e` is an `if` expression, a branch may be `continue` or
-  `break` instead of a value. `continue` adds nothing for this item and goes on with the
-  next one. `break` adds nothing and ends the whole `for` expression, whatever the number
-  of clauses. At least one branch must be a value, and the branches that are values give
-  `T`. Nowhere else are `continue` and `break` expressions, and an `if` expression still
-  requires `else` (`E0801`).
-- No function values are involved. `try` in a clause or in `e` returns from the enclosing
-  function, as in a loop: `for s in parts do try parseInt(s)`.
-- **Eager.** The loops run to the end before the value exists. An endless iterator needs a
-  `break`, or is cut off first:
-  ```pascal
-  let small := for n in naturals() do if n * n < 1000 then n * n else break
-  let first := for n in take(naturals(), 10) do n * n
-  ```
-  A loop that stops on what it has collected so far ("the first ten primes") is written as
-  a statement.
-- **Layout and precedence** are those of the `if` expression: a single line, or wrapped in
-  parentheses, and parenthesized when it is an operand. `e` extends as far as it can, so an
-  `if` expression there needs no parentheses.
-- **One way.** `map` and `filter` are removed from System (§4.14). The adapters that take
-  no function stay: `take`, `skip`, `zip`, `enumerate`, `chars`.
+With `for` expressions (§9.4) there is one way to map and filter: `map` and `filter` are
+removed from System (§4.14). The adapters that take no function stay: `take`, `skip`,
+`zip`, `enumerate`, `chars`.
 
 ### 18a.2 v0.3: lambdas
 

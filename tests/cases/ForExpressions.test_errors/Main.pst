@@ -1,0 +1,12 @@
+program Main
+
+uses IO
+
+let xs := [1, 2, 3]
+let a := for n in xs do if n > 1 then n
+let b := for n in xs do if n > 1 then continue else break
+let c := 1 + for n in xs do n
+let d := for n in xs do if n > 1 then n else "x"
+let e := for n in xs do continue
+writeln(n)
+let f: List[String] := for n in xs do n

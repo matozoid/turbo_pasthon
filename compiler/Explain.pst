@@ -549,13 +549,19 @@ export function explanations(): List[Explanation]
             code: "E0803",
             section: "16.3",
             title: "Type errors",
-            meaning: "`if` expression used as an operand without parentheses",
+            meaning: "`if` or `for` expression used as an operand without parentheses",
         ),
         Explanation(
             code: "E0804",
             section: "16.3",
             title: "Type errors",
             meaning: "`case` expression that isn't the whole right side of `:=`, `var`, `let`, or `return`",
+        ),
+        Explanation(
+            code: "E0805",
+            section: "16.3",
+            title: "Type errors",
+            meaning: "`for` expression whose `if` gives no value in any branch, only `continue` or `break`",
         ),
         Explanation(
             code: "E0901",

@@ -1,0 +1,24 @@
+$ $PST fmt Main.pst
+exit 0
+--- stdout
+Main.pst
+--- stderr
+$ cat Main.pst
+exit 0
+--- stdout
+program Main
+
+uses IO
+
+let xs := [1, 2]
+let pairs := (
+    for a in xs
+    for b in xs
+    do if a < b then "{a} and {b} and something longer" else continue
+)
+writeln(pairs)
+--- stderr
+$ $PST fmt Main.pst --check
+exit 0
+--- stdout
+--- stderr

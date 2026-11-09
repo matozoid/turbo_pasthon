@@ -1391,6 +1391,8 @@ procedure stmt(r: ref Resolver, s: Stmt)
         Assert(a):
             expr(r, a.cond)
             optExpr(r, a.message)
+        ForValue(v):
+            optExpr(r, v.value)
         else:
             pass
 
@@ -1474,6 +1476,8 @@ procedure expr(r: ref Resolver, e: Expr)
                 expr(r, b.cond)
                 expr(r, b.value)
             expr(r, i.elseValue)
+        ForExpr(fe):
+            stmt(r, fe.loop)
         CaseExpr(ce):
             expr(r, ce.subject)
             for arm in ce.arms do

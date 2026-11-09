@@ -1565,6 +1565,14 @@ function loopVar(p: ref State): Parsed[Ident]
     return fail(p, "E0040", tok.span, message: "expected a loop variable, found {describe(tok)}")
 
 function forStmt(p: ref State): Parsed[Stmt]
+    let start := peek(p).span
+    let head := try forClause(p)
+    try expect(p, TokenKind.KwDo, what: "'do'")
+    let body := try block(p)
+    return Ok(withBody(head, body, span: finish(p, start)))
+
+## A loop head, `for x in e` or `for i := a to b`, as a `for` statement with an empty body.
+function forClause(p: ref State): Parsed[Stmt]
     let start := advance(p).span
     let first := try loopVar(p)
     if accept(p, TokenKind.Assign) then
@@ -1580,15 +1588,13 @@ function forStmt(p: ref State): Parsed[Stmt]
             )
         let down := advance(p).kind = TokenKind.KwDownto
         let high := try expr(p)
-        try expect(p, TokenKind.KwDo, what: "'do'")
-        let body := try block(p)
         return Ok(ForRange(
             span: finish(p, start),
             variable: first,
             start: low,
             stop: high,
             down: down,
-            body: body,
+            body: Block(span: point(p.last.span, atEnd: true), stmts: []),
             endMarker: None,
         ))
     var vars: List[Ident] := [first]
@@ -1596,15 +1602,120 @@ function forStmt(p: ref State): Parsed[Stmt]
         add(var vars, try loopVar(p))
     try expect(p, TokenKind.KwIn, what: "'in' or ':='")
     let iterable := try expr(p)
-    try expect(p, TokenKind.KwDo, what: "'do'")
-    let body := try block(p)
     return Ok(ForIn(
         span: finish(p, start),
         vars: vars,
         iterable: iterable,
-        body: body,
+        body: Block(span: point(p.last.span, atEnd: true), stmts: []),
         endMarker: None,
     ))
+
+## The `for` statement `head` with `body`, spanning `span`.
+function withBody(head: Stmt, body: Block, span: Span): Stmt
+    case head of
+        ForRange(x):
+            var y := x
+            y.body := body
+            y.span := span
+            return y
+        ForIn(x):
+            var y := x
+            y.body := body
+            y.span := span
+            return y
+        else:
+            return head
+
+## `for` clauses, then `do e`: the loops that build the list (`ForExpr`).
+function forExpr(p: ref State): Parsed[ForExpr]
+    let start := peek(p).span
+    var heads: List[Stmt] := []
+    while at(p, TokenKind.KwFor) do
+        add(var heads, try forClause(p))
+    try expect(p, TokenKind.KwDo, what: "'do'")
+    let body := try forBody(p)
+    let span := finish(p, start)
+    var loop := body
+    for i := len(heads) - 1 downto 0 do
+        let inner := Block(span: stmtSpan(loop), stmts: [loop])
+        loop := withBody(heads[i], inner, span: join(stmtSpan(heads[i]), b: span))
+    return Ok(ForExpr(span: span, id: newId(p), loop: loop))
+
+## The body of a `for` expression: `e`, or an `if` expression with `continue` or `break`
+## branches, which becomes an `if` statement.
+function forBody(p: ref State): Parsed[Stmt]
+    let start := peek(p).span
+    if not at(p, TokenKind.KwIf) then
+        let e := try expr(p)
+        return Ok(ForValue(span: exprSpan(e), value: Some(e)))
+    step(p)
+    var conds: List[Expr] := []
+    var items: List[Stmt] := []
+    while true do
+        add(var conds, try expr(p))
+        try expect(p, TokenKind.KwThen, what: "'then'")
+        add(var items, try forItem(p))
+        if at(p, TokenKind.KwElse) and peek(p, 1).kind = TokenKind.KwIf then
+            step(p)
+            step(p)
+            continue
+        break
+    if accept(p, TokenKind.KwElse) then
+        add(var items, try forItem(p))
+    else
+        let here := point(p.last.span, atEnd: true)
+        report(p, "E0801", here, message: "an 'if' expression needs an 'else' branch")
+        let missing: Expr := ErrorExpr(span: here, id: newId(p))
+        add(var items, ForValue(span: here, value: Some(missing)))
+    var values: List[Expr] := []
+    for it in items do
+        case it of
+            ForValue(v):
+                if v.value.isSome() then
+                    add(var values, v.value.get())
+            else:
+                pass
+    let span := finish(p, start)
+    if len(values) = len(items) then  # no `continue` or `break`: an `if` expression
+        var branches: List[CondExpr] := []
+        for i := 0 to len(conds) - 1 do
+            let bs := join(exprSpan(conds[i]), b: exprSpan(values[i]))
+            add(var branches, CondExpr(span: bs, cond: conds[i], value: values[i]))
+        let e: Expr := IfExpr(
+            span: span,
+            id: newId(p),
+            branches: branches,
+            elseValue: values[len(values) - 1],
+        )
+        return Ok(ForValue(span: span, value: Some(e)))
+    if len(values) = 0 then
+        report(p, "E0805", span, message: "a 'for' expression needs a value in some branch")
+    var branches: List[CondBlock] := []
+    for i := 0 to len(conds) - 1 do
+        let item := items[i]
+        let bs := join(exprSpan(conds[i]), b: stmtSpan(item))
+        add(var branches, CondBlock(
+            span: bs,
+            cond: conds[i],
+            body: Block(span: stmtSpan(item), stmts: [item]),
+        ))
+    let last := items[len(items) - 1]
+    return Ok(If(
+        span: span,
+        branches: branches,
+        elseBody: Some(Block(span: stmtSpan(last), stmts: [last])),
+        endMarker: None,
+    ))
+
+## A branch of a `for` expression's `if`: a value, `continue` or `break`.
+function forItem(p: ref State): Parsed[Stmt]
+    let tok := peek(p)
+    if accept(p, TokenKind.KwContinue) then
+        return Ok(Continue(span: tok.span))
+    if accept(p, TokenKind.KwBreak) then
+        return Ok(ForValue(span: tok.span, value: None))
+    let e := try expr(p)
+    return Ok(ForValue(span: exprSpan(e), value: Some(e)))
 
 # ---------------------------------------------------------------------------- case
 
@@ -1678,6 +1789,9 @@ function caseExprArm(p: ref State): Parsed[CaseExprArm]
 function expr(p: ref State): Parsed[Expr]
     if at(p, TokenKind.KwIf) then
         let e := try ifExpr(p)
+        return Ok(e)
+    if at(p, TokenKind.KwFor) then
+        let e := try forExpr(p)
         return Ok(e)
     return orExpr(p)
 
@@ -1900,17 +2014,19 @@ function primary(p: ref State): Parsed[Expr]
         let inner := try expr(p)
         try expect(p, TokenKind.Rparen, what: "')'")
         return Ok(Deref(span: finish(p, tok.span), id: newId(p), target: inner))
-    if k = TokenKind.KwIf then
-        let e := try ifExpr(p)
+    if k = TokenKind.KwIf or k = TokenKind.KwFor then
+        let e := try expr(p)
+        let span := exprSpan(e)
+        let what := if k = TokenKind.KwIf then "an 'if'" else "a 'for'"
         reportWith(
             p,
             "E0803",
-            e.span,
-            message: "an 'if' expression used as an operand must be in parentheses",
+            span,
+            message: "{what} expression used as an operand must be in parentheses",
             fixes: [Fix(
                 description: "add parentheses",
-                edits: [Edit(span: point(e.span), text: "("), Edit(
-                    span: point(e.span, atEnd: true),
+                edits: [Edit(span: point(span), text: "("), Edit(
+                    span: point(span, atEnd: true),
                     text: ")",
                 )],
             )],

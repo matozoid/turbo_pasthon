@@ -241,6 +241,9 @@ procedure expr(e: Expr, d: Integer, label: String)
                 line(c, item("arms", i), kind: "CaseExprArm", span: a.span, scalars: "")
                 labels(a.labels, c + 1)
                 expr(a.value, c + 1, label: one("value"))
+        ForExpr(x):
+            line(d, label, kind: "ForExpr", span: x.span, scalars: "")
+            stmt(x.loop, c, label: one("loop"))
         ErrorExpr(x): line(d, label, kind: "ErrorExpr", span: x.span, scalars: "")
 
 procedure labels(ls: List[Label], d: Integer)
@@ -375,6 +378,9 @@ procedure stmt(s: Stmt, d: Integer, label: String)
             line(d, label, kind: "Assert", span: x.span, scalars: "")
             expr(x.cond, c, label: one("cond"))
             optExpr(x.message, c, label: one("message"))
+        ForValue(x):
+            line(d, label, kind: "ForValue", span: x.span, scalars: "")
+            optExpr(x.value, c, label: one("value"))
         ErrorStmt(x): line(d, label, kind: "ErrorStmt", span: x.span, scalars: "")
 
 # -------------------------------------------------------------------- declarations

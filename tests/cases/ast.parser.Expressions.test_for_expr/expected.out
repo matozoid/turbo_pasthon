@@ -1,0 +1,43 @@
+$ $PST ast F.pst
+exit 0
+--- stdout
+File 1:1-3:27 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: Assign 2:1-2:87
+    target: Name 2:1-2:3 name="xs"
+    value: ForExpr 2:7-2:87
+      loop: ForIn 2:7-2:87
+        vars[0]: Ident 2:11-2:12 name="a"
+        iterable: Name 2:16-2:18 name="xs"
+        body: Block 2:19-2:87
+          stmts[0]: ForIn 2:19-2:87
+            vars[0]: Ident 2:23-2:24 name="b"
+            iterable: Name 2:28-2:29 name="a"
+            body: Block 2:33-2:87
+              stmts[0]: If 2:33-2:87
+                branches[0]: CondBlock 2:36-2:48
+                  cond: Binary 2:36-2:41 op=">" op_span=2:38-2:39
+                    left: Name 2:36-2:37 name="b"
+                    right: IntLit 2:40-2:41 value=0
+                  body: Block 2:47-2:48
+                    stmts[0]: ForValue 2:47-2:48
+                      value: Name 2:47-2:48 name="b"
+                branches[1]: CondBlock 2:57-2:76
+                  cond: Binary 2:57-2:62 op="=" op_span=2:59-2:60
+                    left: Name 2:57-2:58 name="b"
+                    right: IntLit 2:61-2:62 value=0
+                  body: Block 2:68-2:76
+                    stmts[0]: Continue 2:68-2:76
+                else_body: Block 2:82-2:87
+                  stmts[0]: ForValue 2:82-2:87
+  items[1]: Assign 3:1-3:27
+    target: Name 3:1-3:3 name="ys"
+    value: ForExpr 3:7-3:27
+      loop: ForRange 3:7-3:27 down=false
+        var: Ident 3:11-3:12 name="i"
+        start: IntLit 3:16-3:17 value=1
+        stop: IntLit 3:21-3:22 value=3
+        body: Block 3:26-3:27
+          stmts[0]: ForValue 3:26-3:27
+            value: Name 3:26-3:27 name="i"
+--- stderr

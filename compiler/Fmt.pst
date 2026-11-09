@@ -501,6 +501,11 @@ function isParenExpr(atoms: List[Atom], o: Integer): Boolean
 function isLogical(k: TokenKind): Boolean
     return k = TokenKind.KwAnd or k = TokenKind.KwOr
 
+## Whether a broken parenthesized expression is broken before a `k` token: `and` and
+## `or`, and in the `for` clauses of a `for` expression, `for` and `do`.
+function splits(k: TokenKind, clauses: Boolean): Boolean
+    return isLogical(k) or (clauses and (k = TokenKind.KwFor or k = TokenKind.KwDo))
+
 ## Whether the group opened at `o` has an `and` or `or` of its own.
 function hasLogical(atoms: List[Atom], o: Integer): Boolean
     var k := o + 1
@@ -514,7 +519,7 @@ function hasLogical(atoms: List[Atom], o: Integer): Boolean
 
 ## Writes the group closed at `c`, one item per line, with a comma after each item, except
 ## after the last one of a parenthesized expression. A parenthesized expression without
-## commas is broken before each of its `and` and `or` operators instead.
+## commas is broken where `splits` says instead.
 procedure explodeGroup(var w: Writer, var atoms: List[Atom], c: Integer, depth: Integer)
     let o := atoms[c].open
     emit(var w, atoms[o])
@@ -523,12 +528,15 @@ procedure explodeGroup(var w: Writer, var atoms: List[Atom], c: Integer, depth: 
     var start := o + 1
     var k := o + 1
     if paren and itemCount(atoms, o) <= 1 then
+        var clauses := atoms[o + 1].kind = TokenKind.KwFor  # until the `do`
         while start < c do
             if k < c and atoms[k].close >= 0 then
                 k := atoms[k].close + 1
-            else if k < c and (k = start or not isLogical(atoms[k].kind)) then
+            else if k < c and (k = start or not splits(atoms[k].kind, clauses: clauses)) then
                 k := k + 1
             else
+                if k < c and atoms[k].kind = TokenKind.KwDo then
+                    clauses := false
                 newline(var w, depth + 1)
                 decide(var atoms, start, stop: k, budget: budget)
                 renderSeq(var w, var atoms, start, stop: k, depth: depth + 1)

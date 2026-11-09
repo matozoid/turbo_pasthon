@@ -189,6 +189,15 @@ type
         export branches: List[CondExpr]
         export elseValue: Expr
 
+    ## `for x in xs do e`: the list of the values of `e` (SPEC §9.4). The parser writes it
+    ## as the loops that build it: `for` statements, one per clause, each the only
+    ## statement of the one before, and in the innermost a `ForValue`, or for `continue`
+    ## and `break` branches an `If` statement of `ForValue`s and `Continue`s.
+    export ForExpr = record
+        export span: Span
+        export id: Integer
+        export loop: Stmt
+
     export ErrorExpr = record
         export span: Span
         export id: Integer
@@ -226,7 +235,7 @@ type
         export subject: Expr
         export arms: List[CaseExprArm]
 
-    export Expr = Name | IntLit | RealLit | CharLit | BoolLit | StringLit | InterpString | ListLit | MapLit | SetLit | EmptyBraces | Paren | Unary | Binary | Call | Index | FieldAccess | Deref | IfExpr | CaseExpr | ErrorExpr
+    export Expr = Name | IntLit | RealLit | CharLit | BoolLit | StringLit | InterpString | ListLit | MapLit | SetLit | EmptyBraces | Paren | Unary | Binary | Call | Index | FieldAccess | Deref | IfExpr | CaseExpr | ForExpr | ErrorExpr
 
     # ------------------------------------------------------------------ statements
 
@@ -339,7 +348,13 @@ type
     export ErrorStmt = record
         export span: Span
 
-    export Stmt = VarDecl | Assign | Discard | ExprStmt | If | While | Repeat | ForRange | ForIn | Case | Defer | Break | Continue | Pass | Return | Assert | ErrorStmt
+    ## In a `for` expression (`ForExpr`): adds `value` to its list, or with none (`break`)
+    ## ends it.
+    export ForValue = record
+        export span: Span
+        export value: Option[Expr]
+
+    export Stmt = VarDecl | Assign | Discard | ExprStmt | If | While | Repeat | ForRange | ForIn | Case | Defer | Break | Continue | Pass | Return | Assert | ForValue | ErrorStmt
 
     # ---------------------------------------------------------------- declarations
 
@@ -497,6 +512,7 @@ export function exprSpan(e: Expr): Span
         Deref(x): return x.span
         IfExpr(x): return x.span
         CaseExpr(x): return x.span
+        ForExpr(x): return x.span
         ErrorExpr(x): return x.span
 
 export function stmtSpan(s: Stmt): Span
@@ -517,6 +533,7 @@ export function stmtSpan(s: Stmt): Span
         Pass(x): return x.span
         Return(x): return x.span
         Assert(x): return x.span
+        ForValue(x): return x.span
         ErrorStmt(x): return x.span
 
 export function typeSpan(t: TypeExpr): Span
@@ -548,4 +565,5 @@ export function exprId(e: Expr): Integer
         Deref(x): return x.id
         IfExpr(x): return x.id
         CaseExpr(x): return x.id
+        ForExpr(x): return x.id
         ErrorExpr(x): return x.id

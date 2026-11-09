@@ -1,0 +1,64 @@
+program Main
+
+uses IO
+
+type
+    Person = record
+        name: String
+        age: Integer
+
+    Pair = record
+        first: Integer
+        second: Integer
+
+function neighbours(a: Integer): List[Integer]
+    return [a - 1, a + 1]
+
+function size(s: String): Result[Integer, String]
+    if s = "x" then
+        return Err("bad: {s}")
+    return Ok(if s = "22" then 22 else 1)
+
+function sizes(parts: List[String]): Result[List[Integer], String]
+    return Ok(for s in parts do try size(s))
+
+procedure show(r: Result[List[Integer], String])
+    case r of
+        Ok(v):
+            writeln(v.value)
+        Err(e):
+            writeln(e.error)
+
+let people := [Person(name: "Ann", age: 30), Person(name: "Bob", age: 12)]
+let names := for p in people do p.name
+writeln(names)
+let squares := for i := 1 to 10 do i * i
+writeln(squares)
+let down := for i := 3 downto 1 do "{i}"
+writeln(down)
+let stock := {"apple": 3, "pear": 5}
+let labels := for key, value in stock do "{key}: {value}"
+writeln(labels)
+let adults := for p in people do if p.age >= 18 then p.name else continue
+writeln(adults)
+let xs := [1, 2, 3]
+let pairs := (
+    for a in xs
+    for b in neighbours(a)
+    do if a < b then Pair(first: a, second: b) else continue
+)
+for pr in pairs do
+    write("{pr.first}-{pr.second} ")
+writeln("")
+let small := for n in xs for m in xs do if n * m < 5 then n * m else break
+writeln(small)
+let nested := for a in xs do for b in xs do a * b
+writeln(nested)
+let total := len(for n in xs do if n = 2 then continue else n)
+writeln(total)
+show(sizes(["1", "22"]))
+show(sizes(["1", "x"]))
+let none := for n in xs do if n > 5 then n else continue
+writeln(len(none))
+let signs := for n in [-1, 0, 2] do if n < 0 then "-" else if n = 0 then "0" else "+"
+writeln(signs)
