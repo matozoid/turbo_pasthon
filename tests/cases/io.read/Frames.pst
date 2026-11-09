@@ -1,0 +1,19 @@
+program Frames
+
+## Reads frames of a header line with a byte count, then that many bytes, as the language
+## server does.
+
+uses IO, Strings
+
+while true do
+    case readln() of
+        Some(h):
+            let n := parseInt(trim(h.value)).getOr(0)
+            case read(n) of
+                Some(body):
+                    writeln("[{body.value}]")
+                None:
+                    writeln("cut short")
+                    break
+        None:
+            break

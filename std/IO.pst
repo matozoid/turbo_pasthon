@@ -159,3 +159,19 @@ export unsafe function readln(): Option[String]
     let line := fromCBytes(cast[Pointer](buf), n)
     free(cast[Pointer](buf))
     return Some(line)
+
+## Reads `count` bytes from standard input, as text: invalid UTF-8 is replaced with U+FFFD.
+## `None` if the input ends first. With `readln`, it reads a protocol of header lines and
+## sized bodies, such as the language server's.
+export unsafe function read(count: Integer): Option[String]
+    let buf := cast[Ptr[Byte]](malloc(CSize(count + 1)))
+    var n := 0
+    while n < count do
+        let got := cRead(0, cast[Pointer](buf + n), CSize(count - n))
+        if got <= 0 then
+            free(cast[Pointer](buf))
+            return None
+        n := n + Integer(got)
+    let text := fromCBytes(cast[Pointer](buf), n)
+    free(cast[Pointer](buf))
+    return Some(text)

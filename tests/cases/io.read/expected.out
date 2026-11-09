@@ -1,0 +1,13 @@
+$ printf '3\r\nabc2\r\né0\nx' | $PST run Frames.pst
+exit 0
+--- stdout
+[abc]
+[é]
+[]
+[]
+--- stderr
+$ printf '5\nab' | $PST run Frames.pst
+exit 0
+--- stdout
+cut short
+--- stderr

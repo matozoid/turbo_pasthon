@@ -1,0 +1,3 @@
+# IO.read reads an exact number of bytes from standard input; readln and read share it.
+printf '3\r\nabc2\r\né0\nx' | $PST run Frames.pst
+printf '5\nab' | $PST run Frames.pst

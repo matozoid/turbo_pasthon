@@ -1,0 +1,404 @@
+unit Json
+
+## JSON (RFC 8259): parse text into a `Json` value, write one back, and read its parts.
+## A number keeps its text, since `Real` has no code generation yet; `asInteger` reads it.
+
+uses Strings
+
+type
+    export JNull = record
+
+    export JBool = record
+        export value: Boolean
+
+    ## A number, as written: `-12`, `3.5e2`.
+    export JNumber = record
+        export text: String
+
+    export JString = record
+        export value: String
+
+    export JArray = record
+        export items: List[Json]
+
+    export Member = record
+        export key: String
+        export value: Json
+
+    ## An object's members, in their order. A key may appear more than once.
+    export JObject = record
+        export members: List[Member]
+
+    export Json = JNull | JBool | JNumber | JString | JArray | JObject
+
+    ## The parser's state: the text's characters and the position in them.
+    Reader = record
+        cs: List[Char]
+        pos: Integer
+
+# ------------------------------------------------------------------------- reading
+
+## The value of the member `key` of an object, or `JNull` if `j` isn't an object or has no
+## such member. With a key that appears more than once, the last one counts.
+export function field(j: Json, key: String): Json
+    var result: Json := JNull()
+    case j of
+        JObject(o):
+            for m in o.members do
+                if m.key = key then
+                    result := m.value
+        else:
+            pass
+    return result
+
+## Whether `j` is `null` (or a missing member, through `field`).
+export function isNull(j: Json): Boolean
+    case j of
+        JNull(_):
+            return true
+        else:
+            return false
+
+## The string, or `None` if `j` isn't one.
+export function asString(j: Json): Option[String]
+    case j of
+        JString(s):
+            return Some(s.value)
+        else:
+            return None
+
+## The Boolean, or `None` if `j` isn't one.
+export function asBoolean(j: Json): Option[Boolean]
+    case j of
+        JBool(b):
+            return Some(b.value)
+        else:
+            return None
+
+## The integer, or `None` if `j` isn't a number without fraction or exponent that fits.
+export function asInteger(j: Json): Option[Integer]
+    case j of
+        JNumber(n):
+            case parseInt(n.text) of
+                Ok(i):
+                    return Some(i.value)
+                Err(_):
+                    return None
+        else:
+            return None
+
+## The items of an array; empty if `j` isn't one.
+export function items(j: Json): List[Json]
+    case j of
+        JArray(a):
+            return a.items
+        else:
+            return []
+
+# ------------------------------------------------------------------------- writing
+
+function hexDigit(n: Integer): Char
+    if n < 10 then
+        return Char(ord('0') + n)
+    return Char(ord('a') + n - 10)
+
+## `s` as a JSON string. Quotes, backslashes and control characters are escaped; other
+## characters are written as they are.
+export function quote(s: String): String
+    var parts: List[String] := ["\""]
+    for c in s do
+        if c = '"' then
+            add(var parts, "\\\"")
+        else if c = '\\' then
+            add(var parts, "\\\\")
+        else if c = '\n' then
+            add(var parts, "\\n")
+        else if c = '\r' then
+            add(var parts, "\\r")
+        else if c = '\t' then
+            add(var parts, "\\t")
+        else if ord(c) < 0x20 then
+            add(var parts, "\\u00{hexDigit(ord(c) div 16)}{hexDigit(ord(c) mod 16)}")
+        else
+            add(var parts, toString(c))
+    add(var parts, "\"")
+    return join(parts)
+
+## `j` as JSON text on one line, without spaces.
+export function toText(j: Json): String
+    case j of
+        JNull(_):
+            return "null"
+        JBool(b):
+            if b.value then
+                return "true"
+            return "false"
+        JNumber(n):
+            return n.text
+        JString(s):
+            return quote(s.value)
+        JArray(a):
+            var parts: List[String] := []
+            for item in a.items do
+                add(var parts, toText(item))
+            return "[{join(parts, sep: ",")}]"
+        JObject(o):
+            var parts: List[String] := []
+            for m in o.members do
+                add(var parts, "{quote(m.key)}:{toText(m.value)}")
+            return "\{{join(parts, sep: ",")}}"
+
+# ------------------------------------------------------------------------- parsing
+
+## The character at the reader's position, or NUL at the end.
+function peek(r: Reader): Char
+    if r.pos < len(r.cs) then
+        return r.cs[r.pos]
+    return Char(0)
+
+function atEnd(r: Reader): Boolean
+    return r.pos >= len(r.cs)
+
+procedure skipSpace(var r: Reader)
+    while not atEnd(r) do
+        let c := peek(r)
+        if c <> ' ' and c <> '\t' and c <> '\n' and c <> '\r' then
+            break
+        r.pos := r.pos + 1
+
+function failure(r: Reader, what: String): String
+    if atEnd(r) then
+        return "{what} at the end of the text"
+    return "{what} at offset {r.pos}"
+
+function isDigit(c: Char): Boolean
+    return c >= '0' and c <= '9'
+
+function hexValue(c: Char): Integer
+    if isDigit(c) then
+        return ord(c) - ord('0')
+    if c >= 'a' and c <= 'f' then
+        return ord(c) - ord('a') + 10
+    if c >= 'A' and c <= 'F' then
+        return ord(c) - ord('A') + 10
+    return -1
+
+## Reads `word` (`true`, `false` or `null`).
+function literal(var r: Reader, word: String): Result[Integer, String]
+    for c in word do
+        if peek(r) <> c then
+            return Err(failure(r, "expected '{word}'"))
+        r.pos := r.pos + 1
+    return Ok(0)
+
+function digits(var r: Reader): Result[Integer, String]
+    if not isDigit(peek(r)) then
+        return Err(failure(r, "expected a digit"))
+    while isDigit(peek(r)) do
+        r.pos := r.pos + 1
+    return Ok(0)
+
+function number(var r: Reader): Result[Json, String]
+    let start := r.pos
+    if peek(r) = '-' then
+        r.pos := r.pos + 1
+    if peek(r) = '0' then
+        r.pos := r.pos + 1
+    else
+        _ := try digits(var r)
+    if peek(r) = '.' then
+        r.pos := r.pos + 1
+        _ := try digits(var r)
+    if peek(r) = 'e' or peek(r) = 'E' then
+        r.pos := r.pos + 1
+        if peek(r) = '+' or peek(r) = '-' then
+            r.pos := r.pos + 1
+        _ := try digits(var r)
+    var parts: List[String] := []
+    for i := start to r.pos - 1 do
+        add(var parts, toString(r.cs[i]))
+    return Ok(JNumber(text: join(parts)))
+
+## Reads the four hex digits of a `\u` escape.
+function hex4(var r: Reader): Result[Integer, String]
+    var n := 0
+    for k := 1 to 4 do
+        let v := hexValue(peek(r))
+        if v < 0 then
+            return Err(failure(r, "expected a hex digit"))
+        n := n * 16 + v
+        r.pos := r.pos + 1
+    return Ok(n)
+
+## Reads a string, from its opening quote.
+function text(var r: Reader): Result[String, String]
+    r.pos := r.pos + 1
+    var parts: List[String] := []
+    while true do
+        if atEnd(r) then
+            return Err(failure(r, "unterminated string"))
+        let c := peek(r)
+        r.pos := r.pos + 1
+        if c = '"' then
+            break
+        if ord(c) < 0x20 then
+            r.pos := r.pos - 1
+            return Err(failure(r, "control character in a string"))
+        if c <> '\\' then
+            add(var parts, toString(c))
+            continue
+        let e := peek(r)
+        r.pos := r.pos + 1
+        if e = '"' or e = '\\' or e = '/' then
+            add(var parts, toString(e))
+        else if e = 'n' then
+            add(var parts, "\n")
+        else if e = 't' then
+            add(var parts, "\t")
+        else if e = 'r' then
+            add(var parts, "\r")
+        else if e = 'b' then
+            add(var parts, toString(Char(8)))
+        else if e = 'f' then
+            add(var parts, toString(Char(12)))
+        else if e = 'u' then
+            var code := try hex4(var r)
+            if code >= 0xD800 and code < 0xDC00 and peek(r) = '\\' then
+                # A surrogate pair: the low half follows as another escape.
+                let back := r.pos
+                r.pos := r.pos + 1
+                if peek(r) = 'u' then
+                    r.pos := r.pos + 1
+                    let low := try hex4(var r)
+                    if low >= 0xDC00 and low < 0xE000 then
+                        code := 0x10000 + (code - 0xD800) * 0x400 + (low - 0xDC00)
+                    else
+                        r.pos := back
+                else
+                    r.pos := back
+            if code >= 0xD800 and code < 0xE000 then
+                code := 0xFFFD
+            add(var parts, toString(Char(code)))
+        else
+            r.pos := r.pos - 1
+            return Err(failure(r, "invalid escape"))
+    return Ok(join(parts))
+
+function array(var r: Reader): Result[Json, String]
+    r.pos := r.pos + 1
+    var result: List[Json] := []
+    skipSpace(var r)
+    if peek(r) = ']' then
+        r.pos := r.pos + 1
+        return Ok(JArray(items: result))
+    while true do
+        add(var result, try value(var r))
+        skipSpace(var r)
+        if peek(r) = ']' then
+            r.pos := r.pos + 1
+            return Ok(JArray(items: result))
+        if peek(r) <> ',' then
+            return Err(failure(r, "expected ',' or ']'"))
+        r.pos := r.pos + 1
+    return Ok(JNull())
+
+function object(var r: Reader): Result[Json, String]
+    r.pos := r.pos + 1
+    var members: List[Member] := []
+    skipSpace(var r)
+    if peek(r) = '}' then
+        r.pos := r.pos + 1
+        return Ok(JObject(members: members))
+    while true do
+        skipSpace(var r)
+        if peek(r) <> '"' then
+            return Err(failure(r, "expected a key"))
+        let key := try text(var r)
+        skipSpace(var r)
+        if peek(r) <> ':' then
+            return Err(failure(r, "expected ':'"))
+        r.pos := r.pos + 1
+        add(var members, Member(key: key, value: try value(var r)))
+        skipSpace(var r)
+        if peek(r) = '}' then
+            r.pos := r.pos + 1
+            return Ok(JObject(members: members))
+        if peek(r) <> ',' then
+            return Err(failure(r, "expected ',' or '}'"))
+        r.pos := r.pos + 1
+    return Ok(JNull())
+
+function value(var r: Reader): Result[Json, String]
+    skipSpace(var r)
+    let c := peek(r)
+    if c = '\{' then
+        return object(var r)
+    if c = '[' then
+        return array(var r)
+    if c = '"' then
+        return Ok(JString(value: try text(var r)))
+    if c = 't' then
+        _ := try literal(var r, word: "true")
+        return Ok(JBool(value: true))
+    if c = 'f' then
+        _ := try literal(var r, word: "false")
+        return Ok(JBool(value: false))
+    if c = 'n' then
+        _ := try literal(var r, word: "null")
+        return Ok(JNull())
+    if c = '-' or isDigit(c) then
+        return number(var r)
+    return Err(failure(r, "expected a value"))
+
+## The value in `s`, which must hold one JSON value and nothing else but white space. The
+## error says what was wrong and at which character offset.
+export function parse(s: String): Result[Json, String]
+    var cs: List[Char] := []
+    for c in s do
+        add(var cs, c)
+    var r := Reader(cs: cs, pos: 0)
+    let j := try value(var r)
+    skipSpace(var r)
+    if not atEnd(r) then
+        return Err(failure(r, "unexpected text after the value"))
+    return Ok(j)
+
+# ------------------------------------------------------------------------- tests
+
+## `s` parsed and written back, or the error.
+function roundTrip(s: String): String
+    case parse(s) of
+        Ok(j):
+            return toText(j.value)
+        Err(e):
+            return "error: {e.error}"
+
+test "parse and write back"
+    assert roundTrip(" null ") = "null"
+    assert roundTrip("[true, false, -1.5e+3, 0]") = "[true,false,-1.5e+3,0]"
+    let o := "\{ \"a\" : [ ], \"b\": \{}, \"c\": \"x\" }"
+    assert roundTrip(o) = "\{\"a\":[],\"b\":\{},\"c\":\"x\"}"
+    let escapes := "\"tab\\tquote\\\"slash\\/é\\u00e9\\ud83d\\ude00\""
+    assert roundTrip(escapes) = "\"tab\\tquote\\\"slash/éé\u{1F600}\""
+
+test "errors"
+    assert roundTrip("") = "error: expected a value at the end of the text"
+    assert roundTrip("[1,]") = "error: expected a value at offset 3"
+    assert roundTrip("01") = "error: unexpected text after the value at offset 1"
+    assert roundTrip("\{\"a\" 1}") = "error: expected ':' at offset 5"
+    assert roundTrip("\"abc") = "error: unterminated string at the end of the text"
+    assert roundTrip("-") = "error: expected a digit at the end of the text"
+    assert roundTrip("tru") = "error: expected 'true' at the end of the text"
+
+test "reading parts"
+    let j := parse("\{\"id\": 7, \"name\": \"x\", \"ok\": true, \"xs\": [1, 2], \"id\": 8}").get()
+    assert asInteger(field(j, key: "id")) = Some(8)
+    assert asString(field(j, key: "name")) = Some("x")
+    assert asBoolean(field(j, key: "ok")) = Some(true)
+    assert len(items(field(j, key: "xs"))) = 2
+    assert isNull(field(j, key: "missing"))
+    assert asInteger(field(j, key: "name")).isNone()
+    assert asInteger(JNumber(text: "1.5")).isNone()
+
+test "quote escapes control characters"
+    assert quote("a\u{1}b\n") = "\"a\\u0001b\\n\""
