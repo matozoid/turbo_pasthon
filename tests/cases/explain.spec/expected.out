@@ -1,5 +1,5 @@
 $ $TOOLS/ExplainCheck $ROOT/SPEC.md
 exit 0
 --- stdout
-107 codes match
+108 codes match
 --- stderr

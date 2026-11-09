@@ -498,6 +498,12 @@ export function explanations(): List[Explanation]
             meaning: "two `var` arguments of one call overlap (§6.3)",
         ),
         Explanation(
+            code: "E0524",
+            section: "16.3",
+            title: "Type errors",
+            meaning: "`try` inside a `var` argument (§6.3)",
+        ),
+        Explanation(
             code: "E0530",
             section: "16.3",
             title: "Type errors",

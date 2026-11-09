@@ -136,8 +136,6 @@ type
         ## In a lambda: the ids of the `var` parameters it captured, which it holds as
         ## copies rather than addresses.
         copied: Map[Integer, Boolean]
-        ## While > 0, a `try` can't return: a call has moved values out (`call`).
-        noTry: Integer
 
     ## A routine instance to compile.
     Inst = record
@@ -341,7 +339,6 @@ function newFrame(file: String, sym: Option[ref Symbol], exit: String): ref Fram
         depth: 0,
         keep: {},
         copied: {},
-        noTry: 0,
     ))
 
 function alloc(g: ref Em): Integer
@@ -1368,107 +1365,6 @@ procedure routineBody(g: ref Em, node: Routine, sg: Sig)
     releaseScopes(g, 0)
 
 # ------------------------------------------------------------------------ walkers
-
-## The expressions directly inside `e`, in source order. Types are skipped.
-function exprKids(e: Expr): List[Expr]
-    var out: List[Expr] := []
-    case e of
-        InterpString(x):
-            for p in x.parts do
-                case p of
-                    Expr(pe):
-                        add(var out, pe)
-                    else:
-                        pass
-        ListLit(x):
-            out := x.items
-        SetLit(x):
-            out := x.items
-        MapLit(x):
-            for en in x.entries do
-                add(var out, en.key)
-                add(var out, en.value)
-        Paren(x):
-            add(var out, x.inner)
-        Unary(x):
-            add(var out, x.operand)
-        Binary(x):
-            add(var out, x.left)
-            add(var out, x.right)
-        Call(x):
-            add(var out, x.callee)
-            for arg in x.args do
-                add(var out, arg.value)
-        Index(x):
-            add(var out, x.target)
-            for it in x.items do
-                case it of
-                    Expr(ie):
-                        add(var out, ie)
-                    else:
-                        pass
-        FieldAccess(x):
-            add(var out, x.target)
-        Deref(x):
-            add(var out, x.target)
-        IfExpr(x):
-            for b in x.branches do
-                add(var out, b.cond)
-                add(var out, b.value)
-            add(var out, x.elseValue)
-        CaseExpr(x):
-            add(var out, x.subject)
-            for arm in x.arms do
-                for lb in arm.labels do
-                    labelExprs(var out, lb)
-                add(var out, arm.value)
-        ForExpr(x):
-            loopExprs(var out, x.loop)
-        else:
-            pass
-    return out
-
-## The expressions in the statements a `for` expression is written as (`ForExpr`).
-procedure loopExprs(var out: List[Expr], s: Stmt)
-    case s of
-        ForRange(x):
-            add(var out, x.start)
-            add(var out, x.stop)
-            for b in x.body.stmts do
-                loopExprs(var out, b)
-        ForIn(x):
-            add(var out, x.iterable)
-            for b in x.body.stmts do
-                loopExprs(var out, b)
-        If(x):
-            for br in x.branches do
-                add(var out, br.cond)
-                for b in br.body.stmts do
-                    loopExprs(var out, b)
-            case x.elseBody of
-                Some(eb):
-                    for b in eb.value.stmts do
-                        loopExprs(var out, b)
-                None:
-                    pass
-        ForValue(x):
-            case x.value of
-                Some(v):
-                    add(var out, v.value)
-                None:
-                    pass
-        else:
-            pass
-
-procedure labelExprs(var out: List[Expr], lb: Label)
-    case lb of
-        ValueLabel(v):
-            add(var out, v.value)
-        RangeLabel(r):
-            add(var out, r.low)
-            add(var out, r.high)
-        VariantLabel(_):
-            pass
 
 ## Gives each `toCString` call in `e` a slot, cleared on entry, that keeps its string
 ## alive until the end of the enclosing block (SPEC §10.2).
@@ -3242,9 +3138,6 @@ procedure tryOf(g: ref Em, x: Unary, e: Expr)
     if g.f.sym.isNone() then
         unsupported(g, x.span, "'try' outside a function")
         return
-    if g.f.noTry > 0 then
-        unsupported(g, x.span, "'try' in a call after a 'var' argument that isn't a whole variable")
-        return
     let t := typeOfExpr(g, x.operand)
     let vs := variants(g.env, t)
     let ok := newLabel(a, "ok")
@@ -3662,17 +3555,14 @@ procedure callExpr(g: ref Em, c: Call)
     if not isRoutineNode(callee.sym) then
         unsupported(g, c.span, "calling {describe(callee.sym)}")
         return
-    let outer := g.f.noTry
     callRoutine(g, c, m, callee)
-    g.f.noTry := outer
 
 ## `var` arguments that aren't whole variables are copied to temporaries (`Copy`) and
-## stored back after the call. Until they are, a `try` can't return: it would leave the
-## places empty. The other arguments come first, then the `var` places (SPEC §6.3), so
+## stored back after the call. They can't hold a `try` (E0524), which would return with
+## the places empty. The other arguments come first, then the `var` places (SPEC §6.3), so
 ## nothing that runs after a place is bound sees it emptied by a move.
 procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
     let a := g.a
-    let outer := g.f.noTry
     var copies: List[Copy] := []
     var pushed: List[Integer] := []
     for i := 0 to len(m.params) - 1 do
@@ -3718,7 +3608,6 @@ procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
             lea(a, Rax, Rbp, disp: tmp)
             push(a, Rax)
             add(var copies, Copy(place: place, tmp: tmp))
-            g.f.noTry := outer + 1
         add(var pushed, i)
     let words := placeArgs(g, pushed)
     let target := labelOf(g, c.span, callee.sym, callee.targs, sites: callee.sites)

@@ -107,4 +107,5 @@ use Main.pst 17:22-17:24
   parameter 'ys' @ Main.pst:10:41
 use Main.pst 18:23-18:28
   field 'items' @ Main.pst:7:9
+Main.pst error E0524 17:38-17:43 "'try' can't be inside a 'var' argument; put its value in a variable first"
 --- stderr

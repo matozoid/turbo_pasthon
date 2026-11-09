@@ -577,3 +577,107 @@ export function exprId(e: Expr): Integer
         ForExpr(x): return x.id
         Lambda(x): return x.id
         ErrorExpr(x): return x.id
+
+# ------------------------------------------------------------------------ walkers
+
+## The expressions directly inside `e`, in source order. Types and lambda bodies are
+## skipped.
+export function exprKids(e: Expr): List[Expr]
+    var out: List[Expr] := []
+    case e of
+        InterpString(x):
+            for p in x.parts do
+                case p of
+                    Expr(pe):
+                        add(var out, pe)
+                    else:
+                        pass
+        ListLit(x):
+            out := x.items
+        SetLit(x):
+            out := x.items
+        MapLit(x):
+            for en in x.entries do
+                add(var out, en.key)
+                add(var out, en.value)
+        Paren(x):
+            add(var out, x.inner)
+        Unary(x):
+            add(var out, x.operand)
+        Binary(x):
+            add(var out, x.left)
+            add(var out, x.right)
+        Call(x):
+            add(var out, x.callee)
+            for arg in x.args do
+                add(var out, arg.value)
+        Index(x):
+            add(var out, x.target)
+            for it in x.items do
+                case it of
+                    Expr(ie):
+                        add(var out, ie)
+                    else:
+                        pass
+        FieldAccess(x):
+            add(var out, x.target)
+        Deref(x):
+            add(var out, x.target)
+        IfExpr(x):
+            for b in x.branches do
+                add(var out, b.cond)
+                add(var out, b.value)
+            add(var out, x.elseValue)
+        CaseExpr(x):
+            add(var out, x.subject)
+            for arm in x.arms do
+                for lb in arm.labels do
+                    labelExprs(var out, lb)
+                add(var out, arm.value)
+        ForExpr(x):
+            loopExprs(var out, x.loop)
+        else:
+            pass
+    return out
+
+## The expressions in the statements a `for` expression is written as (`ForExpr`).
+export procedure loopExprs(var out: List[Expr], s: Stmt)
+    case s of
+        ForRange(x):
+            add(var out, x.start)
+            add(var out, x.stop)
+            for b in x.body.stmts do
+                loopExprs(var out, b)
+        ForIn(x):
+            add(var out, x.iterable)
+            for b in x.body.stmts do
+                loopExprs(var out, b)
+        If(x):
+            for br in x.branches do
+                add(var out, br.cond)
+                for b in br.body.stmts do
+                    loopExprs(var out, b)
+            case x.elseBody of
+                Some(eb):
+                    for b in eb.value.stmts do
+                        loopExprs(var out, b)
+                None:
+                    pass
+        ForValue(x):
+            case x.value of
+                Some(v):
+                    add(var out, v.value)
+                None:
+                    pass
+        else:
+            pass
+
+export procedure labelExprs(var out: List[Expr], lb: Label)
+    case lb of
+        ValueLabel(v):
+            add(var out, v.value)
+        RangeLabel(r):
+            add(var out, r.low)
+            add(var out, r.high)
+        VariantLabel(_):
+            pass

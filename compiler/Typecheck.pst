@@ -4518,6 +4518,16 @@ procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Sp
                 let why := immutable(tc, a.expr)
                 if why <> "" then
                     fail(tc, exprSpan(a.expr), "E0341", "can't pass {why} as 'var'")
+                case tryIn(a.expr) of
+                    Some(ts):
+                        fail(
+                            tc,
+                            ts.value,
+                            "E0524",
+                            "'try' can't be inside a 'var' argument; put its value in a variable first",
+                        )
+                    None:
+                        pass
             if a.isVar then
                 add(var varArgs, a)
         else if a.isVar then
@@ -4559,6 +4569,20 @@ procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Sp
             )
 
 # -------------------------------------------------------------------- mutability
+
+## The span of the first `try` in `e`, outside lambdas.
+function tryIn(e: Expr): Option[Span]
+    case e of
+        Unary(u):
+            if u.op = "try" then
+                return Some(u.span)
+        else:
+            pass
+    for k in exprKids(e) do
+        let found := tryIn(k)
+        if found.isSome() then
+            return found
+    return None
 
 ## `var` arguments of one call must be separate places (SPEC §6.3): not the same
 ## variable, field or element, and not one inside another.

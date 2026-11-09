@@ -750,6 +750,9 @@ Every call that may mutate an argument shows `var` at that argument.
   value, since a lambda may have captured one. Without mutable globals, arguments are the
   only way in. So `add(var p.items, x)` and
   `add(var p.items, Item(at: len(p.items)))` are O(1), not a copy of the list.
+- A `var` argument can't contain a `try` (`E0524`): returning from inside the call would
+  leave the places already bound emptied. Put the value in a variable first:
+  `let k := try find(xs)` then `inc(var counts[k])`.
 - The `var` arguments of one call must be separate places: not the same variable, field
   or element, and not one inside the other (`E0523`): `swap(var p, var p.x)` is an error.
   The check is at compile time, so it assumes the worst where it can't know:
@@ -1965,6 +1968,7 @@ already has a lexical error are not reported.
 | `E0521` | argument for a `var` parameter not marked `var` (fix: add `var`) |
 | `E0522` | `var` on an argument whose parameter isn't `var` |
 | `E0523` | two `var` arguments of one call overlap (§6.3) |
+| `E0524` | `try` inside a `var` argument (§6.3) |
 | `E0530` | positional argument with the same type as an earlier parameter group (fix: name it) |
 | `E0601` | overlapping `case` labels |
 | `E0602` | non-exhaustive `case` (enum or union), or missing `else` (other types) |
