@@ -426,6 +426,8 @@ type
 - Each variant is an existing type. Variant types in one union must be distinct.
 - A value of variant type converts implicitly to the union (`var s: Shape := Circle(r: 1.0)`).
   This is the only implicit conversion in the language.
+- The conversion reaches into list literals wherever a `List[Shape]` is expected, including
+  arguments: `total([Circle(r: 1.0), Rect(w: 1.0, h: 2.0)])`.
 - The only way to get a variant out is `case ... of` (§7.6), which must be exhaustive.
 
 ### 4.8 Option and Result

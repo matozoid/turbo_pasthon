@@ -80,7 +80,8 @@ type
         pre: Subst
 
     ## An argument. `ty` is `<none>` while flexible; `flex` is the integer or real literal
-    ## type, `[]`, `{}`, an `OverloadsT`, or `<none>`.
+    ## type, `[]`, `{}`, a list literal (`ty` is its own type if its items agree), an
+    ## `OverloadsT`, or `<none>`.
     export CArg = record
         export span: Span
         export name: Option[Ident]
@@ -90,6 +91,8 @@ type
         export flex: Type
         ## The `a` of `a.f(...)`.
         export receiver: Boolean
+        ## The item types of a list literal.
+        export items: List[Type]
 
     Fail = record
         code: String
@@ -3435,6 +3438,7 @@ function callExpr(tc: ref TC, e: Call, expected: Type): Type
                     ty: rt,
                     flex: noType(),
                     receiver: true,
+                    items: [],
                 )
                 let cands := ufcsCandidates(tc, name)
                 if len(cands) = 0 then
@@ -3764,10 +3768,20 @@ function flex(tc: ref TC, v: Expr): Type
 function prepare(tc: ref TC, args: List[Arg]): List[CArg]
     var out: List[CArg] := []
     for a in args do
-        let f := flex(tc, a.value)
+        var f := flex(tc, a.value)
         var t := noType()
-        if not known(f) then
-            t := value(tc, a.value, noType())
+        var items: List[Type] := []
+        case a.value of
+            ListLit(l):
+                if len(l.items) > 0 then
+                    items := listItems(tc, l)
+                    f := listLitT()
+                    if same(items) then
+                        t := builtin("List", [items[0]])
+                        tc.types[exprId(a.value)] := t
+            else:
+                if not known(f) then
+                    t := value(tc, a.value, noType())
         add(var out, CArg(
             span: a.span,
             name: a.name,
@@ -3776,8 +3790,25 @@ function prepare(tc: ref TC, args: List[Arg]): List[CArg]
             ty: t,
             flex: f,
             receiver: false,
+            items: items,
         ))
     return out
+
+## Types the items of a list literal argument; they may differ (variants that fit a union
+## parameter).
+function listItems(tc: ref TC, l: ListLit): List[Type]
+    let first := value(tc, l.items[0], noType())
+    var all := [first]
+    for i := 1 to len(l.items) - 1 do
+        add(var all, value(tc, l.items[i], first))
+    return all
+
+## Whether list literal items share one type.
+function same(items: List[Type]): Boolean
+    for t in items do
+        if not hasError(t) and not hasError(items[0]) and not (t = items[0]) then
+            return false
+    return true
 
 function argDesc(a: CArg): String
     if not known(a.flex) then
@@ -3790,6 +3821,13 @@ function argDesc(a: CArg): String
         return "[]"
     if a.flex = emptyBracesT() then
         return "\{}"
+    if a.flex = listLitT() then
+        if known(a.ty) then
+            return show(a.ty)
+        var shown: List[String] := []
+        for t in a.items do
+            add(var shown, show(t))
+        return "[{join(shown, sep: ", ")}]"
     return "overloaded function"
 
 function maxInt(a, b: Integer): Integer
@@ -4113,11 +4151,14 @@ function inject(tc: ref TC, pattern, actual: Type, var s: Subst, vars: Vars): Bo
             return true
     return false
 
-## Whether a flexible argument fits `want`: 0 exact, 2 non-default literal type, -1 not.
+## Whether a flexible argument fits `want`: 0 exact, 1 converted, 2 non-default literal
+## type, -1 not.
 function flexFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Integer
     let k := a.flex
     if hasError(want) then
         return 0
+    if k = listLitT() then
+        return listFit(tc, a, want, var s, vars)
     case want of
         ParamT(p):
             if p.sym.id in vars then
@@ -4171,6 +4212,31 @@ function flexFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Int
             pass
     return -1
 
+## Whether a list literal fits `want`: 0 as typed, 1 with its items converted, -1 not.
+function listFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Integer
+    if known(a.ty) then
+        var s2 := s
+        if unify(want, a.ty, var s2, vars) then
+            s := s2
+            return 0
+        let w := subst(want, s)
+        if not mentions(w, vars) and assignable(tc, a.ty, w) then
+            return 1
+    if not isBuiltin(want, "List") then
+        return -1
+    let elem := argsOf(want)[0]
+    var s2 := s
+    for t in a.items do
+        var s3 := s2
+        if unify(elem, t, var s3, vars) or inject(tc, elem, t, var s3, vars) then
+            s2 := s3
+        else
+            let w := subst(elem, s2)
+            if mentions(w, vars) or not assignable(tc, t, w) then
+                return -1
+    s := s2
+    return 1
+
 procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Span])
     let g := m.sig
     case refSpan of
@@ -4186,7 +4252,10 @@ procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Sp
         let a := m.slots[i].get()
         let p := m.params[i]
         let want := subst(p.ty, m.s)
-        if known(a.flex) then
+        if a.flex = listLitT() then
+            if not known(a.ty) or not assignable(tc, a.ty, want) then
+                tc.types[exprId(a.expr)] := want
+        else if known(a.flex) then
             _ := check(tc, a.expr, want)
         case a.name of
             Some(nm):
@@ -4237,7 +4306,9 @@ procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Sp
             fail(tc, a.span, "E0522", "'{p.name}' is not a var parameter of '{name}'; remove 'var'")
     for a in m.extra do
         var t := a.ty
-        if known(a.flex) then
+        if a.flex = listLitT() then
+            t := builtin("List", [a.items[0]])
+        else if known(a.flex) then
             t := value(tc, a.expr, noType())
         _ := cCompatible(tc, t, exprSpan(a.expr), false)
         if a.isVar then

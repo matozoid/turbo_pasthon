@@ -90,6 +90,10 @@ export function thisT(): Type
 export function emptyListT(): Type
     return SpecialT(name: "[]")
 
+## A non-empty list literal argument, which may fit `List[U]` for a union `U`.
+export function listLitT(): Type
+    return SpecialT(name: "<list literal>")
+
 export function emptyBracesT(): Type
     return SpecialT(name: "\{}")
 
