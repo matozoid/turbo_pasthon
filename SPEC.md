@@ -14,11 +14,24 @@ easy for AI tools (and humans) to read, write, and verify.
 
 ## 1. Design principles
 
+The main users are AI coding models; the language should be readable for humans.
+
 1. **One obvious way.** Each construct has a single syntax. The formatter is canonical and unconfigurable.
-2. **Nothing hidden.** No implicit conversions (one exception: injection into a union, §4.7), no exceptions, no null, no operator overloading, no macros.
-3. **Contracts visible.** Function signatures are always fully typed. Mutation is marked with `var`. Errors are values.
-4. **Machine-checkable.** Built-in contracts (`requires`/`ensures`), built-in tests, JSON diagnostics with stable error codes.
-5. **Turbo.** The compiler is fast and simple: parse, check, emit machine code. No optimization passes.
+2. **Nothing hidden.** No implicit conversions (one exception: injection into a union, §4.7), no exceptions, no null, no operator overloading, no macros. Errors are values.
+3. **Contracts visible.** Function signatures are always fully typed. Mutation is marked with `var`.
+4. **No surprises at runtime.** Overflow, bounds and contract failures panic in checked builds (`--unchecked` wraps overflow and drops contracts). No undefined behaviour outside `unsafe`.
+5. **Machine-checkable.** Built-in contracts (`requires`/`ensures`), built-in tests, JSON diagnostics with stable error codes, and `pst query`, LSP and MCP over one front end (§15).
+6. **Good error messages.** A diagnostic says what is wrong and how to fix it, and offers a fix where it can.
+7. **Familiar syntax.** Pascal's vocabulary with Python's significant indentation.
+8. **Memory safety.** No null, no manual free: automatic reference counting and value semantics (§11). Raw pointers only inside `unsafe`.
+9. **Good C interop.** Pasthon calls C libraries and C calls back into Pasthon. C records have exact C layout and are declared in extern blocks. Strings go to C without copying, but explicitly (`toCString`). Bindings are written by hand; headers aren't imported (§10).
+10. **Turbo.** The compiler is fast and simple, inspired by Turbo Pascal: few passes, no forward declarations, parse, check, emit machine code. It is written in Turbo Pasthon itself.
+11. **Platforms.** Linux x86-64 first, other modern hosted platforms later. Relying on libc is fine.
+
+Non-goals:
+
+- Fast generated code. There are no optimization passes; code won't be the fastest, but not slow.
+- C calling Pasthon libraries, and static linking of C libraries.
 
 ---
 
@@ -625,7 +638,7 @@ them compile to direct calls with no allocation:
 **Consumers:** `collect(it): List[T]`, `count`, `sum`, `any(it, pred)`, `all(it, pred)`,
 `find(it, pred): Option[T]`.
 
-In v0.1, `f` and `pred` are named functions (`map(xs, double)`). v0.2 lambdas (§18a) make
+In v0.1, `f` and `pred` are named functions (`map(xs, double)`). v0.3 lambdas (§18a) make
 them inline: `map(xs, x => x * 2)`.
 
 ---
@@ -1197,7 +1210,7 @@ v0.1 is single-threaded, but the design is fixed now so v0.1 doesn't rule it out
 - Only `Sendable` values cross threads: types containing no `ref`, `Weak`, `Ptr`, or
   `Pointer`. Sending transfers the value (a runtime operation, not compile-time move tracking). Buffers with refcount 1 are handed over in O(1),
   shared buffers are deep-copied, so the receiver always gets an object it owns alone.
-- `spawn` takes a named top-level function (or a v0.2 lambda that only captures `Sendable`
+- `spawn` takes a named top-level function (or a v0.3 lambda that only captures `Sendable`
   values).
 - v0.1 implementation constraint: the runtime must not rely on any global mutable state
   of its own (allocator caches, string tables) without being made per-thread.
@@ -1755,7 +1768,7 @@ runtime trait objects (use unions).
 
 None at the moment.
 
-## 18a. Planned for v0.2
+## 18a. Planned for v0.3
 
 **Lambdas**, restricted so that the common, safe cases work and the classic bugs can't happen:
 
