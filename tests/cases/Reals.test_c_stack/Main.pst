@@ -38,6 +38,55 @@ extern "./libbig.so"
         r6: CDouble,
         r7: CDouble,
     ): CDouble
+    function callBack(
+        f: function(
+            Pt,
+            Big,
+            Mix,
+            CLong,
+            CLong,
+            CLong,
+            CLong,
+            CLong,
+            CLong,
+            CLong,
+            CDouble,
+        ): CDouble,
+    ): CDouble
+    function callLate(
+        f: function(CLong, CLong, CLong, CLong, CLong, CLong, Mix, CFloat): CLong,
+    ): CLong
+
+function onBack(
+    p: Pt,
+    b: Big,
+    m: Mix,
+    c1: CLong,
+    c2: CLong,
+    c3: CLong,
+    c4: CLong,
+    c5: CLong,
+    c6: CLong,
+    c7: CLong,
+    r: CDouble,
+): CDouble
+    writeln(
+        "back: {p.x} {p.y} {b.a} {b.b} {b.c} {m.n} {m.f} {c1} {c2} {c3} {c4} {c5} {c6} {c7} {r}",
+    )
+    return p.y + r
+
+function onLate(
+    c1: CLong,
+    c2: CLong,
+    c3: CLong,
+    c4: CLong,
+    c5: CLong,
+    c6: CLong,
+    m: Mix,
+    f: CFloat,
+): CLong
+    writeln("late: {c1} {c2} {c3} {c4} {c5} {c6} {m.n} {m.f} {f}")
+    return c1 + c6 + CLong(m.n)
 
 unsafe procedure counts()
     _ := printf(
@@ -87,3 +136,5 @@ writeln(late(
     r6: 6.0,
     r7: 7.0,
 ))
+writeln(callBack(onBack))
+writeln(callLate(onLate))

@@ -9,3 +9,11 @@ double late(long a, long b, long c, long d, long e, Pt p, long f, Pt q, Mix m, d
     fflush(stdout);
     return p.x + q.y + r7;
 }
+double callBack(double (*f)(Pt, Big, Mix, long, long, long, long, long, long, long, double)) {
+    Pt p = {0.5, 1.5}; Big b = {1, 2, 3}; Mix m = {7, 0.25f};
+    return f(p, b, m, 1, 2, 3, 4, 5, 6, 7, 8.5);
+}
+long callLate(long (*f)(long, long, long, long, long, long, Mix, float)) {
+    Mix m = {9, 0.5f};
+    return f(1, 2, 3, 4, 5, 6, m, 1.25f);
+}

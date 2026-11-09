@@ -133,12 +133,14 @@ type
         sites: Map[Integer, String]
         depth: Integer
 
-    ## A callback's thunk: its label, the routine's label, the parameter types.
+    ## A callback's thunk: its label, the routine's label, the parameter and result
+    ## types, and where the callback is named.
     Thunk = record
         label: String
         target: String
         params: List[Type]
         result: Type
+        span: Span
 
     ## The drop routine of a box type, and the destroy hook it calls ("" for none).
     BoxDrop = record
@@ -3783,7 +3785,7 @@ procedure callback(g: ref Em, e: Expr, t: Type)
     let k := "thunk|{sym.get().id}"
     if not (k in g.labels) then
         for p in params do
-            if managed(g, p) then
+            if managed(g, p) and not isCRecord(g, p) then
                 unsupported(g, exprSpan(e), "a callback taking {show(p)}")
                 return
         var result := voidT()
@@ -3792,55 +3794,106 @@ procedure callback(g: ref Em, e: Expr, t: Type)
                 result := ft.result
             else:
                 pass
+        if managed(g, result) then
+            unsupported(g, exprSpan(e), "a callback returning {show(result)}")
+            return
         let lbl := newLabel(g.a, "thunk")
         g.labels[k] := lbl
         let target := labelOf(g, exprSpan(e), sym.get(), [], sites: {})
         if g.bad then
             return
-        add(var g.thunks, Thunk(label: lbl, target: target, params: params, result: result))
+        add(
+            var g.thunks,
+            Thunk(label: lbl, target: target, params: params, result: result, span: exprSpan(e)),
+        )
     leaCode(g.a, Rax, label: g.labels[k])
 
-## C passes reals in xmm registers and the rest in the integer ones, counted apart; the
-## routine takes each argument in the integer register of its position. The thunk moves
-## them there, last first (an argument's C register is never after its own), extends
-## small integers, whose upper bits C leaves undefined, and goes on to the routine; or
-## calls it and returns a real result in xmm0.
+## C passes reals in xmm registers and the rest in the integer ones, counted apart, and
+## what doesn't fit, or a C record over 16 bytes, on the stack; the routine takes each
+## argument in the integer register of its position, from the seventh on the stack. The
+## thunk saves C's argument registers in its frame and puts each argument together in a
+## slot there: a small integer extended, since C leaves its upper bits undefined, and a C
+## record copied into a new block, which the routine owns. Then it calls the routine and
+## returns a real result in xmm0.
+##
+## The frame: C's integer argument registers at rbp-8 down, its xmm ones at rbp-56 down,
+## two words gathering a C record from registers at rbp-128, and the slots at rbp-136 down.
 procedure thunk(g: ref Em, th: Thunk)
     let a := g.a
+    g.site := ""
     label(a, th.label)
-    var n := len(th.params)
-    if n > 6 then
-        n := 6
-    var ints: List[Integer] := []  # the C register of each argument
-    var reals := 0
-    var others := 0
+    push(a, Rbp)
+    mov(a, Rbp, Rsp)
+    let n := len(th.params)
+    subImm(a, Rsp, value: align(128 + 8 * n, 16))
+    for k := 0 to 5 do
+        store(a, Rbp, disp: -8 - 8 * k, src: argReg(k))
+    for k := 0 to 7 do
+        movqFromXmm(a, Rax, x: k)
+        store(a, Rbp, disp: -56 - 8 * k, src: Rax)
+    var ints := 0
+    var xmms := 0
+    var stack := 16  # the next of C's stack arguments
     for i := 0 to n - 1 do
-        if isRealT(th.params[i]) then
-            add(var ints, reals)
-            reals := reals + 1
-        else
-            add(var ints, others)
-            others := others + 1
-    for i := n - 1 downto 0 do
         let t := th.params[i]
-        if t = realT() then
-            movqFromXmm(a, argReg(i), x: ints[i])
-        else if t = real32T() then
-            movdFromXmm(a, argReg(i), x: ints[i])
+        var from := stack
+        if isCRecord(g, t) then
+            let size := cLayout(g, t, th.span).size
+            let sse := sseWords(g, t, th.span)
+            var wantXmms := 0
+            for s in sse do
+                if s then
+                    wantXmms := wantXmms + 1
+            let wantInts := len(sse) - wantXmms
+            if size <= 16 and ints + wantInts <= 6 and xmms + wantXmms <= 8 then
+                for w := 0 to len(sse) - 1 do
+                    if sse[w] then
+                        load(a, Rax, Rbp, disp: -56 - 8 * xmms)
+                        xmms := xmms + 1
+                    else
+                        load(a, Rax, Rbp, disp: -8 - 8 * ints)
+                        ints := ints + 1
+                    store(a, Rbp, disp: -128 + 8 * w, src: Rax)
+                from := -128
+            else
+                stack := stack + 8 * len(sse)
+            newCBlock(g, t, th.span)
+            if g.bad then
+                return
+            store(a, Rbp, disp: -136 - 8 * i, src: Rax)
+            lea(a, Rdi, Rax, disp: Fields)
+            lea(a, Rsi, Rbp, disp: from)
+            movImm(a, Rdx, value: size)
+            ccall(g, "memcpy")
         else
-            if ints[i] <> i then
-                mov(a, argReg(i), argReg(ints[i]))
-            widen(g, t, reg: argReg(i))
-    if not isRealT(th.result) then
-        jmp(a, th.target)
-        return
-    subImm(a, Rsp, value: 8)
+            if isRealT(t) and xmms < 8 then
+                from := -56 - 8 * xmms
+                xmms := xmms + 1
+            else if not isRealT(t) and ints < 6 then
+                from := -8 - 8 * ints
+                ints := ints + 1
+            else
+                stack := stack + 8
+            if t = real32T() then
+                loadW(a, Rax, Rbp, disp: from, bits: 32, signed: false)
+            else
+                load(a, Rax, Rbp, disp: from)
+                widen(g, t)
+            store(a, Rbp, disp: -136 - 8 * i, src: Rax)
+    if n > 6 and (n - 6) mod 2 = 1 then
+        subImm(a, Rsp, value: 8)
+    for i := n - 1 downto 0 do
+        if i >= 6 then
+            load(a, Rax, Rbp, disp: -136 - 8 * i)
+            push(a, Rax)
+        else
+            load(a, argReg(i), Rbp, disp: -136 - 8 * i)
     call(a, th.target)
-    addImm(a, Rsp, value: 8)
     if th.result = realT() then
         movqToXmm(a, Xmm0, r: Rax)
-    else
+    else if th.result = real32T() then
         movdToXmm(a, Xmm0, r: Rax)
+    leave(a)
     ret(a)
 
 ## The file whose visibility resolves the bound members of a type argument `t`: where it

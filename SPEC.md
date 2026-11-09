@@ -1176,7 +1176,7 @@ unsafe procedure fill(s: Ptr[SdlSurface])
   only reals in the next xmm register, any other in the next integer one, or the whole
   record on the stack when the registers run out. A bigger one goes on the stack, and one
   returned is written to memory the caller passes.
-- v0.1 code generator limit (`E0990`): callbacks can't take C records by value.
+- v0.1 code generator limit (`E0990`): callbacks can't return C records by value.
 
 ---
 
