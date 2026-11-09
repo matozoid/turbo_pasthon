@@ -1,0 +1,8 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file://DIR/Main.pst","languageId":"pasthon","version":1,"text":"program Main\n\nuses IO, Shop\n\nfunction first(items: List[ref Item]): ref Item\n    return items[0]\n\nlet i := Item(name: \"a\", qty: 2)\nlet items := [new(i)]\nlet size := Size.Large\nwriteln(i.qty)\nwriteln(first(items).qty)\nwriteln(len(items))\nwriteln(size = Size.Small)\n"}}}
+{"jsonrpc":"2.0","id":2,"method":"workspace/symbol","params":{"query":""}}
+{"jsonrpc":"2.0","id":3,"method":"workspace/symbol","params":{"query":"it"}}
+{"jsonrpc":"2.0","id":4,"method":"workspace/symbol","params":{"query":"SMALL"}}
+{"jsonrpc":"2.0","id":5,"method":"workspace/symbol","params":{"query":"zz"}}
+{"jsonrpc":"2.0","id":6,"method":"shutdown"}
+{"jsonrpc":"2.0","method":"exit"}

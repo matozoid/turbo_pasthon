@@ -1398,7 +1398,7 @@ the same front end. JSON-RPC over stdio, LSP 3.17. It has no dependencies beyond
 
 So far it synchronizes whole documents (`textDocumentSync` 1), pushes diagnostics, formats,
 and answers completion, hover, signature help, definition, type definition, references, rename, code actions, document
-symbols and folding ranges. After each change it checks
+symbols, workspace symbols and folding ranges. After each change it checks
 every open document, with the open documents' texts read in place of their files (§15.6),
 and pushes the diagnostics that are in that document; closing a document clears its
 diagnostics. Columns are converted to UTF-16 code units. A request about a position checks
@@ -1433,6 +1433,9 @@ its document again and looks up the name at the position, or the name just befor
 - Code actions are the fixes of the document's diagnostics on the requested lines.
 - Document symbols are the document's types, constants and routines, with enum members,
   fields and trait routines as children.
+- Workspace symbols are the types, constants, routines, fields and enum members declared
+  in the open documents and the units they use, apart from standard units, whose names
+  contain the letters of the query in order, ignoring case.
 - Folding ranges fold each line followed by more deeply indented lines, up to the last of
   them; blank lines don't end a fold.
 

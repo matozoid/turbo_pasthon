@@ -1,0 +1,14 @@
+$ $PST build Frames.pst -o frames
+exit 0
+--- stdout
+--- stderr
+$ sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities
+exit 0
+--- stdout
+status 0
+{"jsonrpc":"2.0","id":2,"result":[{"name":"first","kind":12,"location":{"uri":"file://Main.pst","range":{"start":{"line":4,"character":9},"end":{"line":4,"character":14}}}},{"name":"Item","kind":23,"location":{"uri":"file://Shop.pst","range":{"start":{"line":3,"character":11},"end":{"line":3,"character":15}}}},{"name":"name","kind":8,"location":{"uri":"file://Shop.pst","range":{"start":{"line":4,"character":15},"end":{"line":4,"character":19}}},"containerName":"Item"},{"name":"qty","kind":8,"location":{"uri":"file://Shop.pst","range":{"start":{"line":5,"character":15},"end":{"line":5,"character":18}}},"containerName":"Item"},{"name":"Size","kind":10,"location":{"uri":"file://Shop.pst","range":{"start":{"line":7,"character":11},"end":{"line":7,"character":15}}}},{"name":"Small","kind":22,"location":{"uri":"file://Shop.pst","range":{"start":{"line":7,"character":19},"end":{"line":7,"character":24}}},"containerName":"Size"},{"name":"Large","kind":22,"location":{"uri":"file://Shop.pst","range":{"start":{"line":7,"character":26},"end":{"line":7,"character":31}}},"containerName":"Size"},{"name":"price","kind":12,"location":{"uri":"file://Shop.pst","range":{"start":{"line":10,"character":16},"end":{"line":10,"character":21}}}},{"name":"quantity","kind":12,"location":{"uri":"file://Shop.pst","range":{"start":{"line":14,"character":16},"end":{"line":14,"character":24}}}}]}
+{"jsonrpc":"2.0","id":3,"result":[{"name":"first","kind":12,"location":{"uri":"file://Main.pst","range":{"start":{"line":4,"character":9},"end":{"line":4,"character":14}}}},{"name":"Item","kind":23,"location":{"uri":"file://Shop.pst","range":{"start":{"line":3,"character":11},"end":{"line":3,"character":15}}}},{"name":"quantity","kind":12,"location":{"uri":"file://Shop.pst","range":{"start":{"line":14,"character":16},"end":{"line":14,"character":24}}}}]}
+{"jsonrpc":"2.0","id":4,"result":[{"name":"Small","kind":22,"location":{"uri":"file://Shop.pst","range":{"start":{"line":7,"character":19},"end":{"line":7,"character":24}}},"containerName":"Size"}]}
+{"jsonrpc":"2.0","id":5,"result":[]}
+{"jsonrpc":"2.0","id":6,"result":null}
+--- stderr

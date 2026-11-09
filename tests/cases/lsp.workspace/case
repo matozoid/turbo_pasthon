@@ -1,0 +1,5 @@
+# The language server (SPEC §15.4): workspace symbols are the declarations in the open
+# documents and the units they use, apart from standard units, whose names contain the
+# letters of the query in order, ignoring case.
+$PST build Frames.pst -o frames
+sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities

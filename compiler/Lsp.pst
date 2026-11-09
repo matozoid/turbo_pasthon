@@ -985,6 +985,70 @@ function documentSymbols(s: Server, path: String): String
             add(var parts, documentSymbol(t.get(), sym))
     return "[{join(parts, sep: ",")}]"
 
+## `c` in lower case, for ASCII letters.
+function lowerChar(c: Char): Char
+    if c >= 'A' and c <= 'Z' then
+        return Char(ord(c) + 32)
+    return c
+
+## Whether the letters of `query` appear in `name` in order, ignoring case.
+function matches(name, query: String): Boolean
+    var want: List[Char] := []
+    for c in query do
+        add(var want, lowerChar(c))
+    var i := 0
+    for c in name do
+        if i < len(want) and lowerChar(c) = want[i] then
+            i := i + 1
+    return i = len(want)
+
+## The types, constants, routines, fields and enum members declared in the open documents
+## and the units they use, apart from the standard units, whose names match `query`.
+function workspaceSymbols(s: Server, query: String): String
+    var parts: List[String] := []
+    var seen: Map[String, Boolean] := {}
+    for path, _ in s.texts do
+        let a := analyze(s, path)
+        var std: Map[String, Boolean] := {}
+        for u in a.checked.resolved.units do
+            if u.std then
+                std[u.path] := true
+        for r in a.checked.resolved.checker.index.refs do
+            if not r.isDef or len(r.targets) <> 1 or r.file in std or not (r.file in a.texts) then
+                continue
+            let sym := r.targets[0]
+            var wanted := sym.kind in [
+                Kind.TypeSym,
+                Kind.TraitSym,
+                Kind.ConstSym,
+                Kind.FieldSym,
+                Kind.EnumMember,
+            ] or isRoutine(sym.kind)
+            case sym.node of
+                Signature(_):
+                    wanted := sym.file = r.file
+                else:
+                    pass
+            let key := "{r.file}:{r.span.start}"
+            if wanted and not (key in seen) and matches(sym.name, query: query) then
+                seen[key] := true
+                var container := ""
+                case a.checked.env of
+                    Some(env):
+                        case get(env.value.owner, sym.id) of
+                            Some(o):
+                                container := ",\"containerName\":{quote(o.value.name)}"
+                            None:
+                                pass
+                    None:
+                        pass
+                let where := location(s, a.texts[r.file], file: r.file, span: r.span)
+                add(
+                    var parts,
+                    "\{\"name\":{quote(sym.name)},\"kind\":{symbolKind(sym)},\"location\":{where}{container}}",
+                )
+    return "[{join(parts, sep: ",")}]"
+
 ## A fold for each line followed by more deeply indented lines, up to the last of them.
 function foldingRanges(s: Server, path: String): String
     let text := get(s.texts, path)
@@ -1045,7 +1109,7 @@ function codeActions(s: Server, path: String, params: JValue): String
 # ------------------------------------------------------------------------- requests
 
 function capabilities(): String
-    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"typeDefinitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"foldingRangeProvider\":true,\"renameProvider\":true,\"completionProvider\":\{\"triggerCharacters\":[\".\"]},\"signatureHelpProvider\":\{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":\{\"name\":\"pst\"}}"
+    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"typeDefinitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"workspaceSymbolProvider\":true,\"foldingRangeProvider\":true,\"renameProvider\":true,\"completionProvider\":\{\"triggerCharacters\":[\".\"]},\"signatureHelpProvider\":\{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":\{\"name\":\"pst\"}}"
 
 ## The edits that format the document at `uri`: none if it is formatted, or can't be.
 function formatting(s: Server, uri: String): String
@@ -1104,6 +1168,11 @@ procedure handle(var s: Server, m: JValue)
         respond(id, result: hover(s, pathOf(uri), params: params))
     else if method = "textDocument/typeDefinition" then
         respond(id, result: typeDefinition(s, pathOf(uri), params: params))
+    else if method = "workspace/symbol" then
+        respond(id, result: workspaceSymbols(
+            s,
+            query: asString(field(params, key: "query")).getOr(""),
+        ))
     else if method = "textDocument/definition" then
         respond(id, result: definition(s, pathOf(uri), params: params))
     else if method = "textDocument/references" then
