@@ -1,0 +1,20 @@
+# `pst query` (SPEC §15.5): definitions, references, types, hover and symbols.
+$PST check Main.pst
+$PST query def Main.pst:11:9
+$PST query def Main.pst:11:17
+$PST query refs Main.pst:11:9
+$PST query refs Shop.pst:7:16 --json
+$PST query type Main.pst:9:5
+$PST query type Main.pst:5:10
+$PST query hover Main.pst:11:9
+$PST query hover Main.pst:10:16
+$PST query hover Main.pst:11:16
+$PST query hover Main.pst:3:6 | grep -c '"file":"/'
+$PST query def Main.pst:2:1
+$PST query symbols Shop.pst
+$PST query symbols
+$PST query def Nope.pst:1:1
+$PST query def Main.pst:x
+$PST query def Main.pst:0:1
+$PST query where Main.pst:1:1
+$PST query def

@@ -8,28 +8,28 @@ unit Lsp
 uses IO, OS, Strings, Source, Tokens, Lexer, Diagnostics, Ast, Symbols, Resolve, Types, Typecheck, Fmt, Json
 
 type
-    Server = record
-        stdDir: String
+    export Server = record
+        export stdDir: String
         ## The open documents' texts and URIs, by path.
-        texts: Map[String, String]
-        uris: Map[String, String]
+        export texts: Map[String, String]
+        export uris: Map[String, String]
         ## Whether `shutdown` came; `exit` then ends with status 0.
-        down: Boolean
+        export down: Boolean
 
     ## A check of one open document, with the decoded texts of the units it loaded.
-    Analysis = record
-        checked: Checked
-        texts: Map[String, Text]
+    export Analysis = record
+        export checked: Checked
+        export texts: Map[String, Text]
 
     ## The definition and uses of a symbol, and the decoded texts of their files.
-    Occurrences = record
-        sym: Option[ref Symbol]
+    export Occurrences = record
+        export sym: Option[ref Symbol]
         ## The symbol is in a standard unit.
-        std: Boolean
-        refs: List[Ref]
-        texts: Map[String, Text]
+        export std: Boolean
+        export refs: List[Ref]
+        export texts: Map[String, Text]
         ## The errors in the open documents.
-        errors: Integer
+        export errors: Integer
 
     ## The completion items found so far, for names starting with `prefix`.
     Completions = record
@@ -208,7 +208,7 @@ procedure checkAll(s: Server)
 
 # ------------------------------------------------------------------------- symbols
 
-function analyze(s: Server, path: String): Analysis
+export function analyze(s: Server, path: String): Analysis
     return analyzeWith(s, path, texts: s.texts)
 
 ## A check of `path` with `texts` in place of the files.
@@ -230,13 +230,17 @@ function refAt(a: Analysis, path: String, params: JValue): Option[Ref]
                 line,
                 character: asInteger(field(pos, key: "character")).getOr(0),
             )
-            let ix := a.checked.resolved.checker.index
-            let found := at(ix, path, line, col: col)
-            if found.isSome() or col = 1 then
-                return found
-            return at(ix, path, line, col: col - 1)
+            return refAtLine(a, path, line, col: col)
         None:
             return None
+
+## The reference at `line` and `col` (in code points): on the name, or just after it.
+export function refAtLine(a: Analysis, path: String, line, col: Integer): Option[Ref]
+    let ix := a.checked.resolved.checker.index
+    let found := at(ix, path, line, col: col)
+    if found.isSome() or col = 1 then
+        return found
+    return at(ix, path, line, col: col - 1)
 
 ## The URI of `path`: the client's, if the document is open.
 function uriFor(s: Server, path: String): String
@@ -260,7 +264,7 @@ function firstLine(a: Analysis, file: String, span: Span): String
             return ""
 
 ## A symbol's declaration, in short.
-function headOf(a: Analysis, sym: ref Symbol): String
+export function headOf(a: Analysis, sym: ref Symbol): String
     let kind := name(sym.kind)
     var head := "{kind} {sym.name}"
     case sym.node of
@@ -335,7 +339,7 @@ function definition(s: Server, path: String, params: JValue): String
 
 ## The type of a value the symbol names: a local's, a constant's, a field's, an enum
 ## member's, or what a function returns.
-function typeOfSym(env: ref Env, sym: ref Symbol): Option[Type]
+export function typeOfSym(env: ref Env, sym: ref Symbol): Option[Type]
     if isLocal(sym.kind) then
         return get(env.symTypes, sym.id)
     if sym.kind = Kind.ConstSym then
@@ -355,7 +359,7 @@ function typeOfSym(env: ref Env, sym: ref Symbol): Option[Type]
     return None
 
 ## The declared types a type is made of: `ref Item` and `List[Item]` lead to `Item`.
-procedure typeSyms(t: Type, var out: List[ref Symbol])
+export procedure typeSyms(t: Type, var out: List[ref Symbol])
     case t of
         NamedT(n):
             add(var out, n.sym)
@@ -412,9 +416,14 @@ function errorCount(a: Analysis): Integer
 ## Every definition and use of the symbol at the position, in the open documents and the
 ## units they use, once each.
 function occurrences(s: Server, path: String, params: JValue): Occurrences
-    var o := Occurrences(sym: None, std: false, refs: [], texts: {}, errors: 0)
     let first := analyze(s, path)
-    case refAt(first, path, params: params) of
+    return occurrencesOf(s, first, found: refAt(first, path, params: params))
+
+## Every definition and use of the symbol `found` refers to, `first` being the analysis
+## it was found in.
+export function occurrencesOf(s: Server, first: Analysis, found: Option[Ref]): Occurrences
+    var o := Occurrences(sym: None, std: false, refs: [], texts: {}, errors: 0)
+    case found of
         Some(r):
             if len(r.value.targets) > 0 and r.value.targets[0].span.isSome() then
                 o.sym := Some(r.value.targets[0])
@@ -578,7 +587,7 @@ function callees(a: Analysis, path: String, callee: Token): List[ref Symbol]
     return out
 
 ## The documentation of a declaration, if it has any.
-function docOf(sym: ref Symbol): Option[String]
+export function docOf(sym: ref Symbol): Option[String]
     case sym.node of
         Routine(r):
             return r.doc
@@ -916,7 +925,7 @@ function isWordChar(c: Char): Boolean
     return (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9') or c = '_'
 
 ## The whole declaration of a symbol declared in source.
-function declSpan(sym: ref Symbol): Span
+export function declSpan(sym: ref Symbol): Span
     case sym.node of
         Routine(r):
             return r.span
@@ -1371,7 +1380,7 @@ function lowerChar(c: Char): Char
     return c
 
 ## Whether the letters of `query` appear in `name` in order, ignoring case.
-function matches(name, query: String): Boolean
+export function matches(name, query: String): Boolean
     var want: List[Char] := []
     for c in query do
         add(var want, lowerChar(c))

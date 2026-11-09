@@ -1,0 +1,114 @@
+$ $PST check Main.pst
+exit 0
+--- stdout
+--- stderr
+$ $PST query def Main.pst:11:9
+exit 0
+--- stdout
+{"schema":"pst-query/1","locations":[{"file":"Shop.pst","line":12,"col":17,"endLine":12,"endCol":22}]}
+--- stderr
+$ $PST query def Main.pst:11:17
+exit 0
+--- stdout
+{"schema":"pst-query/1","locations":[{"file":"Shop.pst","line":7,"col":16,"endLine":7,"endCol":19}]}
+--- stderr
+$ $PST query refs Main.pst:11:9
+exit 0
+--- stdout
+{"schema":"pst-query/1","locations":[{"file":"Shop.pst","line":12,"col":17,"endLine":12,"endCol":22,"isDef":true},{"file":"Main.pst","line":11,"col":9,"endLine":11,"endCol":14,"isDef":false}]}
+--- stderr
+$ $PST query refs Shop.pst:7:16 --json
+exit 0
+--- stdout
+{"schema":"pst-query/1","locations":[{"file":"Shop.pst","line":7,"col":16,"endLine":7,"endCol":19,"isDef":true},{"file":"Main.pst","line":8,"col":26,"endLine":8,"endCol":29,"isDef":false},{"file":"Main.pst","line":11,"col":17,"endLine":11,"endCol":20,"isDef":false},{"file":"Main.pst","line":11,"col":37,"endLine":11,"endCol":40,"isDef":false}]}
+--- stderr
+$ $PST query type Main.pst:9:5
+exit 0
+--- stdout
+{"schema":"pst-query/1","types":[{"type":"List[ref Item]","declarations":[{"file":"Shop.pst","line":5,"col":12,"endLine":5,"endCol":16}]}]}
+--- stderr
+$ $PST query type Main.pst:5:10
+exit 0
+--- stdout
+{"schema":"pst-query/1","types":[{"type":"ref Item","declarations":[{"file":"Shop.pst","line":5,"col":12,"endLine":5,"endCol":16}]}]}
+--- stderr
+$ $PST query hover Main.pst:11:9
+exit 0
+--- stdout
+{"schema":"pst-query/1","symbols":[{"name":"price","kind":"function","declaration":"function price(n: Integer): Integer","doc":"The price of `n` items.","location":{"file":"Shop.pst","line":12,"col":17,"endLine":12,"endCol":22}}]}
+--- stderr
+$ $PST query hover Main.pst:10:16
+exit 0
+--- stdout
+{"schema":"pst-query/1","symbols":[{"name":"Size","kind":"type","declaration":"type Size = (Small, Large)","location":{"file":"Shop.pst","line":9,"col":12,"endLine":9,"endCol":16}}]}
+--- stderr
+$ $PST query hover Main.pst:11:16
+exit 0
+--- stdout
+{"schema":"pst-query/1","symbols":[{"name":"i","kind":"let","type":"Item","declaration":"let i: Item","location":{"file":"Main.pst","line":8,"col":5,"endLine":8,"endCol":6}}]}
+--- stderr
+$ $PST query hover Main.pst:3:6 | grep -c '"file":"/'
+exit 0
+--- stdout
+1
+--- stderr
+$ $PST query def Main.pst:2:1
+exit 0
+--- stdout
+{"schema":"pst-query/1","locations":[]}
+--- stderr
+$ $PST query symbols Shop.pst
+exit 0
+--- stdout
+{"schema":"pst-query/1","symbols":[{"name":"Item","kind":"type","declaration":"type Item = record","doc":"Something to sell.","location":{"file":"Shop.pst","line":5,"col":12,"endLine":5,"endCol":16}},{"name":"name","kind":"field","container":"Item","type":"String","declaration":"field name: String","location":{"file":"Shop.pst","line":6,"col":16,"endLine":6,"endCol":20}},{"name":"qty","kind":"field","container":"Item","type":"Integer","declaration":"field qty: Integer","location":{"file":"Shop.pst","line":7,"col":16,"endLine":7,"endCol":19}},{"name":"Size","kind":"type","declaration":"type Size = (Small, Large)","location":{"file":"Shop.pst","line":9,"col":12,"endLine":9,"endCol":16}},{"name":"Small","kind":"enum member","container":"Size","type":"Size","declaration":"enum member Size.Small","location":{"file":"Shop.pst","line":9,"col":20,"endLine":9,"endCol":25}},{"name":"Large","kind":"enum member","container":"Size","type":"Size","declaration":"enum member Size.Large","location":{"file":"Shop.pst","line":9,"col":27,"endLine":9,"endCol":32}},{"name":"price","kind":"function","declaration":"function price(n: Integer): Integer","doc":"The price of `n` items.","location":{"file":"Shop.pst","line":12,"col":17,"endLine":12,"endCol":22}}]}
+--- stderr
+$ $PST query symbols
+exit 0
+--- stdout
+{"schema":"pst-query/1","symbols":[{"name":"first","kind":"function","declaration":"function first(items: List[ref Item]): ref Item","location":{"file":"Main.pst","line":5,"col":10,"endLine":5,"endCol":15}},{"name":"Item","kind":"type","declaration":"type Item = record","doc":"Something to sell.","location":{"file":"Shop.pst","line":5,"col":12,"endLine":5,"endCol":16}},{"name":"name","kind":"field","container":"Item","type":"String","declaration":"field name: String","location":{"file":"Shop.pst","line":6,"col":16,"endLine":6,"endCol":20}},{"name":"qty","kind":"field","container":"Item","type":"Integer","declaration":"field qty: Integer","location":{"file":"Shop.pst","line":7,"col":16,"endLine":7,"endCol":19}},{"name":"Size","kind":"type","declaration":"type Size = (Small, Large)","location":{"file":"Shop.pst","line":9,"col":12,"endLine":9,"endCol":16}},{"name":"Small","kind":"enum member","container":"Size","type":"Size","declaration":"enum member Size.Small","location":{"file":"Shop.pst","line":9,"col":20,"endLine":9,"endCol":25}},{"name":"Large","kind":"enum member","container":"Size","type":"Size","declaration":"enum member Size.Large","location":{"file":"Shop.pst","line":9,"col":27,"endLine":9,"endCol":32}},{"name":"price","kind":"function","declaration":"function price(n: Integer): Integer","doc":"The price of `n` items.","location":{"file":"Shop.pst","line":12,"col":17,"endLine":12,"endCol":22}}]}
+--- stderr
+$ $PST query def Nope.pst:1:1
+exit 1
+--- stdout
+--- stderr
+pst: error: can't read 'Nope.pst'
+$ $PST query def Main.pst:x
+exit 1
+--- stdout
+--- stderr
+pst: error: expected FILE:LINE:COL, got 'Main.pst:x'
+$ $PST query def Main.pst:0:1
+exit 1
+--- stdout
+--- stderr
+pst: error: line and column start at 1, got 'Main.pst:0:1'
+$ $PST query where Main.pst:1:1
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst fmt PATH [--check]
+       pst lsp
+       pst query def|refs|type|hover FILE:LINE:COL
+       pst query symbols [PATH]
+       pst tokens FILE
+       pst ast FILE
+pst: error: unknown query 'where'
+$ $PST query def
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst fmt PATH [--check]
+       pst lsp
+       pst query def|refs|type|hover FILE:LINE:COL
+       pst query symbols [PATH]
+       pst tokens FILE
+       pst ast FILE
+pst: error: missing FILE:LINE:COL

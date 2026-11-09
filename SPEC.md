@@ -1311,7 +1311,7 @@ test "largest of empty list is None"
 | `pst tokens FILE` / `pst ast FILE` | debugging dumps of the lexer and parser |
 
 `compiler/Pst.pst` is the tool, written in Pasthon. It has `check`, `build`, `run`, `test`,
-`fmt`, `lsp`, `tokens` and `ast` so far, and finds the standard units in `units` next to its executable.
+`fmt`, `lsp`, `query`, `tokens` and `ast` so far, and finds the standard units in `units` next to its executable.
 `tokens` and `ast` print their own text format, one token or node per line, then the
 diagnostics; they exit with status 1 if there are errors.
 
@@ -1515,6 +1515,27 @@ one-shot commands with JSON output. Each command takes a position as `File.pst:l
 can load the whole project's structure in one call instead of opening files.
 
 All query output has a stable, versioned schema (`"schema": "pst-query/1"`).
+
+So far `pst query` has `def`, `refs`, `type`, `hover` and `symbols`. Each prints one JSON
+object with `"schema"` and one list:
+
+- `def` gives `"locations"`: the defining names, one per overload the name may mean.
+- `refs` gives `"locations"` with `"isDef"`: the definition and uses of the symbol in the
+  `.pst` files of the file's directory and the units they use.
+- `type` gives `"types"`: for each meaning of the name, the type of its value (or what a
+  function returns) as `"type"`, and the `"declarations"` of the types it is made of.
+- `hover` gives `"symbols"`, each with `"name"`, `"kind"`, the type or routine it belongs
+  to as `"container"`, the `"type"` of a value, the `"declaration"` in short (a routine's
+  signature, a declaration's first line), the `"doc"` comment and the `"location"`.
+- `symbols [PATH]` gives `"symbols"` like hover's: the types, constants, routines, fields
+  and enum members declared in a file, or in the `.pst` files of a directory (by default
+  the current one).
+
+A location is an object with `"file"`, `"line"`, `"col"`, `"endLine"` and `"endCol"`
+(§15.1). Files inside the current directory are relative to it; others, such as the
+standard units, are absolute. A position that names nothing gives an empty list. An
+unreadable file or a malformed position is an error (status 1). `--json` is accepted;
+the output is always JSON.
 
 ### 15.6 Front-end requirements
 These follow from serving editors and agents, and constrain the compiler implementation:

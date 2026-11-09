@@ -1,0 +1,221 @@
+unit Query
+
+## One-shot semantic queries for scripts and agents (SPEC §15.5): `pst query`. Each query
+## checks the file it is about and answers from its symbol index, like the language
+## server, with positions as SPEC §15.1 gives them and paths relative to the current
+## directory.
+
+uses IO, OS, Strings, Source, Symbols, Types, Typecheck, Paths, Json, Lsp
+
+const
+    Schema = "pst-query/1"
+
+## A position on the command line, `File.pst:12:5`: the absolute path, line and column.
+export function parsePosition(text: String): Result[Pair[String, List[Integer]], String]
+    let parts := split(text, sep: ":")
+    let n := len(parts)
+    if n < 3 then
+        return Err("expected FILE:LINE:COL, got '{text}'")
+    var nums: List[Integer] := []
+    for part in [parts[n - 2], parts[n - 1]] do
+        case parseInt(part) of
+            Ok(v):
+                if v.value < 1 then
+                    return Err("line and column start at 1, got '{text}'")
+                add(var nums, v.value)
+            Err(_):
+                return Err("expected FILE:LINE:COL, got '{text}'")
+    var file := parts[0]
+    for i := 1 to n - 3 do
+        file := "{file}:{parts[i]}"
+    return Ok(Pair(first: absolute(file), second: nums))
+
+## `path`, or the `.pst` files in it if it's a directory, sorted.
+export function pstFiles(path: String): Result[List[String], String]
+    if not isDir(path) then
+        return Ok([path])
+    case listDir(path) of
+        Ok(names):
+            var sorted := names.value
+            sort(var sorted)
+            var files: List[String] := []
+            for name in sorted do
+                if endsWith(name, suffix: ".pst") then
+                    add(var files, Paths.normalize(join(path, b: name)))
+            return Ok(files)
+        Err(e):
+            return Err(e.error)
+
+## A server with the files as its open documents, read from disk.
+function serverFor(stdDir: String, files: List[String]): Result[Server, String]
+    var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)
+    for file in files do
+        case readFile(file) of
+            Ok(text):
+                s.texts[file] := text.value
+            Err(e):
+                return Err(e.error)
+    return Ok(s)
+
+function readFile(path: String): Result[String, String]
+    if not isFile(path) then
+        return Err("can't read '{shown(path)}'")
+    case open(path) of
+        Ok(f):
+            let text := readAll(f.value)
+            _ := close(f.value)
+            return text
+        Err(e):
+            return Err(e.error)
+
+## `path` relative to the current directory if it is inside it, else as it is.
+function shown(path: String): String
+    let dir := "{currentDir()}/"
+    if startsWith(path, prefix: dir) then
+        return slice(path, byteLen(dir), byteLen(path))
+    return path
+
+function location(file: String, span: Span): String
+    let where := "\"file\":{quote(shown(file))},\"line\":{span.line},\"col\":{span.col}"
+    return "\{{where},\"endLine\":{span.endLine},\"endCol\":{span.endCol}}"
+
+## A symbol as hover and the symbol list show it: its name, kind, the type or routine it
+## belongs to, its type (of a value), its declaration in short, its documentation and
+## where it is defined.
+function symbolInfo(a: Analysis, sym: ref Symbol): String
+    var out := "\{\"name\":{quote(sym.name)},\"kind\":{quote(name(sym.kind))}"
+    case a.checked.env of
+        Some(env):
+            case get(env.value.owner, sym.id) of
+                Some(o):
+                    out := "{out},\"container\":{quote(o.value.name)}"
+                None:
+                    pass
+            if not isRoutine(sym.kind) then
+                case typeOfSym(env.value, sym) of
+                    Some(t):
+                        out := "{out},\"type\":{quote(show(t.value))}"
+                    None:
+                        pass
+        None:
+            pass
+    out := "{out},\"declaration\":{quote(headOf(a, sym))}"
+    case docOf(sym) of
+        Some(d):
+            out := "{out},\"doc\":{quote(d.value)}"
+        None:
+            pass
+    if sym.span.isSome() and sym.file <> "" then
+        out := "{out},\"location\":{location(sym.file, sym.span.get())}"
+    return "{out}}"
+
+function answer(key: String, items: List[String]): String
+    return "\{\"schema\":{quote(Schema)},{quote(key)}:[{join(items, sep: ",")}]}"
+
+## The answer to `def`, `refs`, `type` or `hover` at a position, or an error.
+export function queryAt(request: String, position: String, stdDir: String): Result[String, String]
+    var file := ""
+    var line := 0
+    var col := 0
+    case parsePosition(position) of
+        Ok(p):
+            file := p.value.first
+            line := p.value.second[0]
+            col := p.value.second[1]
+        Err(e):
+            return Err(e.error)
+    ## References are searched in every file of the directory, and the units they use.
+    var files := [file]
+    if request = "refs" then
+        case pstFiles(dirname(file)) of
+            Ok(f):
+                files := []
+                for x in f.value do
+                    add(var files, absolute(x))
+                if not (file in files) then
+                    add(var files, file)
+            Err(e):
+                return Err(e.error)
+    var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)
+    case serverFor(stdDir, files) of
+        Ok(made):
+            s := made.value
+        Err(e):
+            return Err(e.error)
+    let a := analyze(s, file)
+    let found := refAtLine(a, file, line, col: col)
+    var targets: List[ref Symbol] := []
+    case found of
+        Some(r):
+            targets := r.value.targets
+        None:
+            pass
+    var items: List[String] := []
+    if request = "def" then
+        for sym in targets do
+            if sym.span.isSome() and sym.file <> "" then
+                add(var items, location(sym.file, sym.span.get()))
+        return Ok(answer("locations", items))
+    if request = "refs" then
+        let o := occurrencesOf(s, a, found: found)
+        for r in o.refs do
+            let where := location(r.file, r.span)
+            add(var items, "{slice(where, 0, byteLen(where) - 1)},\"isDef\":{r.isDef}}")
+        return Ok(answer("locations", items))
+    if request = "hover" then
+        for sym in targets do
+            add(var items, symbolInfo(a, sym))
+        return Ok(answer("symbols", items))
+    if a.checked.env.isNone() then
+        return Ok(answer("types", items))
+    let env := a.checked.env.get()
+    for sym in targets do
+        case typeOfSym(env, sym) of
+            Some(t):
+                var syms: List[ref Symbol] := []
+                typeSyms(t.value, var syms)
+                var decls: List[String] := []
+                var seen: Map[Integer, Boolean] := {}
+                for d in syms do
+                    if d.span.isSome() and d.file <> "" and not (d.id in seen) then
+                        seen[d.id] := true
+                        add(var decls, location(d.file, d.span.get()))
+                let declared := "\"declarations\":[{join(decls, sep: ",")}]"
+                add(var items, "\{\"type\":{quote(show(t.value))},{declared}}")
+            None:
+                pass
+    return Ok(answer("types", items))
+
+## The types, constants, routines, fields and enum members declared in `files`.
+export function querySymbols(files: List[String], stdDir: String): Result[String, String]
+    var paths: List[String] := []
+    var wantFile: Map[String, Boolean] := {}
+    for f in files do
+        add(var paths, absolute(f))
+        wantFile[absolute(f)] := true
+    var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)
+    case serverFor(stdDir, paths) of
+        Ok(made):
+            s := made.value
+        Err(e):
+            return Err(e.error)
+    var items: List[String] := []
+    var seen: Map[String, Boolean] := {}
+    for path in paths do
+        let a := analyze(s, path)
+        for r in a.checked.resolved.checker.index.refs do
+            if not r.isDef or len(r.targets) <> 1 or not (r.file in wantFile) then
+                continue
+            let sym := r.targets[0]
+            var wanted := sym.kind in [
+                Kind.TypeSym,
+                Kind.TraitSym,
+                Kind.ConstSym,
+                Kind.FieldSym,
+                Kind.EnumMember,
+            ] or isRoutine(sym.kind)
+            let key := "{r.file}:{r.span.start}"
+            if wanted and sym.file = r.file and not (key in seen) then
+                seen[key] := true
+                add(var items, symbolInfo(a, sym))
+    return Ok(answer("symbols", items))
