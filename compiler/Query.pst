@@ -247,7 +247,7 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
     ## References, implementations and callers are searched in every file of the directory,
     ## and the units they use.
     var files := [file]
-    if request in ["refs", "impls", "callers"] then
+    if request in ["refs", "impls", "callers", "instances"] then
         case neighbours(file) of
             Ok(f):
                 files := f.value
@@ -303,6 +303,30 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
                     )))
                 return Ok(answer("callees", callsOf("callee", groups: calleesOf(a, caller: sym))))
         return Ok(answer(request, items))
+    if request = "instances" then
+        if len(targets) > 0 then
+            var slot: Map[String, Integer] := {}
+            var names: List[String] := []
+            var args: List[List[String]] := []
+            var places: List[List[String]] := []
+            for i in instancesOf(s, target: targets[0]) do
+                var shownArgs: List[String] := []
+                for t in i.args do
+                    add(var shownArgs, show(t))
+                let key := join(shownArgs, sep: ", ")
+                if not (key in slot) then
+                    slot[key] := len(names)
+                    add(var names, "{i.sym.name}[{key}]")
+                    add(var args, shownArgs)
+                    add(var places, [])
+                add(var places[slot[key]], location(i.file, i.span))
+            for k := 0 to len(names) - 1 do
+                var quoted: List[String] := []
+                for x in args[k] do
+                    add(var quoted, quote(x))
+                let head := "\"instance\":{quote(names[k])},\"args\":[{join(quoted, sep: ",")}]"
+                add(var items, "\{{head},\"locations\":[{join(places[k], sep: ",")}]}")
+        return Ok(answer("instances", items))
     if request = "hover" then
         for sym in targets do
             add(var items, symbolInfo(a, sym))

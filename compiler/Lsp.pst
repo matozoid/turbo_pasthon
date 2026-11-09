@@ -1429,6 +1429,35 @@ function incomingCalls(s: Server, params: JValue): String
             pass
     return "[{join(parts, sep: ",")}]"
 
+## The instances of the generic `target` that the open documents and the units they use
+## create (SPEC §8.1), each once.
+export function instancesOf(s: Server, target: ref Symbol): List[Instance]
+    var out: List[Instance] := []
+    var seen: Map[String, Boolean] := {}
+    if target.span.isNone() then
+        return out
+    for open, _ in s.texts do
+        let a := analyze(s, open)
+        if a.checked.env.isNone() then
+            continue
+        let env := a.checked.env.get()
+        case defSym(env, target.file, target.span.get()) of
+            Some(sym):
+                for i in instancesIn(env) do
+                    let key := "{i.file}:{i.span.start}"
+                    if i.sym.id = sym.value.id and not (key in seen) then
+                        seen[key] := true
+                        add(var out, i)
+            None:
+                pass
+    sort(var out, less: earlier)
+    return out
+
+function earlier(a, b: Instance): Boolean
+    if a.file <> b.file then
+        return a.file < b.file
+    return a.span.start < b.span.start
+
 ## The uses of the routine `target` in the open documents and the units they use, grouped
 ## by the routine (or unit level) they are in.
 export function callersOf(s: Server, target: ref Symbol): List[Calls]

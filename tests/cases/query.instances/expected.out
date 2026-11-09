@@ -1,0 +1,29 @@
+$ $PST check Main.pst
+exit 0
+--- stdout
+--- stderr
+$ $PST query instances largest
+exit 0
+--- stdout
+{"schema":"pst-query/1","instances":[{"instance":"largest[T]","args":["T"],"locations":[{"file":"Main.pst","line":17,"col":12,"endLine":17,"endCol":19}]},{"instance":"largest[Integer]","args":["Integer"],"locations":[{"file":"Main.pst","line":20,"col":9,"endLine":20,"endCol":16},{"file":"Main.pst","line":23,"col":9,"endLine":23,"endCol":16}]},{"instance":"largest[String]","args":["String"],"locations":[{"file":"Main.pst","line":21,"col":9,"endLine":21,"endCol":16}]}]}
+--- stderr
+$ $PST query instances Box
+exit 0
+--- stdout
+{"schema":"pst-query/1","instances":[{"instance":"Box[String]","args":["String"],"locations":[{"file":"Main.pst","line":19,"col":8,"endLine":19,"endCol":19},{"file":"Main.pst","line":19,"col":23,"endLine":19,"endCol":37}]}]}
+--- stderr
+$ $PST query instances Main.pst:20:9
+exit 0
+--- stdout
+{"schema":"pst-query/1","instances":[{"instance":"largest[T]","args":["T"],"locations":[{"file":"Main.pst","line":17,"col":12,"endLine":17,"endCol":19}]},{"instance":"largest[Integer]","args":["Integer"],"locations":[{"file":"Main.pst","line":20,"col":9,"endLine":20,"endCol":16},{"file":"Main.pst","line":23,"col":9,"endLine":23,"endCol":16}]},{"instance":"largest[String]","args":["String"],"locations":[{"file":"Main.pst","line":21,"col":9,"endLine":21,"endCol":16}]}]}
+--- stderr
+$ $PST query instances b
+exit 0
+--- stdout
+{"schema":"pst-query/1","instances":[]}
+--- stderr
+$ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pst_instances","arguments":{"symbol":"twice"}}}' | $PST mcp
+exit 0
+--- stdout
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{\"schema\":\"pst-query/1\",\"instances\":[{\"instance\":\"twice[Integer]\",\"args\":[\"Integer\"],\"locations\":[{\"file\":\"Main.pst\",\"line\":22,\"col\":9,\"endLine\":22,\"endCol\":14}]}]}"}]}}
+--- stderr

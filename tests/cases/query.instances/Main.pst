@@ -1,0 +1,24 @@
+program Main
+
+uses IO
+
+type
+    Box[T] = record
+        item: T
+
+function largest[T: Ordered](xs: List[T]): T
+    var best := xs[0]
+    for x in xs do
+        if x > best then
+            best := x
+    return best
+
+function twice[T: Ordered](xs: List[T]): T
+    return largest(xs)
+
+let b: Box[String] := Box(item: "a")
+writeln(largest([1, 2]))
+writeln(largest(["a", "b"]))
+writeln(twice([3, 4]))
+writeln(largest([5]))
+writeln(b.item)

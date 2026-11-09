@@ -210,6 +210,12 @@ function tools(): String
             required: ["symbol"],
         ),
         tool(
+            "pst_instances",
+            description: "The instances of a generic routine or type: its type arguments, and where each is created.",
+            properties: named,
+            required: ["symbol"],
+        ),
+        tool(
             "pst_run",
             description: "Builds and runs a program, and returns its exit code, output and panic, or the diagnostics if it doesn't build. Executes the program.",
             properties: [
@@ -745,7 +751,15 @@ function call(name: String, arguments: JValue, stdDir: String): Result[String, S
         return renameSymbol(arguments, stdDir: stdDir)
     var request := ""
     var key := "symbol"
-    if name in ["pst_def", "pst_refs", "pst_type", "pst_hover", "pst_callers", "pst_callees"] then
+    if name in [
+        "pst_def",
+        "pst_refs",
+        "pst_type",
+        "pst_hover",
+        "pst_callers",
+        "pst_callees",
+        "pst_instances",
+    ] then
         request := slice(name, 4, byteLen(name))
     else if name = "pst_impls" then
         request := "impls"

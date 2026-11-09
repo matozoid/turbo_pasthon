@@ -7,7 +7,7 @@ program Pst
 uses IO, OS, Strings, Source, Ast, Diagnostics, Typecheck, Emit, Fmt, Lsp, Mcp, Query, Paths, LexDump, AstDump
 
 const
-    Usage = "usage: pst check FILE [--json]\n       pst build FILE [-o OUT] [--unchecked] [--json]\n       pst run [--unchecked] FILE [-- ARGS]\n       pst test PATH [--filter TEXT] [--unchecked] [--json]\n       pst fmt PATH [--check]\n       pst lsp\n       pst mcp [--root DIR]\n       pst query def|refs|type|hover|impls|callers|callees|accepts FILE:LINE:COL|NAME\n       pst query complete FILE:LINE:COL\n       pst query symbols [PATH]\n       pst index [PATH]\n       pst tokens FILE\n       pst ast FILE"
+    Usage = "usage: pst check FILE [--json]\n       pst build FILE [-o OUT] [--unchecked] [--json]\n       pst run [--unchecked] FILE [-- ARGS]\n       pst test PATH [--filter TEXT] [--unchecked] [--json]\n       pst fmt PATH [--check]\n       pst lsp\n       pst mcp [--root DIR]\n       pst query def|refs|type|hover|impls|callers|callees|accepts|instances FILE:LINE:COL|NAME\n       pst query complete FILE:LINE:COL\n       pst query symbols [PATH]\n       pst index [PATH]\n       pst tokens FILE\n       pst ast FILE"
 
 type
     Options = record
@@ -120,6 +120,7 @@ function queryArgs(a: List[String], o: Options): Options
         "callers",
         "callees",
         "accepts",
+        "instances",
     ] then
         if len(words) < 2 then
             usage("missing FILE:LINE:COL or NAME")

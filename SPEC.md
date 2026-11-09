@@ -1528,7 +1528,7 @@ prints `"symbols"` and `"references"`:
 All query output has a stable, versioned schema (`"schema": "pst-query/1"`).
 
 So far `pst query` has `def`, `refs`, `type`, `hover`, `complete`, `impls`, `callers`,
-`callees`, `accepts` and `symbols`. Each prints one JSON
+`callees`, `accepts`, `instances` and `symbols`. Each prints one JSON
 object with `"schema"` and one list:
 
 - `def` gives `"locations"`: the defining names, one per overload the name may mean.
@@ -1557,6 +1557,12 @@ object with `"schema"` and one list:
   type satisfies. A generic type stands for any of its instances. The routines are those
   the file of the position (or of the name's declaration) sees: its own, and the exports
   of the units it uses.
+- `instances` on a generic routine or type gives `"instances"`: one per list of type
+  arguments, as `"instance"` (such as `largest[Integer]`) and `"args"`, with the
+  `"locations"` of the calls, constructions and type names that create it, in the `.pst`
+  files of the file's directory and the units they use. A use inside a generic is given in
+  that generic's own parameters (`largest[T]`); the instances it leads to once that
+  generic is itself instantiated aren't followed.
 - `symbols [PATH]` gives `"symbols"` like hover's: the types, constants, routines, fields
   and enum members declared in a file, or in the `.pst` files of a directory (by default
   the current one).
@@ -1633,7 +1639,7 @@ Configure it in an agent with the command `pst mcp --root <project-dir>`.
 
 So far `pst mcp [--root DIR]` has `pst_check`, `pst_symbols`, `pst_index`, `pst_def`,
 `pst_refs`, `pst_type`, `pst_hover`, `pst_impls`, `pst_callers`, `pst_callees`,
-`pst_accepts`, `pst_fmt`,
+`pst_accepts`, `pst_instances`, `pst_fmt`,
 `pst_apply_fix`, `pst_rename`, `pst_run` and `pst_test`. It reads
 one JSON-RPC message per line and answers `initialize`, `ping`, `tools/list` and
 `tools/call`; notifications are ignored. It runs in the root (by default the current

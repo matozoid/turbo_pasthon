@@ -168,6 +168,13 @@ type
         span: Span
         ty: Type
 
+    ## A generic routine or type used with arguments, and where (SPEC §8.1).
+    export Instance = record
+        export sym: ref Symbol
+        export args: List[Type]
+        export file: String
+        export span: Span
+
     export OrdRange = record
         export lo: Integer
         export hi: Integer
@@ -198,6 +205,8 @@ type
         elemVar: ref Symbol
         ## The types of locals, by symbol id.
         export symTypes: Map[Integer, Type]
+        ## The calls of generic routines and constructions of generic records.
+        calls: List[Instance]
 
     ## The checker of one unit.
     export TC = record
@@ -567,6 +576,7 @@ function newEnv(c: ref Checker, units: List[ref Unit]): ref Env
         hookMap: {},
         elemVar: newSymbol(c, Kind.TypeParamSym, "T", span: None, file: "", unitName: "System"),
         symTypes: {},
+        calls: [],
     ))
     for u in units do
         for item in u.parsed.file.items do
@@ -746,6 +756,18 @@ procedure checkBounds(env: ref Env)
                             break
             else:
                 pass
+
+## The instances of generics the check met: calls of generic routines, constructions of
+## generic records, and generic types written with arguments.
+export function instancesIn(env: ref Env): List[Instance]
+    var out := env.calls
+    for _, w in env.written do
+        case w.ty of
+            NamedT(n):
+                add(var out, Instance(sym: n.sym, args: n.args, file: w.file, span: w.span))
+            else:
+                pass
+    return out
 
 ## Whether `t` is a `Set[T]`: a record of System's, with literals of its own.
 export function isSet(env: ref Env, t: Type): Boolean
@@ -3850,6 +3872,16 @@ function call(tc: ref TC, req: CallReq): Type
     let m := top[0]
     finish(tc, req.e, req.name, m, req.refSpan)
     tc.calls[req.e.id] := m
+    if m.sig.sym.isSome() and len(m.sig.tparams) > 0 then
+        var targs: List[Type] := []
+        for tp in m.sig.tparams do
+            add(var targs, subst(param(tp), m.s))
+        add(var tc.env.calls, Instance(
+            sym: m.sig.sym.get(),
+            args: targs,
+            file: tc.file,
+            span: req.refSpan.getOr(req.e.span),
+        ))
     return subst(m.result, m.s)
 
 ## Matches the arguments against a candidate. With an expected type, type parameters

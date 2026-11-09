@@ -1,0 +1,8 @@
+# `pst query instances` (SPEC §15.5): a generic's instances, by type arguments, with where
+# each is created; inside a generic, in its own parameters.
+$PST check Main.pst
+$PST query instances largest
+$PST query instances Box
+$PST query instances Main.pst:20:9
+$PST query instances b
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pst_instances","arguments":{"symbol":"twice"}}}' | $PST mcp
