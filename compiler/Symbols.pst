@@ -126,9 +126,7 @@ export function isUpperCamel(k: Kind): Boolean
 
 ## Names of these kinds are lowerCamel (SPEC §2.5).
 export function isLowerCamel(k: Kind): Boolean
-    return isRoutine(
-        k,
-    ) or k = Kind.ParamSym or k = Kind.VarSym or k = Kind.LetSym or k = Kind.LoopVar or k = Kind.Binding or k = Kind.FieldSym
+    return isRoutine(k) or k = Kind.ParamSym or k = Kind.VarSym or k = Kind.LetSym or k = Kind.LoopVar or k = Kind.Binding or k = Kind.FieldSym
 
 ## `function 'area'`.
 export function describe(s: ref Symbol): String

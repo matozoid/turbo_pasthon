@@ -451,12 +451,11 @@ export function unify(pattern, actual: Type, var s: Subst, vars: Vars): Boolean
         FuncT(p):
             case actual of
                 FuncT(a):
-                    return p.isFunction = a.isFunction and unifyAll(
-                        p.params,
-                        a.params,
-                        var s,
-                        vars,
-                    ) and unify(p.result, a.result, var s, vars)
+                    return (
+                        p.isFunction = a.isFunction
+                        and unifyAll(p.params, a.params, var s, vars)
+                        and unify(p.result, a.result, var s, vars)
+                    )
                 else:
                     return false
         else:

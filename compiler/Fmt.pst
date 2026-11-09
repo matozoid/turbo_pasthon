@@ -368,6 +368,27 @@ function itemCount(atoms: List[Atom], o: Integer): Integer
         n := n + 1
     return n
 
+## Whether breaking the group opened at `g` can help: the text before and after it must
+## fit, and be no wider than its contents, which, if they can't be broken further, must
+## fit on a line of their own.
+function worth(
+    atoms: List[Atom],
+    g: Integer,
+    from: Integer,
+    stop: Integer,
+    budget: Integer,
+): Boolean
+    let c := atoms[g].close
+    let inside := flatWidth(atoms, from: g + 1, stop: c)
+    let before := flatWidth(atoms, from: from, stop: g + 1)
+    let after := flatWidth(atoms, from: c, stop: stop)
+    if before > budget or after > budget or inside < before or inside < after then
+        return false
+    for i := g + 1 to c - 1 do
+        if atoms[i].close >= 0 or isLogical(atoms[i].kind) then
+            return true
+    return itemCount(atoms, g) > 1 or inside <= budget - 5
+
 ## Breaks a group of atoms `from` up to `stop`, unless they fit in `budget` columns or a
 ## group in them is already broken. The group is the widest one, preferring parentheses,
 ## or the last item of that, if it makes up most of it and the line fits up to it.
@@ -382,7 +403,7 @@ procedure decide(var atoms: List[Atom], from: Integer, stop: Integer, budget: In
     var paren := false
     var k := from
     while k < stop do
-        if atoms[k].close >= 0 then
+        if atoms[k].close >= 0 and worth(atoms, k, from: from, stop: stop, budget: budget) then
             let w := flatWidth(atoms, from: k, stop: atoms[k].close + 1)
             let isParen := atoms[k].kind = TokenKind.Lparen
             if (isParen and not paren) or (isParen = paren and w > widest) then
@@ -402,19 +423,8 @@ procedure decide(var atoms: List[Atom], from: Integer, stop: Integer, budget: In
         if 2 * flatWidth(atoms, from: h, stop: c) <= flatWidth(atoms, from: g + 1, stop: c) then
             break
         g := h
-    let c := atoms[g].close
-    var inner := false
-    for i := g + 1 to c - 1 do
-        if atoms[i].close >= 0 or isLogical(atoms[i].kind) then
-            inner := true
-    # Breaking a group with one item that can't be broken further gains little.
-    if itemCount(atoms, g) <= 1 and not inner and flatWidth(
-        atoms,
-        from: g + 1,
-        stop: c,
-    ) > budget - 5 then
-        return
-    atoms[g].explode := true
+    if worth(atoms, g, from: from, stop: stop, budget: budget) then
+        atoms[g].explode := true
 
 function spaces(depth: Integer): String
     var s := ""

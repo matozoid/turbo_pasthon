@@ -1357,11 +1357,7 @@ function isC(g: ref Em, c: Call, name: String): Boolean
 function isOld(g: ref Em, c: Call): Boolean
     case c.callee of
         Name(n):
-            return n.name = "old" and not hasCall(g, c.id) and lookup(
-                g.index,
-                g.f.file,
-                n.span,
-            ).isNone()
+            return n.name = "old" and not hasCall(g, c.id) and lookup(g.index, g.f.file, n.span).isNone()
         else:
             return false
 
@@ -3298,10 +3294,7 @@ procedure convert(g: ref Em, c: Call)
         return
     if src = dst then
         return
-    if g.checked and (src = uint64T()) <> (dst = uint64T()) and (
-        src = uint64T()
-        or not intSigned(dst)
-    ) then
+    if g.checked and (src = uint64T()) <> (dst = uint64T()) and (src = uint64T() or not intSigned(dst)) then
         testR(a, Rax, Rax)  # UInt64 above Int64's range, or a negative value to UInt64
         jcc(a, "s", label: panic(g, "P0002", "integer overflow", span: c.span))
     fit(g, dst, c.span)

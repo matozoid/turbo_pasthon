@@ -1381,7 +1381,10 @@ except for adding a trailing comma to a broken group and rewriting `else` + `if`
   `(` group, is printed one item per line, one level deeper, each item followed by a comma,
   and the closer on its own line. If its last item is itself a group taking more than half of
   it, that group breaks instead and hugs the outer brackets (`writeln(join(` ... `))`).
-  This repeats until the line fits or nothing more can break.
+  This repeats until the line fits or nothing more can break. A group only breaks if the
+  text before and after it on the line each fit and are no wider than its contents, and a
+  group of one item with no groups or `and`/`or` inside only if that item fits on its own
+  line; otherwise the line stays long.
 - A parenthesized expression gets no trailing comma; without commas, it breaks before each
   `and` and `or` at its own level instead.
 - A group stays broken if it ends with a trailing comma, holds a comment, or holds a broken

@@ -3645,10 +3645,7 @@ function convert(tc: ref TC, e: Call, target: Type): Type
     let t := value(tc, x, hint)
     let a := base(tc.env, t)
     let b := base(tc.env, target)
-    let ok := hasError(t) or a = b or (
-        isInteger(a)
-        and isInteger(b)
-    ) or (isReal(a) and isReal(b)) or (isInteger(a) and b = charT())
+    let ok := hasError(t) or a = b or (isInteger(a) and isInteger(b)) or (isReal(a) and isReal(b)) or (isInteger(a) and b = charT())
     if not ok then
         var msg := "can't convert {show(t)} to {show(target)}"
         if isInteger(a) and isReal(b) then
