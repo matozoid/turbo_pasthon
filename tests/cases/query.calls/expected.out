@@ -56,6 +56,7 @@ usage: pst check FILE [--json]
        pst mcp [--root DIR]
        pst query def|refs|type|hover|impls|callers|callees|accepts|instances FILE:LINE:COL|NAME
        pst query complete FILE:LINE:COL
+       pst query explain CODE
        pst query symbols [PATH]
        pst index [PATH]
        pst tokens FILE
@@ -101,6 +102,7 @@ usage: pst check FILE [--json]
        pst mcp [--root DIR]
        pst query def|refs|type|hover|impls|callers|callees|accepts|instances FILE:LINE:COL|NAME
        pst query complete FILE:LINE:COL
+       pst query explain CODE
        pst query symbols [PATH]
        pst index [PATH]
        pst tokens FILE

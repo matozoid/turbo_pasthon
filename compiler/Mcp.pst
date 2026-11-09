@@ -216,6 +216,12 @@ function tools(): String
             required: ["symbol"],
         ),
         tool(
+            "pst_explain",
+            description: "What an error or panic code means, such as E0502, and the SPEC section that lists it.",
+            properties: [property("code", kind: "string", description: "The code, such as E0502.")],
+            required: ["code"],
+        ),
+        tool(
             "pst_run",
             description: "Builds and runs a program, and returns its exit code, output and panic, or the diagnostics if it doesn't build. Executes the program.",
             properties: [
@@ -741,6 +747,8 @@ function call(name: String, arguments: JValue, stdDir: String): Result[String, S
                 )
             Err(e):
                 return Err(e.error)
+    if name = "pst_explain" then
+        return queryExplain(asString(field(arguments, key: "code")).getOr(""))
     if name = "pst_run" then
         return runProgram(arguments)
     if name = "pst_test" then

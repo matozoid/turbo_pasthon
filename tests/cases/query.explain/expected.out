@@ -1,0 +1,44 @@
+$ $PST query explain E0502
+exit 0
+--- stdout
+{"schema":"pst-query/1","explanations":[{"code":"E0502","meaning":"function result ignored (fix: `_ := `)","section":"16.3","title":"Type errors"}]}
+--- stderr
+$ $PST query explain E0000
+exit 0
+--- stdout
+{"schema":"pst-query/1","explanations":[{"code":"E0000","meaning":"source file is not valid UTF-8","section":"2.9","title":"Lexical errors"}]}
+--- stderr
+$ $PST query explain P0008
+exit 0
+--- stdout
+{"schema":"pst-query/1","explanations":[{"code":"P0008","meaning":"missing map key (check with `k in m`, or use `get`/`getOr`)","section":"12","title":"Errors and panics"}]}
+--- stderr
+$ $PST query explain E9999
+exit 1
+--- stdout
+--- stderr
+pst: error: unknown code 'E9999'
+$ $PST query explain
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst fmt PATH [--check]
+       pst lsp
+       pst mcp [--root DIR]
+       pst query def|refs|type|hover|impls|callers|callees|accepts|instances FILE:LINE:COL|NAME
+       pst query complete FILE:LINE:COL
+       pst query explain CODE
+       pst query symbols [PATH]
+       pst index [PATH]
+       pst tokens FILE
+       pst ast FILE
+pst: error: missing CODE
+$ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pst_explain","arguments":{"code":"E0804"}}}' | $PST mcp
+exit 0
+--- stdout
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{\"schema\":\"pst-query/1\",\"explanations\":[{\"code\":\"E0804\",\"meaning\":\"`case` expression that isn't the whole right side of `:=`, `var`, `let`, or `return`\",\"section\":\"16.3\",\"title\":\"Type errors\"}]}"}]}}
+--- stderr

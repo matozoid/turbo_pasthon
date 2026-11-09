@@ -1528,7 +1528,7 @@ prints `"symbols"` and `"references"`:
 All query output has a stable, versioned schema (`"schema": "pst-query/1"`).
 
 So far `pst query` has `def`, `refs`, `type`, `hover`, `complete`, `impls`, `callers`,
-`callees`, `accepts`, `instances` and `symbols`. Each prints one JSON
+`callees`, `accepts`, `instances`, `explain` and `symbols`. Each prints one JSON
 object with `"schema"` and one list:
 
 - `def` gives `"locations"`: the defining names, one per overload the name may mean.
@@ -1563,6 +1563,9 @@ object with `"schema"` and one list:
   files of the file's directory and the units they use. A use inside a generic is given in
   that generic's own parameters (`largest[T]`); the instances it leads to once that
   generic is itself instantiated aren't followed.
+- `explain CODE` gives `"explanations"`: the error or panic code's `"code"`, its
+  `"meaning"` as the tables of §2.9, §12 and §16 give it, and the `"section"` and its
+  `"title"` that list it. An unknown code is an error.
 - `symbols [PATH]` gives `"symbols"` like hover's: the types, constants, routines, fields
   and enum members declared in a file, or in the `.pst` files of a directory (by default
   the current one).
@@ -1639,7 +1642,7 @@ Configure it in an agent with the command `pst mcp --root <project-dir>`.
 
 So far `pst mcp [--root DIR]` has `pst_check`, `pst_symbols`, `pst_index`, `pst_def`,
 `pst_refs`, `pst_type`, `pst_hover`, `pst_impls`, `pst_callers`, `pst_callees`,
-`pst_accepts`, `pst_instances`, `pst_fmt`,
+`pst_accepts`, `pst_instances`, `pst_explain`, `pst_fmt`,
 `pst_apply_fix`, `pst_rename`, `pst_run` and `pst_test`. It reads
 one JSON-RPC message per line and answers `initialize`, `ping`, `tools/list` and
 `tools/call`; notifications are ignored. It runs in the root (by default the current
@@ -1786,8 +1789,10 @@ already has a lexical error are not reported.
 |---|---|
 | `E0020` | wrong casing for the kind of name (fix: rename the definition and its uses) |
 | `E0100` | unknown name, or no such member in a unit or enum (fix: similar visible names) |
+| `E0101` | top-level statement in a `unit` (move it into a routine) |
 | `E0102` | unit not found, or not a unit |
 | `E0103` | top-level variable of the program used inside a routine or `const` |
+| `E0104` | a discard `_` read as a value |
 | `E0105` | `program` / `unit` name doesn't match the file name (fix: rename) |
 | `E0106` | `extern "pst"` outside the standard units |
 | `E0107` | cyclic `uses` |
@@ -1795,6 +1800,8 @@ already has a lexical error are not reported.
 | `E0109` | name not exported by its unit |
 | `E0110` | unqualified name ambiguous between used units (fix: qualify) |
 | `E0111` | `This` outside a trait |
+| `E0201` | variable declared without a value (`let x := value`) |
+| `E0202` | `const` inside a routine (use `let`) |
 | `E0205` | variable declared again in the same routine |
 | `E0206` | variable never used (fix: discard with `_`) |
 
@@ -1840,7 +1847,10 @@ already has a lexical error are not reported.
 | `E0700` | type argument doesn't satisfy a bound, or isn't a valid `Set` element |
 | `E0710` | operation on a type parameter that its bounds don't provide |
 | `E0720` | generic instances nest more than 64 deep (§8) |
+| `E0801` | `if` expression without `else` |
 | `E0802` | `if` / `case` expression branches of different types |
+| `E0803` | `if` expression used as an operand without parentheses |
+| `E0804` | `case` expression that isn't the whole right side of `:=`, `var`, `let`, or `return` |
 | `E0901` | type isn't C-compatible (extern signature, C record field, C varargs argument; §10.1) |
 | `E0902` | unsafe operation outside an `unsafe` routine (§10.4) |
 | `E0903` | invalid declaration in an extern block's `type` section (§10.5) |

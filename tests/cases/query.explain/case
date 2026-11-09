@@ -1,0 +1,7 @@
+# `pst query explain` (SPEC §15.5): what an error or panic code means, and where it's listed.
+$PST query explain E0502
+$PST query explain E0000
+$PST query explain P0008
+$PST query explain E9999
+$PST query explain
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pst_explain","arguments":{"code":"E0804"}}}' | $PST mcp

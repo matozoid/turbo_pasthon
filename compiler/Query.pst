@@ -5,7 +5,7 @@ unit Query
 ## server, with positions as SPEC §15.1 gives them and paths relative to the current
 ## directory.
 
-uses IO, OS, Strings, Source, Symbols, Types, Typecheck, Paths, Json, Lsp
+uses IO, OS, Strings, Source, Symbols, Types, Typecheck, Paths, Json, Lsp, Explain
 
 const
     Schema = "pst-query/1"
@@ -364,6 +364,16 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
             None:
                 pass
     return Ok(answer("types", items))
+
+## What an error or panic code means (SPEC §16), and the section that lists it.
+export function queryExplain(code: String): Result[String, String]
+    case explain(code) of
+        Some(e):
+            let where := "\"section\":{quote(e.value.section)},\"title\":{quote(e.value.title)}"
+            let item := "\{\"code\":{quote(code)},\"meaning\":{quote(e.value.meaning)},{where}}"
+            return Ok(answer("explanations", [item]))
+        None:
+            return Err("unknown code '{code}'")
 
 ## The types, constants, routines, fields and enum members declared in `files`, whose
 ## names match `query` (SPEC §15.4's workspace symbols) if it isn't empty.
