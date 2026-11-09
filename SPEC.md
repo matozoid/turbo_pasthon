@@ -1397,7 +1397,8 @@ Built into the `pst` executable, so it is always the same version as the compile
 the same front end. JSON-RPC over stdio, LSP 3.17. It has no dependencies beyond the compiler.
 
 So far it synchronizes whole documents (`textDocumentSync` 1), pushes diagnostics, formats,
-and answers hover, definition, references and code actions. After each change it checks
+and answers hover, definition, references, code actions, document symbols and folding
+ranges. After each change it checks
 every open document, with the open documents' texts read in place of their files (§15.6),
 and pushes the diagnostics that are in that document; closing a document clears its
 diagnostics. Columns are converted to UTF-16 code units. A request about a position checks
@@ -1410,6 +1411,10 @@ its document again and looks up the name at the position, or the name just befor
 - References searches every open document and the units it uses; documents that aren't
   open are only searched as units used by an open one.
 - Code actions are the fixes of the document's diagnostics on the requested lines.
+- Document symbols are the document's types, constants and routines, with enum members,
+  fields and trait routines as children.
+- Folding ranges fold each line followed by more deeply indented lines, up to the last of
+  them; blank lines don't end a fold.
 
 Other requests get the error `-32601`. `exit` ends with status 0 after `shutdown`, else 1,
 as does the end of the input. The table below is the full plan.

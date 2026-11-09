@@ -1,0 +1,26 @@
+unit Shapes
+
+const
+    Sides = 4
+
+type
+    Color = (Red, Green)
+
+    Box = record
+        width: Integer
+        color: Color
+
+    Measured = trait
+        function size(this): Integer
+
+    Size = 1 .. 10
+
+## The area of `b`.
+function area(b: Box): Integer
+    if b.width > 0 then
+        return b.width * b.width
+    return 0
+
+procedure paint(var b: Box)
+
+    b.color := Color.Green

@@ -1,0 +1,6 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file://DIR/Shapes.pst","languageId":"pasthon","version":1,"text":"unit Shapes\n\nconst\n    Sides = 4\n\ntype\n    Color = (Red, Green)\n\n    Box = record\n        width: Integer\n        color: Color\n\n    Measured = trait\n        function size(this): Integer\n\n    Size = 1 .. 10\n\n## The area of `b`.\nfunction area(b: Box): Integer\n    if b.width > 0 then\n        return b.width * b.width\n    return 0\n\nprocedure paint(var b: Box)\n\n    b.color := Color.Green\n"}}}
+{"jsonrpc":"2.0","id":2,"method":"textDocument/documentSymbol","params":{"textDocument":{"uri":"file://DIR/Shapes.pst"}}}
+{"jsonrpc":"2.0","id":3,"method":"textDocument/foldingRange","params":{"textDocument":{"uri":"file://DIR/Shapes.pst"}}}
+{"jsonrpc":"2.0","id":4,"method":"shutdown"}
+{"jsonrpc":"2.0","method":"exit"}

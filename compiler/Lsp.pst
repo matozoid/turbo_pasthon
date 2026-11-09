@@ -339,6 +339,114 @@ function referencesTo(s: Server, path: String, params: JValue): String
                 pass
     return "[{join(parts, sep: ",")}]"
 
+## The whole declaration of a symbol declared in source.
+function declSpan(sym: ref Symbol): Span
+    case sym.node of
+        Routine(r):
+            return r.span
+        ExternDecl(e):
+            return e.span
+        Signature(g):
+            return g.span
+        TypeDecl(d):
+            return d.span
+        ConstDecl(d):
+            return d.span
+        FieldDecl(d):
+            return d.span
+        else:
+            return sym.span.get()
+
+## The LSP `SymbolKind` of a symbol.
+function symbolKind(sym: ref Symbol): Integer
+    case sym.kind of
+        Kind.FieldSym:
+            return 8
+        Kind.ConstSym:
+            return 14
+        Kind.EnumMember:
+            return 22
+        Kind.TraitSym:
+            return 11
+        Kind.TypeSym:
+            case sym.node of
+                TypeDecl(d):
+                    case d.body of
+                        RecordType(_):
+                            return 23
+                        EnumType(_):
+                            return 10
+                        else:
+                            return 5
+                else:
+                    return 5
+        else:
+            case sym.node of
+                Signature(_):
+                    return 6
+                else:
+                    return 12
+
+function documentSymbol(t: Text, sym: ref Symbol): String
+    var children: List[String] := []
+    for _, m in sym.members do
+        if m.span.isSome() and m.file = sym.file then
+            add(var children, documentSymbol(t, m))
+    let ranges := "\"range\":{range(t, declSpan(sym))},\"selectionRange\":{range(t, sym.span.get())}"
+    return "\{\"name\":{quote(sym.name)},\"kind\":{symbolKind(sym)},{ranges},\"children\":[{join(children, sep: ",")}]}"
+
+## The types, routines and constants declared in the document, with their members.
+function documentSymbols(s: Server, path: String): String
+    let a := analyze(s, path)
+    let t := get(a.texts, path)
+    if t.isNone() then
+        return "[]"
+    var parts: List[String] := []
+    for r in a.checked.resolved.checker.index.refs do
+        if not r.isDef or r.file <> path or len(r.targets) <> 1 then
+            continue
+        let sym := r.targets[0]
+        var top := sym.kind in [Kind.TypeSym, Kind.TraitSym, Kind.ConstSym] or isRoutine(sym.kind)
+        case sym.node of
+            Signature(_):
+                top := false
+            else:
+                pass
+        if top and sym.span.isSome() then
+            add(var parts, documentSymbol(t.get(), sym))
+    return "[{join(parts, sep: ",")}]"
+
+## A fold for each line followed by more deeply indented lines, up to the last of them.
+function foldingRanges(s: Server, path: String): String
+    let text := get(s.texts, path)
+    if text.isNone() then
+        return "[]"
+    let lines := split(normalize(text.get()), sep: "\n")
+    var indents: List[Integer] := []
+    for l in lines do
+        if trim(l) = "" then
+            add(var indents, -1)
+        else
+            var n := 0
+            for c in l do
+                if c <> ' ' then
+                    break
+                n := n + 1
+            add(var indents, n)
+    var parts: List[String] := []
+    for i := 0 to len(lines) - 1 do
+        if indents[i] < 0 then
+            continue
+        var last := i
+        var j := i + 1
+        while j < len(lines) and (indents[j] < 0 or indents[j] > indents[i]) do
+            if indents[j] >= 0 then
+                last := j
+            j := j + 1
+        if last > i then
+            add(var parts, "\{\"startLine\":{i},\"endLine\":{last}}")
+    return "[{join(parts, sep: ",")}]"
+
 ## Quick fixes from the diagnostics of the document that touch the request's range.
 function codeActions(s: Server, path: String, params: JValue): String
     let a := analyze(s, path)
@@ -368,7 +476,7 @@ function codeActions(s: Server, path: String, params: JValue): String
 # ------------------------------------------------------------------------- requests
 
 function capabilities(): String
-    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true},\"serverInfo\":\{\"name\":\"pst\"}}"
+    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"foldingRangeProvider\":true},\"serverInfo\":\{\"name\":\"pst\"}}"
 
 ## The edits that format the document at `uri`: none if it is formatted, or can't be.
 function formatting(s: Server, uri: String): String
@@ -431,6 +539,10 @@ procedure handle(var s: Server, m: JValue)
         respond(id, result: referencesTo(s, pathOf(uri), params: params))
     else if method = "textDocument/codeAction" then
         respond(id, result: codeActions(s, pathOf(uri), params: params))
+    else if method = "textDocument/documentSymbol" then
+        respond(id, result: documentSymbols(s, pathOf(uri)))
+    else if method = "textDocument/foldingRange" then
+        respond(id, result: foldingRanges(s, pathOf(uri)))
     else if not isNull(id) then
         respondError(id, code: -32601, message: "unsupported method '{method}'")
 
