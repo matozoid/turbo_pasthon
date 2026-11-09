@@ -80,3 +80,24 @@ exit 0
 --- stdout
 {"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"expected 'file', 'line' and 'col', or 'type'"}],"isError":true}}
 --- stderr
+$ mkdir -p big && { echo "unit Big"; echo; echo "const"; for i in $(seq 1 250); do echo "    export C$i = $i"; done; } > big/Big.pst
+exit 0
+--- stdout
+--- stderr
+$ for c in "" 200 400; do printf '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pst_symbols","arguments":{"file":"Big.pst","cursor":"%s"}}}\n' "$c" | $PST mcp --root big | grep -o 'nextCursor[^,}]*\|"name\\":\\"C[0-9]*' | sed -n '1p;$p'; done
+exit 0
+--- stdout
+"name\":\"C1
+nextCursor\":\"200\"
+"name\":\"C201
+"name\":\"C250
+--- stderr
+$ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pst_symbols","arguments":{"cursor":"-1"}}}' | $PST mcp --root big
+exit 0
+--- stdout
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"bad cursor '-1'"}],"isError":true}}
+--- stderr
+$ rm -r big
+exit 0
+--- stdout
+--- stderr

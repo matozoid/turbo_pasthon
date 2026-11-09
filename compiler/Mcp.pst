@@ -8,6 +8,8 @@ uses IO, OS, Strings, Source, Diagnostics, Symbols, Typecheck, Fmt, Json, Paths,
 
 const
     ProtocolVersion = "2025-06-18"
+    ## The most items of each list a tool's result holds; the rest is paged with `cursor`.
+    PageSize = 200
 
 # ------------------------------------------------------------------------- messages
 
@@ -30,8 +32,70 @@ function tool(name, description: String, properties: List[String], required: Lis
     var names: List[String] := []
     for r in required do
         add(var names, quote(r))
-    let schema := "\{\"type\":\"object\",\"properties\":\{{join(properties, sep: ",")}},\"required\":[{join(names, sep: ",")}]}"
+    var props := properties
+    if pages(name) then
+        add(var props, property(
+            "cursor",
+            kind: "string",
+            description: "The `nextCursor` of the previous page, to get the next one.",
+        ))
+    let schema := "\{\"type\":\"object\",\"properties\":\{{join(props, sep: ",")}},\"required\":[{join(names, sep: ",")}]}"
     return "\{\"name\":{quote(name)},\"description\":{quote(description)},\"inputSchema\":{schema}}"
+
+## Whether a tool's result is paged: all but those that write files, which must not be
+## called again for the rest.
+function pages(name: String): Boolean
+    return not (name in ["pst_fmt", "pst_apply_fix", "pst_rename"])
+
+## The page of a tool's JSON result that `cursor` asks for: each list of the object cut to
+## `PageSize` items from the cursor's offset, with `"nextCursor"` if any list goes on.
+function paged(text, cursor: String): Result[String, String]
+    var start := 0
+    if cursor <> "" then
+        case parseInt(cursor) of
+            Ok(n):
+                start := n.value
+            Err(_):
+                start := -1
+        if start < 0 then
+            return Err("bad cursor '{cursor}'")
+    var members: List[Member] := []
+    var more := false
+    case parse(text) of
+        Ok(j):
+            case j.value of
+                JObject(o):
+                    members := o.members
+                else:
+                    return Ok(text)
+        Err(_):
+            return Ok(text)
+    if start = 0 then
+        var long := false
+        for m in members do
+            case m.value of
+                JArray(a):
+                    long := long or len(a.items) > PageSize
+                else:
+                    pass
+        if not long then
+            return Ok(text)
+    var out: List[Member] := []
+    for m in members do
+        case m.value of
+            JArray(a):
+                var page: List[JValue] := []
+                var i := start
+                while i < len(a.items) and i < start + PageSize do
+                    add(var page, a.items[i])
+                    i := i + 1
+                more := more or len(a.items) > start + PageSize
+                add(var out, Member(key: m.key, value: JArray(items: page)))
+            else:
+                add(var out, m)
+    if more then
+        add(var out, Member(key: "nextCursor", value: JString(value: "{start + PageSize}")))
+    return Ok(toText(JObject(members: out)))
 
 function property(name, kind, description: String): String
     return "{quote(name)}:\{\"type\":{quote(kind)},\"description\":{quote(description)}}"
@@ -700,7 +764,18 @@ function call(name: String, arguments: JValue, stdDir: String): Result[String, S
 ## The result of `tools/call`: the tool's JSON answer as text, or its error.
 function callResult(params: JValue, stdDir: String): String
     let name := asString(field(params, key: "name")).getOr("")
-    case call(name, arguments: field(params, key: "arguments"), stdDir: stdDir) of
+    let arguments := field(params, key: "arguments")
+    var result := call(name, arguments: arguments, stdDir: stdDir)
+    if pages(name) then
+        case result of
+            Ok(text):
+                result := paged(
+                    text.value,
+                    cursor: asString(field(arguments, key: "cursor")).getOr(""),
+                )
+            Err(_):
+                pass
+    case result of
         Ok(text):
             return "\{\"content\":[\{\"type\":\"text\",\"text\":{quote(text.value)}}]}"
         Err(e):

@@ -1643,6 +1643,10 @@ so it needs no watching.
 - Each tool's result is one text item holding the JSON that `pst query` or `pst index`
   prints for it (§15.5). `pst_hover` is `pst query hover`; `pst_symbols` takes a file or
   directory as `file`, and its `query` keeps the names that contain its letters in order.
+- A result's lists hold at most 200 items each. When one holds more, the result says
+  where the next page starts as `"nextCursor"`; the call made again with that as its
+  `cursor` gives the next 200 items of each list. Results of the tools that write files
+  (`pst_fmt`, `pst_apply_fix` and `pst_rename`) aren't paged.
 - `pst_check` gives `"errors"`, the number of errors, and `"diagnostics"` as `pst check
   --json` prints them (§15.1), each once, for the `.pst` files of `paths`.
 - `pst_fmt` gives the `"changed"` files, whether they were `"written"`, and the
