@@ -137,7 +137,7 @@ def diagnostic_lines(diagnostics) -> list[str]:
 
 
 def ast_dump(text: str, file: str) -> str:
-    """The tree as ``compiler/AstDump.pst`` prints it: one node per line, indented by
+    """The tree as ``pst ast`` prints it: one node per line, indented by
     depth, with scalar fields on the node's line and child nodes below it."""
     r = parse(text, file)
     lines = []
@@ -275,9 +275,11 @@ def source_files() -> list[Path]:
 
 
 class _Differential(unittest.TestCase):
-    """Runs a dump program and the matching Python dump on the same files."""
+    """Runs a dump program, or a dump command of the port's tool, and the matching Python
+    dump on the same files."""
 
     tool = ""
+    command = ""  # a command of the port's tool, instead of a dump program
     snippets: dict[str, str] = {}
 
     @staticmethod
@@ -286,10 +288,10 @@ class _Differential(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.exe = build_tool(cls.tool)
+        cls.exe = pst_tool() if cls.command else build_tool(cls.tool)
 
     def args(self, path: Path) -> list[str]:
-        return [str(path)]
+        return [self.command, str(path)] if self.command else [str(path)]
 
     def expected_for(self, path: Path) -> str:
         text = path.read_bytes().decode("utf-8", errors="replace")
@@ -298,7 +300,12 @@ class _Differential(unittest.TestCase):
     def compare(self, path: Path, under: tuple = ()):
         expected = self.expected_for(path)
         r = subprocess.run([*under, self.exe, *self.args(path)], capture_output=True, timeout=120)
-        self.assertEqual(r.returncode, 0, r.stderr.decode())
+        if self.command:  # status 1 if there are errors, as for `pst check`
+            self.assertIn(r.returncode, (0, 1), r.stderr.decode())
+            self.assertEqual(r.returncode == 1, "\nerror " in "\n" + expected, path.name)
+            self.assertEqual(r.stderr, b"")
+        else:
+            self.assertEqual(r.returncode, 0, r.stderr.decode())
         actual = r.stdout.decode()
         if actual != expected:
             got, want = actual.splitlines(), expected.splitlines()
@@ -317,7 +324,7 @@ class _Differential(unittest.TestCase):
     def test_snippets(self):
         for name, text in self.snippets.items():
             with self.subTest(name):
-                path = Path(_TMP.name, f"{self.tool}-{name}.pst")
+                path = Path(_TMP.name, f"{self.tool or self.command}-{name}.pst")
                 path.write_bytes(text.encode())
                 self.compare(path)
 
@@ -483,14 +490,14 @@ PARSER_SNIPPETS = {
 
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
 class Lexer(_Differential):
-    tool = "LexDump"
+    command = "tokens"
     snippets = SNIPPETS
     expected = staticmethod(lex_dump)
 
 
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
 class Parser(_Differential):
-    tool = "AstDump"
+    command = "ast"
     snippets = PARSER_SNIPPETS
     expected = staticmethod(ast_dump)
 
@@ -887,7 +894,7 @@ class Build(unittest.TestCase):
                 self.compare(path, checked)
 
     def test_programs(self):
-        for path in (ROOT / "examples" / "Inventory.pst", COMPILER / "LexDump.pst",
+        for path in (ROOT / "examples" / "Inventory.pst",
                      COMPILER / "AsmDump.pst", COMPILER / "Pst.pst"):
             with self.subTest(path.name):
                 self.compare(path)
@@ -990,8 +997,20 @@ class Cli(unittest.TestCase):
         self.assertEqual(self.compare("test", ".", "--filter", "o")[0], 1)
         self.compare("test", "Bad.pst", "--json")
 
+    def test_dumps(self):
+        for command in ("tokens", "ast"):
+            with self.subTest(command):
+                r = subprocess.run([self.exe, command, "Args.pst"], cwd=self.work,
+                                   capture_output=True)
+                self.assertEqual((r.returncode, r.stderr), (0, b""))
+                r = subprocess.run([self.exe, command, "missing.pst"], cwd=self.work,
+                                   capture_output=True)
+                self.assertEqual(r.returncode, 1)
+                self.assertIn(b"pst: error:", r.stderr)
+
     def test_usage(self):
-        for args in ([], ["frob"], ["build"], ["build", "Args.pst", "-o"]):
+        for args in ([], ["frob"], ["build"], ["build", "Args.pst", "-o"],
+                     ["tokens", "Args.pst", "--json"], ["ast", "--unchecked", "Args.pst"]):
             with self.subTest(args):
                 r = subprocess.run([self.exe, *args], capture_output=True)
                 self.assertEqual(r.returncode, 2)

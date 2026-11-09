@@ -1,7 +1,7 @@
-program LexDump
+unit LexDump
 
-## Prints the tokens, comments and diagnostics of a source file in a canonical form,
-## to compare the lexer with the Python one (tests/test_port.py).
+## The `pst tokens` command: prints the tokens, comments and diagnostics of a source
+## file in a canonical form, which tests/test_port.py compares with the Python lexer.
 
 uses IO, OS, Strings, Source, Tokens, Diagnostics, Lexer
 
@@ -54,7 +54,8 @@ function valueOf(v: TokenValue): String
                 None:
                     return "marker {m.keyword} -"
 
-procedure dump(text: String, file: String)
+## Prints the dump of source `text`, from `file`. Whether it has errors.
+export function dumpTokens(text: String, file: String): Boolean
     let r := lex(text, file: file)
     for t in r.tokens do
         writeln("{t.kind} {where(t.span)} {quote(t.text)} {valueOf(t.value)}")
@@ -66,16 +67,7 @@ procedure dump(text: String, file: String)
             writeln("  fix {quote(f.description)}")
             for e in f.edits do
                 writeln("    edit {where(e.span)} {quote(e.text)}")
-
-for path in args() do
-    case open(path) of
-        Ok(f):
-            case readAll(f.value) of
-                Ok(t):
-                    dump(t.value, file: path)
-                Err(e):
-                    writelnErr(e.error)
-                    exit(1)
-        Err(e):
-            writelnErr(e.error)
-            exit(1)
+    for d in r.diagnostics do
+        if d.severity = Severity.Error then
+            return true
+    return false
