@@ -1,0 +1,10 @@
+unit Lib
+
+export function double(n: Integer): Integer
+    return n * 2
+
+test "doubles"
+    assert double(2) = 4
+
+test "fails"
+    assert double(1) = 3

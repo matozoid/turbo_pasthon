@@ -35,6 +35,8 @@ exit 0
 "name":"pst_impls"
 "name":"pst_callers"
 "name":"pst_callees"
+"name":"pst_run"
+"name":"pst_test"
 "name":"pst_fmt"
 "name":"pst_rename"
 --- stderr

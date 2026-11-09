@@ -1,0 +1,3 @@
+# The MCP server's pst_run and pst_test (SPEC §15.7): arguments, standard input, panics,
+# the timeout, programs that don't build, and test results.
+$PST mcp --root proj < session.jsonl; echo "status $?"

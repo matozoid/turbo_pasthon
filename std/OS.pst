@@ -22,6 +22,7 @@ extern "libc.so.6"
     function fork(): CInt
     function execv(path: CString, argv: Ptr[CString]): CInt
     procedure cExit(code: CInt) as "_exit"
+    function alarm(seconds: CUInt): CUInt
     function waitpid(pid: CInt, status: Ptr[CInt], options: CInt): CInt
     function errnoLocation(): Ptr[CInt] as "__errno_location"
     function cOpen(path: CString, flags: CInt, ...): CInt as "open"
@@ -212,7 +213,7 @@ export unsafe function removeDir(path: String): Result[Integer, String]
 ## `errors` names another file for it. With `input`, the program reads that file as its
 ## standard input. With `dir`, it runs in that directory; the paths of the files are
 ## relative to the current directory, not to `dir`.
-export unsafe function run(
+export function run(
     path: String,
     args: List[String],
     output: String := "",
@@ -220,6 +221,32 @@ export unsafe function run(
     input: String := "",
     dir: String := "",
 ): Result[Integer, String]
+    return launch(path, args, files: [output, errors, input, dir], timeout: 0)
+
+## Runs a program like `run`, in the current directory, and ends it with the signal
+## SIGALRM (14) if it is still running after `timeout` seconds.
+export function runFor(
+    path: String,
+    args: List[String],
+    timeout: Integer,
+    output: String := "",
+    errors: String := "",
+    input: String := "",
+): Result[Integer, String]
+    return launch(path, args, files: [output, errors, input, ""], timeout: timeout)
+
+## `run`, with its `output`, `errors`, `input` and `dir` in `files`, and the alarm after
+## `timeout` seconds unless it is 0.
+unsafe function launch(
+    path: String,
+    args: List[String],
+    files: List[String],
+    timeout: Integer,
+): Result[Integer, String]
+    let output := files[0]
+    let errors := files[1]
+    let input := files[2]
+    let dir := files[3]
     let n := len(args)
     let argv := cast[Ptr[CString]](malloc(CSize(8 * (n + 2))))
     deref(argv) := strdup(toCString(path))
@@ -248,6 +275,8 @@ export unsafe function run(
                 cExit(CInt(127))
         if dir <> "" and chdir(cwd) <> 0 then
             cExit(CInt(127))
+        if timeout > 0 then
+            _ := alarm(CUInt(timeout))
         _ := execv(deref(argv), argv)
         cExit(CInt(127))
     var message := ""
@@ -285,6 +314,8 @@ test "running a program"
     assert run("/bin/sh", ["-c", "pwd; echo err >&2; exit 3"], output: out, dir: "/") = Ok(3)
     assert isFile(out)
     assert run("/nonexistent", []) = Ok(127)
+    assert runFor("/bin/sh", ["-c", "while true; do :; done"], timeout: 1) = Ok(-14)
+    assert runFor("/bin/sh", ["-c", "exit 4"], timeout: 1) = Ok(4)
     assert removeFile(out).isOk()
     assert removeFile(out).isErr()
     assert removeDir(dir).isOk()

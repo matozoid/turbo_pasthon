@@ -10,17 +10,17 @@ use Main.pst 3:10-3:12
 use Main.pst 5:1-5:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 5:9-5:19
-  function 'currentDir' @ std/OS.pst:82:24
+  function 'currentDir' @ std/OS.pst:83:24
 use Main.pst 6:1-6:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 6:9-6:15
-  function 'isFile' @ std/OS.pst:130:17
+  function 'isFile' @ std/OS.pst:131:17
 use Main.pst 7:1-7:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 7:9-7:15
-  function 'isFile' @ std/OS.pst:130:17
+  function 'isFile' @ std/OS.pst:131:17
 use Main.pst 8:1-8:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 8:9-8:15
-  function 'isFile' @ std/OS.pst:130:17
+  function 'isFile' @ std/OS.pst:131:17
 --- stderr

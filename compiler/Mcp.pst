@@ -136,6 +136,38 @@ function tools(): String
             required: ["symbol"],
         ),
         tool(
+            "pst_run",
+            description: "Builds and runs a program, and returns its exit code, output and panic, or the diagnostics if it doesn't build. Executes the program.",
+            properties: [
+                property("file", kind: "string", description: "The program's .pst file."),
+                "\"args\":\{\"type\":\"array\",\"items\":\{\"type\":\"string\"},\"description\":\"Its command line arguments.\"}",
+                property(
+                    "stdin",
+                    kind: "string",
+                    description: "Its standard input; by default empty.",
+                ),
+                property(
+                    "timeoutMs",
+                    kind: "integer",
+                    description: "When to end it, in milliseconds, rounded up to seconds; by default 10000.",
+                ),
+            ],
+            required: ["file"],
+        ),
+        tool(
+            "pst_test",
+            description: "Runs the test blocks of .pst files, and returns each test's result with its output, and any diagnostics.",
+            properties: [
+                pathsProperty("Files or directories; by default the project root."),
+                property(
+                    "filter",
+                    kind: "string",
+                    description: "Only tests whose names contain this text.",
+                ),
+            ],
+            required: [],
+        ),
+        tool(
             "pst_fmt",
             description: "Formats .pst files in place, or with check only lists the files that would change. Writes files.",
             properties: [
@@ -264,6 +296,10 @@ function inside(path: String): Boolean
 function save(path, text: String): Result[Integer, String]
     if not inside(path) then
         return Err("'{shown(absolute(path))}' is outside the project root")
+    return writeText(path, text: text)
+
+## Replaces the file at `path` with `text`.
+function writeText(path, text: String): Result[Integer, String]
     case create(path) of
         Ok(out):
             let written := writeAll(out.value, text: text)
@@ -408,6 +444,193 @@ function renameSymbol(arguments: JValue, stdDir: String): Result[String, String]
         Err(e):
             return Err(e.error)
 
+## The strings in the array `j`.
+function strings(j: JValue): List[String]
+    var out: List[String] := []
+    for x in items(j) do
+        case asString(x) of
+            Some(text):
+                add(var out, text.value)
+            None:
+                pass
+    return out
+
+## The text of the file at `path`, or "" if it can't be read.
+function contents(path: String): String
+    return readFile(path).getOr("")
+
+## The JSON lines of a `pst` command's output, and its other lines.
+function jsonLines(text: String): Pair[List[String], List[String]]
+    var json: List[String] := []
+    var other: List[String] := []
+    for line in split(text, sep: "\n") do
+        if startsWith(line, prefix: "\{") then
+            add(var json, line)
+        else if line <> "" then
+            add(var other, line)
+    return Pair(first: json, second: other)
+
+## The panic that `stderr` reports, as JSON members, or "": `panic P0001: message` then
+## `    at File.pst:3:5`.
+function panicOf(stderr: String): String
+    let lines := split(stderr, sep: "\n")
+    for i := 0 to len(lines) - 1 do
+        if not startsWith(lines[i], prefix: "panic P") then
+            continue
+        let rest := slice(lines[i], byteLen("panic "), byteLen(lines[i]))
+        let colon := find(rest, sub: ": ").getOr(byteLen(rest))
+        var members := "\"code\":{quote(slice(rest, 0, colon))}"
+        if colon < byteLen(rest) then
+            members := "{members},\"message\":{quote(slice(rest, colon + 2, byteLen(rest)))}"
+        if i + 1 < len(lines) and startsWith(trim(lines[i + 1]), prefix: "at ") then
+            let at := slice(trim(lines[i + 1]), 3, byteLen(trim(lines[i + 1])))
+            let parts := split(at, sep: ":")
+            let n := len(parts)
+            if n >= 3 then
+                var file := parts[0]
+                for k := 1 to n - 3 do
+                    file := "{file}:{parts[k]}"
+                members := "{members},\"file\":{quote(file)},\"line\":{parts[n - 2]},\"col\":{parts[n - 1]}"
+        return members
+    return ""
+
+## Builds `file` and runs it with `args` and `stdin`, ended after `timeoutMs`.
+function runProgram(arguments: JValue): Result[String, String]
+    let file := asString(field(arguments, key: "file"))
+    if file.isNone() then
+        return Err("expected 'file'")
+    let timeoutMs := asInteger(field(arguments, key: "timeoutMs")).getOr(10000)
+    var tmp := ""
+    case tempDir() of
+        Ok(d):
+            tmp := d.value
+        Err(e):
+            return Err(e.error)
+    let exe := "{tmp}/program"
+    let log := "{tmp}/build"
+    var result: Result[String, String] := Err("")
+    case run(
+        programPath(),
+        ["build", file.get(), "-o", exe, "--json"],
+        output: log,
+        input: "/dev/null",
+    ) of
+        Ok(code):
+            let built := jsonLines(contents(log))
+            let diagnostics := "\"diagnostics\":[{join(built.first, sep: ",")}]"
+            if len(built.second) > 0 then
+                result := Err(join(built.second, sep: "\n"))
+            else if code.value <> 0 then
+                result := Ok("\{\"built\":false,{diagnostics}}")
+            else
+                result := runBuilt(
+                    exe,
+                    arguments: arguments,
+                    tmp: tmp,
+                    timeoutMs: timeoutMs,
+                    built: diagnostics,
+                )
+        Err(e):
+            result := Err(e.error)
+    for name in ["program", "build", "stdin", "stdout", "stderr"] do
+        _ := removeFile("{tmp}/{name}")
+    _ := removeDir(tmp)
+    return result
+
+## Runs the built program `exe`: its exit code or signal, output and panic.
+function runBuilt(
+    exe: String,
+    arguments: JValue,
+    tmp: String,
+    timeoutMs: Integer,
+    built: String,
+): Result[String, String]
+    var input := "/dev/null"
+    case asString(field(arguments, key: "stdin")) of
+        Some(text):
+            input := "{tmp}/stdin"
+            case writeText(input, text: text.value) of
+                Ok(_):
+                    pass
+                Err(e):
+                    return Err(e.error)
+        None:
+            pass
+    let out := "{tmp}/stdout"
+    let err := "{tmp}/stderr"
+    let seconds := (timeoutMs + 999) div 1000
+    case runFor(
+        exe,
+        strings(field(arguments, key: "args")),
+        timeout: seconds,
+        output: out,
+        errors: err,
+        input: input,
+    ) of
+        Ok(code):
+            var status := "\"exitCode\":{code.value}"
+            if code.value = -14 then
+                status := "\"timedOut\":true"
+            else if code.value < 0 then
+                status := "\"signal\":{-code.value}"
+            let stderr := contents(err)
+            var members := "\"built\":true,{built},{status},\"stdout\":{quote(contents(out))},\"stderr\":{quote(stderr)}"
+            let panic := panicOf(stderr)
+            if panic <> "" then
+                members := "{members},\"panic\":\{{panic}}"
+            return Ok("\{{members}}")
+        Err(e):
+            return Err(e.error)
+
+## Runs the tests of `paths` whose names contain `filter`.
+function runTests(arguments: JValue): Result[String, String]
+    var tmp := ""
+    case tempDir() of
+        Ok(d):
+            tmp := d.value
+        Err(e):
+            return Err(e.error)
+    let log := "{tmp}/test"
+    var tests: List[String] := []
+    var diagnostics: List[String] := []
+    var passed := 0
+    var failed := 0
+    var problem := ""
+    case filesOf(pathsOf(arguments)) of
+        Ok(files):
+            for file in files.value do
+                var args := ["test", file, "--json"]
+                case asString(field(arguments, key: "filter")) of
+                    Some(f):
+                        args := concat(args, ["--filter", f.value])
+                    None:
+                        pass
+                case run(programPath(), args, output: log, input: "/dev/null") of
+                    Ok(_):
+                        let lines := jsonLines(contents(log))
+                        for line in lines.first do
+                            let j := parse(line).getOr(JNull())
+                            if isNull(field(j, key: "test")) then
+                                add(var diagnostics, line)
+                            else
+                                add(var tests, line)
+                                if asBoolean(field(j, key: "passed")).getOr(false) then
+                                    passed := passed + 1
+                                else
+                                    failed := failed + 1
+                        if len(lines.second) > 0 and problem = "" then
+                            problem := join(lines.second, sep: "\n")
+                    Err(e):
+                        problem := e.error
+        Err(e):
+            problem := e.error
+    _ := removeFile(log)
+    _ := removeDir(tmp)
+    if problem <> "" then
+        return Err(problem)
+    let counts := "\"passed\":{passed},\"failed\":{failed}"
+    return Ok("\{{counts},\"tests\":[{join(tests, sep: ",")}],\"diagnostics\":[{join(diagnostics, sep: ",")}]}")
+
 ## The answer of tool `name`, or an error for the agent.
 function call(name: String, arguments: JValue, stdDir: String): Result[String, String]
     if name = "pst_check" or name = "pst_index" then
@@ -438,6 +661,10 @@ function call(name: String, arguments: JValue, stdDir: String): Result[String, S
                 )
             Err(e):
                 return Err(e.error)
+    if name = "pst_run" then
+        return runProgram(arguments)
+    if name = "pst_test" then
+        return runTests(arguments)
     if name = "pst_apply_fix" then
         return applyFix(arguments, stdDir: stdDir)
     if name = "pst_rename" then

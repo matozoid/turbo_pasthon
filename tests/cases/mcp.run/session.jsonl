@@ -1,0 +1,9 @@
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pst_run","arguments":{"file":"Echo.pst","args":["a"],"stdin":"hello\n"}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"pst_run","arguments":{"file":"Echo.pst","args":["a","b"]}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"pst_run","arguments":{"file":"Loop.pst","timeoutMs":500}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"pst_run","arguments":{"file":"Bad.pst"}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"pst_run","arguments":{}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"pst_test","arguments":{"paths":["Lib.pst"]}}}
+{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"pst_test","arguments":{"paths":["Lib.pst"],"filter":"doub"}}}
+{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"pst_test","arguments":{"paths":["Bad.pst"]}}}
+{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"pst_test","arguments":{"paths":["Nope.pst"]}}}

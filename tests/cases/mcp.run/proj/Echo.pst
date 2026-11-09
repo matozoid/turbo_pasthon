@@ -1,0 +1,15 @@
+program Echo
+
+uses IO, OS
+
+for a in args() do
+    writeln(a)
+case readln() of
+    Some(l):
+        writeln("in: {l.value}")
+    None:
+        writeln("no input")
+writelnErr("to stderr")
+if len(args()) > 1 then
+    let xs := [1]
+    writeln(xs[5])

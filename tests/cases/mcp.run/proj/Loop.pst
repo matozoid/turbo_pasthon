@@ -1,0 +1,4 @@
+program Loop
+
+while true do
+    pass

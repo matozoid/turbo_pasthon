@@ -1626,7 +1626,7 @@ Configure it in an agent with the command `pst mcp --root <project-dir>`.
 
 So far `pst mcp [--root DIR]` has `pst_check`, `pst_symbols`, `pst_index`, `pst_def`,
 `pst_refs`, `pst_type`, `pst_hover`, `pst_impls`, `pst_callers`, `pst_callees`, `pst_fmt`,
-`pst_apply_fix` and `pst_rename`. It reads
+`pst_apply_fix`, `pst_rename`, `pst_run` and `pst_test`. It reads
 one JSON-RPC message per line and answers `initialize`, `ping`, `tools/list` and
 `tools/call`; notifications are ignored. It runs in the root (by default the current
 directory), so paths are relative to it, and it reads the files from disk on every call,
@@ -1646,6 +1646,16 @@ so it needs no watching.
   changes, the `"edits"` (the locations of the old name) and whether they were
   `"written"`. It searches like `pst query refs`, and is refused like the language
   server's rename (§15.4), or when a file to change is outside the root.
+- `pst_run` builds the program with `pst build --json`. If that fails it gives
+  `"built": false` and the `"diagnostics"`. Else it runs the program with `args`, with
+  `stdin` (by default empty) as its standard input, and ends it after `timeoutMs`
+  (by default 10000, rounded up to whole seconds). It gives `"built": true`, the
+  `"diagnostics"`, the `"exitCode"` (or `"signal"`, or `"timedOut": true`), `"stdout"`,
+  `"stderr"` and, if it panicked, the `"panic"` with `"code"`, `"message"`, `"file"`,
+  `"line"` and `"col"`.
+- `pst_test` runs `pst test --json` on the `.pst` files of `paths`, with `filter`. It
+  gives the numbers `"passed"` and `"failed"`, the `"tests"` as `pst test --json` prints
+  them, and the other `"diagnostics"`.
 - A tool that fails, such as on an unreadable file or a name that means nothing, gives
   its message with `"isError": true`.
 
