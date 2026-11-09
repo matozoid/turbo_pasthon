@@ -1,0 +1,40 @@
+{
+  "name": "pasthon",
+  "displayName": "Turbo Pasthon",
+  "description": "Turbo Pasthon support through the pst language server",
+  "version": "0.1.0",
+  "publisher": "matozoid",
+  "engines": { "vscode": "^1.82.0" },
+  "categories": ["Programming Languages", "Formatters"],
+  "main": "./extension.js",
+  "activationEvents": [],
+  "contributes": {
+    "languages": [
+      {
+        "id": "pasthon",
+        "aliases": ["Turbo Pasthon", "pasthon"],
+        "extensions": [".pst"],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "configuration": {
+      "title": "Turbo Pasthon",
+      "properties": {
+        "pasthon.path": {
+          "type": "string",
+          "default": "pst",
+          "description": "The pst executable. Keep the units directory next to it."
+        },
+        "pasthon.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Log the messages between VS Code and pst in the Pasthon output channel."
+        }
+      }
+    }
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

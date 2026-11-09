@@ -1395,6 +1395,8 @@ except for adding a trailing comma to a broken group and rewriting `else` + `if`
 Intended for human editors. (AI agents should use `pst mcp` (§15.7) or `pst query` (§15.5).)
 Built into the `pst` executable, so it is always the same version as the compiler and uses
 the same front end. JSON-RPC over stdio, LSP 3.17. It has no dependencies beyond the compiler.
+Editor setup: `docs/lsp4ij.md` (IntelliJ IDEA and other JetBrains IDEs) and `docs/vscode.md`
+(VS Code, with the extension in `editors/vscode`).
 
 So far it synchronizes whole documents (`textDocumentSync` 1), pushes diagnostics, formats,
 and answers completion, hover, signature help, definition, type definition, implementation, references, rename, code actions, document
