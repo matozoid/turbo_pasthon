@@ -94,14 +94,6 @@ type
         text: String
         pos: Integer
 
-    export MapIter[T, U, I] = record
-        source: I
-        f: function(T): U
-
-    export FilterIter[T, I] = record
-        source: I
-        pred: function(T): Boolean
-
     export TakeIter[I] = record
         source: I
         left: Integer
@@ -608,28 +600,6 @@ export function next(var it: CharIter): Option[Char]
     it.pos := it.pos + utf8Width(c)
     return Some(c)
 
-## Yields `f(x)` for each `x`.
-export function map[T, U, I: Iterator[T]](it: I, f: function(T): U): MapIter[T, U, I]
-    return MapIter(source: it, f: f)
-
-export function next[T, U, I: Iterator[T]](var it: MapIter[T, U, I]): Option[U]
-    return case next(var it.source) of
-        Some(s): Some(it.f(s.value))
-        None: None
-
-## Yields each `x` where `pred(x)`.
-export function filter[T, I: Iterator[T]](it: I, pred: function(T): Boolean): FilterIter[T, I]
-    return FilterIter(source: it, pred: pred)
-
-export function next[T, I: Iterator[T]](var it: FilterIter[T, I]): Option[T]
-    # Not `for x in it.source`: that would iterate a copy, leaving the source as it was.
-    var x := next(var it.source)
-    while isSome(x) do
-        if it.pred(get(x)) then
-            return x
-        x := next(var it.source)
-    return None
-
 ## Yields the first `n` values.
 export function take[T, I: Iterator[T]](it: I, n: Integer): TakeIter[I]
     return TakeIter(source: it, left: n)
@@ -728,9 +698,6 @@ export function find[T, I: Iterator[T]](it: I, pred: function(T): Boolean): Opti
 function lessByTens(a, b: Integer): Boolean
     return a div 10 < b div 10
 
-function double(x: Integer): Integer
-    return 2 * x
-
 function isEven(x: Integer): Boolean
     return x mod 2 = 0
 
@@ -793,8 +760,6 @@ test "options and results"
 
 test "iterators"
     let xs := [1, 2, 3, 4]
-    assert collect(map(iter(xs), f: double)) = [2, 4, 6, 8]
-    assert collect(filter(iter(xs), pred: isEven)) = [2, 4]
     assert collect(take(iter(xs), n: 2)) = [1, 2]
     assert collect(skip(iter(xs), n: 3)) = [4]
     assert count(iter(xs)) = 4 and sum(iter(xs)) = 10

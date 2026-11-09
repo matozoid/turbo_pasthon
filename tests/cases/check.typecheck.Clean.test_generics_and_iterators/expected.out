@@ -37,15 +37,16 @@ use Main.pst 24:5-24:12
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 24:13-24:14
   loop variable 'c' @ Main.pst:23:5
-use Main.pst 25:16-25:19
-  function 'map' @ std/System.pst:612:17
-use Main.pst 25:20-25:24
-  function 'iter' @ std/System.pst:542:17
-use Main.pst 25:34-25:40
+def Main.pst 25:20-25:21
+  loop variable 'x' @ Main.pst:25:20
+    : Integer
+use Main.pst 25:35-25:41
   function 'double' @ Main.pst:29:10
+use Main.pst 25:42-25:43
+  loop variable 'x' @ Main.pst:25:20
 def Main.pst 25:5-25:12
   let 'doubled' @ Main.pst:25:5
-    : MapIter[Integer, Integer, ListIter[Integer]]
+    : List[Integer]
 use Main.pst 26:10-26:17
   let 'doubled' @ Main.pst:25:5
 def Main.pst 26:5-26:6

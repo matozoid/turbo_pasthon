@@ -31,9 +31,10 @@ for x in Countdown(n: 3) do
 writeln()
 let xs := [1, 2, 3, 4, 5]
 let words := ["a", "b", "c"]
-for x in xs.iter().filter(isOdd).map(double).skip(1).take(5) do
+let doubledOdds := for x in xs do if isOdd(x) then double(x) else continue
+for x in doubledOdds.iter().skip(1).take(5) do
     write("{x} ")
-for w in words.iter().map(shout) do
+for w in (for w in words do shout(w)) do
     write(w)
 for p in zip(words.iter(), b: xs.iter()) do
     write(" {p.first}{p.second}")
@@ -44,6 +45,6 @@ var it := xs.iter()
 for _ in it do
     break
 writeln("{count(it)} {count(Countdown(n: 7))} {sum(xs.iter())} {count(chars("𝄞x"))}")
-writeln("{collect(xs.iter().map(double)) = [2, 4, 6, 8, 10]} {any(xs.iter(), isOdd)} {all(xs.iter(), isOdd)}")
+writeln("{(for x in xs do double(x)) = [2, 4, 6, 8, 10]} {any(xs.iter(), isOdd)} {all(xs.iter(), isOdd)}")
 let f := double
 writeln("{get(find(xs.iter(), isOdd))} {f(21)}")

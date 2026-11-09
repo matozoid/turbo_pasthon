@@ -638,8 +638,6 @@ them compile to direct calls with no allocation:
 
 | Adapter | Yields |
 |---|---|
-| `map(it, f)` | `f(x)` for each `x` |
-| `filter(it, pred)` | `x` where `pred(x)` |
 | `take(it, n)` / `skip(it, n)` | first `n` / all but first `n` |
 | `zip(a, b)` | `Pair[A, B]` (fields `first`, `second`) until either ends |
 | `enumerate(it)` | `Indexed[T]` (fields `index`, `value`) |
@@ -648,9 +646,9 @@ them compile to direct calls with no allocation:
 **Consumers:** `collect(it): List[T]`, `count`, `sum`, `any(it, pred)`, `all(it, pred)`,
 `find(it, pred): Option[T]`.
 
-In v0.1, `f` and `pred` are named functions (`map(iter(xs), double)`). In v0.2, `for`
-expressions (§9.4) replace `map` and `filter` (§18a.1). In v0.3, lambdas make the remaining
-`pred`s inline (§18a.2): `any(iter(xs), x => x < 0)`.
+There is no `map` or `filter`: a `for` expression (§9.4) is the one way to map and filter,
+`for x in xs do if x > 0 then double(x) else continue`. A `pred` is a named function for
+now; in v0.3, lambdas make it inline (§18a.1): `any(iter(xs), x => x < 0)`.
 
 ---
 
@@ -1982,13 +1980,7 @@ None at the moment.
 
 ## 18a. Planned
 
-### 18a.1 v0.2: removing `map` and `filter`
-
-With `for` expressions (§9.4) there is one way to map and filter: `map` and `filter` are
-removed from System (§4.14). The adapters that take no function stay: `take`, `skip`,
-`zip`, `enumerate`, `chars`.
-
-### 18a.2 v0.3: lambdas
+### 18a.1 v0.3: lambdas
 
 Lambdas are restricted so that the common, safe cases work and the classic bugs can't happen:
 

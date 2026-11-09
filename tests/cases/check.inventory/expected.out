@@ -182,7 +182,7 @@ def Inventory.pst 35:9-35:10
   loop variable 'x' @ Inventory.pst:35:9
     : T
 use Inventory.pst 36:9-36:12
-  procedure 'add' @ std/System.pst:187:18
+  procedure 'add' @ std/System.pst:179:18
 use Inventory.pst 36:17-36:22
   var 'parts' @ Inventory.pst:34:9
 use Inventory.pst 36:24-36:25
@@ -213,7 +213,7 @@ def Inventory.pst 40:9-40:14
   var 'total' @ Inventory.pst:40:9
     : Integer
 use Inventory.pst 41:19-41:22
-  function 'len' @ std/System.pst:123:21
+  function 'len' @ std/System.pst:115:21
 use Inventory.pst 41:23-41:28
   parameter 'items' @ Inventory.pst:39:25
 def Inventory.pst 41:9-41:10
@@ -291,7 +291,7 @@ use Inventory.pst 46:44-46:50
 use Inventory.pst 47:28-47:34
   parameter 'amount' @ Inventory.pst:19:34
 use Inventory.pst 47:39-47:44
-  function 'isErr' @ std/System.pst:513:17
+  function 'isErr' @ std/System.pst:505:17
 use Inventory.pst 48:15-48:18
   field 'qty' @ Inventory.pst:10:9
 use Inventory.pst 51:10-51:14

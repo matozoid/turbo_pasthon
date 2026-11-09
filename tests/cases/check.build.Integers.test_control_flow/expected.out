@@ -44,13 +44,13 @@ def Main.pst 17:5-17:6
   var 'n' @ Main.pst:17:5
     : Integer
 use Main.pst 19:5-19:8
-  procedure 'inc' @ std/System.pst:127:22
+  procedure 'inc' @ std/System.pst:119:22
 use Main.pst 19:13-19:14
   var 'n' @ Main.pst:17:5
 use Main.pst 20:8-20:9
   var 'n' @ Main.pst:17:5
 use Main.pst 23:5-23:8
-  procedure 'dec' @ std/System.pst:131:22
+  procedure 'dec' @ std/System.pst:123:22
 use Main.pst 23:13-23:14
   var 'n' @ Main.pst:17:5
 use Main.pst 24:7-24:8

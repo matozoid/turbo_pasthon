@@ -7,4 +7,4 @@ exit 70
 --- stdout
 --- stderr
 panic P0001: index out of bounds
-    at System.pst:203:10
+    at System.pst:195:10

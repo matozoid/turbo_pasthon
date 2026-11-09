@@ -48,7 +48,7 @@ use Main.pst 20:5-20:11
 use Main.pst 20:16-20:19
   var 'acc' @ Main.pst:18:5
 use Main.pst 20:27-20:35
-  function 'toString' @ std/System.pst:140:21
+  function 'toString' @ std/System.pst:132:21
 use Main.pst 20:36-20:37
   loop variable 'i' @ Main.pst:19:5
 use Main.pst 21:1-21:8
@@ -58,13 +58,13 @@ use Main.pst 21:9-21:12
 use Main.pst 22:1-22:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 22:11-22:19
-  function 'toString' @ std/System.pst:140:21
+  function 'toString' @ std/System.pst:132:21
 use Main.pst 22:27-22:35
-  function 'toString' @ std/System.pst:143:21
+  function 'toString' @ std/System.pst:135:21
 use Main.pst 22:44-22:52
-  function 'toString' @ std/System.pst:144:21
+  function 'toString' @ std/System.pst:136:21
 use Main.pst 22:66-22:69
-  function 'ord' @ std/System.pst:133:21
+  function 'ord' @ std/System.pst:125:21
 use Main.pst 23:1-23:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 23:12-23:15

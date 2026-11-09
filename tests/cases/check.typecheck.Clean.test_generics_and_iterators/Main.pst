@@ -22,7 +22,7 @@ let shapes := [Square(side: 2.0)]
 writeln(total(shapes))
 for c in "abc" do
     writeln(c)
-let doubled := map(iter([1, 2]), double)
+let doubled := for x in [1, 2] do double(x)
 for d in doubled do
     writeln(d)
 

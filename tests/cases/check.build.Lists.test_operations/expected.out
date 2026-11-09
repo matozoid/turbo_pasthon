@@ -21,13 +21,13 @@ def Main.pst 13:5-13:7
   var 'xs' @ Main.pst:13:5
     : List[Integer]
 use Main.pst 14:1-14:4
-  procedure 'add' @ std/System.pst:187:18
+  procedure 'add' @ std/System.pst:179:18
 use Main.pst 14:9-14:11
   var 'xs' @ Main.pst:13:5
 use Main.pst 15:1-15:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 15:11-15:14
-  function 'len' @ std/System.pst:123:21
+  function 'len' @ std/System.pst:115:21
 use Main.pst 15:15-15:17
   var 'xs' @ Main.pst:13:5
 use Main.pst 15:21-15:23
@@ -56,7 +56,7 @@ use Main.pst 19:27-19:29
 use Main.pst 19:35-19:37
   var 'ys' @ Main.pst:16:5
 use Main.pst 20:1-20:7
-  procedure 'remove' @ std/System.pst:193:18
+  procedure 'remove' @ std/System.pst:185:18
 use Main.pst 20:12-20:14
   var 'ys' @ Main.pst:16:5
 use Main.pst 21:10-21:12
@@ -71,7 +71,7 @@ use Main.pst 22:13-22:14
 use Main.pst 23:1-23:8
   procedure 'writeln' @ std/IO.pst:18:22
 use Main.pst 24:11-24:17
-  function 'concat' @ std/System.pst:278:17
+  function 'concat' @ std/System.pst:270:17
 use Main.pst 24:18-24:20
   var 'xs' @ Main.pst:13:5
 use Main.pst 24:25-24:27
@@ -82,7 +82,7 @@ def Main.pst 24:5-24:7
 use Main.pst 25:1-25:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 25:11-25:14
-  function 'len' @ std/System.pst:123:21
+  function 'len' @ std/System.pst:115:21
 use Main.pst 25:15-25:17
   let 'zs' @ Main.pst:24:5
 use Main.pst 25:26-25:28
@@ -106,7 +106,7 @@ def Main.pst 27:5-27:6
   loop variable 'i' @ Main.pst:27:5
     : Integer
 use Main.pst 28:5-28:8
-  procedure 'add' @ std/System.pst:187:18
+  procedure 'add' @ std/System.pst:179:18
 use Main.pst 28:13-28:18
   var 'names' @ Main.pst:26:5
 use Main.pst 28:23-28:24
@@ -125,7 +125,7 @@ def Main.pst 30:5-30:7
   var 'it' @ Main.pst:30:5
     : Item
 use Main.pst 31:1-31:4
-  procedure 'add' @ std/System.pst:187:18
+  procedure 'add' @ std/System.pst:179:18
 use Main.pst 31:9-31:11
   var 'it' @ Main.pst:30:5
 use Main.pst 32:13-32:15
@@ -134,17 +134,17 @@ def Main.pst 32:5-32:9
   let 'copy' @ Main.pst:32:5
     : Item
 use Main.pst 33:1-33:4
-  procedure 'add' @ std/System.pst:187:18
+  procedure 'add' @ std/System.pst:179:18
 use Main.pst 33:9-33:11
   var 'it' @ Main.pst:30:5
 use Main.pst 34:1-34:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 34:11-34:14
-  function 'len' @ std/System.pst:123:21
+  function 'len' @ std/System.pst:115:21
 use Main.pst 34:15-34:17
   var 'it' @ Main.pst:30:5
 use Main.pst 34:26-34:29
-  function 'len' @ std/System.pst:123:21
+  function 'len' @ std/System.pst:115:21
 use Main.pst 34:30-34:34
   let 'copy' @ Main.pst:32:5
 use Main.pst 35:21-35:28
@@ -157,7 +157,7 @@ def Main.pst 35:5-35:9
   var 'grid' @ Main.pst:35:5
     : List[List[Integer]]
 use Main.pst 36:1-36:4
-  procedure 'add' @ std/System.pst:187:18
+  procedure 'add' @ std/System.pst:179:18
 use Main.pst 36:9-36:13
   var 'grid' @ Main.pst:35:5
 use Main.pst 37:1-37:5
@@ -192,7 +192,7 @@ def Main.pst 42:5-42:7
   var 'os' @ Main.pst:42:5
     : List[Option[String]]
 use Main.pst 43:1-43:4
-  procedure 'add' @ std/System.pst:187:18
+  procedure 'add' @ std/System.pst:179:18
 use Main.pst 43:9-43:11
   var 'os' @ Main.pst:42:5
 use Main.pst 43:13-43:17
@@ -231,7 +231,7 @@ use Main.pst 11:5-11:6
 use Main.pst 11:10-11:11
   parameter 'x' @ Main.pst:10:20
 use Main.pst 24:22-24:23
-  parameter 'b' @ std/System.pst:278:30
+  parameter 'b' @ std/System.pst:270:30
 use Main.pst 30:16-30:20
   field 'name' @ Main.pst:7:9
 use Main.pst 30:27-30:31
