@@ -68,11 +68,11 @@ use Main.pst 19:17-19:18
 use Main.pst 20:1-20:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 20:9-20:12
-  function 'run' @ std/OS.pst:209:24
+  function 'run' @ std/OS.pst:215:24
 use Main.pst 21:1-21:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 21:9-21:12
-  function 'run' @ std/OS.pst:209:24
+  function 'run' @ std/OS.pst:215:24
 use Main.pst 10:27-10:32
   field 'value' @ std/System.pst:27:16
 use Main.pst 11:24-11:29
@@ -82,11 +82,11 @@ use Main.pst 14:19-14:24
 use Main.pst 19:19-19:24
   field 'error' @ std/System.pst:30:16
 use Main.pst 20:66-20:72
-  parameter 'output' @ std/OS.pst:212:5
+  parameter 'output' @ std/OS.pst:218:5
 use Main.pst 20:108-20:113
   function 'getOr' @ std/System.pst:505:17
 use Main.pst 21:30-21:36
-  parameter 'output' @ std/OS.pst:212:5
+  parameter 'output' @ std/OS.pst:218:5
 use Main.pst 21:80-21:85
   function 'getOr' @ std/System.pst:505:17
 --- stderr

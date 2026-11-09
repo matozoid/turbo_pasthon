@@ -55,25 +55,25 @@ use Main.pst 13:25-13:26
 use Main.pst 14:9-14:16
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 14:17-14:26
-  function 'removeDir' @ std/OS.pst:197:24
+  function 'removeDir' @ std/OS.pst:203:24
 use Main.pst 14:27-14:28
   case binding 'd' @ Main.pst:7:8
 use Main.pst 15:9-15:16
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 15:17-15:27
-  function 'removeFile' @ std/OS.pst:185:24
+  function 'removeFile' @ std/OS.pst:191:24
 use Main.pst 15:30-15:31
   case binding 'd' @ Main.pst:7:8
 use Main.pst 16:9-16:16
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 16:17-16:27
-  function 'removeFile' @ std/OS.pst:185:24
+  function 'removeFile' @ std/OS.pst:191:24
 use Main.pst 16:30-16:31
   case binding 'd' @ Main.pst:7:8
 use Main.pst 17:9-17:16
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 17:17-17:26
-  function 'removeDir' @ std/OS.pst:197:24
+  function 'removeDir' @ std/OS.pst:203:24
 use Main.pst 17:27-17:28
   case binding 'd' @ Main.pst:7:8
 use Main.pst 18:9-18:16
@@ -94,15 +94,15 @@ use Main.pst 20:17-20:18
 use Main.pst 27:1-27:5
   procedure 'show' @ Main.pst:21:11
 use Main.pst 27:6-27:9
-  function 'run' @ std/OS.pst:209:24
+  function 'run' @ std/OS.pst:215:24
 use Main.pst 28:1-28:5
   procedure 'show' @ Main.pst:21:11
 use Main.pst 28:6-28:9
-  function 'run' @ std/OS.pst:209:24
+  function 'run' @ std/OS.pst:215:24
 use Main.pst 29:1-29:5
   procedure 'show' @ Main.pst:21:11
 use Main.pst 29:6-29:9
-  function 'run' @ std/OS.pst:209:24
+  function 'run' @ std/OS.pst:215:24
 use Main.pst 21:26-21:33
   type 'Integer' @ std/System.pst:13:12
 use Main.pst 21:35-21:41

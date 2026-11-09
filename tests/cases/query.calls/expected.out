@@ -53,6 +53,7 @@ usage: pst check FILE [--json]
        pst test PATH [--filter TEXT] [--unchecked] [--json]
        pst fmt PATH [--check]
        pst lsp
+       pst mcp [--root DIR]
        pst query def|refs|type|hover|impls|callers|callees FILE:LINE:COL|NAME
        pst query complete FILE:LINE:COL
        pst query symbols [PATH]
@@ -97,6 +98,7 @@ usage: pst check FILE [--json]
        pst test PATH [--filter TEXT] [--unchecked] [--json]
        pst fmt PATH [--check]
        pst lsp
+       pst mcp [--root DIR]
        pst query def|refs|type|hover|impls|callers|callees FILE:LINE:COL|NAME
        pst query complete FILE:LINE:COL
        pst query symbols [PATH]

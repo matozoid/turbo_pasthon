@@ -1,0 +1,284 @@
+unit Mcp
+
+## The MCP server for AI agents (SPEC §15.7): JSON-RPC over standard input and output, one
+## message per line. Each tool answers like the `pst` command or query it wraps, reading
+## the files from disk on every call, so edits made by other tools are always seen.
+
+uses IO, OS, Strings, Diagnostics, Typecheck, Json, Query
+
+const
+    ProtocolVersion = "2025-06-18"
+
+# ------------------------------------------------------------------------- messages
+
+procedure send(body: String)
+    writeln(body)
+
+procedure respond(id: JValue, result: String)
+    send("\{\"jsonrpc\":\"2.0\",\"id\":{toText(id)},\"result\":{result}}")
+
+procedure respondError(id: JValue, code: Integer, message: String)
+    send(
+        "\{\"jsonrpc\":\"2.0\",\"id\":{toText(id)},\"error\":\{\"code\":{code},\"message\":{quote(message)}}}",
+    )
+
+# ------------------------------------------------------------------------- tools
+
+## A tool's description for `tools/list`: its input's properties, as JSON members, and the
+## names of those that are required.
+function tool(name, description: String, properties: List[String], required: List[String]): String
+    var names: List[String] := []
+    for r in required do
+        add(var names, quote(r))
+    let schema := "\{\"type\":\"object\",\"properties\":\{{join(properties, sep: ",")}},\"required\":[{join(names, sep: ",")}]}"
+    return "\{\"name\":{quote(name)},\"description\":{quote(description)},\"inputSchema\":{schema}}"
+
+function property(name, kind, description: String): String
+    return "{quote(name)}:\{\"type\":{quote(kind)},\"description\":{quote(description)}}"
+
+function pathsProperty(description: String): String
+    return "\"paths\":\{\"type\":\"array\",\"items\":\{\"type\":\"string\"},\"description\":{quote(description)}}"
+
+## The properties of a tool that takes a position or a symbol's name.
+function positionProperties(): List[String]
+    return [
+        property("file", kind: "string", description: "A .pst file, relative to the project root."),
+        property("line", kind: "integer", description: "The line, from 1."),
+        property("col", kind: "integer", description: "The column in code points, from 1."),
+        property(
+            "symbol",
+            kind: "string",
+            description: "Instead of a position: a name, Unit.name or Type.name.",
+        ),
+    ]
+
+function tools(): String
+    let at := positionProperties()
+    let named := [property(
+        "symbol",
+        kind: "string",
+        description: "A name, Unit.name or Type.name.",
+    )]
+    let list := [
+        tool(
+            "pst_check",
+            description: "Type-checks .pst files and returns their diagnostics, with fixes.",
+            properties: [pathsProperty("Files or directories; by default the project root.")],
+            required: [],
+        ),
+        tool(
+            "pst_symbols",
+            description: "The types, constants, routines, fields and enum members declared in a file or directory, with signatures and doc comments.",
+            properties: [
+                property(
+                    "file",
+                    kind: "string",
+                    description: "A file or directory; by default the project root.",
+                ),
+                property(
+                    "query",
+                    kind: "string",
+                    description: "Only names containing these letters, in order.",
+                ),
+            ],
+            required: [],
+        ),
+        tool(
+            "pst_index",
+            description: "The complete symbol index: every symbol declared or used, and every name with the symbol it means.",
+            properties: [pathsProperty("Files or directories; by default the project root.")],
+            required: [],
+        ),
+        tool(
+            "pst_def",
+            description: "Where the symbol at a position, or with a name, is defined.",
+            properties: at,
+            required: [],
+        ),
+        tool(
+            "pst_refs",
+            description: "The definition and every use of a symbol, method calls included.",
+            properties: at,
+            required: [],
+        ),
+        tool(
+            "pst_type",
+            description: "The type of the value at a position, and where its types are declared.",
+            properties: at,
+            required: [],
+        ),
+        tool(
+            "pst_hover",
+            description: "A symbol's kind, type, declaration, doc comment and location.",
+            properties: at,
+            required: [],
+        ),
+        tool(
+            "pst_impls",
+            description: "The types that satisfy a trait, or the routines that provide a trait routine.",
+            properties: [property(
+                "trait",
+                kind: "string",
+                description: "A trait or trait routine: a name, Unit.name or Type.name.",
+            )],
+            required: ["trait"],
+        ),
+        tool(
+            "pst_callers",
+            description: "The routines (or unit levels) that call a routine, with the calls' locations.",
+            properties: named,
+            required: ["symbol"],
+        ),
+        tool(
+            "pst_callees",
+            description: "The routines declared in source that a routine calls, with the calls' locations.",
+            properties: named,
+            required: ["symbol"],
+        ),
+    ]
+    return "\{\"tools\":[{join(list, sep: ",")}]}"
+
+## The paths given as `paths`, or the project root.
+function pathsOf(arguments: JValue): List[String]
+    var paths: List[String] := []
+    for p in items(field(arguments, key: "paths")) do
+        case asString(p) of
+            Some(text):
+                add(var paths, text.value)
+            None:
+                pass
+    if len(paths) = 0 then
+        add(var paths, ".")
+    return paths
+
+## The `.pst` files of `paths`.
+function filesOf(paths: List[String]): Result[List[String], String]
+    var files: List[String] := []
+    for path in paths do
+        if not (isFile(path) or isDir(path)) then
+            return Err("can't read '{path}'")
+        case pstFiles(path) of
+            Ok(found):
+                for f in found.value do
+                    add(var files, f)
+            Err(e):
+                return Err(e.error)
+    return Ok(files)
+
+## The position the arguments name, as `pst query` takes it: `symbol`, or `file:line:col`.
+function positionOf(arguments: JValue, key: String): Result[String, String]
+    case asString(field(arguments, key: key)) of
+        Some(name):
+            return Ok(name.value)
+        None:
+            pass
+    let file := asString(field(arguments, key: "file"))
+    let line := asInteger(field(arguments, key: "line"))
+    let col := asInteger(field(arguments, key: "col"))
+    if file.isNone() or line.isNone() or col.isNone() then
+        return Err("expected 'file', 'line' and 'col', or '{key}'")
+    return Ok("{file.get()}:{line.get()}:{col.get()}")
+
+## The diagnostics of `files`, each reported once.
+function check(files: List[String], stdDir: String): String
+    var items: List[String] := []
+    var seen: Map[String, Boolean] := {}
+    var errors := 0
+    for file in files do
+        for d in typecheck(file, stdDir: stdDir).resolved.checker.diagnostics do
+            let text := json(d)
+            if not (text in seen) then
+                seen[text] := true
+                add(var items, text)
+                if d.severity = Severity.Error then
+                    errors := errors + 1
+    return "\{\"errors\":{errors},\"diagnostics\":[{join(items, sep: ",")}]}"
+
+## The answer of tool `name`, or an error for the agent.
+function call(name: String, arguments: JValue, stdDir: String): Result[String, String]
+    if name = "pst_check" or name = "pst_index" then
+        case filesOf(pathsOf(arguments)) of
+            Ok(files):
+                if name = "pst_check" then
+                    return Ok(check(files.value, stdDir: stdDir))
+                return queryIndex(files.value, stdDir: stdDir)
+            Err(e):
+                return Err(e.error)
+    if name = "pst_symbols" then
+        let file := asString(field(arguments, key: "file")).getOr(".")
+        case filesOf([file]) of
+            Ok(files):
+                return querySymbols(
+                    files.value,
+                    stdDir: stdDir,
+                    query: asString(field(arguments, key: "query")).getOr(""),
+                )
+            Err(e):
+                return Err(e.error)
+    var request := ""
+    var key := "symbol"
+    if name in ["pst_def", "pst_refs", "pst_type", "pst_hover", "pst_callers", "pst_callees"] then
+        request := slice(name, 4, byteLen(name))
+    else if name = "pst_impls" then
+        request := "impls"
+        key := "trait"
+    else
+        return Err("unknown tool '{name}'")
+    case positionOf(arguments, key: key) of
+        Ok(position):
+            return queryAt(request, position: position.value, stdDir: stdDir)
+        Err(e):
+            return Err(e.error)
+
+## The result of `tools/call`: the tool's JSON answer as text, or its error.
+function callResult(params: JValue, stdDir: String): String
+    let name := asString(field(params, key: "name")).getOr("")
+    case call(name, arguments: field(params, key: "arguments"), stdDir: stdDir) of
+        Ok(text):
+            return "\{\"content\":[\{\"type\":\"text\",\"text\":{quote(text.value)}}]}"
+        Err(e):
+            return "\{\"content\":[\{\"type\":\"text\",\"text\":{quote(e.error)}}],\"isError\":true}"
+
+# ------------------------------------------------------------------------- the server
+
+procedure handle(m: JValue, stdDir: String)
+    let method := asString(field(m, key: "method")).getOr("")
+    let id := field(m, key: "id")
+    let params := field(m, key: "params")
+    if isNull(id) then
+        ## A notification, such as `notifications/initialized`: nothing to answer.
+        return
+    if method = "initialize" then
+        ## The client's protocol version if it is one this server speaks, else the latest.
+        var version := asString(field(params, key: "protocolVersion")).getOr("")
+        if not (version in ["2024-11-05", "2025-03-26", ProtocolVersion]) then
+            version := ProtocolVersion
+        let info := "\"serverInfo\":\{\"name\":\"pst\",\"version\":\"0.2\"}"
+        let instructions := "Tools for Turbo Pasthon (.pst) code. Positions are 1-based lines and columns in code points; paths are relative to the project root."
+        respond(
+            id,
+            result: "\{\"protocolVersion\":{quote(version)},\"capabilities\":\{\"tools\":\{}},{info},\"instructions\":{quote(instructions)}}",
+        )
+    else if method = "ping" then
+        respond(id, result: "\{}")
+    else if method = "tools/list" then
+        respond(id, result: tools())
+    else if method = "tools/call" then
+        respond(id, result: callResult(params, stdDir: stdDir))
+    else
+        respondError(id, code: -32601, message: "unknown method '{method}'")
+
+## Answers messages until the input ends.
+export procedure serveMcp(stdDir: String)
+    while true do
+        case readln() of
+            Some(line):
+                if trim(line.value) = "" then
+                    continue
+                case parse(line.value) of
+                    Ok(m):
+                        handle(m.value, stdDir: stdDir)
+                    Err(e):
+                        respondError(JNull(), code: -32700, message: e.error)
+            None:
+                return

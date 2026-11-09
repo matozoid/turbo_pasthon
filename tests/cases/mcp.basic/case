@@ -1,0 +1,6 @@
+# The MCP server (SPEC §15.7): initialization, the tools and their errors, one message per
+# line. Paths are relative to the project root given with --root.
+$PST mcp --root proj < session.jsonl | sed 's|\\"file\\":\\"/[^"]*/|\\"file\\":\\"STD/|g'; echo "status $?"
+echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | $PST mcp | grep -o '"name":"pst_[a-z]*"'
+$PST mcp --root nope < /dev/null
+$PST mcp extra

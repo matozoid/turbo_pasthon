@@ -181,6 +181,12 @@ export unsafe function tempDir(): Result[String, String]
     free(template)
     return Ok(dir)
 
+## Makes `path` the current directory.
+export unsafe function changeDir(path: String): Result[Integer, String]
+    if chdir(toCString(path)) <> 0 then
+        return Err("{path}: {lastError()}")
+    return Ok(0)
+
 ## Deletes the file at `path`.
 export unsafe function removeFile(path: String): Result[Integer, String]
     if unlink(toCString(path)) <> 0 then

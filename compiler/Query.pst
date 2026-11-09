@@ -312,8 +312,13 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
                 pass
     return Ok(answer("types", items))
 
-## The types, constants, routines, fields and enum members declared in `files`.
-export function querySymbols(files: List[String], stdDir: String): Result[String, String]
+## The types, constants, routines, fields and enum members declared in `files`, whose
+## names match `query` (SPEC §15.4's workspace symbols) if it isn't empty.
+export function querySymbols(
+    files: List[String],
+    stdDir: String,
+    query: String := "",
+): Result[String, String]
     var paths: List[String] := []
     var wantFile: Map[String, Boolean] := {}
     for f in files do
@@ -340,6 +345,7 @@ export function querySymbols(files: List[String], stdDir: String): Result[String
                 Kind.FieldSym,
                 Kind.EnumMember,
             ] or isRoutine(sym.kind)
+            wanted := wanted and (query = "" or matches(sym.name, query: query))
             let key := "{r.file}:{r.span.start}"
             if wanted and sym.file = r.file and not (key in seen) then
                 seen[key] := true

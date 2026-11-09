@@ -1,0 +1,61 @@
+$ $PST mcp --root proj < session.jsonl | sed 's|\\"file\\":\\"/[^"]*/|\\"file\\":\\"STD/|g'; echo "status $?"
+exit 0
+--- stdout
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","capabilities":{"tools":{}},"serverInfo":{"name":"pst","version":"0.2"},"instructions":"Tools for Turbo Pasthon (.pst) code. Positions are 1-based lines and columns in code points; paths are relative to the project root."}}
+{"jsonrpc":"2.0","id":2,"result":{}}
+{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\"errors\":1,\"diagnostics\":[{\"file\": \"Main.pst\", \"line\": 10, \"col\": 12, \"endLine\": 10, \"endCol\": 14, \"severity\": \"error\", \"code\": \"E0320\", \"message\": \"Square has no field 'si'\", \"fixes\": []}]}"}]}}
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\"errors\":0,\"diagnostics\":[]}"}]}}
+{"jsonrpc":"2.0","id":5,"result":{"content":[{"type":"text","text":"{\"schema\":\"pst-query/1\",\"symbols\":[{\"name\":\"twice\",\"kind\":\"function\",\"declaration\":\"function twice(n: Integer): Integer\",\"location\":{\"file\":\"Main.pst\",\"line\":5,\"col\":10,\"endLine\":5,\"endCol\":15}}]}"}]}}
+{"jsonrpc":"2.0","id":6,"result":{"content":[{"type":"text","text":"{\"schema\":\"pst-query/1\",\"locations\":[{\"file\":\"Shapes.pst\",\"line\":13,\"col\":17,\"endLine\":13,\"endCol\":22}]}"}]}}
+{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"{\"schema\":\"pst-query/1\",\"locations\":[{\"file\":\"Main.pst\",\"line\":5,\"col\":10,\"endLine\":5,\"endCol\":15,\"isDef\":true},{\"file\":\"Main.pst\",\"line\":9,\"col\":9,\"endLine\":9,\"endCol\":14,\"isDef\":false},{\"file\":\"Main.pst\",\"line\":9,\"col\":30,\"endLine\":9,\"endCol\":35,\"isDef\":false}]}"}]}}
+{"jsonrpc":"2.0","id":8,"result":{"content":[{"type":"text","text":"{\"schema\":\"pst-query/1\",\"types\":[{\"type\":\"Square\",\"declarations\":[{\"file\":\"Shapes.pst\",\"line\":7,\"col\":12,\"endLine\":7,\"endCol\":18}]}]}"}]}}
+{"jsonrpc":"2.0","id":9,"result":{"content":[{"type":"text","text":"{\"schema\":\"pst-query/1\",\"symbols\":[{\"name\":\"side\",\"kind\":\"field\",\"container\":\"Square\",\"type\":\"Integer\",\"declaration\":\"field side: Integer\",\"location\":{\"file\":\"Shapes.pst\",\"line\":8,\"col\":16,\"endLine\":8,\"endCol\":20}}]}"}]}}
+{"jsonrpc":"2.0","id":10,"result":{"content":[{"type":"text","text":"{\"schema\":\"pst-query/1\",\"symbols\":[{\"name\":\"Square\",\"kind\":\"type\",\"location\":{\"file\":\"Shapes.pst\",\"line\":7,\"col\":12,\"endLine\":7,\"endCol\":18}}]}"}]}}
+{"jsonrpc":"2.0","id":11,"result":{"content":[{"type":"text","text":"{\"schema\":\"pst-query/1\",\"callers\":[{\"file\":\"Main.pst\",\"calls\":[{\"file\":\"Main.pst\",\"line\":9,\"col\":15,\"endLine\":9,\"endCol\":20}]}]}"}]}}
+{"jsonrpc":"2.0","id":12,"result":{"content":[{"type":"text","text":"{\"schema\":\"pst-query/1\",\"callees\":[{\"callee\":{\"name\":\"area\",\"kind\":\"function\",\"location\":{\"file\":\"Shapes.pst\",\"line\":10,\"col\":17,\"endLine\":10,\"endCol\":21}},\"calls\":[{\"file\":\"Shapes.pst\",\"line\":16,\"col\":22,\"endLine\":16,\"endCol\":26}]}]}"}]}}
+{"jsonrpc":"2.0","id":13,"result":{"content":[{"type":"text","text":"{\"schema\":\"pst-query/1\",\"symbols\":[{\"id\":0,\"name\":\"Shapes\",\"kind\":\"unit\",\"declaration\":\"unit Shapes\",\"location\":{\"file\":\"Shapes.pst\",\"line\":1,\"col\":6,\"endLine\":1,\"endCol\":12}},{\"id\":1,\"name\":\"Shape\",\"kind\":\"trait\",\"declaration\":\"type Shape = trait\",\"location\":{\"file\":\"Shapes.pst\",\"line\":4,\"col\":12,\"endLine\":4,\"endCol\":17}},{\"id\":2,\"name\":\"area\",\"kind\":\"function\",\"container\":\"Shape\",\"declaration\":\"function area(this): Integer\",\"location\":{\"file\":\"Shapes.pst\",\"line\":5,\"col\":18,\"endLine\":5,\"endCol\":22}},{\"id\":3,\"name\":\"Square\",\"kind\":\"type\",\"declaration\":\"type Square = record\",\"location\":{\"file\":\"Shapes.pst\",\"line\":7,\"col\":12,\"endLine\":7,\"endCol\":18}},{\"id\":4,\"name\":\"side\",\"kind\":\"field\",\"container\":\"Square\",\"type\":\"Integer\",\"declaration\":\"field side: Integer\",\"location\":{\"file\":\"Shapes.pst\",\"line\":8,\"col\":16,\"endLine\":8,\"endCol\":20}},{\"id\":5,\"name\":\"area\",\"kind\":\"function\",\"declaration\":\"function area(sq: Square): Integer\",\"location\":{\"file\":\"Shapes.pst\",\"line\":10,\"col\":17,\"endLine\":10,\"endCol\":21}},{\"id\":6,\"name\":\"total\",\"kind\":\"function\",\"declaration\":\"function total(shapes: List[Square]): Integer\",\"location\":{\"file\":\"Shapes.pst\",\"line\":13,\"col\":17,\"endLine\":13,\"endCol\":22}},{\"id\":7,\"name\":\"Integer\",\"kind\":\"type\",\"declaration\":\"type Integer = Int64\",\"doc\":\"Signed 64-bit integer.\",\"location\":{\"file\":\"STD/System.pst\",\"line\":13,\"col\":12,\"endLine\":13,\"endCol\":19}},{\"id\":8,\"name\":\"sq\",\"kind\":\"parameter\",\"type\":\"Square\",\"declaration\":\"parameter sq: Square\",\"location\":{\"file\":\"Shapes.pst\",\"line\":10,\"col\":22,\"endLine\":10,\"endCol\":24}},{\"id\":9,\"name\":\"List\",\"kind\":\"builtin type\",\"declaration\":\"builtin type List\"},{\"id\":10,\"name\":\"shapes\",\"kind\":\"parameter\",\"type\":\"List[Square]\",\"declaration\":\"parameter shapes: List[Square]\",\"location\":{\"file\":\"Shapes.pst\",\"line\":13,\"col\":23,\"endLine\":13,\"endCol\":29}},{\"id\":11,\"name\":\"sum\",\"kind\":\"var\",\"type\":\"Integer\",\"declaration\":\"var sum: Integer\",\"location\":{\"file\":\"Shapes.pst\",\"line\":14,\"col\":9,\"endLine\":14,\"endCol\":12}},{\"id\":12,\"name\":\"s\",\"kind\":\"loop variable\",\"type\":\"Square\",\"declaration\":\"loop variable s: Square\",\"location\":{\"file\":\"Shapes.pst\",\"line\":15,\"col\":9,\"endLine\":15,\"endCol\":10}}],\"references\":[{\"file\":\"Shapes.pst\",\"line\":1,\"col\":6,\"endLine\":1,\"endCol\":12,\"symbol\":0,\"isDef\":true},{\"file\":\"Shapes.pst\",\"line\":4,\"col\":12,\"endLine\":4,\"endCol\":17,\"symbol\":1,\"isDef\":true},{\"file\":\"Shapes.pst\",\"line\":5,\"col\":18,\"endLine\":5,\"endCol\":22,\"symbol\":2,\"isDef\":true},{\"file\":\"Shapes.pst\",\"line\":7,\"col\":12,\"endLine\":7,\"endCol\":18,\"symbol\":3,\"isDef\":true},{\"file\":\"Shapes.pst\",\"line\":8,\"col\":16,\"endLine\":8,\"endCol\":20,\"symbol\":4,\"isDef\":true},{\"file\":\"Shapes.pst\",\"line\":10,\"col\":17,\"endLine\":10,\"endCol\":21,\"symbol\":5,\"isDef\":true},{\"file\":\"Shapes.pst\",\"line\":13,\"col\":17,\"endLine\":13,\"endCol\":22,\"symbol\":6,\"isDef\":true},{\"file\":\"Shapes.pst\",\"line\":5,\"col\":30,\"endLine\":5,\"endCol\":37,\"symbol\":7,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":8,\"col\":22,\"endLine\":8,\"endCol\":29,\"symbol\":7,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":10,\"col\":26,\"endLine\":10,\"endCol\":32,\"symbol\":3,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":10,\"col\":22,\"endLine\":10,\"endCol\":24,\"symbol\":8,\"isDef\":true},{\"file\":\"Shapes.pst\",\"line\":10,\"col\":35,\"endLine\":10,\"endCol\":42,\"symbol\":7,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":11,\"col\":12,\"endLine\":11,\"endCol\":14,\"symbol\":8,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":11,\"col\":22,\"endLine\":11,\"endCol\":24,\"symbol\":8,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":13,\"col\":36,\"endLine\":13,\"endCol\":42,\"symbol\":3,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":13,\"col\":31,\"endLine\":13,\"endCol\":35,\"symbol\":9,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":13,\"col\":23,\"endLine\":13,\"endCol\":29,\"symbol\":10,\"isDef\":true},{\"file\":\"Shapes.pst\",\"line\":13,\"col\":46,\"endLine\":13,\"endCol\":53,\"symbol\":7,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":14,\"col\":9,\"endLine\":14,\"endCol\":12,\"symbol\":11,\"isDef\":true},{\"file\":\"Shapes.pst\",\"line\":15,\"col\":14,\"endLine\":15,\"endCol\":20,\"symbol\":10,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":15,\"col\":9,\"endLine\":15,\"endCol\":10,\"symbol\":12,\"isDef\":true},{\"file\":\"Shapes.pst\",\"line\":16,\"col\":9,\"endLine\":16,\"endCol\":12,\"symbol\":11,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":16,\"col\":16,\"endLine\":16,\"endCol\":19,\"symbol\":11,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":16,\"col\":22,\"endLine\":16,\"endCol\":26,\"symbol\":5,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":16,\"col\":27,\"endLine\":16,\"endCol\":28,\"symbol\":12,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":17,\"col\":12,\"endLine\":17,\"endCol\":15,\"symbol\":11,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":11,\"col\":15,\"endLine\":11,\"endCol\":19,\"symbol\":4,\"isDef\":false},{\"file\":\"Shapes.pst\",\"line\":11,\"col\":25,\"endLine\":11,\"endCol\":29,\"symbol\":4,\"isDef\":false}]}"}]}}
+{"jsonrpc":"2.0","id":14,"result":{"content":[{"type":"text","text":"expected 'file', 'line' and 'col', or 'symbol'"}],"isError":true}}
+{"jsonrpc":"2.0","id":15,"result":{"content":[{"type":"text","text":"no symbol named 'nothing' in the current directory or the units it uses"}],"isError":true}}
+{"jsonrpc":"2.0","id":16,"result":{"content":[{"type":"text","text":"can't read 'Nope.pst'"}],"isError":true}}
+{"jsonrpc":"2.0","id":17,"result":{"content":[{"type":"text","text":"unknown tool 'pst_nope'"}],"isError":true}}
+{"jsonrpc":"2.0","id":18,"error":{"code":-32601,"message":"unknown method 'nope'"}}
+{"jsonrpc":"2.0","id":null,"error":{"code":-32700,"message":"expected a key at offset 1"}}
+status 0
+--- stderr
+$ echo '{"jsonrpc":"2.0","id":1,"method":"tools/list"}' | $PST mcp | grep -o '"name":"pst_[a-z]*"'
+exit 0
+--- stdout
+"name":"pst_check"
+"name":"pst_symbols"
+"name":"pst_index"
+"name":"pst_def"
+"name":"pst_refs"
+"name":"pst_type"
+"name":"pst_hover"
+"name":"pst_impls"
+"name":"pst_callers"
+"name":"pst_callees"
+--- stderr
+$ $PST mcp --root nope < /dev/null
+exit 1
+--- stdout
+--- stderr
+pst: error: nope: No such file or directory
+$ $PST mcp extra
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst fmt PATH [--check]
+       pst lsp
+       pst mcp [--root DIR]
+       pst query def|refs|type|hover|impls|callers|callees FILE:LINE:COL|NAME
+       pst query complete FILE:LINE:COL
+       pst query symbols [PATH]
+       pst index [PATH]
+       pst tokens FILE
+       pst ast FILE
+pst: error: unrecognized argument 'extra'

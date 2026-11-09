@@ -7,9 +7,9 @@ ok   std/Json.pst:384: errors
 ok   std/Json.pst:393: reading parts
 ok   std/Json.pst:403: quote escapes control characters
 ok   std/Math.pst:32: integer helpers
-ok   std/OS.pst:263: directories
-ok   std/OS.pst:276: running a program
-ok   std/OS.pst:286: environment
+ok   std/OS.pst:269: directories
+ok   std/OS.pst:282: running a program
+ok   std/OS.pst:292: environment
 ok   std/Strings.pst:155: find gives byte offsets
 ok   std/Strings.pst:161: startsWith and endsWith
 ok   std/Strings.pst:168: split and join are inverses

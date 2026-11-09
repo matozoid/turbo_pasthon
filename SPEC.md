@@ -1311,7 +1311,7 @@ test "largest of empty list is None"
 | `pst tokens FILE` / `pst ast FILE` | debugging dumps of the lexer and parser |
 
 `compiler/Pst.pst` is the tool, written in Pasthon. It has `check`, `build`, `run`, `test`,
-`fmt`, `lsp`, `query`, `tokens` and `ast` so far, and finds the standard units in `units` next to its executable.
+`fmt`, `lsp`, `mcp`, `query`, `index`, `tokens` and `ast` so far, and finds the standard units in `units` next to its executable.
 `tokens` and `ast` print their own text format, one token or node per line, then the
 diagnostics; they exit with status 1 if there are errors.
 
@@ -1623,6 +1623,21 @@ Configure it in an agent with the command `pst mcp --root <project-dir>`.
   marked as such in its tool description, so agents can ask for approval.
 - The server watches the project directory, so files edited by the agent through other
   tools are re-checked automatically before the next tool call.
+
+So far `pst mcp [--root DIR]` has `pst_check`, `pst_symbols`, `pst_index`, `pst_def`,
+`pst_refs`, `pst_type`, `pst_hover`, `pst_impls`, `pst_callers` and `pst_callees`. It reads
+one JSON-RPC message per line and answers `initialize`, `ping`, `tools/list` and
+`tools/call`; notifications are ignored. It runs in the root (by default the current
+directory), so paths are relative to it, and it reads the files from disk on every call,
+so it needs no watching.
+
+- Each tool's result is one text item holding the JSON that `pst query` or `pst index`
+  prints for it (§15.5). `pst_hover` is `pst query hover`; `pst_symbols` takes a file or
+  directory as `file`, and its `query` keeps the names that contain its letters in order.
+- `pst_check` gives `"errors"`, the number of errors, and `"diagnostics"` as `pst check
+  --json` prints them (§15.1), each once, for the `.pst` files of `paths`.
+- A tool that fails, such as on an unreadable file or a name that means nothing, gives
+  its message with `"isError": true`.
 
 ### 15.8 Implementation priority
 All tooling layers share one front end, so each layer after the first is small:

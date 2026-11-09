@@ -1,13 +1,13 @@
 program Pst
 
-## The command line tool (SPEC §15): `check`, `build`, `run`, `test`, `fmt`, `lsp` and
+## The command line tool (SPEC §15): `check`, `build`, `run`, `test`, `fmt`, `lsp`, `mcp`,
 ## `query`, `index`, and the `tokens` and `ast` dumps. The standard units are found in
 ## `units` next to the executable.
 
-uses IO, OS, Strings, Source, Ast, Diagnostics, Typecheck, Emit, Fmt, Lsp, Query, LexDump, AstDump
+uses IO, OS, Strings, Source, Ast, Diagnostics, Typecheck, Emit, Fmt, Lsp, Mcp, Query, Paths, LexDump, AstDump
 
 const
-    Usage = "usage: pst check FILE [--json]\n       pst build FILE [-o OUT] [--unchecked] [--json]\n       pst run [--unchecked] FILE [-- ARGS]\n       pst test PATH [--filter TEXT] [--unchecked] [--json]\n       pst fmt PATH [--check]\n       pst lsp\n       pst query def|refs|type|hover|impls|callers|callees FILE:LINE:COL|NAME\n       pst query complete FILE:LINE:COL\n       pst query symbols [PATH]\n       pst index [PATH]\n       pst tokens FILE\n       pst ast FILE"
+    Usage = "usage: pst check FILE [--json]\n       pst build FILE [-o OUT] [--unchecked] [--json]\n       pst run [--unchecked] FILE [-- ARGS]\n       pst test PATH [--filter TEXT] [--unchecked] [--json]\n       pst fmt PATH [--check]\n       pst lsp\n       pst mcp [--root DIR]\n       pst query def|refs|type|hover|impls|callers|callees FILE:LINE:COL|NAME\n       pst query complete FILE:LINE:COL\n       pst query symbols [PATH]\n       pst index [PATH]\n       pst tokens FILE\n       pst ast FILE"
 
 type
     Options = record
@@ -46,6 +46,7 @@ function parseArgs(a: List[String]): Options
         "test",
         "fmt",
         "lsp",
+        "mcp",
         "query",
         "index",
         "tokens",
@@ -56,6 +57,8 @@ function parseArgs(a: List[String]): Options
         return queryArgs(a, o)
     if o.command = "index" then
         return indexArgs(a, o)
+    if o.command = "mcp" then
+        return mcpArgs(a, o)
     let dump := o.command in ["tokens", "ast", "fmt", "lsp"]
     var i := 1
     while i < len(a) do
@@ -138,6 +141,20 @@ function indexArgs(a: List[String], o: Options): Options
         q.file := a[i]
     if q.file = "" then
         q.file := "."
+    return q
+
+## The arguments of `pst mcp`: the project root in `file`, by default the current
+## directory.
+function mcpArgs(a: List[String], o: Options): Options
+    var q := o
+    q.file := "."
+    var i := 1
+    while i < len(a) do
+        if a[i] = "--root" and i + 1 < len(a) then
+            q.file := a[i + 1]
+            i := i + 2
+        else
+            usage("unrecognized argument '{a[i]}'")
     return q
 
 ## The directory part of `path`: `.` if it has none.
@@ -399,6 +416,13 @@ else if o.command = "test" then
     testCommand(o, stdDir: stdDir)
 else if o.command = "lsp" then
     serve(stdDir)
+else if o.command = "mcp" then
+    let units := absolute(stdDir)
+    case changeDir(o.file) of
+        Ok(_):
+            serveMcp(units)
+        Err(e):
+            fatal(e.error)
 else if o.command = "fmt" then
     fmtCommand(o)
 else if o.command = "query" then
