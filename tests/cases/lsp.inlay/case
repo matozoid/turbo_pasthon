@@ -1,4 +1,5 @@
 # The language server (SPEC §15.4): inlay hints show the inferred types of `let`, `var` and
-# loop variables declared without a type, in the requested lines only.
+# loop variables declared without a type, and inferred type arguments of generic calls, in
+# the requested lines only.
 $PST build Frames.pst -o frames
 sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities

@@ -1102,7 +1102,8 @@ function documentSymbols(s: Server, path: String): String
 # ------------------------------------------------------------------------- inlay hints
 
 ## The inferred types of the `let` and `var` variables and loop variables declared in the
-## requested lines without a type, shown after their names.
+## requested lines without a type, shown after their names, and the inferred type
+## arguments of generic routines called there, shown after the routine's name.
 function inlayHints(s: Server, path: String, params: JValue): String
     let a := analyze(s, path)
     let text := get(a.texts, path)
@@ -1137,7 +1138,30 @@ function inlayHints(s: Server, path: String, params: JValue): String
                     add(var parts, "\{\"position\":{at},\"label\":{quote(": {shown}")},\"kind\":1}")
             None:
                 pass
+    # Inferred type arguments follow the routine's name: `largest[Integer](xs)`.
+    var seen: Map[Integer, Boolean] := {}
+    for c in instancesIn(env) do
+        let sp := c.span
+        if len(c.args) = 0 or c.file <> path or sp.line < first or sp.line > last or sp.start in seen then
+            continue
+        if sp.end <= sp.start or sp.end > len(t.chars) or not isNameChar(t.chars[sp.end - 1]) then
+            continue  # not at a name
+        if sp.end < len(t.chars) and t.chars[sp.end] = '[' then
+            continue  # written: `f[T](...)`
+        var shown: List[String] := []
+        for x in c.args do
+            add(var shown, show(x))
+        let label := "[{join(shown, sep: ", ")}]"
+        if find(label, sub: "<").isSome() then
+            continue  # an error or an unsolved parameter
+        seen[sp.start] := true
+        let at := position(t, sp.endLine, col: sp.endCol)
+        add(var parts, "\{\"position\":{at},\"label\":{quote(label)},\"kind\":1}")
     return "[{join(parts, sep: ",")}]"
+
+## Whether `c` may end a name.
+function isNameChar(c: Char): Boolean
+    return c = '_' or ('a' <= c and c <= 'z') or ('A' <= c and c <= 'Z') or ('0' <= c and c <= '9')
 
 # ------------------------------------------------------------------------- semantic tokens
 

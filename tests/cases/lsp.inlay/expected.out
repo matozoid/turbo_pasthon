@@ -6,7 +6,7 @@ $ sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"
 exit 0
 --- stdout
 status 0
-{"jsonrpc":"2.0","id":2,"result":[{"position":{"line":10,"character":5},"label":": Item","kind":1},{"position":{"line":12,"character":9},"label":": List[Size]","kind":1},{"position":{"line":13,"character":5},"label":": String","kind":1},{"position":{"line":13,"character":8},"label":": Integer","kind":1},{"position":{"line":5,"character":11},"label":": Integer","kind":1},{"position":{"line":6,"character":12},"label":": Item","kind":1}]}
+{"jsonrpc":"2.0","id":2,"result":[{"position":{"line":10,"character":5},"label":": Item","kind":1},{"position":{"line":12,"character":9},"label":": List[Size]","kind":1},{"position":{"line":13,"character":5},"label":": String","kind":1},{"position":{"line":13,"character":8},"label":": Integer","kind":1},{"position":{"line":16,"character":8},"label":": List[Integer]","kind":1},{"position":{"line":17,"character":8},"label":": List[Integer]","kind":1},{"position":{"line":5,"character":11},"label":": Integer","kind":1},{"position":{"line":6,"character":12},"label":": Item","kind":1},{"position":{"line":14,"character":11},"label":"[String]","kind":1},{"position":{"line":15,"character":31},"label":"[Size]","kind":1},{"position":{"line":15,"character":7},"label":"[Integer]","kind":1},{"position":{"line":16,"character":18},"label":"[Integer]","kind":1}]}
 {"jsonrpc":"2.0","id":3,"result":[{"position":{"line":10,"character":5},"label":": Item","kind":1}]}
 {"jsonrpc":"2.0","id":4,"result":null}
 --- stderr

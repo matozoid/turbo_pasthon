@@ -1472,8 +1472,8 @@ its document again and looks up the name at the position, or the name just befor
   units and builtins). Keywords, numbers, strings (each part of an interpolated string)
   and comments are tokens too.
 - Inlay hints show the inferred type after the name of each `let`, `var` and loop
-  variable declared without a type in the requested lines. Inferred generic arguments
-  aren't shown yet.
+  variable declared without a type in the requested lines, and the inferred type arguments
+  of each generic routine called there without them, after its name: `concat[Integer]`.
 - Folding ranges fold each line followed by more deeply indented lines, up to the last of
   them; blank lines don't end a fold.
 
