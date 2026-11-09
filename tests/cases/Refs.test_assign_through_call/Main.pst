@@ -1,0 +1,22 @@
+program Main
+
+uses IO
+
+type
+    Node = record
+        value: Integer
+
+function make(): ref Node
+    return new(Node(value: 1))
+
+function same(r: ref Node): ref Node
+    return r
+
+let shared := new(Node(value: 1))
+make().value := 3
+same(shared).value := 5
+writeln(deref(shared).value)
+for i := 1 to 3 do
+    same(shared).value := deref(same(shared)).value + i
+    make().value := i
+writeln(deref(shared).value)

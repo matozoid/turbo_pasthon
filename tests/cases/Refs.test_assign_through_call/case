@@ -1,1 +1,2 @@
 $PST build Main.pst -o main
+./main

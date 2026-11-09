@@ -2329,23 +2329,26 @@ function placeRoot(e: Expr, throughDeref: Boolean): Expr
                 going := false
     return r
 
-## rax := the address of the value in the box that ref `e` refers to. `e` must be rooted
-## in a variable, which keeps the box alive: so its reference is dropped at once, and the
-## box isn't made unique, as refs share it (SPEC §4.9).
+## rax := the address of the value in the box that ref `e` refers to. The box isn't made
+## unique, as refs share it (SPEC §4.9). When `e` is rooted in a variable, that keeps the
+## box alive, so its reference is dropped at once; otherwise (`make().value := 3`) it is
+## held in a hidden variable of the block until the block is left.
 procedure boxValue(g: ref Em, e: Expr)
-    var ok := false
+    var rooted := false
     case placeRoot(e, throughDeref: true) of
         Name(n):
-            ok := hasSlot(g, refSym(g, n.span))
+            rooted := hasSlot(g, refSym(g, n.span))
         else:
             pass
-    if not ok then
-        unsupported(g, exprSpan(e), "changing a value through a ref that isn't in a variable")
-        return
     expr(g, e)
     if g.bad then
         return
-    release(g)
+    if rooted then
+        release(g)
+    else
+        let slot := alloc(g)
+        store(g.a, Rbp, disp: slot, src: Rax)
+        own(g, slot)
     addImm(g.a, Rax, value: Value)
 
 ## Whether the place `e` is in C memory: `deref(p)`, or a field of a C record.
