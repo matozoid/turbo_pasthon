@@ -1393,7 +1393,8 @@ except for adding a trailing comma to a broken group and rewriting `else` + `if`
 - A line longer than 100 columns breaks inside brackets: the widest group, preferring a
   `(` group, is printed one item per line, one level deeper, each item followed by a comma,
   and the closer on its own line. If its last item is itself a group taking more than half of
-  it, that group breaks instead and hugs the outer brackets (`writeln(join(` ... `))`).
+  it, that group breaks instead and hugs the outer brackets (`writeln(join(` ... `))`),
+  except in a parenthesized expression with an `and` or `or` of its own.
   This repeats until the line fits or nothing more can break. A group only breaks if the
   text before and after it on the line each fit and are no wider than its contents, and a
   group of one item with no groups or `and`/`or` inside only if that item fits on its own
@@ -1401,7 +1402,8 @@ except for adding a trailing comma to a broken group and rewriting `else` + `if`
 - A parenthesized expression gets no trailing comma; without commas, it breaks before each
   `and` and `or` at its own level instead.
 - A group stays broken if it ends with a trailing comma, holds a comment, or holds a broken
-  group that isn't its last item. To keep a short list one item per line, end it with a
+  group that isn't its last item (or any broken group, in a parenthesized expression with
+  its own `and` or `or`). Formatting formatted code changes nothing. To keep a short list one item per line, end it with a
   comma; to join it, remove the comma.
 
 ### 15.4 Language server (`pst lsp`)

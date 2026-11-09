@@ -51,6 +51,14 @@ procedure show(xs: List[Integer])
     # a comment after it
     writeln("done")
 
+procedure pick(word: String)
+    # A long parenthesized expression whose last item breaks hugs it; with `and` it doesn't.
+    if word <> "" then
+        if not (word in ["check", "build", "run", "test", "fmt", "lsp", "query", "index", "tokens", "ast"]) then
+            writeln("other")
+    if (word <> "ast" and word in ["check", "build", "run", "test", "fmt", "lsp", "query", "index",]) then
+        writeln("long")
+
 let p := Point(x: 1,
                y: 2)  # point
 let xs: List[Integer] := [1,2,3,]
@@ -66,4 +74,5 @@ if xs[0]=1 and not(xs[1]=3) then
     writeln("ok")
 for i:=0 to len(xs)-1 do
     writeln("{xs[len(xs)-1-i]}")
+pick("lsp")
 writeln(join(["a long string to fill the line", "another long string", "and a third one"], sep: ", "))

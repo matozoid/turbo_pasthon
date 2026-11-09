@@ -325,9 +325,11 @@ function flatText(atoms: List[Atom]): String
 
 ## Whether the group opened at `o` is printed one item per line regardless of its width:
 ## it ends with a comma or has comments. A group broken in turn is allowed only as the last
-## item, which hugs the brackets: `f(x, g(` ... `))`.
+## item, which hugs the brackets: `f(x, g(` ... `))`, and not in a parenthesized expression
+## with an `and` or `or` of its own, which is broken at those instead.
 function forced(atoms: List[Atom], o: Integer): Boolean
     let c := atoms[o].close
+    let logical := isParenExpr(atoms, o) and hasLogical(atoms, o)
     if atoms[o].after <> "" or len(atoms[c].before) > 0 then
         return true
     if c - 1 > o and atoms[c - 1].kind = TokenKind.Comma then
@@ -338,7 +340,7 @@ function forced(atoms: List[Atom], o: Integer): Boolean
         if len(a.before) > 0 then
             return true
         if a.close >= 0 then
-            if (a.explode and a.close <> c - 1) or atoms[a.close].after <> "" then
+            if (a.explode and (logical or a.close <> c - 1)) or atoms[a.close].after <> "" then
                 return true
             k := a.close + 1
         else
@@ -418,7 +420,7 @@ procedure decide(var atoms: List[Atom], from: Integer, stop: Integer, budget: In
     while true do
         let c := atoms[g].close
         let h := atoms[c - 1].open
-        if h < 0 or isParenExpr(atoms, g) or flatWidth(atoms, from: from, stop: h + 1) > budget then
+        if h < 0 or (isParenExpr(atoms, g) and hasLogical(atoms, g)) or flatWidth(atoms, from: from, stop: h + 1) > budget then
             break
         if 2 * flatWidth(atoms, from: h, stop: c) <= flatWidth(atoms, from: g + 1, stop: c) then
             break
