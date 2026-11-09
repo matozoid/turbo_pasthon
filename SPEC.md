@@ -1307,6 +1307,10 @@ stage 2, and the two must be identical. A tag `v*` makes the release workflow pu
 `pst-linux-x86_64.tar.gz` (`pst` and `units/`). The compiler may only use the features
 that the latest release compiles.
 
+`build/pst run tests/Run.pst` runs the cases in `tests/cases`: shell command lines whose
+transcript (exit status, standard output and standard error) must match the case's
+`expected.out`; `-- --update` writes the transcripts instead.
+
 ### 15.1 Diagnostics
 Human format: `Main.pst:12:5: error E0502: result of 'restock' is ignored`.
 

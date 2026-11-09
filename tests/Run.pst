@@ -1,0 +1,188 @@
+program Run
+
+## Runs the cases in `tests/cases`. Each directory holds source files and a `case` file of
+## shell command lines, which run in a copy of the directory, one after the other. `$PST`
+## is the compiler (`$PST` of the runner's environment, else `build/pst`), `$VALGRIND` runs
+## a program under valgrind (empty if it isn't installed), `$ROOT` is the repository,
+## `$STD` the standard units and `$TOOLS` a directory with the dump programs of `compiler/`.
+##
+## The transcript of the runs (the command, its exit status, standard output and standard
+## error, with the paths of the copy, the standard units and the repository made relative)
+## must match `expected.out`. A case that doesn't match writes `actual.out` next to it.
+##
+## Usage, from the repository's root: `build/pst run tests/Run.pst [-- [--update] NAME...]`.
+## With names, only the cases whose names start with one of them run. With `--update`, the
+## transcripts are written to `expected.out` instead.
+
+uses IO, OS, Strings
+
+procedure fatal(message: String)
+    writelnErr("Run: error: {message}")
+    exit(2)
+
+## `s` in single quotes, for the shell.
+function quote(s: String): String
+    return "'{replace(s, target: "'", replacement: "'\\''")}'"
+
+## The text of the file at `path`; invalid UTF-8 is replaced with U+FFFD.
+function readText(path: String): String
+    case open(path) of
+        Ok(f):
+            case readAll(f.value) of
+                Ok(t):
+                    _ := close(f.value)
+                    return t.value
+                Err(e):
+                    fatal(e.error)
+        Err(e):
+            fatal("{path}: {e.error}")
+    return ""
+
+procedure writeText(path: String, text: String)
+    case create(path) of
+        Ok(f):
+            case writeAll(f.value, text: text) of
+                Ok(_):
+                    pass
+                Err(e):
+                    fatal(e.error)
+            _ := close(f.value)
+        Err(e):
+            fatal("{path}: {e.error}")
+
+## Runs `command` with the shell in `dir`, with its output in the file `output` and its
+## errors in the file `errors`. The result is its exit status.
+function sh(command: String, dir: String, output: String, errors: String): Integer
+    case run("/bin/sh", ["-c", command], output: output, errors: errors, input: "/dev/null",
+             dir: dir) of
+        Ok(c):
+            return c.value
+        Err(e):
+            fatal(e.error)
+    return 0
+
+function section(name: String, text: String): String
+    if text <> "" and not endsWith(text, suffix: "\n") then
+        return "--- {name}\n{text}\n(no newline at the end)\n"
+    return "--- {name}\n{text}"
+
+## The transcript of running the case `name`, in the directory `tmp`.
+function runCase(name: String, tmp: String, real: String, setup: String): String
+    let out := "{tmp}/stdout"
+    let err := "{tmp}/stderr"
+    if sh("cp -R {quote("tests/cases/{name}")} {quote(tmp)}", dir: "", output: out,
+          errors: err) <> 0 then
+        fatal(readText(err))
+    let work := "{tmp}/{name}"
+    var transcript: List[String] := []
+    for line in split(readText("{work}/case"), sep: "\n") do
+        if trim(line) = "" or startsWith(line, prefix: "#") then
+            continue
+        let code := sh("{setup}{line}", dir: work, output: out, errors: err)
+        add(var transcript, "$ {line}\nexit {code}\n")
+        add(var transcript, section("stdout", text: readText(out)))
+        add(var transcript, section("stderr", text: readText(err)))
+    _ := sh("rm -rf {quote(work)}", dir: "", output: out, errors: err)
+    var text := join(transcript)
+    for path in [real, tmp] do
+        text := replace(text, target: "{path}/{name}/", replacement: "")
+        text := replace(text, target: "{path}/{name}", replacement: ".")
+    let root := currentDir()
+    text := replace(text, target: "{root}/std/", replacement: "std/")
+    return replace(text, target: "{root}/", replacement: "")
+
+## The first line where `actual` and `expected` differ, for the report.
+function firstDifference(actual: String, expected: String): String
+    let a := split(actual, sep: "\n")
+    let e := split(expected, sep: "\n")
+    var i := 0
+    while i < len(a) and i < len(e) and a[i] = e[i] do
+        i := i + 1
+    var got := "(end)"
+    if i < len(a) then
+        got := a[i]
+    var want := "(end)"
+    if i < len(e) then
+        want := e[i]
+    return "line {i + 1}:\n        actual:   {got}\n        expected: {want}"
+
+## Whether the case `name` runs: `only` is empty, or `name` starts with one of them.
+function selected(name: String, only: List[String]): Boolean
+    for o in only do
+        if startsWith(name, prefix: o) then
+            return true
+    return len(only) = 0
+
+let root := currentDir()
+if not isDir("tests/cases") then
+    fatal("no tests/cases here: run from the repository's root")
+var update := false
+var only: List[String] := []
+for a in args() do
+    if a = "--update" then
+        update := true
+    else
+        add(var only, a)
+let pst := env("PST").getOr("{root}/build/pst")
+if not isFile(pst) then
+    fatal("no compiler at {pst}: run scripts/bootstrap.sh")
+
+var tmp := ""
+case tempDir() of
+    Ok(d):
+        tmp := d.value
+    Err(e):
+        fatal(e.error)
+let out := "{tmp}/stdout"
+let err := "{tmp}/stderr"
+_ := sh("cd -P {quote(tmp)} && pwd", dir: "", output: out, errors: err)
+let real := trim(readText(out))
+var valgrind := ""
+if sh("command -v valgrind", dir: "", output: out, errors: err) = 0 then
+    valgrind := "valgrind -q --leak-check=full --error-exitcode=9"
+let tools := "{tmp}/tools"
+_ := makeDir(tools)
+for tool in ["ResolveDump", "CheckDump", "AsmDump"] do
+    if sh("{quote(pst)} build compiler/{tool}.pst -o {quote("{tools}/{tool}")}", dir: "",
+          output: out, errors: err) <> 0 then
+        fatal("building {tool}:\n{readText(out)}{readText(err)}")
+let setup := "export PST={quote(pst)} VALGRIND={quote(valgrind)} ROOT={quote(root)} STD={quote("{root}/std")} TOOLS={quote(tools)}\n"
+
+var names: List[String] := []
+case listDir("tests/cases") of
+    Ok(n):
+        names := n.value
+    Err(e):
+        fatal(e.error)
+sort(var names)
+var passed := 0
+var failed := 0
+for name in names do
+    if not isFile("tests/cases/{name}/case") then
+        continue
+    if not selected(name, only: only) then
+        continue
+    let actual := runCase(name, tmp: tmp, real: real, setup: setup)
+    let golden := "tests/cases/{name}/expected.out"
+    if update then
+        writeText(golden, text: actual)
+        passed := passed + 1
+        continue
+    var expected := ""
+    if isFile(golden) then
+        expected := readText(golden)
+    if actual = expected then
+        writeln("ok   {name}")
+        passed := passed + 1
+        _ := removeFile("tests/cases/{name}/actual.out")
+    else
+        writeln("FAIL {name}: {firstDifference(actual, expected: expected)}")
+        writeText("tests/cases/{name}/actual.out", text: actual)
+        failed := failed + 1
+_ := sh("rm -rf {quote(tmp)}", dir: "", output: "/dev/null", errors: "/dev/null")
+if update then
+    writeln("{passed} written")
+else
+    writeln("{passed} passed, {failed} failed")
+if failed > 0 then
+    exit(1)

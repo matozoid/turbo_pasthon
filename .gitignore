@@ -1,4 +1,3 @@
-__pycache__/
-*.pyc
 .idea
 build/
+tests/cases/*/actual.out

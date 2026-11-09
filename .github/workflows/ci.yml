@@ -16,4 +16,4 @@ jobs:
       - name: Build the compiler
         run: scripts/bootstrap.sh
       - name: Test
-        run: python3 -m unittest discover -s tests -t .
+        run: build/pst run tests/Run.pst
