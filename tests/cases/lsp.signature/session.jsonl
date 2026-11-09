@@ -1,0 +1,11 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file://DIR/Main.pst","languageId":"pasthon","version":1,"text":"program Main\n\nuses IO, Shop\n\nlet count := 3\nwriteln(price(count, discount: 1))\nwriteln(count.price(2))\nlet i := Item(name: \"a\", qty: 2)\nwriteln(i.qty)\n"}}}
+{"jsonrpc":"2.0","id":2,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":5,"character":14}}}
+{"jsonrpc":"2.0","id":3,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":5,"character":21}}}
+{"jsonrpc":"2.0","id":4,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":6,"character":20}}}
+{"jsonrpc":"2.0","id":5,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":7,"character":25}}}
+{"jsonrpc":"2.0","id":6,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":4,"character":3}}}
+{"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file://DIR/Main.pst","version":2},"contentChanges":[{"text":"program Main\n\nuses IO, Shop\n\nlet count := 3\nwriteln(price(count, \n"}]}}
+{"jsonrpc":"2.0","id":7,"method":"textDocument/signatureHelp","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":5,"character":21}}}
+{"jsonrpc":"2.0","id":8,"method":"shutdown"}
+{"jsonrpc":"2.0","method":"exit"}

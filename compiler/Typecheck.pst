@@ -1270,7 +1270,8 @@ export function sig(env: ref Env, sym: ref Symbol): Sig
     env.sigCache[sym.id] := s
     return s
 
-function recordSig(env: ref Env, sym: ref Symbol): Sig
+## The signature of constructing the record `sym`.
+export function recordSig(env: ref Env, sym: ref Symbol): Sig
     let d := decl(env, sym)
     var params: List[PInfo] := []
     for i := 0 to len(d.fields) - 1 do

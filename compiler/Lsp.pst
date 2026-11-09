@@ -5,7 +5,7 @@ unit Lsp
 ## with the open documents' texts in place of their files, and its diagnostics pushed.
 ## Requests about a position check the document again, and answer from its symbol index.
 
-uses IO, OS, Strings, Source, Diagnostics, Ast, Symbols, Resolve, Types, Typecheck, Fmt, Json
+uses IO, OS, Strings, Source, Tokens, Lexer, Diagnostics, Ast, Symbols, Resolve, Types, Typecheck, Fmt, Json
 
 type
     Server = record
@@ -30,6 +30,14 @@ type
         texts: Map[String, Text]
         ## The errors in the open documents.
         errors: Integer
+
+    ## A call around a position (signature help).
+    CallSite = record
+        callee: Token
+        ## The argument's position, counting the receiver of `a.f(...)`.
+        index: Integer
+        ## The argument's name, if it is named.
+        named: String
 
 # ------------------------------------------------------------------------- messages
 
@@ -238,26 +246,19 @@ function firstLine(a: Analysis, file: String, span: Span): String
 function hoverText(a: Analysis, sym: ref Symbol): String
     let kind := name(sym.kind)
     var head := "{kind} {sym.name}"
-    var doc: Option[String] := None
     case sym.node of
         Routine(r):
             head := sub(a.texts[sym.file], r.sig.span.start, end: r.sig.span.end)
-            doc := r.doc
         ExternDecl(e):
             head := sub(a.texts[sym.file], e.sig.span.start, end: e.sig.span.end)
-            doc := e.doc
         Signature(g):
             head := sub(a.texts[sym.file], g.span.start, end: g.span.end)
-            doc := g.doc
         TypeDecl(d):
             head := "type {firstLine(a, sym.file, d.span)}"
-            doc := d.doc
         ConstDecl(d):
             head := "const {firstLine(a, sym.file, d.span)}"
-            doc := d.doc
         FieldDecl(d):
             head := "field {firstLine(a, sym.file, d.span)}"
-            doc := d.doc
         else:
             case a.checked.env of
                 Some(env):
@@ -274,8 +275,11 @@ function hoverText(a: Analysis, sym: ref Symbol): String
                 None:
                     pass
     var text := "```pst\n{head}\n```"
-    if doc.isSome() then
-        text := "{text}\n\n{doc.get()}"
+    case docOf(sym) of
+        Some(d):
+            text := "{text}\n\n{d.value}"
+        None:
+            pass
     return text
 
 function hover(s: Server, path: String, params: JValue): String
@@ -426,6 +430,175 @@ function rename(s: Server, path: String, params: JValue): Result[String, String]
         return Err("renaming {describe(sym)} to '{newName}' would cause errors")
     return Ok("\{\"changes\":\{{join(changes, sep: ",")}}}")
 
+# ------------------------------------------------------------------------- signature help
+
+## The call whose argument list holds the position: the callee's name token, and which
+## argument the position is in, by position (counting a receiver) or by name.
+function callAt(tokens: List[Token], offset: Integer): Option[CallSite]
+    var opens: List[Integer] := []
+    var commas: List[Integer] := []
+    var starts: List[Integer] := []
+    var k := 0
+    while k < len(tokens) and tokens[k].span.start < offset do
+        let kind := tokens[k].kind
+        if kind in [TokenKind.Lparen, TokenKind.Lbracket, TokenKind.Lbrace] then
+            add(var opens, k)
+            add(var commas, 0)
+            add(var starts, k + 1)
+        else if kind in [TokenKind.Rparen, TokenKind.Rbracket, TokenKind.Rbrace] then
+            if len(opens) > 0 then
+                removeLast(var opens)
+                removeLast(var commas)
+                removeLast(var starts)
+        else if kind = TokenKind.Comma and len(opens) > 0 then
+            commas[len(commas) - 1] := commas[len(commas) - 1] + 1
+            starts[len(starts) - 1] := k + 1
+        k := k + 1
+    if len(opens) = 0 then
+        return None
+    let o := opens[len(opens) - 1]
+    if tokens[o].kind <> TokenKind.Lparen or o = 0 or tokens[o - 1].kind <> TokenKind.Ident then
+        return None
+    var index := commas[len(commas) - 1]
+    if o >= 2 and tokens[o - 2].kind = TokenKind.Dot then
+        index := index + 1
+    var named := ""
+    let st := starts[len(starts) - 1]
+    if st + 1 < k and tokens[st].kind = TokenKind.Ident and tokens[st + 1].kind = TokenKind.Colon then
+        named := tokens[st].text
+    return Some(CallSite(callee: tokens[o - 1], index: index, named: named))
+
+## The routines (or record) a callee's name may mean: from the symbol index, or, when the
+## call didn't parse, the routines of that name declared in the document's units.
+function callees(a: Analysis, path: String, callee: Token): List[ref Symbol]
+    let ix := a.checked.resolved.checker.index
+    case at(ix, path, callee.span.line, col: callee.span.col) of
+        Some(r):
+            return r.value.targets
+        None:
+            pass
+    var out: List[ref Symbol] := []
+    for u in a.checked.resolved.units do
+        for sym in get(u.top, callee.text).getOr([]) do
+            if (u.path = path or sym.exported) and (
+                isRoutine(sym.kind)
+                or sym.kind = Kind.TypeSym
+            ) then
+                add(var out, sym)
+    return out
+
+## The documentation of a declaration, if it has any.
+function docOf(sym: ref Symbol): Option[String]
+    case sym.node of
+        Routine(r):
+            return r.doc
+        ExternDecl(e):
+            return e.doc
+        Signature(g):
+            return g.doc
+        TypeDecl(d):
+            return d.doc
+        ConstDecl(d):
+            return d.doc
+        FieldDecl(d):
+            return d.doc
+        else:
+            return None
+
+## The signature of calling a routine or constructing a record.
+function callSig(env: ref Env, sym: ref Symbol): Option[Sig]
+    if isRoutine(sym.kind) then
+        return Some(sig(env, sym))
+    if sym.kind = Kind.TypeSym and decl(env, sym).kind = "record" then
+        return Some(recordSig(env, sym))
+    return None
+
+## One signature: its label, the offsets of each parameter in it, and its documentation.
+function signatureInfo(a: Analysis, env: ref Env, sym: ref Symbol): Option[String]
+    let found := callSig(env, sym)
+    if found.isNone() then
+        return None
+    let g := found.get()
+    var label := sym.name
+    if len(g.tparams) > 0 then
+        var names: List[String] := []
+        for tp in g.tparams do
+            add(var names, tp.name)
+        label := "{label}[{join(names, sep: ", ")}]"
+    label := "{label}("
+    var params: List[String] := []
+    for p in g.params do
+        if len(params) > 0 then
+            label := "{label}, "
+        var text := "{p.name}: {show(p.ty)}"
+        if p.isVar then
+            text := "var {text}"
+        if p.varargs then
+            text := "..."
+        case p.default of
+            Some(d):
+                if sym.file in a.texts then
+                    let sp := exprSpan(d.value)
+                    text := "{text} := {sub(a.texts[sym.file], sp.start, end: sp.end)}"
+            None:
+                pass
+        let start := byteLen(label)
+        label := "{label}{text}"
+        add(var params, "\{\"label\":[{start},{byteLen(label)}]}")
+    label := "{label})"
+    if g.isFunction then
+        label := "{label}: {show(g.result)}"
+    var info := "\{\"label\":{quote(label)},\"parameters\":[{join(params, sep: ",")}]"
+    case docOf(sym) of
+        Some(d):
+            info := "{info},\"documentation\":\{\"kind\":\"markdown\",\"value\":{quote(d.value)}}"
+        None:
+            pass
+    return Some("{info}}")
+
+## The parameter an argument goes to: by name, or by position.
+function activeParameter(env: ref Env, sym: ref Symbol, call: CallSite): Integer
+    if call.named <> "" then
+        case callSig(env, sym) of
+            Some(g):
+                for i := 0 to len(g.value.params) - 1 do
+                    if g.value.params[i].name = call.named then
+                        return i
+            None:
+                pass
+    return call.index
+
+function signatureHelp(s: Server, path: String, params: JValue): String
+    let a := analyze(s, path)
+    let t := get(a.texts, path)
+    if t.isNone() or a.checked.env.isNone() then
+        return "null"
+    let text := t.get()
+    let env := a.checked.env.get()
+    let pos := field(params, key: "position")
+    let line := asInteger(field(pos, key: "line")).getOr(0) + 1
+    let col := column(text, line, character: asInteger(field(pos, key: "character")).getOr(0))
+    if line > len(text.lineStarts) then
+        return "null"
+    let offset := text.lineStarts[line - 1] + col - 1
+    case callAt(lex(text.str, file: path).tokens, offset: offset) of
+        Some(call):
+            var infos: List[String] := []
+            var active := 0
+            for sym in callees(a, path, callee: call.value.callee) do
+                case signatureInfo(a, env, sym: sym) of
+                    Some(info):
+                        if len(infos) = 0 then
+                            active := activeParameter(env, sym, call: call.value)
+                        add(var infos, info.value)
+                    None:
+                        pass
+            if len(infos) = 0 then
+                return "null"
+            return "\{\"signatures\":[{join(infos, sep: ",")}],\"activeSignature\":0,\"activeParameter\":{active}}"
+        None:
+            return "null"
+
 ## The whole declaration of a symbol declared in source.
 function declSpan(sym: ref Symbol): Span
     case sym.node of
@@ -563,7 +736,7 @@ function codeActions(s: Server, path: String, params: JValue): String
 # ------------------------------------------------------------------------- requests
 
 function capabilities(): String
-    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"foldingRangeProvider\":true,\"renameProvider\":true},\"serverInfo\":\{\"name\":\"pst\"}}"
+    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"foldingRangeProvider\":true,\"renameProvider\":true,\"signatureHelpProvider\":\{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":\{\"name\":\"pst\"}}"
 
 ## The edits that format the document at `uri`: none if it is formatted, or can't be.
 function formatting(s: Server, uri: String): String
@@ -632,6 +805,8 @@ procedure handle(var s: Server, m: JValue)
                 respond(id, result: edit.value)
             Err(e):
                 respondError(id, code: -32803, message: e.error)
+    else if method = "textDocument/signatureHelp" then
+        respond(id, result: signatureHelp(s, pathOf(uri), params: params))
     else if method = "textDocument/documentSymbol" then
         respond(id, result: documentSymbols(s, pathOf(uri)))
     else if method = "textDocument/foldingRange" then

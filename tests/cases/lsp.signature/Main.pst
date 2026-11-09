@@ -1,0 +1,9 @@
+program Main
+
+uses IO, Shop
+
+let count := 3
+writeln(price(count, discount: 1))
+writeln(count.price(2))
+let i := Item(name: "a", qty: 2)
+writeln(i.qty)

@@ -1,0 +1,16 @@
+$ $PST build Frames.pst -o frames
+exit 0
+--- stdout
+--- stderr
+$ sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities
+exit 0
+--- stdout
+status 0
+{"jsonrpc":"2.0","id":2,"result":{"signatures":[{"label":"price(n: Integer, discount: Integer := 0): Integer","parameters":[{"label":[6,16]},{"label":[18,40]}],"documentation":{"kind":"markdown","value":"The price of `n` items."}}],"activeSignature":0,"activeParameter":0}}
+{"jsonrpc":"2.0","id":3,"result":{"signatures":[{"label":"price(n: Integer, discount: Integer := 0): Integer","parameters":[{"label":[6,16]},{"label":[18,40]}],"documentation":{"kind":"markdown","value":"The price of `n` items."}}],"activeSignature":0,"activeParameter":1}}
+{"jsonrpc":"2.0","id":4,"result":{"signatures":[{"label":"price(n: Integer, discount: Integer := 0): Integer","parameters":[{"label":[6,16]},{"label":[18,40]}],"documentation":{"kind":"markdown","value":"The price of `n` items."}}],"activeSignature":0,"activeParameter":1}}
+{"jsonrpc":"2.0","id":5,"result":{"signatures":[{"label":"Item(name: String, qty: Integer): Item","parameters":[{"label":[5,17]},{"label":[19,31]}]}],"activeSignature":0,"activeParameter":1}}
+{"jsonrpc":"2.0","id":6,"result":null}
+{"jsonrpc":"2.0","id":7,"result":{"signatures":[{"label":"price(n: Integer, discount: Integer := 0): Integer","parameters":[{"label":[6,16]},{"label":[18,40]}],"documentation":{"kind":"markdown","value":"The price of `n` items."}}],"activeSignature":0,"activeParameter":1}}
+{"jsonrpc":"2.0","id":8,"result":null}
+--- stderr

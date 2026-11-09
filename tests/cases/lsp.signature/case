@@ -1,0 +1,4 @@
+# The language server (SPEC §15.4): signature help for routines and record construction,
+# by position (counting a receiver) or by name, also while the call is unfinished.
+$PST build Frames.pst -o frames
+sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities
