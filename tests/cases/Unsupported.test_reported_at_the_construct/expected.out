@@ -2,5 +2,5 @@ $ $PST build Main.pst -o main
 exit 1
 --- stdout
 --- stderr
-Main.pst:14:10: error E0990: a callback other than the name of a top-level routine is not supported by the code generator yet
-Main.pst:15:5: error E0990: a C call needing more than 8 real registers is not supported by the code generator yet
+Main.pst:21:10: error E0990: a callback other than the name of a top-level routine is not supported by the code generator yet
+Main.pst:22:10: error E0990: a callback taking Pair is not supported by the code generator yet

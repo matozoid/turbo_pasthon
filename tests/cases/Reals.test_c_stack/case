@@ -1,0 +1,3 @@
+cc -shared -fPIC -o libbig.so big.c
+$PST build Main.pst -o main
+./main

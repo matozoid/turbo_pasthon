@@ -186,6 +186,12 @@ type
         ty: Type
         byValue: Boolean
 
+    ## A word of a C call's arguments that goes on the stack: argument `arg` (pushed in
+    ## order), or with `word` >= 0 that word of the C record it points to.
+    CWord = record
+        arg: Integer
+        word: Integer
+
     ## A variable bound by a `for` over an iterator: its offset in the item and type.
     Bound = record
         name: Ident
@@ -3622,6 +3628,21 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
     if not (lib in g.needed) then
         add(var g.needed, lib)
     var args: List[CArgT] := []  # whether each is a C record passed by value
+    let result := subT(g, subst(m.result, m.s))
+    var big := false  # a C record result of more than 16 bytes, which C writes to memory
+    if isCRecord(g, result) then
+        big := cLayout(g, result, c.span).size > 16
+        if g.bad then
+            return
+    if big then  # the block for it, and a hidden first argument: where to write it
+        newCBlock(g, result, c.span)
+        if g.bad then
+            return
+        push(a, Rax)
+        a.stack[len(a.stack) - 1] := true
+        lea(a, Rax, Rax, disp: Fields)
+        push(a, Rax)
+        add(var args, CArgT(ty: integerT(), byValue: false))
     for i := 0 to len(m.params) - 1 do
         let p := m.params[i]
         if p.varargs then
@@ -3659,38 +3680,35 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
     var regs := 0
     var reals := 0
     let n := len(args)
+    var spill: List[CWord] := []  # what goes on the stack, in order
     for i := 0 to n - 1 do
         if isRealT(args[i].ty) then  # in the next xmm register
             if reals = 8 then
-                unsupported(g, c.span, "a C call needing more than 8 real registers")
-                return
+                add(var spill, CWord(arg: i, word: -1))
+                continue
             load(a, Rax, Rsp, disp: 8 * (n - 1 - i))
             movqToXmm(a, reals, r: Rax)  # a single's upper half is 0
             reals := reals + 1
             continue
         if not args[i].byValue then
             if regs = 6 then
-                unsupported(g, c.span, "a C call needing more than 6 registers")
-                return
+                add(var spill, CWord(arg: i, word: -1))
+                continue
             load(a, argReg(regs), Rsp, disp: 8 * (n - 1 - i))
             regs := regs + 1
             continue
         let sse := sseWords(g, args[i].ty, c.span)
         if g.bad then
             return
-        if len(sse) > 2 then
-            unsupported(g, c.span, "passing a C record of more than 16 bytes")
-            return
         var ints := 0
         for x in sse do
             if not x then
                 ints := ints + 1
-        if regs + ints > 6 then
-            unsupported(g, c.span, "a C call needing more than 6 registers")
-            return
-        if reals + len(sse) - ints > 8 then
-            unsupported(g, c.span, "a C call needing more than 8 real registers")
-            return
+        # Over 16 bytes, or without registers for all of it, a record goes on the stack.
+        if len(sse) > 2 or regs + ints > 6 or reals + len(sse) - ints > 8 then
+            for w := 0 to len(sse) - 1 do
+                add(var spill, CWord(arg: i, word: w))
+            continue
         load(a, R11, Rsp, disp: 8 * (n - 1 - i))
         for w := 0 to len(sse) - 1 do
             if sse[w] then
@@ -3700,21 +3718,17 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
             else
                 load(a, argReg(regs), R11, disp: Fields + 8 * w)
                 regs := regs + 1
-    ccall(g, getOr(xd.symbol, sym.name), vectors: reals)
+    ccall(g, getOr(xd.symbol, sym.name), vectors: reals, spill: spill, args: n)
     for i := 0 to n - 1 do
         if args[i].byValue then
             load(a, Rdi, Rsp, disp: 8 * (n - 1 - i))
             release(g, Rdi)
     if n > 0 then
         addImm(a, Rsp, value: 8 * n)
-    let result := subT(g, subst(m.result, m.s))
-    if isCRecord(g, result) then
+    if big then
+        pop(a, Rax)
+    else if isCRecord(g, result) then
         let size := cLayout(g, result, c.span).size
-        if g.bad then
-            return
-        if size > 16 then
-            unsupported(g, c.span, "returning a C record of more than 16 bytes")
-            return
         # Each word comes back in the next of rax, rdx, or of xmm0, xmm1 if it's all reals.
         let sse := sseWords(g, result, c.span)
         var ints := 0
@@ -4461,11 +4475,27 @@ procedure runtimeRoutine(g: ref Em, name: String)
 ## variadic ones).
 ## Calls the C function `name`; `vectors` is how many xmm registers hold arguments, which
 ## a variadic function reads from al.
-procedure ccall(g: ref Em, name: String, vectors: Integer := 0)
+## Calls C function `name`, with `vectors` arguments in xmm registers. The words in
+## `spill` go on the stack; they are taken from the `args` words pushed last.
+procedure ccall(
+    g: ref Em,
+    name: String,
+    vectors: Integer := 0,
+    spill: List[CWord] := [],
+    args: Integer := 0,
+)
     let a := g.a
     push(a, Rbp)
     mov(a, Rbp, Rsp)
+    if len(spill) > 0 then
+        subImm(a, Rsp, value: 8 * len(spill))
     andImm(a, Rsp, value: -16)
+    for k := 0 to len(spill) - 1 do
+        let sw := spill[k]
+        load(a, R11, Rbp, disp: 8 + 8 * (args - 1 - sw.arg))
+        if sw.word >= 0 then
+            load(a, R11, R11, disp: Fields + 8 * sw.word)
+        store(a, Rsp, disp: 8 * k, src: R11)
     if vectors = 0 then
         xor32(a, Rax, Rax)
     else

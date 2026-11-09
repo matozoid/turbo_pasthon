@@ -3,14 +3,21 @@ program Main
 uses IO, C
 
 extern "libc.so.6"
+    type
+        export Pair = record
+            a: CInt
+            b: CInt
     procedure take(f: function(CDouble): CInt)
-    procedure many(a, b, c, d, e, f, g, h, i: CDouble)
+    procedure give(f: function(Pair): CInt)
 
 function half(x: CDouble): CInt
     return 0
 
+function first(p: Pair): CInt
+    return p.a
+
 unsafe procedure demo()
     let h := half
     take(h)
-    many(1.0, b: 2.0, c: 3.0, d: 4.0, e: 5.0, f: 6.0, g: 7.0, h: 8.0, i: 9.0)
+    give(first)
 demo()
