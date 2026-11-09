@@ -1,0 +1,12 @@
+program Main
+
+uses IO
+
+function area(r: Integer): Integer
+    return r * r
+
+function area(w, h: Integer): Integer
+    return w * h
+
+writeln(area(2))
+writeln(area(2, 3))

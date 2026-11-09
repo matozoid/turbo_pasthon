@@ -1,0 +1,6 @@
+# `pst query` by the name of an overloaded routine answers at each overload (SPEC §15.5).
+$PST query def area
+$PST query refs area
+$PST query hover area
+$PST query callers area
+$PST query type area

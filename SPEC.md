@@ -1577,8 +1577,10 @@ object with `"schema"` and one list:
 A name is looked up among the types, traits, constants, routines, fields, enum members
 and units declared in the `.pst` files of the current directory and the units they use,
 qualified by the unit, or by the type or trait it belongs to. The query is then answered at
-its definition. A name that means nothing, or more than one thing (such as overloads), is
-an error that lists what it may mean, with their positions.
+its definition. The overloads of one routine are answered at each definition, and the
+answers' lists joined without repeats; renaming one (`pst_rename`) needs its position. A
+name that means nothing, or more than one other thing, is an error that lists what it may
+mean, with their positions.
 
 A location is an object with `"file"`, `"line"`, `"col"`, `"endLine"` and `"endCol"`
 (§15.1). Files inside the current directory are relative to it; others, such as the

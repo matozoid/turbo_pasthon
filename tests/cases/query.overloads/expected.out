@@ -1,0 +1,25 @@
+$ $PST query def area
+exit 0
+--- stdout
+{"schema":"pst-query/1","locations":[{"file":"Main.pst","line":5,"col":10,"endLine":5,"endCol":14},{"file":"Main.pst","line":8,"col":10,"endLine":8,"endCol":14}]}
+--- stderr
+$ $PST query refs area
+exit 0
+--- stdout
+{"schema":"pst-query/1","locations":[{"file":"Main.pst","line":5,"col":10,"endLine":5,"endCol":14,"isDef":true},{"file":"Main.pst","line":11,"col":9,"endLine":11,"endCol":13,"isDef":false},{"file":"Main.pst","line":8,"col":10,"endLine":8,"endCol":14,"isDef":true},{"file":"Main.pst","line":12,"col":9,"endLine":12,"endCol":13,"isDef":false}]}
+--- stderr
+$ $PST query hover area
+exit 0
+--- stdout
+{"schema":"pst-query/1","symbols":[{"name":"area","kind":"function","declaration":"function area(r: Integer): Integer","location":{"file":"Main.pst","line":5,"col":10,"endLine":5,"endCol":14}},{"name":"area","kind":"function","declaration":"function area(w, h: Integer): Integer","location":{"file":"Main.pst","line":8,"col":10,"endLine":8,"endCol":14}}]}
+--- stderr
+$ $PST query callers area
+exit 0
+--- stdout
+{"schema":"pst-query/1","callers":[{"file":"Main.pst","calls":[{"file":"Main.pst","line":11,"col":9,"endLine":11,"endCol":13}]},{"file":"Main.pst","calls":[{"file":"Main.pst","line":12,"col":9,"endLine":12,"endCol":13}]}]}
+--- stderr
+$ $PST query type area
+exit 0
+--- stdout
+{"schema":"pst-query/1","types":[{"type":"Integer","declarations":[]}]}
+--- stderr

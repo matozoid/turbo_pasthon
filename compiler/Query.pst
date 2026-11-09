@@ -147,6 +147,14 @@ function named(k: Kind): Boolean
 ## The position of the definition that `name` means, `name`, `Unit.name` or `Type.name`,
 ## searched in the `.pst` files of the current directory and the units they use.
 export function findName(name: String, stdDir: String): Result[String, String]
+    case findNames(name, stdDir: stdDir, overloads: false) of
+        Ok(found):
+            return Ok(found.value[0])
+        Err(e):
+            return Err(e.error)
+
+## The definitions `findName` finds, or with `overloads` the overloads of one routine.
+function findNames(name: String, stdDir: String, overloads: Boolean): Result[List[String], String]
     let parts := split(name, sep: ".")
     if len(parts) > 2 then
         return Err("expected NAME, Unit.NAME or Type.NAME, got '{name}'")
@@ -171,6 +179,8 @@ export function findName(name: String, stdDir: String): Result[String, String]
     var shownAs: List[String] := []
     var seen: Map[String, Boolean] := {}
     var covered: Map[String, Boolean] := {}
+    var owners: Map[String, Boolean] := {}
+    var routines := true
     for path in paths do
         if path in covered then
             continue
@@ -198,12 +208,14 @@ export function findName(name: String, stdDir: String): Result[String, String]
             if not (at in seen) then
                 seen[at] := true
                 add(var found, at)
+                owners[outer] := true
+                routines := routines and isRoutine(sym.kind)
                 add(var shownAs, "{outer}.{last} ({shown(r.file)}:{r.span.line}:{r.span.col})")
     if len(found) = 0 then
         return Err("no symbol named '{name}' in the current directory or the units it uses")
-    if len(found) > 1 then
+    if len(found) > 1 and not (overloads and routines and len(owners) = 1) then
         return Err("'{name}' is ambiguous: {join(shownAs, sep: ", ")}")
-    return Ok(found[0])
+    return Ok(found)
 
 ## The file, line and column of `position`: `file:line:col`, or a symbol's name.
 export function locate(position: String, stdDir: String): Result[Pair[String, List[Integer]], String]
@@ -231,6 +243,34 @@ export function neighbours(file: String): Result[List[String], String]
 ## The answer to `def`, `refs`, `type`, `hover`, `complete`, `impls`, `callers` or
 ## `callees` at a position, or an error.
 export function queryAt(request: String, position: String, stdDir: String): Result[String, String]
+    var positions := [position]
+    if request <> "complete" and len(split(position, sep: ":")) = 1 then
+        case findNames(position, stdDir: stdDir, overloads: true) of
+            Ok(found):
+                positions := found.value
+            Err(e):
+                return Err(e.error)
+    var key := ""
+    var items: List[String] := []
+    var seen: Map[String, Boolean] := {}
+    for at in positions do
+        case queryItems(request, position: at, stdDir: stdDir) of
+            Ok(r):
+                key := r.value.first
+                for item in r.value.second do
+                    if not (item in seen) then
+                        seen[item] := true
+                        add(var items, item)
+            Err(e):
+                return Err(e.error)
+    return Ok(answer(key, items))
+
+## The key and items of `queryAt`'s answer at one position.
+function queryItems(
+    request: String,
+    position: String,
+    stdDir: String,
+): Result[Pair[String, List[String]], String]
     var file := ""
     var line := 0
     var col := 0
@@ -266,7 +306,7 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
             if c.detail <> "" then
                 item := "{item},\"detail\":{quote(c.detail)}"
             add(var items, "{item}}")
-        return Ok(answer("items", items))
+        return Ok(Pair(first: "items", second: items))
     let a := analyze(s, file)
     let found := refAtLine(a, file, line, col: col)
     var targets: List[ref Symbol] := []
@@ -280,29 +320,29 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
         for sym in targets do
             if sym.span.isSome() and sym.file <> "" then
                 add(var items, location(sym.file, sym.span.get()))
-        return Ok(answer("locations", items))
+        return Ok(Pair(first: "locations", second: items))
     if request = "refs" then
         let o := occurrencesOf(s, a, found: found)
         for r in o.refs do
             let where := location(r.file, r.span)
             add(var items, "{slice(where, 0, byteLen(where) - 1)},\"isDef\":{r.isDef}}")
-        return Ok(answer("locations", items))
+        return Ok(Pair(first: "locations", second: items))
     if request = "impls" then
         if len(targets) > 0 then
             let places := implementationsOf(s, a, sym: targets[0])
             for sym in places.syms do
                 add(var items, brief(sym))
-        return Ok(answer("symbols", items))
+        return Ok(Pair(first: "symbols", second: items))
     if request = "callers" or request = "callees" then
         for sym in targets do
             if isCallable(a, sym) then
                 if request = "callers" then
-                    return Ok(answer("callers", callsOf(
+                    return Ok(Pair(first: "callers", second: callsOf(
                         "caller",
                         groups: callersOf(s, target: sym),
                     )))
-                return Ok(answer("callees", callsOf("callee", groups: calleesOf(a, caller: sym))))
-        return Ok(answer(request, items))
+                return Ok(Pair(first: "callees", second: callsOf("callee", groups: calleesOf(a, caller: sym))))
+        return Ok(Pair(first: request, second: items))
     if request = "instances" then
         if len(targets) > 0 then
             var slot: Map[String, Integer] := {}
@@ -326,13 +366,13 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
                     add(var quoted, quote(x))
                 let head := "\"instance\":{quote(names[k])},\"args\":[{join(quoted, sep: ",")}]"
                 add(var items, "\{{head},\"locations\":[{join(places[k], sep: ",")}]}")
-        return Ok(answer("instances", items))
+        return Ok(Pair(first: "instances", second: items))
     if request = "hover" then
         for sym in targets do
             add(var items, symbolInfo(a, sym))
-        return Ok(answer("symbols", items))
+        return Ok(Pair(first: "symbols", second: items))
     if a.checked.env.isNone() then
-        return Ok(answer(if request = "accepts" then "symbols" else "types", items))
+        return Ok(Pair(first: if request = "accepts" then "symbols" else "types", second: items))
     let env := a.checked.env.get()
     if request = "accepts" then
         var seen: Map[Integer, Boolean] := {}
@@ -347,7 +387,7 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
                             add(var items, "{slice(b, 0, byteLen(b) - 1)},\"declaration\":{head}}")
                 None:
                     pass
-        return Ok(answer("symbols", items))
+        return Ok(Pair(first: "symbols", second: items))
     for sym in targets do
         case typeOfSym(env, sym) of
             Some(t):
@@ -363,7 +403,7 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
                 add(var items, "\{\"type\":{quote(show(t.value))},{declared}}")
             None:
                 pass
-    return Ok(answer("types", items))
+    return Ok(Pair(first: "types", second: items))
 
 ## What an error or panic code means (SPEC §16), and the section that lists it.
 export function queryExplain(code: String): Result[String, String]
