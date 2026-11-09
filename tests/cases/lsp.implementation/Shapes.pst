@@ -1,0 +1,26 @@
+unit Shapes
+
+type
+    ## Something with an area.
+    export Shape = trait
+        function area(this): Integer
+
+    ## Something with a name.
+    export Named = trait
+        name: String
+
+    export Square = record
+        export name: String
+        export side: Integer
+
+    export Circle = record
+        export r: Integer
+
+    export Point = record
+        export x: Integer
+
+export function area(s: Square): Integer
+    return s.side * s.side
+
+export function area(c: Circle): Integer
+    return 3 * c.r * c.r

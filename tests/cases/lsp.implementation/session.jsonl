@@ -1,0 +1,9 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file://DIR/Main.pst","languageId":"pasthon","version":1,"text":"program Main\n\nuses IO, Shapes\n\ntype\n    Room = record\n        width: Integer\n\nfunction area(r: Room): Integer\n    return r.width * r.width\n\nfunction total[T: Shape](shapes: List[T]): Integer\n    var sum := 0\n    for s in shapes do\n        sum := sum + s.area()\n    return sum\n\nwriteln(total([Square(name: \"a\", side: 2)]))\n"}}}
+{"jsonrpc":"2.0","id":2,"method":"textDocument/implementation","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":11,"character":19}}}
+{"jsonrpc":"2.0","id":3,"method":"textDocument/implementation","params":{"textDocument":{"uri":"file://DIR/Shapes.pst"},"position":{"line":4,"character":12}}}
+{"jsonrpc":"2.0","id":4,"method":"textDocument/implementation","params":{"textDocument":{"uri":"file://DIR/Shapes.pst"},"position":{"line":5,"character":18}}}
+{"jsonrpc":"2.0","id":5,"method":"textDocument/implementation","params":{"textDocument":{"uri":"file://DIR/Shapes.pst"},"position":{"line":8,"character":12}}}
+{"jsonrpc":"2.0","id":6,"method":"textDocument/implementation","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":8,"character":10}}}
+{"jsonrpc":"2.0","id":7,"method":"shutdown"}
+{"jsonrpc":"2.0","method":"exit"}

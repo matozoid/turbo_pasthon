@@ -1,0 +1,15 @@
+$ $PST build Frames.pst -o frames
+exit 0
+--- stdout
+--- stderr
+$ sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities
+exit 0
+--- stdout
+status 0
+{"jsonrpc":"2.0","id":2,"result":[{"uri":"file://Main.pst","range":{"start":{"line":5,"character":4},"end":{"line":5,"character":8}}},{"uri":"file://Shapes.pst","range":{"start":{"line":11,"character":11},"end":{"line":11,"character":17}}},{"uri":"file://Shapes.pst","range":{"start":{"line":15,"character":11},"end":{"line":15,"character":17}}}]}
+{"jsonrpc":"2.0","id":3,"result":[{"uri":"file://Main.pst","range":{"start":{"line":5,"character":4},"end":{"line":5,"character":8}}},{"uri":"file://Shapes.pst","range":{"start":{"line":11,"character":11},"end":{"line":11,"character":17}}},{"uri":"file://Shapes.pst","range":{"start":{"line":15,"character":11},"end":{"line":15,"character":17}}}]}
+{"jsonrpc":"2.0","id":4,"result":[{"uri":"file://Main.pst","range":{"start":{"line":8,"character":9},"end":{"line":8,"character":13}}},{"uri":"file://Shapes.pst","range":{"start":{"line":21,"character":16},"end":{"line":21,"character":20}}},{"uri":"file://Shapes.pst","range":{"start":{"line":24,"character":16},"end":{"line":24,"character":20}}}]}
+{"jsonrpc":"2.0","id":5,"result":[{"uri":"file://Shapes.pst","range":{"start":{"line":11,"character":11},"end":{"line":11,"character":17}}}]}
+{"jsonrpc":"2.0","id":6,"result":[]}
+{"jsonrpc":"2.0","id":7,"result":null}
+--- stderr

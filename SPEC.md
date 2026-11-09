@@ -1397,7 +1397,7 @@ Built into the `pst` executable, so it is always the same version as the compile
 the same front end. JSON-RPC over stdio, LSP 3.17. It has no dependencies beyond the compiler.
 
 So far it synchronizes whole documents (`textDocumentSync` 1), pushes diagnostics, formats,
-and answers completion, hover, signature help, definition, type definition, references, rename, code actions, document
+and answers completion, hover, signature help, definition, type definition, implementation, references, rename, code actions, document
 symbols, workspace symbols, call hierarchy and folding ranges. After each change it checks
 every open document, with the open documents' texts read in place of their files (§15.6),
 and pushes the diagnostics that are in that document; closing a document clears its
@@ -1424,6 +1424,10 @@ its document again and looks up the name at the position, or the name just befor
 - Type definition gives the declarations of the types in the type of the name at the
   position: of a local, constant, field or enum member, or what a function returns. The
   type's arguments and `ref` targets count too, so `List[ref Item]` leads to `Item`.
+- Implementation goes from a trait to the record, enum, union and subrange types that
+  satisfy it (§4.10), and from a trait routine to the routines that provide it for those
+  types. It looks at the types declared in the open documents and the units they use,
+  apart from standard units, with the routines visible from each open document.
 - References searches every open document and the units it uses; documents that aren't
   open are only searched as units used by an open one.
 - Rename edits the same places references finds, in files that aren't open too. It

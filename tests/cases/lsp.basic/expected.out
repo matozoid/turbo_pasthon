@@ -6,7 +6,7 @@ $ sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"
 exit 0
 --- stdout
 status 0
-{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"textDocumentSync":1,"documentFormattingProvider":true,"hoverProvider":true,"definitionProvider":true,"typeDefinitionProvider":true,"referencesProvider":true,"codeActionProvider":true,"documentSymbolProvider":true,"workspaceSymbolProvider":true,"callHierarchyProvider":true,"foldingRangeProvider":true,"renameProvider":true,"completionProvider":{"triggerCharacters":["."]},"signatureHelpProvider":{"triggerCharacters":["(",","]}},"serverInfo":{"name":"pst"}}}
+{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"textDocumentSync":1,"documentFormattingProvider":true,"hoverProvider":true,"definitionProvider":true,"typeDefinitionProvider":true,"implementationProvider":true,"referencesProvider":true,"codeActionProvider":true,"documentSymbolProvider":true,"workspaceSymbolProvider":true,"callHierarchyProvider":true,"foldingRangeProvider":true,"renameProvider":true,"completionProvider":{"triggerCharacters":["."]},"signatureHelpProvider":{"triggerCharacters":["(",","]}},"serverInfo":{"name":"pst"}}}
 {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file://Main.pst","diagnostics":[]}}
 {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file://Main.pst","diagnostics":[{"range":{"start":{"line":4,"character":8},"end":{"line":4,"character":13}},"severity":1,"code":"E0100","source":"pst","message":"unknown name 'price'"}]}}
 {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file://Shop.pst","diagnostics":[]}}
@@ -15,7 +15,7 @@ status 0
 {"jsonrpc":"2.0","id":2,"result":[{"range":{"start":{"line":0,"character":0},"end":{"line":5,"character":0}},"newText":"program Main\n\nuses IO, Shop\n\nwriteln(\"😀 {cost(x)}\")\n"}]}
 {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file://Shop.pst","diagnostics":[]}}
 {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file://Main.pst","diagnostics":[{"range":{"start":{"line":4,"character":14},"end":{"line":4,"character":18}},"severity":1,"code":"E0100","source":"pst","message":"unknown name 'cost'"},{"range":{"start":{"line":4,"character":20},"end":{"line":4,"character":21}},"severity":1,"code":"E0100","source":"pst","message":"unknown name 'x'"}]}}
-{"jsonrpc":"2.0","id":3,"error":{"code":-32601,"message":"unsupported method 'textDocument/implementation'"}}
+{"jsonrpc":"2.0","id":3,"error":{"code":-32601,"message":"unsupported method 'textDocument/documentLink'"}}
 {"jsonrpc":"2.0","id":4,"result":null}
 --- stderr
 $ printf 'Content-Length: 5\r\n\r\n{bad}' | $PST lsp | ./frames unframe

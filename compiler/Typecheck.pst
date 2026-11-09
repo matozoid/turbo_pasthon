@@ -4413,6 +4413,35 @@ function satisfies(
         tc.env.satCache[ck] := ok
     return ok
 
+## How the type declared by `typeSym` (with its own parameters as arguments) satisfies the
+## trait `tr`, for some arguments of the trait, as seen from `tc`'s unit: the routine
+## that provides each of the trait's routines. None if it doesn't satisfy it.
+export function implementation(tc: ref TC, typeSym, tr: ref Symbol): Option[List[ref Symbol]]
+    var targs: List[Type] := []
+    for p in decl(tc.env, typeSym).params do
+        add(var targs, ParamT(sym: p))
+    let t := named(typeSym, targs)
+    var vars: Vars := {}
+    var wargs: List[Type] := []
+    for p in decl(tc.env, tr).params do
+        add(var wargs, ParamT(sym: p))
+        vars[p.id] := true
+    let wanted := TraitT(sym: tr, args: wargs)
+    var s: Subst := {}
+    if not satisfies(tc, t, wanted, var s, vars, 0) then
+        return None
+    let bound := TraitT(sym: tr, args: substAll(wargs, s))
+    var out: List[ref Symbol] := []
+    for m in decl(tc.env, tr).routines do
+        tc.depth := 0
+        var s2 := s
+        case provider(tc, t, m, sub: traitSubst(tc, t, bound), s: var s2, vars: vars) of
+            Some(found):
+                add(var out, found.value.f)
+            None:
+                pass
+    return Some(out)
+
 function satisfiesPlain(tc: ref TC, t, wanted: Type): Boolean
     case wanted of
         TraitT(tr):

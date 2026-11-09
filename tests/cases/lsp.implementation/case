@@ -1,0 +1,5 @@
+# The language server (SPEC §15.4): implementation goes from a trait to the types that
+# satisfy it (by routines or by fields), and from a trait routine to the routines that
+# provide it, as seen from the open documents; other names have none.
+$PST build Frames.pst -o frames
+sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities

@@ -985,6 +985,85 @@ function documentSymbols(s: Server, path: String): String
             add(var parts, documentSymbol(t.get(), sym))
     return "[{join(parts, sep: ",")}]"
 
+# ------------------------------------------------------------------------- implementation
+
+## The types that satisfy the trait at the position, or for a trait routine, the routines
+## that provide it; in the open documents and the units they use, apart from standard units.
+function implementations(s: Server, path: String, params: JValue): String
+    let first := analyze(s, path)
+    var target: Option[ref Symbol] := None
+    var member: Option[ref Symbol] := None
+    case refAt(first, path, params: params) of
+        Some(r):
+            if len(r.value.targets) > 0 and r.value.targets[0].span.isSome() then
+                let sym := r.value.targets[0]
+                if sym.kind = Kind.TraitSym then
+                    target := Some(sym)
+                else if isRoutine(sym.kind) and first.checked.env.isSome() then
+                    case get(first.checked.env.get().owner, sym.id) of
+                        Some(o):
+                            if o.value.kind = Kind.TraitSym then
+                                target := Some(o.value)
+                                member := Some(sym)
+                        None:
+                            pass
+        None:
+            pass
+    if target.isNone() then
+        return "[]"
+    let tr := target.get()
+    var parts: List[String] := []
+    var seen: Map[String, Boolean] := {}
+    for open, _ in s.texts do
+        let a := analyze(s, open)
+        if a.checked.env.isNone() then
+            continue
+        let env := a.checked.env.get()
+        let here := defSym(env, tr.file, tr.span.get())
+        if here.isNone() then
+            continue
+        let traitSym := here.get()
+        var std: Map[String, Boolean] := {}
+        var home: Option[ref Unit] := None
+        for u in a.checked.resolved.units do
+            if u.std then
+                std[u.path] := true
+            if u.path = open then
+                home := Some(u)
+        if home.isNone() then
+            continue
+        let tc := checker(env, home.get())
+        var index := 0
+        for m in decl(env, traitSym).routines do
+            if member.isSome() and m.name = member.get().name then
+                break
+            index := index + 1
+        for r in a.checked.resolved.checker.index.refs do
+            if not r.isDef or len(r.targets) <> 1 or r.file in std or r.targets[0].kind <> Kind.TypeSym then
+                continue
+            let ty := r.targets[0]
+            if not (decl(env, ty).kind in ["record", "enum", "union", "subrange"]) then
+                continue
+            case implementation(tc, ty, traitSym) of
+                Some(provided):
+                    var at := ty
+                    if member.isSome() then
+                        if index >= len(provided.value) then
+                            continue
+                        at := provided.value[index]
+                    let key := "{at.file}:{at.span.get().start}"
+                    if at.span.isSome() and at.file in a.texts and not (key in seen) then
+                        seen[key] := true
+                        add(var parts, location(
+                            s,
+                            a.texts[at.file],
+                            file: at.file,
+                            span: at.span.get(),
+                        ))
+                None:
+                    pass
+    return "[{join(parts, sep: ",")}]"
+
 # ------------------------------------------------------------------------- call hierarchy
 
 ## A `CallHierarchyItem` for a routine.
@@ -1254,7 +1333,7 @@ function codeActions(s: Server, path: String, params: JValue): String
 # ------------------------------------------------------------------------- requests
 
 function capabilities(): String
-    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"typeDefinitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"workspaceSymbolProvider\":true,\"callHierarchyProvider\":true,\"foldingRangeProvider\":true,\"renameProvider\":true,\"completionProvider\":\{\"triggerCharacters\":[\".\"]},\"signatureHelpProvider\":\{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":\{\"name\":\"pst\"}}"
+    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"typeDefinitionProvider\":true,\"implementationProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"workspaceSymbolProvider\":true,\"callHierarchyProvider\":true,\"foldingRangeProvider\":true,\"renameProvider\":true,\"completionProvider\":\{\"triggerCharacters\":[\".\"]},\"signatureHelpProvider\":\{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":\{\"name\":\"pst\"}}"
 
 ## The edits that format the document at `uri`: none if it is formatted, or can't be.
 function formatting(s: Server, uri: String): String
@@ -1311,6 +1390,8 @@ procedure handle(var s: Server, m: JValue)
         respond(id, result: formatting(s, uri: uri))
     else if method = "textDocument/hover" then
         respond(id, result: hover(s, pathOf(uri), params: params))
+    else if method = "textDocument/implementation" then
+        respond(id, result: implementations(s, pathOf(uri), params: params))
     else if method = "textDocument/typeDefinition" then
         respond(id, result: typeDefinition(s, pathOf(uri), params: params))
     else if method = "textDocument/prepareCallHierarchy" then
