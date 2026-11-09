@@ -10,3 +10,9 @@ extern "pst"
     export function shl[T](a: T, n: Integer): T
     export function shr[T](a: T, n: Integer): T
     export function popCount[T](a: T): Integer
+
+test "bit operations"
+    assert band(12, 10) = 8 and bor(12, 10) = 14 and bxor(12, 10) = 6
+    assert bnot(0) = -1
+    assert shl(1, 10) = 1024 and shr(1024, 3) = 128
+    assert popCount(255) = 8 and popCount(0) = 0

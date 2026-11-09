@@ -116,3 +116,29 @@ export function relative(p, start: String): String
     if len(parts) = 0 then
         return "."
     return Strings.join(parts, sep: "/")
+
+test "dirname and basename"
+    assert dirname("a/b/c.pst") = "a/b" and basename("a/b/c.pst") = "c.pst"
+    assert dirname("c.pst") = "" and basename("c.pst") = "c.pst"
+    assert dirname("/c") = "/" and dirname("a//b") = "a"
+    assert basename("a/") = ""
+
+test "stripExt"
+    assert stripExt("a/b.c.pst") = "a/b.c"
+    assert stripExt("a.d/b") = "a.d/b"
+    assert stripExt(".hidden") = ".hidden"
+    assert stripExt("x.") = "x"
+
+test "join and normalize"
+    assert join("a", b: "b") = "a/b" and join("a/", b: "b") = "a/b"
+    assert join("", b: "b") = "b" and join("a", b: "/b") = "/b"
+    assert normalize("") = "." and normalize("./a//b/../c/.") = "a/c"
+    assert normalize("../a/..") = ".." and normalize("/../a") = "/a"
+    assert normalize("//a") = "//a" and normalize("///a") = "/a"
+
+test "relative"
+    assert relative("/a/b/c", start: "/a") = "b/c"
+    assert relative("/a", start: "/a/b/c") = "../.."
+    assert relative("/x/y", start: "/a/b") = "../../x/y"
+    assert relative("/a", start: "/a") = "."
+    assert absolute("/a/./b") = "/a/b"

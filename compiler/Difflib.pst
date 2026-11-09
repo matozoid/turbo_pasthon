@@ -80,3 +80,8 @@ export function closeMatches(word: String, candidates: List[String], n: Integer,
         if len(out) < n then
             add(var out, s.name)
     return out
+
+test "close matches, best first"
+    assert closeMatches("lenght", ["length", "len", "height", "other"], 3, num: 3, den: 5) = ["length", "len", "height"]
+    assert closeMatches("abc", ["abd", "abc", "xyz"], 1, num: 3, den: 5) = ["abc"]
+    assert closeMatches("abc", [], 3, num: 3, den: 5) = []

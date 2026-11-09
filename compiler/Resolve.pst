@@ -254,7 +254,8 @@ export function resolveUnits(path: String, stdDir: String): Resolved
         nextSymbol: 0,
         nextUnit: 0,
     ))
-    let std := dirname(absolute(path)) = absolute(stdDir)
+    let dir := dirname(absolute(path))
+    let std := realPath(dir).getOr(dir) = realPath(stdDir).getOr(absolute(stdDir))
     let main := load(c, path, std: std)
     var order: List[ref Unit] := []
     if main.isSome() then

@@ -143,3 +143,50 @@ export unsafe function parseInt(s: String): Result[Integer, String]
     if value = MinInt then
         return Err("'{s}' doesn't fit in an Integer")
     return Ok(-value)
+
+test "find gives byte offsets"
+    assert find("héllo", sub: "l") = Some(3)
+    assert find("hello", sub: "l", start: 3) = Some(3)
+    assert find("hello", sub: "x").isNone()
+    assert find("", sub: "") = Some(0)
+
+test "startsWith and endsWith"
+    assert startsWith("hello", prefix: "he")
+    assert not startsWith("he", prefix: "hello")
+    assert endsWith("hello", suffix: "llo")
+    assert endsWith("hello", suffix: "")
+    assert not endsWith("lo", suffix: "hello")
+
+test "split and join are inverses"
+    assert split("a,b,,c", sep: ",") = ["a", "b", "", "c"]
+    assert split("", sep: ",") = [""]
+    assert split("a::b", sep: "::") = ["a", "b"]
+    assert join(["a", "b", "", "c"], sep: ",") = "a,b,,c"
+    assert join([]) = ""
+    assert join(["x", "y"]) = "xy"
+
+test "trim and replace"
+    assert trim("  a b\t\n") = "a b"
+    assert trim(" \n ") = ""
+    assert replace("a.b.c", target: ".", replacement: "::") = "a::b::c"
+    assert replace("abc", target: "x", replacement: "y") = "abc"
+
+test "parseInt"
+    assert parseInt("42") = Ok(42)
+    assert parseInt("-7") = Ok(-7)
+    assert parseInt("+0") = Ok(0)
+    assert parseInt("-9223372036854775808") = Ok(MinInt)
+    assert parseInt("9223372036854775808").isErr()
+    assert parseInt("").isErr()
+    assert parseInt("-").isErr()
+    assert parseInt("1x").isErr()
+
+test "bytes and fromBytes"
+    assert bytes("é") = [195, 169]
+    let hi: List[Byte] := [104, 105]
+    assert fromBytes(hi) = "hi"
+    let bad: List[Byte] := [255]
+    assert fromBytes(bad) = "\u{FFFD}"
+    assert charCount("héllo") = 5
+    assert byteLen("héllo") = 6
+    assert slice("héllo", 1, 3) = "é"

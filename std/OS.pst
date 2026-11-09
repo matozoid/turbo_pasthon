@@ -13,6 +13,7 @@ extern "libc.so.6"
     function malloc(size: CSize): Pointer
     function strdup(s: CString): CString
     function readlink(path: CString, buf: Pointer, size: CSize): CLong
+    function realpath(path: CString, resolved: Pointer): CString
     function mkdtemp(template: CString): CString
     function unlink(path: CString): CInt
     function rmdir(path: CString): CInt
@@ -85,6 +86,19 @@ export unsafe function currentDir(): String
     let dir := fromCString(p)
     free(p)
     return dir
+
+## The absolute path of `path`, with symbolic links, `.` and `..` resolved.
+export unsafe function realPath(path: String): Result[String, String]
+    ## A buffer of PATH_MAX bytes: the unversioned symbol is glibc's first `realpath`,
+    ## which doesn't allocate one.
+    let buf := malloc(CSize(4096))
+    if isNull(realpath(toCString(path), buf)) then
+        let message := "{path}: {lastError()}"
+        freeMemory(buf)
+        return Err(message)
+    let real := fromCString(cast[CString](buf))
+    freeMemory(buf)
+    return Ok(real)
 
 ## The file type bits of `path` (following symbolic links), or -1 if it doesn't exist.
 unsafe function fileType(path: String): Integer
@@ -224,3 +238,31 @@ export unsafe function run(path: String, args: List[String], output: String := "
     if band(s, 0x7F) = 0 then
         return Ok(band(shr(s, 8), 0xFF))
     return Ok(-band(s, 0x7F))
+
+test "directories"
+    let dir := tempDir().get()
+    assert isDir(dir) and not isFile(dir)
+    assert realPath("{dir}/.").get() = realPath(dir).get()
+    assert makeDir("{dir}/sub").isOk()
+    assert makeDir("{dir}/sub").isErr()
+    assert listDir(dir).get() = ["sub"]
+    assert removeDir("{dir}/sub").isOk()
+    assert len(listDir(dir).get()) = 0
+    assert removeDir(dir).isOk()
+    assert not isDir(dir)
+    assert realPath(dir).isErr()
+
+test "running a program"
+    let dir := tempDir().get()
+    let out := "{dir}/out"
+    assert run("/bin/sh", ["-c", "pwd; echo err >&2; exit 3"], output: out, dir: "/") = Ok(3)
+    assert isFile(out)
+    assert run("/nonexistent", []) = Ok(127)
+    assert removeFile(out).isOk()
+    assert removeFile(out).isErr()
+    assert removeDir(dir).isOk()
+
+test "environment"
+    assert env("PATH").isSome()
+    assert env("PST_NO_SUCH_VARIABLE").isNone()
+    assert currentDir() <> ""

@@ -692,3 +692,83 @@ export function find[T, I: Iterator[T]](it: I, pred: function(T): Boolean): Opti
         if pred(x) then
             return Some(x)
     return None
+
+function lessByTens(a, b: Integer): Boolean
+    return a div 10 < b div 10
+
+function double(x: Integer): Integer
+    return 2 * x
+
+function isEven(x: Integer): Boolean
+    return x mod 2 = 0
+
+test "list editing"
+    var xs := [1, 2, 3]
+    add(var xs, 4)
+    remove(var xs, 0)
+    assert xs = [2, 3, 4]
+    insert(var xs, 1, x: 9)
+    insert(var xs, 4, x: 5)
+    assert xs = [2, 9, 3, 4, 5]
+    removeLast(var xs)
+    assert xs = [2, 9, 3, 4]
+    assert concat(xs, b: [1]) = [2, 9, 3, 4, 1]
+    assert 9 in xs and not (7 in xs)
+
+test "sort is stable"
+    var xs := [5, 3, 9, 1, 3, 0]
+    sort(var xs)
+    assert xs = [0, 1, 3, 3, 5, 9]
+    var ys := [31, 12, 35, 10, 22]
+    sort(var ys, less: lessByTens)
+    assert ys = [12, 10, 22, 31, 35]
+    var empty: List[Integer] := []
+    sort(var empty)
+    assert len(empty) = 0
+
+test "maps"
+    var m: Map[String, Integer] := {"a": 1}
+    m["b"] := 2
+    m["a"] := 3
+    assert len(m) = 2
+    assert get(m, "a") = Some(3)
+    assert get(m, "z").isNone()
+    assert getOr(m, "z", default: 7) = 7
+    remove(var m, "a")
+    remove(var m, "a")
+    assert len(m) = 1 and not ("a" in m)
+
+test "sets"
+    var s: Set[Byte] := {1, 2}
+    add(var s, 3)
+    add(var s, 3)
+    remove(var s, 1)
+    assert len(s) = 2 and 3 in s and not (1 in s)
+    let t: Set[Byte] := {3, 4}
+    assert union(s, b: t) = {2, 3, 4}
+    assert intersection(s, b: t) = {3}
+    assert difference(s, b: t) = {2}
+
+test "options and results"
+    let some: Option[Integer] := Some(1)
+    let none: Option[Integer] := None
+    assert some.isSome() and none.isNone()
+    assert some.get() = 1 and none.getOr(5) = 5
+    let ok: Result[Integer, String] := Ok(2)
+    let err: Result[Integer, String] := Err("no")
+    assert ok.isOk() and err.isErr()
+    assert ok.get() = 2 and err.getOr(6) = 6
+
+test "iterators"
+    let xs := [1, 2, 3, 4]
+    assert collect(map(iter(xs), f: double)) = [2, 4, 6, 8]
+    assert collect(filter(iter(xs), pred: isEven)) = [2, 4]
+    assert collect(take(iter(xs), n: 2)) = [1, 2]
+    assert collect(skip(iter(xs), n: 3)) = [4]
+    assert count(iter(xs)) = 4 and sum(iter(xs)) = 10
+    assert any(iter(xs), pred: isEven) and not all(iter(xs), pred: isEven)
+    assert find(iter(xs), pred: isEven) = Some(2)
+    var n := 0
+    for p in enumerate(iter(xs)) do
+        n := n + p.index * p.value
+    assert n = 20

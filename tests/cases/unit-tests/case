@@ -1,0 +1,3 @@
+# The test blocks of the standard units and of the compiler.
+$PST test $ROOT/std
+$PST test $ROOT/compiler

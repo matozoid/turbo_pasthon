@@ -1,0 +1,32 @@
+$ $PST test $ROOT/std
+exit 0
+--- stdout
+ok   std/Bits.pst:14: bit operations
+ok   std/Math.pst:32: integer helpers
+ok   std/OS.pst:242: directories
+ok   std/OS.pst:255: running a program
+ok   std/OS.pst:265: environment
+ok   std/Strings.pst:147: find gives byte offsets
+ok   std/Strings.pst:153: startsWith and endsWith
+ok   std/Strings.pst:160: split and join are inverses
+ok   std/Strings.pst:168: trim and replace
+ok   std/Strings.pst:174: parseInt
+ok   std/Strings.pst:184: bytes and fromBytes
+ok   std/System.pst:705: list editing
+ok   std/System.pst:718: sort is stable
+ok   std/System.pst:729: maps
+ok   std/System.pst:741: sets
+ok   std/System.pst:752: options and results
+ok   std/System.pst:762: iterators
+17 passed, 0 failed
+--- stderr
+$ $PST test $ROOT/compiler
+exit 0
+--- stdout
+ok   compiler/Difflib.pst:84: close matches, best first
+ok   compiler/Paths.pst:120: dirname and basename
+ok   compiler/Paths.pst:126: stripExt
+ok   compiler/Paths.pst:132: join and normalize
+ok   compiler/Paths.pst:139: relative
+5 passed, 0 failed
+--- stderr

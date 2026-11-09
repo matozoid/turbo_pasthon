@@ -27,3 +27,9 @@ export function min[T: Ordered](a, b: T): T
 ## The larger of `a` and `b`.
 export function max[T: Ordered](a, b: T): T
     return if b > a then b else a
+
+## The code generator has no `Real` yet, so only the integer functions are tested.
+test "integer helpers"
+    assert abs(-3) = 3 and abs(4) = 4 and abs(0) = 0
+    assert min(2, 7) = 2 and max(2, 7) = 7
+    assert min('b', 'a') = 'a'
