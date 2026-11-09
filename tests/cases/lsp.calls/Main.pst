@@ -1,0 +1,14 @@
+program Main
+
+uses IO, Shop
+
+function cost(i: Item): Integer
+    return price(i.qty) + quantity(i) + price(1)
+
+procedure report(i: Item)
+    writeln(cost(i))
+    writeln(cost(i))
+
+let i := Item(name: "a", qty: 2)
+report(i)
+writeln(price(1))

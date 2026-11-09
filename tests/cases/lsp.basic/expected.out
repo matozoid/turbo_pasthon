@@ -6,7 +6,7 @@ $ sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"
 exit 0
 --- stdout
 status 0
-{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"textDocumentSync":1,"documentFormattingProvider":true,"hoverProvider":true,"definitionProvider":true,"typeDefinitionProvider":true,"referencesProvider":true,"codeActionProvider":true,"documentSymbolProvider":true,"workspaceSymbolProvider":true,"foldingRangeProvider":true,"renameProvider":true,"completionProvider":{"triggerCharacters":["."]},"signatureHelpProvider":{"triggerCharacters":["(",","]}},"serverInfo":{"name":"pst"}}}
+{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"textDocumentSync":1,"documentFormattingProvider":true,"hoverProvider":true,"definitionProvider":true,"typeDefinitionProvider":true,"referencesProvider":true,"codeActionProvider":true,"documentSymbolProvider":true,"workspaceSymbolProvider":true,"callHierarchyProvider":true,"foldingRangeProvider":true,"renameProvider":true,"completionProvider":{"triggerCharacters":["."]},"signatureHelpProvider":{"triggerCharacters":["(",","]}},"serverInfo":{"name":"pst"}}}
 {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file://Main.pst","diagnostics":[]}}
 {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file://Main.pst","diagnostics":[{"range":{"start":{"line":4,"character":8},"end":{"line":4,"character":13}},"severity":1,"code":"E0100","source":"pst","message":"unknown name 'price'"}]}}
 {"jsonrpc":"2.0","method":"textDocument/publishDiagnostics","params":{"uri":"file://Shop.pst","diagnostics":[]}}

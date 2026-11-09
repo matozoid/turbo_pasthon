@@ -1,0 +1,5 @@
+# The language server (SPEC §15.4): call hierarchy. Preparing gives the routine at the
+# position (none for a variable); incoming calls are grouped by the routine they are in,
+# or the main body; outgoing calls are the routines a routine's declaration names.
+$PST build Frames.pst -o frames
+sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities

@@ -1,0 +1,15 @@
+$ $PST build Frames.pst -o frames
+exit 0
+--- stdout
+--- stderr
+$ sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities
+exit 0
+--- stdout
+status 0
+{"jsonrpc":"2.0","id":2,"result":[{"name":"price","kind":12,"detail":"function price(n: Integer, discount: Integer := 0): Integer","uri":"file://Shop.pst","range":{"start":{"line":10,"character":0},"end":{"line":11,"character":27}},"selectionRange":{"start":{"line":10,"character":16},"end":{"line":10,"character":21}}}]}
+{"jsonrpc":"2.0","id":3,"result":null}
+{"jsonrpc":"2.0","id":4,"result":[{"from":{"name":"Main","kind":2,"uri":"file://Main.pst","range":{"start":{"line":0,"character":0},"end":{"line":14,"character":0}},"selectionRange":{"start":{"line":0,"character":0},"end":{"line":14,"character":0}}},"fromRanges":[{"start":{"line":13,"character":8},"end":{"line":13,"character":13}}]},{"from":{"name":"cost","kind":12,"detail":"function cost(i: Item): Integer","uri":"file://Main.pst","range":{"start":{"line":4,"character":0},"end":{"line":5,"character":48}},"selectionRange":{"start":{"line":4,"character":9},"end":{"line":4,"character":13}}},"fromRanges":[{"start":{"line":5,"character":11},"end":{"line":5,"character":16}},{"start":{"line":5,"character":40},"end":{"line":5,"character":45}}]}]}
+{"jsonrpc":"2.0","id":5,"result":[{"from":{"name":"report","kind":12,"detail":"procedure report(i: Item)","uri":"file://Main.pst","range":{"start":{"line":7,"character":0},"end":{"line":9,"character":20}},"selectionRange":{"start":{"line":7,"character":10},"end":{"line":7,"character":16}}},"fromRanges":[{"start":{"line":8,"character":12},"end":{"line":8,"character":16}},{"start":{"line":9,"character":12},"end":{"line":9,"character":16}}]}]}
+{"jsonrpc":"2.0","id":6,"result":[{"to":{"name":"price","kind":12,"detail":"function price(n: Integer, discount: Integer := 0): Integer","uri":"file://Shop.pst","range":{"start":{"line":10,"character":0},"end":{"line":11,"character":27}},"selectionRange":{"start":{"line":10,"character":16},"end":{"line":10,"character":21}}},"fromRanges":[{"start":{"line":5,"character":11},"end":{"line":5,"character":16}},{"start":{"line":5,"character":40},"end":{"line":5,"character":45}}]},{"to":{"name":"quantity","kind":12,"detail":"function quantity(item: Item): Integer","uri":"file://Shop.pst","range":{"start":{"line":14,"character":0},"end":{"line":15,"character":19}},"selectionRange":{"start":{"line":14,"character":16},"end":{"line":14,"character":24}}},"fromRanges":[{"start":{"line":5,"character":26},"end":{"line":5,"character":34}}]}]}
+{"jsonrpc":"2.0","id":7,"result":null}
+--- stderr

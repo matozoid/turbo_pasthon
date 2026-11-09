@@ -1,0 +1,9 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file://DIR/Main.pst","languageId":"pasthon","version":1,"text":"program Main\n\nuses IO, Shop\n\nfunction cost(i: Item): Integer\n    return price(i.qty) + quantity(i) + price(1)\n\nprocedure report(i: Item)\n    writeln(cost(i))\n    writeln(cost(i))\n\nlet i := Item(name: \"a\", qty: 2)\nreport(i)\nwriteln(price(1))\n"}}}
+{"jsonrpc":"2.0","id":2,"method":"textDocument/prepareCallHierarchy","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":13,"character":10}}}
+{"jsonrpc":"2.0","id":3,"method":"textDocument/prepareCallHierarchy","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":11,"character":5}}}
+{"jsonrpc":"2.0","id":4,"method":"callHierarchy/incomingCalls","params":{"item":{"name":"x","kind":12,"uri":"file://DIR/Shop.pst","range":{"start":{"line":10,"character":16},"end":{"line":10,"character":21}},"selectionRange":{"start":{"line":10,"character":16},"end":{"line":10,"character":21}}}}}
+{"jsonrpc":"2.0","id":5,"method":"callHierarchy/incomingCalls","params":{"item":{"name":"x","kind":12,"uri":"file://DIR/Main.pst","range":{"start":{"line":4,"character":9},"end":{"line":4,"character":13}},"selectionRange":{"start":{"line":4,"character":9},"end":{"line":4,"character":13}}}}}
+{"jsonrpc":"2.0","id":6,"method":"callHierarchy/outgoingCalls","params":{"item":{"name":"x","kind":12,"uri":"file://DIR/Main.pst","range":{"start":{"line":4,"character":9},"end":{"line":4,"character":13}},"selectionRange":{"start":{"line":4,"character":9},"end":{"line":4,"character":13}}}}}
+{"jsonrpc":"2.0","id":7,"method":"shutdown"}
+{"jsonrpc":"2.0","method":"exit"}
