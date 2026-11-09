@@ -133,6 +133,9 @@ type
         depth: Integer
         ## File and id of a toCString call -> the slot keeping its string.
         keep: Map[String, Integer]
+        ## In a lambda: the ids of the `var` parameters it captured, which it holds as
+        ## copies rather than addresses.
+        copied: Map[Integer, Boolean]
         ## While > 0, a `try` can't return: a call has moved values out (`call`).
         noTry: Integer
 
@@ -337,6 +340,7 @@ function newFrame(file: String, sym: Option[ref Symbol], exit: String): ref Fram
         sites: {},
         depth: 0,
         keep: {},
+        copied: {},
         noTry: 0,
     ))
 
@@ -997,8 +1001,10 @@ function itemExpr(t: TypeOrExpr): Expr
         else:
             return ErrorExpr(span: noSpan(), id: -1)
 
-function isVarParam(sym: ref Symbol): Boolean
-    if sym.kind <> Kind.ParamSym then
+## Whether `sym`, in the routine being compiled, is a `var` parameter: its slot holds an
+## address.
+function isVarParam(g: ref Em, sym: ref Symbol): Boolean
+    if sym.kind <> Kind.ParamSym or sym.id in g.f.copied then
         return false
     case sym.node of
         Param(p):
@@ -2375,7 +2381,7 @@ procedure address(g: ref Em, e: Expr, insert: Boolean := false)
             let sym := refSym(g, n.span)
             if hasSlot(g, sym) then
                 let slot := g.f.slots[sym.get().id]
-                if isVarParam(sym.get()) then
+                if isVarParam(g, sym.get()) then
                     load(a, Rax, Rbp, disp: slot)
                 else
                     lea(a, Rax, Rbp, disp: slot)
@@ -2998,7 +3004,7 @@ procedure loadSym(g: ref Em, sym: ref Symbol, e: Expr)
         load(a, Rax, Rbp, disp: g.f.resultSlot.get())
     else if sym.id in g.f.slots then
         load(a, Rax, Rbp, disp: g.f.slots[sym.id])
-        if isVarParam(sym) then
+        if isVarParam(g, sym) then
             load(a, Rax, Rax)
         if isInt(t) then  # C may have written only the low bits (`addr`)
             widen(g, t)
@@ -3065,6 +3071,8 @@ procedure lambdaValue(g: ref Em, x: Lambda, t: Type)
     for i := 0 to len(caps) - 1 do
         push(a, Rax)
         load(a, Rax, Rbp, disp: g.f.slots[caps[i].id])
+        if isVarParam(g, caps[i]) then
+            load(a, Rax, Rax)
         if managed(g, parts[i + 1]) then
             retain(g)
         mov(a, Rcx, Rax)
@@ -3137,6 +3145,7 @@ procedure lambdaRoutine(g: ref Em, lm: Lam)
             let c := lm.captures[i]
             let slot := alloc(g)
             f.slots[c.id] := slot
+            f.copied[c.id] := true
             load(a, Rax, Rbp, disp: env)
             load(a, Rax, Rax, disp: Fields + 8 * (i + 1))
             store(a, Rbp, disp: slot, src: Rax)

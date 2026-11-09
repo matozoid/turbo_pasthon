@@ -20,4 +20,8 @@ Hello, Ann!
 [<1>, <2>]
 [Ann, Bob, Cy]
 [Bob, Cy, Ann]
+1
+8
+6
+[10, 20, 30]
 --- stderr
