@@ -3076,7 +3076,7 @@ procedure stringOf(g: ref Em, parts: List[InterpPart])
 procedure toString(g: ref Em, e: Expr)
     let t := base(g.env, typeOfExpr(g, e))
     let isEnum := kind(g, t) = "enum"
-    if t <> stringT() and t <> booleanT() and t <> charT() and not isEnum and not isInt(t) then
+    if t <> stringT() and t <> booleanT() and t <> charT() and t <> realT() and not isEnum and not isInt(t) then
         declaredToString(g, e, t)
         return
     expr(g, e)
@@ -3088,6 +3088,8 @@ procedure toString(g: ref Em, e: Expr)
             call(a, runtime(g, "rt_int_to_str"))
         else
             call(a, runtime(g, "rt_uint_to_str"))
+    else if t = realT() then
+        call(a, runtime(g, "rt_real_to_str"))
     else if t = booleanT() then
         call(a, runtime(g, "rt_bool_to_str"))
     else if t = charT() then
@@ -3495,8 +3497,17 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
         push(a, Rax)
         add(var args, CArgT(ty: typeOfExpr(g, x.expr), byValue: false))
     var regs := 0
+    var reals := 0
     let n := len(args)
     for i := 0 to n - 1 do
+        if args[i].ty = realT() then  # in the next xmm register
+            if reals = 8 then
+                unsupported(g, c.span, "a C call needing more than 8 Real registers")
+                return
+            load(a, Rax, Rsp, disp: 8 * (n - 1 - i))
+            movqToXmm(a, reals, r: Rax)
+            reals := reals + 1
+            continue
         var words := 1
         if args[i].byValue then
             words := (cLayout(g, args[i].ty, c.span).size + 7) div 8
@@ -3514,7 +3525,7 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
             for w := 0 to words - 1 do
                 load(a, argReg(regs + w), R11, disp: Fields + 8 * w)
         regs := regs + words
-    ccall(g, getOr(xd.symbol, sym.name))
+    ccall(g, getOr(xd.symbol, sym.name), vectors: reals)
     for i := 0 to n - 1 do
         if args[i].byValue then
             load(a, Rdi, Rsp, disp: 8 * (n - 1 - i))
@@ -3541,6 +3552,8 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
         ccall(g, "memcpy")
         pop(a, Rax)
         addImm(a, Rsp, value: 16)
+    else if result = realT() then
+        movqFromXmm(a, Rax, x: Xmm0)
     else if m.sig.isFunction then
         widen(g, result)  # C leaves the upper bits of small results undefined
 
@@ -3567,9 +3580,16 @@ procedure callback(g: ref Em, e: Expr, t: Type)
     let k := "thunk|{sym.get().id}"
     if not (k in g.labels) then
         for p in params do
-            if managed(g, p) then
+            if managed(g, p) or p = realT() then
                 unsupported(g, exprSpan(e), "a callback taking {show(p)}")
                 return
+        case t of
+            FuncT(ft):
+                if ft.result = realT() then
+                    unsupported(g, exprSpan(e), "a callback returning Real")
+                    return
+            else:
+                pass
         let lbl := newLabel(g.a, "thunk")
         g.labels[k] := lbl
         let target := labelOf(g, exprSpan(e), sym.get(), [], sites: {})
@@ -4207,6 +4227,7 @@ procedure runtimeRoutine(g: ref Em, name: String)
         "rt_concat": rtConcat(g)
         "rt_int_to_str": rtIntToStr(g, "%ld")
         "rt_uint_to_str": rtIntToStr(g, "%lu")
+        "rt_real_to_str": rtRealToStr(g)
         "rt_bool_to_str": rtBoolToStr(g)
         "rt_char_to_str": rtCharToStr(g)
         "rt_str_cmp": rtStrCmp(g)
@@ -4216,12 +4237,17 @@ procedure runtimeRoutine(g: ref Em, name: String)
 
 ## Calls a libc function, with the stack aligned as the C ABI requires (and al = 0 for
 ## variadic ones).
-procedure ccall(g: ref Em, name: String)
+## Calls the C function `name`; `vectors` is how many xmm registers hold arguments, which
+## a variadic function reads from al.
+procedure ccall(g: ref Em, name: String, vectors: Integer := 0)
     let a := g.a
     push(a, Rbp)
     mov(a, Rbp, Rsp)
     andImm(a, Rsp, value: -16)
-    xor32(a, Rax, Rax)
+    if vectors = 0 then
+        xor32(a, Rax, Rax)
+    else
+        movImm(a, Rax, value: vectors)
     callImport(a, name)
     leave(a)
     if a.tracked then  # `leave` popped rbp
@@ -5105,6 +5131,118 @@ procedure rtIntToStr(g: ref Em, fmt: String)
     mov(a, Rsi, Rax)
     call(a, runtime(g, "rt_str_from"))
     addImm(a, Rsp, value: 32)
+    ret(a)
+
+## rax := the real rax as text: the fewest significant digits (`%.Ng`, N up to 17) that
+## read back as the same bits; written out in full below 10^16 (`%.1f`), and with `.0`
+## added when that shows no `.` (`2.0`, `1.0e+20`), so it reads as a real literal. `inf`,
+## `-inf` and `nan` stay as they are.
+procedure rtRealToStr(g: ref Em)
+    let a := g.a
+    let l := labels(a, "f", 7)
+    let loop := l[0]
+    let scan := l[1]
+    let nxt := l[2]
+    let insert := l[3]
+    let make := l[4]
+    let exp := l[5]
+    let fixed := l[6]
+    var fmt := utf8("%.*g")
+    add(var fmt, Byte(0))
+    var full := utf8("%.1f")
+    add(var full, Byte(0))
+    movqToXmm(a, Xmm0, r: Rax)
+    ucomisd(a, Xmm0, y: Xmm0)
+    let number := newLabel(a, "f")
+    jcc(a, "np", label: number)
+    leaData(a, Rax, label: literal(g, "nan"))  # whatever its sign bit
+    ret(a)
+    label(a, number)
+    let saved := [Rbx, R12, R13]
+    pushAll(a, saved)
+    subImm(a, Rsp, value: 48)
+    mov(a, Rbx, Rax)
+    movImm(a, R12, value: 1)  # the precision
+    label(a, loop)
+    mov(a, Rdi, Rsp)
+    movImm(a, Rsi, value: 40)
+    leaData(a, Rdx, label: data(a, fmt))
+    mov(a, Rcx, R12)
+    movqToXmm(a, Xmm0, r: Rbx)
+    ccall(g, "snprintf", vectors: 1)
+    mov(a, R13, Rax)  # the length
+    mov(a, Rdi, Rsp)
+    xor32(a, Rsi, Rsi)
+    ccall(g, "strtod")
+    movqFromXmm(a, Rax, x: Xmm0)
+    cmp(a, Rax, Rbx)
+    jcc(a, "e", label: scan)
+    incR(a, R12)
+    cmpImm(a, R12, value: 17)
+    jcc(a, "le", label: loop)
+    label(a, scan)  # rcx: the position; r8: where `.0` goes; r9: 1 once a `.` is seen
+    mov(a, R8, R13)
+    xor32(a, Rcx, Rcx)
+    xor32(a, R9, R9)
+    label(a, nxt)
+    cmp(a, Rcx, R13)
+    jcc(a, "ge", label: insert)
+    mov(a, Rdx, Rsp)
+    add(a, Rdx, Rcx)
+    load8(a, Rax, Rdx)
+    incR(a, Rcx)
+    cmpImm(a, Rax, value: ord('n'))  # inf
+    jcc(a, "e", label: make)
+    cmpImm(a, Rax, value: ord('e'))
+    jcc(a, "e", label: exp)
+    cmpImm(a, Rax, value: ord('.'))
+    jcc(a, "ne", label: nxt)
+    movImm(a, R9, value: 1)
+    jmp(a, nxt)
+    label(a, exp)  # below 10^16, and so many digits that %g wrote an exponent: in full
+    lea(a, R8, Rcx, disp: -1)
+    mov(a, Rdi, Rsp)
+    add(a, Rdi, Rcx)
+    xor32(a, Rsi, Rsi)
+    movImm(a, Rdx, value: 10)
+    push(a, R8)
+    push(a, R9)
+    ccall(g, "strtol")
+    pop(a, R9)
+    pop(a, R8)
+    cmp(a, Rax, R12)
+    jcc(a, "l", label: insert)
+    cmpImm(a, Rax, value: 16)
+    jcc(a, "l", label: fixed)
+    label(a, insert)
+    testR(a, R9, R9)
+    jcc(a, "ne", label: make)
+    lea(a, Rdi, Rsp, disp: 2)
+    add(a, Rdi, R8)
+    mov(a, Rsi, Rsp)
+    add(a, Rsi, R8)
+    mov(a, Rdx, R13)
+    sub(a, Rdx, R8)
+    ccall(g, "memmove")
+    mov(a, Rdx, Rsp)
+    add(a, Rdx, R8)
+    store8Imm(a, Rdx, disp: 0, value: ord('.'))
+    store8Imm(a, Rdx, disp: 1, value: ord('0'))
+    addImm(a, R13, value: 2)
+    jmp(a, make)
+    label(a, fixed)
+    mov(a, Rdi, Rsp)
+    movImm(a, Rsi, value: 40)
+    leaData(a, Rdx, label: data(a, full))
+    movqToXmm(a, Xmm0, r: Rbx)
+    ccall(g, "snprintf", vectors: 1)
+    mov(a, R13, Rax)
+    label(a, make)
+    mov(a, Rdi, Rsp)
+    mov(a, Rsi, R13)
+    call(a, runtime(g, "rt_str_from"))
+    addImm(a, Rsp, value: 48)
+    popAll(a, saved)
     ret(a)
 
 ## rax := "true" or "false".

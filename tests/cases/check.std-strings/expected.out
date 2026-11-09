@@ -11,16 +11,16 @@ def std/Strings.pst 14:21-14:26
   function 'slice' @ std/Strings.pst:14:21
 def std/Strings.pst 15:21-15:31
   function 'startsWith' @ std/Strings.pst:15:21
-def std/Strings.pst 16:21-16:30
-  function 'parseReal' @ std/Strings.pst:16:21
+def std/Strings.pst 18:14-18:20
+  function 'memmem' @ std/Strings.pst:18:14
 def std/Strings.pst 19:14-19:20
-  function 'memmem' @ std/Strings.pst:19:14
+  function 'memcpy' @ std/Strings.pst:19:14
 def std/Strings.pst 20:14-20:20
-  function 'memcpy' @ std/Strings.pst:20:14
-def std/Strings.pst 21:14-21:20
-  function 'malloc' @ std/Strings.pst:21:14
-def std/Strings.pst 22:15-22:19
-  procedure 'free' @ std/Strings.pst:22:15
+  function 'malloc' @ std/Strings.pst:20:14
+def std/Strings.pst 21:15-21:19
+  procedure 'free' @ std/Strings.pst:21:15
+def std/Strings.pst 22:14-22:20
+  function 'strtod' @ std/Strings.pst:22:14
 def std/Strings.pst 25:24-25:29
   function 'bytes' @ std/Strings.pst:25:24
 def std/Strings.pst 35:24-35:33
@@ -43,6 +43,8 @@ def std/Strings.pst 125:17-125:24
   function 'replace' @ std/Strings.pst:125:17
 def std/Strings.pst 130:24-130:32
   function 'parseInt' @ std/Strings.pst:130:24
+def std/Strings.pst 158:24-158:33
+  function 'parseReal' @ std/Strings.pst:158:24
 def std/C.pst 1:6-1:7
   unit 'C' @ std/C.pst:1:6
 def std/C.pst 7:12-7:16
@@ -459,38 +461,36 @@ use std/Strings.pst 15:51-15:57
   builtin type 'String' @ built into unit System
 use std/Strings.pst 15:60-15:67
   builtin type 'Boolean' @ built into unit System
-use std/Strings.pst 16:34-16:40
-  builtin type 'String' @ built into unit System
-use std/Strings.pst 16:50-16:54
-  type 'Real' @ std/System.pst:15:12
-use std/Strings.pst 16:56-16:62
-  builtin type 'String' @ built into unit System
-use std/Strings.pst 16:43-16:49
-  type 'Result' @ std/System.pst:31:12
+use std/Strings.pst 18:26-18:33
+  builtin type 'Pointer' @ built into unit C
+use std/Strings.pst 18:43-18:48
+  type 'CSize' @ std/C.pst:10:12
+use std/Strings.pst 18:58-18:65
+  builtin type 'Pointer' @ built into unit C
+use std/Strings.pst 18:78-18:83
+  type 'CSize' @ std/C.pst:10:12
+use std/Strings.pst 18:86-18:93
+  builtin type 'Pointer' @ built into unit C
 use std/Strings.pst 19:26-19:33
   builtin type 'Pointer' @ built into unit C
-use std/Strings.pst 19:43-19:48
+use std/Strings.pst 19:40-19:47
+  builtin type 'Pointer' @ built into unit C
+use std/Strings.pst 19:52-19:57
   type 'CSize' @ std/C.pst:10:12
-use std/Strings.pst 19:58-19:65
+use std/Strings.pst 19:60-19:67
   builtin type 'Pointer' @ built into unit C
-use std/Strings.pst 19:78-19:83
+use std/Strings.pst 20:27-20:32
   type 'CSize' @ std/C.pst:10:12
-use std/Strings.pst 19:86-19:93
+use std/Strings.pst 20:35-20:42
   builtin type 'Pointer' @ built into unit C
-use std/Strings.pst 20:26-20:33
+use std/Strings.pst 21:23-21:30
   builtin type 'Pointer' @ built into unit C
-use std/Strings.pst 20:40-20:47
+use std/Strings.pst 22:24-22:31
+  builtin type 'CString' @ built into unit C
+use std/Strings.pst 22:38-22:45
   builtin type 'Pointer' @ built into unit C
-use std/Strings.pst 20:52-20:57
-  type 'CSize' @ std/C.pst:10:12
-use std/Strings.pst 20:60-20:67
-  builtin type 'Pointer' @ built into unit C
-use std/Strings.pst 21:27-21:32
-  type 'CSize' @ std/C.pst:10:12
-use std/Strings.pst 21:35-21:42
-  builtin type 'Pointer' @ built into unit C
-use std/Strings.pst 22:23-22:30
-  builtin type 'Pointer' @ built into unit C
+use std/Strings.pst 22:48-22:52
+  type 'Real' @ std/System.pst:15:12
 use std/Strings.pst 25:33-25:39
   builtin type 'String' @ built into unit System
 def std/Strings.pst 25:30-25:31
@@ -559,7 +559,7 @@ use std/Strings.pst 36:21-36:24
 use std/Strings.pst 36:25-36:29
   type 'Byte' @ std/System.pst:16:12
 use std/Strings.pst 36:32-36:38
-  function 'malloc' @ std/Strings.pst:21:14
+  function 'malloc' @ std/Strings.pst:20:14
 use std/Strings.pst 36:39-36:44
   type 'CSize' @ std/C.pst:10:12
 use std/Strings.pst 36:45-36:48
@@ -606,7 +606,7 @@ def std/Strings.pst 41:9-41:10
   let 'r' @ std/Strings.pst:41:9
     : String
 use std/Strings.pst 42:5-42:9
-  procedure 'free' @ std/Strings.pst:22:15
+  procedure 'free' @ std/Strings.pst:21:15
 use std/Strings.pst 42:10-42:14
   function 'cast' @ std/C.pst:33:21
 use std/Strings.pst 42:15-42:22
@@ -656,7 +656,7 @@ def std/Strings.pst 48:9-48:10
   let 'p' @ std/Strings.pst:48:9
     : Ptr[Byte]
 use std/Strings.pst 49:14-49:20
-  function 'memmem' @ std/Strings.pst:19:14
+  function 'memmem' @ std/Strings.pst:18:14
 use std/Strings.pst 50:9-50:13
   function 'cast' @ std/C.pst:33:21
 use std/Strings.pst 50:14-50:21
@@ -875,7 +875,7 @@ use std/Strings.pst 86:21-86:24
 use std/Strings.pst 86:25-86:29
   type 'Byte' @ std/System.pst:16:12
 use std/Strings.pst 86:32-86:38
-  function 'malloc' @ std/Strings.pst:21:14
+  function 'malloc' @ std/Strings.pst:20:14
 use std/Strings.pst 86:39-86:44
   type 'CSize' @ std/C.pst:10:12
 use std/Strings.pst 86:45-86:50
@@ -896,7 +896,7 @@ def std/Strings.pst 88:9-88:10
 use std/Strings.pst 89:12-89:13
   loop variable 'i' @ std/Strings.pst:88:9
 use std/Strings.pst 90:18-90:24
-  function 'memcpy' @ std/Strings.pst:20:14
+  function 'memcpy' @ std/Strings.pst:19:14
 use std/Strings.pst 91:17-91:21
   function 'cast' @ std/C.pst:33:21
 use std/Strings.pst 91:22-91:29
@@ -935,7 +935,7 @@ def std/Strings.pst 96:13-96:17
   let 'part' @ std/Strings.pst:96:13
     : String
 use std/Strings.pst 97:14-97:20
-  function 'memcpy' @ std/Strings.pst:20:14
+  function 'memcpy' @ std/Strings.pst:19:14
 use std/Strings.pst 98:13-98:17
   function 'cast' @ std/C.pst:33:21
 use std/Strings.pst 98:18-98:25
@@ -980,7 +980,7 @@ def std/Strings.pst 103:9-103:10
   let 'r' @ std/Strings.pst:103:9
     : String
 use std/Strings.pst 104:5-104:9
-  procedure 'free' @ std/Strings.pst:22:15
+  procedure 'free' @ std/Strings.pst:21:15
 use std/Strings.pst 104:10-104:14
   function 'cast' @ std/C.pst:33:21
 use std/Strings.pst 104:15-104:22
@@ -1220,105 +1220,283 @@ use std/Strings.pst 153:12-153:14
   type 'Ok' @ std/System.pst:26:12
 use std/Strings.pst 153:16-153:21
   var 'value' @ std/Strings.pst:140:9
-use std/Strings.pst 156:12-156:16
-  function 'find' @ std/Strings.pst:46:24
-use std/Strings.pst 156:38-156:42
-  type 'Some' @ std/System.pst:19:12
-use std/Strings.pst 157:12-157:16
-  function 'find' @ std/Strings.pst:46:24
-use std/Strings.pst 157:48-157:52
-  type 'Some' @ std/System.pst:19:12
-use std/Strings.pst 158:12-158:16
-  function 'find' @ std/Strings.pst:46:24
-use std/Strings.pst 159:12-159:16
-  function 'find' @ std/Strings.pst:46:24
-use std/Strings.pst 159:32-159:36
-  type 'Some' @ std/System.pst:19:12
-use std/Strings.pst 162:12-162:22
-  function 'startsWith' @ std/Strings.pst:15:21
-use std/Strings.pst 163:16-163:26
-  function 'startsWith' @ std/Strings.pst:15:21
-use std/Strings.pst 164:12-164:20
-  function 'endsWith' @ std/Strings.pst:60:17
-use std/Strings.pst 165:12-165:20
-  function 'endsWith' @ std/Strings.pst:60:17
-use std/Strings.pst 166:16-166:24
-  function 'endsWith' @ std/Strings.pst:60:17
-use std/Strings.pst 169:12-169:17
-  function 'split' @ std/Strings.pst:65:17
-use std/Strings.pst 170:12-170:17
-  function 'split' @ std/Strings.pst:65:17
-use std/Strings.pst 171:12-171:17
-  function 'split' @ std/Strings.pst:65:17
-use std/Strings.pst 172:12-172:16
-  function 'join' @ std/Strings.pst:80:24
-use std/Strings.pst 173:12-173:16
-  function 'join' @ std/Strings.pst:80:24
-use std/Strings.pst 174:12-174:16
-  function 'join' @ std/Strings.pst:80:24
-use std/Strings.pst 177:12-177:16
-  function 'trim' @ std/Strings.pst:114:24
-use std/Strings.pst 178:12-178:16
-  function 'trim' @ std/Strings.pst:114:24
-use std/Strings.pst 179:12-179:19
-  function 'replace' @ std/Strings.pst:125:17
-use std/Strings.pst 180:12-180:19
-  function 'replace' @ std/Strings.pst:125:17
-use std/Strings.pst 183:12-183:20
-  function 'parseInt' @ std/Strings.pst:130:24
-use std/Strings.pst 183:29-183:31
-  type 'Ok' @ std/System.pst:26:12
-use std/Strings.pst 184:12-184:20
-  function 'parseInt' @ std/Strings.pst:130:24
-use std/Strings.pst 184:29-184:31
-  type 'Ok' @ std/System.pst:26:12
-use std/Strings.pst 185:12-185:20
-  function 'parseInt' @ std/Strings.pst:130:24
-use std/Strings.pst 185:29-185:31
-  type 'Ok' @ std/System.pst:26:12
-use std/Strings.pst 186:12-186:20
-  function 'parseInt' @ std/Strings.pst:130:24
-use std/Strings.pst 186:47-186:49
-  type 'Ok' @ std/System.pst:26:12
-use std/Strings.pst 186:50-186:56
-  const 'MinInt' @ std/Strings.pst:108:5
-use std/Strings.pst 187:12-187:20
-  function 'parseInt' @ std/Strings.pst:130:24
-use std/Strings.pst 188:12-188:20
-  function 'parseInt' @ std/Strings.pst:130:24
-use std/Strings.pst 189:12-189:20
-  function 'parseInt' @ std/Strings.pst:130:24
-use std/Strings.pst 190:12-190:20
-  function 'parseInt' @ std/Strings.pst:130:24
-use std/Strings.pst 193:12-193:17
-  function 'bytes' @ std/Strings.pst:25:24
-use std/Strings.pst 194:18-194:22
+use std/Strings.pst 158:37-158:43
+  builtin type 'String' @ built into unit System
+def std/Strings.pst 158:34-158:35
+  parameter 's' @ std/Strings.pst:158:34
+    : String
+use std/Strings.pst 158:53-158:57
+  type 'Real' @ std/System.pst:15:12
+use std/Strings.pst 158:59-158:65
+  builtin type 'String' @ built into unit System
+use std/Strings.pst 158:46-158:52
+  type 'Result' @ std/System.pst:31:12
+use std/Strings.pst 159:14-159:18
+  function 'cast' @ std/C.pst:33:21
+use std/Strings.pst 159:19-159:22
+  builtin type 'Ptr' @ built into unit C
+use std/Strings.pst 159:23-159:27
   type 'Byte' @ std/System.pst:16:12
-use std/Strings.pst 194:13-194:17
-  builtin type 'List' @ built into unit System
-def std/Strings.pst 194:9-194:11
-  let 'hi' @ std/Strings.pst:194:9
-    : List[Byte]
-use std/Strings.pst 195:12-195:21
-  function 'fromBytes' @ std/Strings.pst:35:24
-use std/Strings.pst 195:22-195:24
-  let 'hi' @ std/Strings.pst:194:9
-use std/Strings.pst 196:19-196:23
-  type 'Byte' @ std/System.pst:16:12
-use std/Strings.pst 196:14-196:18
-  builtin type 'List' @ built into unit System
-def std/Strings.pst 196:9-196:12
-  let 'bad' @ std/Strings.pst:196:9
-    : List[Byte]
-use std/Strings.pst 197:12-197:21
-  function 'fromBytes' @ std/Strings.pst:35:24
-use std/Strings.pst 197:22-197:25
-  let 'bad' @ std/Strings.pst:196:9
-use std/Strings.pst 198:12-198:21
-  function 'charCount' @ std/Strings.pst:9:21
-use std/Strings.pst 199:12-199:19
+use std/Strings.pst 159:30-159:39
+  function 'toCString' @ std/C.pst:18:21
+use std/Strings.pst 159:40-159:41
+  parameter 's' @ std/Strings.pst:158:34
+def std/Strings.pst 159:9-159:10
+  let 'p' @ std/Strings.pst:159:9
+    : Ptr[Byte]
+use std/Strings.pst 160:14-160:21
   function 'byteLen' @ std/Strings.pst:11:21
-use std/Strings.pst 200:12-200:17
+use std/Strings.pst 160:22-160:23
+  parameter 's' @ std/Strings.pst:158:34
+def std/Strings.pst 160:9-160:10
+  let 'n' @ std/Strings.pst:160:9
+    : Integer
+def std/Strings.pst 161:9-161:10
+  var 'i' @ std/Strings.pst:161:9
+    : Integer
+use std/Strings.pst 162:8-162:9
+  let 'n' @ std/Strings.pst:160:9
+use std/Strings.pst 162:25-162:26
+  let 'p' @ std/Strings.pst:159:9
+use std/Strings.pst 162:42-162:43
+  let 'p' @ std/Strings.pst:159:9
+use std/Strings.pst 163:9-163:10
+  var 'i' @ std/Strings.pst:161:9
+def std/Strings.pst 164:9-164:15
+  var 'digits' @ std/Strings.pst:164:9
+    : Integer
+def std/Strings.pst 165:9-165:13
+  var 'part' @ std/Strings.pst:165:9
+    : Integer
+use std/Strings.pst 166:11-166:12
+  var 'i' @ std/Strings.pst:161:9
+use std/Strings.pst 166:15-166:16
+  let 'n' @ std/Strings.pst:160:9
+use std/Strings.pst 167:24-167:25
+  let 'p' @ std/Strings.pst:159:9
+use std/Strings.pst 167:28-167:29
+  var 'i' @ std/Strings.pst:161:9
+def std/Strings.pst 167:13-167:14
+  let 'b' @ std/Strings.pst:167:13
+    : Byte
+use std/Strings.pst 168:12-168:13
+  let 'b' @ std/Strings.pst:167:13
+use std/Strings.pst 168:24-168:25
+  let 'b' @ std/Strings.pst:167:13
+use std/Strings.pst 169:13-169:19
+  var 'digits' @ std/Strings.pst:164:9
+use std/Strings.pst 169:23-169:29
+  var 'digits' @ std/Strings.pst:164:9
+use std/Strings.pst 170:17-170:18
+  let 'b' @ std/Strings.pst:167:13
+use std/Strings.pst 170:28-170:32
+  var 'part' @ std/Strings.pst:165:9
+use std/Strings.pst 170:41-170:47
+  var 'digits' @ std/Strings.pst:164:9
+use std/Strings.pst 171:13-171:17
+  var 'part' @ std/Strings.pst:165:9
+use std/Strings.pst 172:13-172:19
+  var 'digits' @ std/Strings.pst:164:9
+use std/Strings.pst 173:18-173:19
+  let 'b' @ std/Strings.pst:167:13
+use std/Strings.pst 173:29-173:30
+  let 'b' @ std/Strings.pst:167:13
+use std/Strings.pst 173:41-173:45
+  var 'part' @ std/Strings.pst:165:9
+use std/Strings.pst 173:54-173:60
+  var 'digits' @ std/Strings.pst:164:9
+use std/Strings.pst 174:13-174:17
+  var 'part' @ std/Strings.pst:165:9
+use std/Strings.pst 175:13-175:19
+  var 'digits' @ std/Strings.pst:164:9
+use std/Strings.pst 176:16-176:17
+  var 'i' @ std/Strings.pst:161:9
+use std/Strings.pst 176:24-176:25
+  let 'n' @ std/Strings.pst:160:9
+use std/Strings.pst 176:37-176:38
+  let 'p' @ std/Strings.pst:159:9
+use std/Strings.pst 176:41-176:42
+  var 'i' @ std/Strings.pst:161:9
+use std/Strings.pst 176:62-176:63
+  let 'p' @ std/Strings.pst:159:9
+use std/Strings.pst 176:66-176:67
+  var 'i' @ std/Strings.pst:161:9
+use std/Strings.pst 177:17-177:18
+  var 'i' @ std/Strings.pst:161:9
+use std/Strings.pst 177:22-177:23
+  var 'i' @ std/Strings.pst:161:9
+use std/Strings.pst 179:20-179:23
+  type 'Err' @ std/System.pst:29:12
+use std/Strings.pst 179:27-179:28
+  parameter 's' @ std/Strings.pst:158:34
+use std/Strings.pst 180:9-180:10
+  var 'i' @ std/Strings.pst:161:9
+use std/Strings.pst 180:14-180:15
+  var 'i' @ std/Strings.pst:161:9
+use std/Strings.pst 181:8-181:14
+  var 'digits' @ std/Strings.pst:164:9
+use std/Strings.pst 182:16-182:19
+  type 'Err' @ std/System.pst:29:12
+use std/Strings.pst 182:23-182:24
+  parameter 's' @ std/Strings.pst:158:34
+use std/Strings.pst 183:14-183:20
+  function 'strtod' @ std/Strings.pst:22:14
+use std/Strings.pst 183:21-183:30
+  function 'toCString' @ std/C.pst:18:21
+use std/Strings.pst 183:31-183:32
+  parameter 's' @ std/Strings.pst:158:34
+use std/Strings.pst 183:40-183:44
+  function 'cast' @ std/C.pst:33:21
+use std/Strings.pst 183:45-183:52
+  builtin type 'Pointer' @ built into unit C
+def std/Strings.pst 183:9-183:10
+  let 'x' @ std/Strings.pst:183:9
+    : Real
+use std/Strings.pst 184:8-184:9
+  let 'x' @ std/Strings.pst:183:9
+use std/Strings.pst 184:12-184:13
+  let 'x' @ std/Strings.pst:183:9
+use std/Strings.pst 185:16-185:19
+  type 'Err' @ std/System.pst:29:12
+use std/Strings.pst 185:23-185:24
+  parameter 's' @ std/Strings.pst:158:34
+use std/Strings.pst 186:12-186:14
+  type 'Ok' @ std/System.pst:26:12
+use std/Strings.pst 186:15-186:16
+  let 'x' @ std/Strings.pst:183:9
+use std/Strings.pst 189:12-189:16
+  function 'find' @ std/Strings.pst:46:24
+use std/Strings.pst 189:38-189:42
+  type 'Some' @ std/System.pst:19:12
+use std/Strings.pst 190:12-190:16
+  function 'find' @ std/Strings.pst:46:24
+use std/Strings.pst 190:48-190:52
+  type 'Some' @ std/System.pst:19:12
+use std/Strings.pst 191:12-191:16
+  function 'find' @ std/Strings.pst:46:24
+use std/Strings.pst 192:12-192:16
+  function 'find' @ std/Strings.pst:46:24
+use std/Strings.pst 192:32-192:36
+  type 'Some' @ std/System.pst:19:12
+use std/Strings.pst 195:12-195:22
+  function 'startsWith' @ std/Strings.pst:15:21
+use std/Strings.pst 196:16-196:26
+  function 'startsWith' @ std/Strings.pst:15:21
+use std/Strings.pst 197:12-197:20
+  function 'endsWith' @ std/Strings.pst:60:17
+use std/Strings.pst 198:12-198:20
+  function 'endsWith' @ std/Strings.pst:60:17
+use std/Strings.pst 199:16-199:24
+  function 'endsWith' @ std/Strings.pst:60:17
+use std/Strings.pst 202:12-202:17
+  function 'split' @ std/Strings.pst:65:17
+use std/Strings.pst 203:12-203:17
+  function 'split' @ std/Strings.pst:65:17
+use std/Strings.pst 204:12-204:17
+  function 'split' @ std/Strings.pst:65:17
+use std/Strings.pst 205:12-205:16
+  function 'join' @ std/Strings.pst:80:24
+use std/Strings.pst 206:12-206:16
+  function 'join' @ std/Strings.pst:80:24
+use std/Strings.pst 207:12-207:16
+  function 'join' @ std/Strings.pst:80:24
+use std/Strings.pst 210:12-210:16
+  function 'trim' @ std/Strings.pst:114:24
+use std/Strings.pst 211:12-211:16
+  function 'trim' @ std/Strings.pst:114:24
+use std/Strings.pst 212:12-212:19
+  function 'replace' @ std/Strings.pst:125:17
+use std/Strings.pst 213:12-213:19
+  function 'replace' @ std/Strings.pst:125:17
+use std/Strings.pst 216:12-216:20
+  function 'parseInt' @ std/Strings.pst:130:24
+use std/Strings.pst 216:29-216:31
+  type 'Ok' @ std/System.pst:26:12
+use std/Strings.pst 217:12-217:20
+  function 'parseInt' @ std/Strings.pst:130:24
+use std/Strings.pst 217:29-217:31
+  type 'Ok' @ std/System.pst:26:12
+use std/Strings.pst 218:12-218:20
+  function 'parseInt' @ std/Strings.pst:130:24
+use std/Strings.pst 218:29-218:31
+  type 'Ok' @ std/System.pst:26:12
+use std/Strings.pst 219:12-219:20
+  function 'parseInt' @ std/Strings.pst:130:24
+use std/Strings.pst 219:47-219:49
+  type 'Ok' @ std/System.pst:26:12
+use std/Strings.pst 219:50-219:56
+  const 'MinInt' @ std/Strings.pst:108:5
+use std/Strings.pst 220:12-220:20
+  function 'parseInt' @ std/Strings.pst:130:24
+use std/Strings.pst 221:12-221:20
+  function 'parseInt' @ std/Strings.pst:130:24
+use std/Strings.pst 222:12-222:20
+  function 'parseInt' @ std/Strings.pst:130:24
+use std/Strings.pst 223:12-223:20
+  function 'parseInt' @ std/Strings.pst:130:24
+use std/Strings.pst 226:12-226:21
+  function 'parseReal' @ std/Strings.pst:158:24
+use std/Strings.pst 226:31-226:33
+  type 'Ok' @ std/System.pst:26:12
+use std/Strings.pst 226:43-226:52
+  function 'parseReal' @ std/Strings.pst:158:24
+use std/Strings.pst 226:63-226:65
+  type 'Ok' @ std/System.pst:26:12
+use std/Strings.pst 227:12-227:21
+  function 'parseReal' @ std/Strings.pst:158:24
+use std/Strings.pst 227:30-227:32
+  type 'Ok' @ std/System.pst:26:12
+use std/Strings.pst 227:42-227:51
+  function 'parseReal' @ std/Strings.pst:158:24
+use std/Strings.pst 227:61-227:63
+  type 'Ok' @ std/System.pst:26:12
+use std/Strings.pst 228:12-228:21
+  function 'parseReal' @ std/Strings.pst:158:24
+use std/Strings.pst 228:34-228:36
+  type 'Ok' @ std/System.pst:26:12
+use std/Strings.pst 229:12-229:21
+  function 'parseReal' @ std/Strings.pst:158:24
+use std/Strings.pst 229:38-229:47
+  function 'parseReal' @ std/Strings.pst:158:24
+use std/Strings.pst 229:66-229:75
+  function 'parseReal' @ std/Strings.pst:158:24
+use std/Strings.pst 230:12-230:21
+  function 'parseReal' @ std/Strings.pst:158:24
+use std/Strings.pst 230:40-230:49
+  function 'parseReal' @ std/Strings.pst:158:24
+use std/Strings.pst 230:69-230:78
+  function 'parseReal' @ std/Strings.pst:158:24
+use std/Strings.pst 231:12-231:21
+  function 'parseReal' @ std/Strings.pst:158:24
+use std/Strings.pst 234:12-234:17
+  function 'bytes' @ std/Strings.pst:25:24
+use std/Strings.pst 235:18-235:22
+  type 'Byte' @ std/System.pst:16:12
+use std/Strings.pst 235:13-235:17
+  builtin type 'List' @ built into unit System
+def std/Strings.pst 235:9-235:11
+  let 'hi' @ std/Strings.pst:235:9
+    : List[Byte]
+use std/Strings.pst 236:12-236:21
+  function 'fromBytes' @ std/Strings.pst:35:24
+use std/Strings.pst 236:22-236:24
+  let 'hi' @ std/Strings.pst:235:9
+use std/Strings.pst 237:19-237:23
+  type 'Byte' @ std/System.pst:16:12
+use std/Strings.pst 237:14-237:18
+  builtin type 'List' @ built into unit System
+def std/Strings.pst 237:9-237:12
+  let 'bad' @ std/Strings.pst:237:9
+    : List[Byte]
+use std/Strings.pst 238:12-238:21
+  function 'fromBytes' @ std/Strings.pst:35:24
+use std/Strings.pst 238:22-238:25
+  let 'bad' @ std/Strings.pst:237:9
+use std/Strings.pst 239:12-239:21
+  function 'charCount' @ std/Strings.pst:9:21
+use std/Strings.pst 240:12-240:19
+  function 'byteLen' @ std/Strings.pst:11:21
+use std/Strings.pst 241:12-241:17
   function 'slice' @ std/Strings.pst:14:21
 use std/C.pst 7:19-7:24
   builtin type 'Int32' @ built into unit System
@@ -5076,47 +5254,61 @@ use std/Strings.pst 127:26-127:29
   parameter 'sep' @ std/Strings.pst:65:34
 use std/Strings.pst 127:40-127:43
   parameter 'sep' @ std/Strings.pst:80:50
-use std/Strings.pst 156:26-156:29
+use std/Strings.pst 189:26-189:29
   parameter 'sub' @ std/Strings.pst:46:40
-use std/Strings.pst 157:26-157:29
+use std/Strings.pst 190:26-190:29
   parameter 'sub' @ std/Strings.pst:46:40
-use std/Strings.pst 157:36-157:41
+use std/Strings.pst 190:36-190:41
   parameter 'start' @ std/Strings.pst:46:53
-use std/Strings.pst 158:26-158:29
+use std/Strings.pst 191:26-191:29
   parameter 'sub' @ std/Strings.pst:46:40
-use std/Strings.pst 158:36-158:42
+use std/Strings.pst 191:36-191:42
   function 'isNone' @ std/System.pst:504:17
-use std/Strings.pst 159:21-159:24
+use std/Strings.pst 192:21-192:24
   parameter 'sub' @ std/Strings.pst:46:40
-use std/Strings.pst 164:30-164:36
+use std/Strings.pst 197:30-197:36
   parameter 'suffix' @ std/Strings.pst:60:37
-use std/Strings.pst 165:30-165:36
+use std/Strings.pst 198:30-198:36
   parameter 'suffix' @ std/Strings.pst:60:37
-use std/Strings.pst 166:31-166:37
+use std/Strings.pst 199:31-199:37
   parameter 'suffix' @ std/Strings.pst:60:37
-use std/Strings.pst 169:28-169:31
+use std/Strings.pst 202:28-202:31
   parameter 'sep' @ std/Strings.pst:65:34
-use std/Strings.pst 170:22-170:25
+use std/Strings.pst 203:22-203:25
   parameter 'sep' @ std/Strings.pst:65:34
-use std/Strings.pst 171:26-171:29
+use std/Strings.pst 204:26-204:29
   parameter 'sep' @ std/Strings.pst:65:34
-use std/Strings.pst 172:38-172:41
+use std/Strings.pst 205:38-205:41
   parameter 'sep' @ std/Strings.pst:80:50
-use std/Strings.pst 179:29-179:35
+use std/Strings.pst 212:29-212:35
   parameter 'target' @ std/Strings.pst:125:36
-use std/Strings.pst 179:42-179:53
+use std/Strings.pst 212:42-212:53
   parameter 'replacement' @ std/Strings.pst:125:52
-use std/Strings.pst 180:27-180:33
+use std/Strings.pst 213:27-213:33
   parameter 'target' @ std/Strings.pst:125:36
-use std/Strings.pst 180:40-180:51
+use std/Strings.pst 213:40-213:51
   parameter 'replacement' @ std/Strings.pst:125:52
-use std/Strings.pst 187:44-187:49
+use std/Strings.pst 220:44-220:49
   function 'isErr' @ std/System.pst:512:17
-use std/Strings.pst 188:25-188:30
+use std/Strings.pst 221:25-221:30
   function 'isErr' @ std/System.pst:512:17
-use std/Strings.pst 189:26-189:31
+use std/Strings.pst 222:26-222:31
   function 'isErr' @ std/System.pst:512:17
-use std/Strings.pst 190:27-190:32
+use std/Strings.pst 223:27-223:32
+  function 'isErr' @ std/System.pst:512:17
+use std/Strings.pst 229:26-229:31
+  function 'isErr' @ std/System.pst:512:17
+use std/Strings.pst 229:54-229:59
+  function 'isErr' @ std/System.pst:512:17
+use std/Strings.pst 229:82-229:87
+  function 'isErr' @ std/System.pst:512:17
+use std/Strings.pst 230:28-230:33
+  function 'isErr' @ std/System.pst:512:17
+use std/Strings.pst 230:57-230:62
+  function 'isErr' @ std/System.pst:512:17
+use std/Strings.pst 230:85-230:90
+  function 'isErr' @ std/System.pst:512:17
+use std/Strings.pst 231:33-231:38
   function 'isErr' @ std/System.pst:512:17
 use std/System.pst 305:14-305:19
   field 'count' @ std/System.pst:66:9

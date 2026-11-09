@@ -13,13 +13,13 @@ extern "pst"
     ## offset is not on a character boundary.
     export function slice(s: String, start, stop: Integer): String
     export function startsWith(s: String, prefix: String): Boolean
-    export function parseReal(s: String): Result[Real, String]
 
 extern "libc.so.6"
     function memmem(hay: Pointer, hayLen: CSize, needle: Pointer, needleLen: CSize): Pointer
     function memcpy(dst: Pointer, src: Pointer, n: CSize): Pointer
     function malloc(size: CSize): Pointer
     procedure free(p: Pointer)
+    function strtod(s: CString, end: Pointer): Real
 
 ## The UTF-8 bytes of a string.
 export unsafe function bytes(s: String): List[Byte]
@@ -152,6 +152,39 @@ export unsafe function parseInt(s: String): Result[Integer, String]
         return Err("'{s}' doesn't fit in an Integer")
     return Ok(-value)
 
+## The real written in `s`: an optional sign, digits, optionally a `.` and more digits,
+## optionally an exponent (`e` or `E`, an optional sign, digits). Rounds to the nearest
+## real; a value too large for `Real` is an error.
+export unsafe function parseReal(s: String): Result[Real, String]
+    let p := cast[Ptr[Byte]](toCString(s))
+    let n := byteLen(s)
+    var i := 0
+    if n > 0 and (deref(p) = 45 or deref(p) = 43) then
+        i := 1
+    var digits := 0
+    var part := 0  # 0 the integer part, 1 the fraction, 2 the exponent
+    while i < n do
+        let b := deref(p + i)
+        if b >= 48 and b <= 57 then
+            digits := digits + 1
+        else if b = 46 and part = 0 and digits > 0 then
+            part := 1
+            digits := 0
+        else if (b = 101 or b = 69) and part < 2 and digits > 0 then
+            part := 2
+            digits := 0
+            if i + 1 < n and (deref(p + i + 1) = 45 or deref(p + i + 1) = 43) then
+                i := i + 1
+        else
+            return Err("'{s}' is not a real")
+        i := i + 1
+    if digits = 0 then
+        return Err("'{s}' is not a real")
+    let x := strtod(toCString(s), end: cast[Pointer](0))
+    if x - x <> 0.0 then  # an infinity
+        return Err("'{s}' doesn't fit in a Real")
+    return Ok(x)
+
 test "find gives byte offsets"
     assert find("héllo", sub: "l") = Some(3)
     assert find("hello", sub: "l", start: 3) = Some(3)
@@ -188,6 +221,14 @@ test "parseInt"
     assert parseInt("").isErr()
     assert parseInt("-").isErr()
     assert parseInt("1x").isErr()
+
+test "parseReal"
+    assert parseReal("2.5") = Ok(2.5) and parseReal("-0.1") = Ok(-0.1)
+    assert parseReal("+3") = Ok(3.0) and parseReal("1e3") = Ok(1000.0)
+    assert parseReal("1.5E-2") = Ok(0.015)
+    assert parseReal("").isErr() and parseReal(".5").isErr() and parseReal("1.").isErr()
+    assert parseReal("1e").isErr() and parseReal("inf").isErr() and parseReal(" 1").isErr()
+    assert parseReal("1.0e400").isErr()
 
 test "bytes and fromBytes"
     assert bytes("é") = [195, 169]

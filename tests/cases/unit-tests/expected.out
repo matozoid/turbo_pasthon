@@ -6,23 +6,25 @@ ok   std/Json.pst:376: parse and write back
 ok   std/Json.pst:384: errors
 ok   std/Json.pst:393: reading parts
 ok   std/Json.pst:403: quote escapes control characters
-ok   std/Math.pst:32: integer helpers
+ok   std/Math.pst:37: integer helpers
+ok   std/Math.pst:42: real functions
 ok   std/OS.pst:298: directories
 ok   std/OS.pst:311: running a program
 ok   std/OS.pst:323: environment
-ok   std/Strings.pst:155: find gives byte offsets
-ok   std/Strings.pst:161: startsWith and endsWith
-ok   std/Strings.pst:168: split and join are inverses
-ok   std/Strings.pst:176: trim and replace
-ok   std/Strings.pst:182: parseInt
-ok   std/Strings.pst:192: bytes and fromBytes
+ok   std/Strings.pst:188: find gives byte offsets
+ok   std/Strings.pst:194: startsWith and endsWith
+ok   std/Strings.pst:201: split and join are inverses
+ok   std/Strings.pst:209: trim and replace
+ok   std/Strings.pst:215: parseInt
+ok   std/Strings.pst:225: parseReal
+ok   std/Strings.pst:233: bytes and fromBytes
 ok   std/System.pst:736: list editing
 ok   std/System.pst:749: sort is stable
 ok   std/System.pst:760: maps
 ok   std/System.pst:772: sets
 ok   std/System.pst:783: options and results
 ok   std/System.pst:793: iterators
-21 passed, 0 failed
+23 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/compiler
 exit 0
