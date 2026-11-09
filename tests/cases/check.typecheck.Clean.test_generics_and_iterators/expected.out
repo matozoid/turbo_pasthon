@@ -38,9 +38,9 @@ use Main.pst 24:5-24:12
 use Main.pst 24:13-24:14
   loop variable 'c' @ Main.pst:23:5
 use Main.pst 25:16-25:19
-  function 'map' @ std/System.pst:582:17
+  function 'map' @ std/System.pst:611:17
 use Main.pst 25:20-25:24
-  function 'iter' @ std/System.pst:512:17
+  function 'iter' @ std/System.pst:541:17
 use Main.pst 25:34-25:40
   function 'double' @ Main.pst:29:10
 def Main.pst 25:5-25:12

@@ -148,17 +148,17 @@ use Main.pst 10:23-10:28
 use Main.pst 14:29-14:32
   parameter 'sub' @ std/Strings.pst:46:40
 use Main.pst 14:40-14:45
-  function 'getOr' @ std/System.pst:499:17
+  function 'getOr' @ std/System.pst:528:17
 use Main.pst 15:24-15:27
   parameter 'sub' @ std/Strings.pst:46:40
 use Main.pst 15:34-15:39
   parameter 'start' @ std/Strings.pst:46:53
 use Main.pst 15:44-15:49
-  function 'getOr' @ std/System.pst:499:17
+  function 'getOr' @ std/System.pst:528:17
 use Main.pst 16:21-16:24
   parameter 'sub' @ std/Strings.pst:46:40
 use Main.pst 16:31-16:37
-  function 'isNone' @ std/System.pst:475:17
+  function 'isNone' @ std/System.pst:504:17
 use Main.pst 17:30-17:36
   parameter 'suffix' @ std/Strings.pst:60:37
 use Main.pst 18:23-18:29

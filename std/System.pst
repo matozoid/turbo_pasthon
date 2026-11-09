@@ -289,6 +289,15 @@ function contains[T: Equatable](x: T, xs: List[T]): Boolean
             return true
     return false
 
+## The items as `[a, b]`, each by its `toString`.
+export function toString[T: Printable](xs: List[T]): String
+    var s := "["
+    for i := 0 to len(xs) - 1 do
+        if i > 0 then
+            s := "{s}, "
+        s := "{s}{xs[i]}"
+    return "{s}]"
+
 # ------------------------------------------------------------------------- maps
 
 ## Number of entries.
@@ -308,6 +317,17 @@ export function getOr[K: Hashable, V](m: Map[K, V], key: K, default: V): V
     if e < 0 then
         return default
     return m.values[e]
+
+## The entries as `{k: v}`, in insertion order, each by its `toString`.
+export function toString[K: Hashable + Printable, V: Printable](m: Map[K, V]): String
+    var out := "\{"
+    var first := true
+    for k, v in m do
+        if not first then
+            out := "{out}, "
+        out := "{out}{k}: {v}"
+        first := false
+    return "{out}}"
 
 ## Removes `key` from the map, if present.
 export procedure remove[K: Hashable, V](var m: Map[K, V], key: K)
@@ -442,6 +462,15 @@ export function difference[T](a, b: Set[T]): Set[T]
     for i := 0 to 3 do
         s.words[i] := band(a.words[i], bnot(b.words[i]))
     return s
+
+## The elements as `{a, b}`, in `ord` order, each by its `toString`.
+export function toString[T: Printable](s: Set[T]): String
+    var out := "\{"
+    for x in s do
+        if out <> "\{" then
+            out := "{out}, "
+        out := "{out}{x}"
+    return "{out}}"
 
 ## `{}`.
 function emptySet[T](): Set[T]

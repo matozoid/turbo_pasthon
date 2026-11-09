@@ -1,0 +1,39 @@
+program Main
+
+uses IO
+
+type
+    Color = (Red, Green, Blue)
+    Digit = 0..9
+    Letter = 'a'..'z'
+    P = record
+        x: Integer
+
+function toString(p: P): String
+    return "P{p.x}"
+
+let empty: List[Integer] := []
+writeln(empty)
+writeln([1, 2, 3])
+writeln([["a", "b"], ["c"]])
+let ds: List[Digit] := [4, 2]
+writeln("digits {ds}")
+let m: Map[String, List[Integer]] := {"x": [1], "y": []}
+writeln(m)
+let none: Map[String, Integer] := {}
+writeln(none)
+writeln({Color.Blue, Color.Red})
+let cs: Set[Letter] := {'b', 'a'}
+writeln(cs)
+let no: Set[Color] := {}
+writeln(no)
+let q := P(x: 3)
+writeln("{q} {q}")
+let ps := [q, P(x: 4)]
+writeln(ps)
+writeln({"k": ps})
+let chars: List[Char] := ['a', 'b']
+writeln(chars)
+writeln(["plain", "two words"])
+writeln({"k": "v"})
+writeln("{["x"]} {"top"}")

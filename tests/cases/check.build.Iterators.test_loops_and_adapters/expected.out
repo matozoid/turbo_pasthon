@@ -83,7 +83,7 @@ use Main.pst 37:5-37:10
 use Main.pst 37:11-37:12
   loop variable 'w' @ Main.pst:36:5
 use Main.pst 38:10-38:13
-  function 'zip' @ std/System.pst:625:17
+  function 'zip' @ std/System.pst:654:17
 use Main.pst 38:14-38:19
   let 'words' @ Main.pst:33:5
 use Main.pst 38:31-38:33
@@ -98,7 +98,7 @@ use Main.pst 39:14-39:15
 use Main.pst 39:23-39:24
   loop variable 'p' @ Main.pst:38:5
 use Main.pst 40:10-40:19
-  function 'enumerate' @ std/System.pst:638:17
+  function 'enumerate' @ std/System.pst:667:17
 use Main.pst 40:20-40:25
   let 'words' @ Main.pst:33:5
 def Main.pst 40:5-40:6
@@ -122,37 +122,37 @@ use Main.pst 44:10-44:12
 use Main.pst 46:1-46:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 46:11-46:16
-  function 'count' @ std/System.pst:658:17
+  function 'count' @ std/System.pst:687:17
 use Main.pst 46:17-46:19
   var 'it' @ Main.pst:43:5
 use Main.pst 46:23-46:28
-  function 'count' @ std/System.pst:658:17
+  function 'count' @ std/System.pst:687:17
 use Main.pst 46:29-46:38
   type 'Countdown' @ Main.pst:7:5
 use Main.pst 46:48-46:51
-  function 'sum' @ std/System.pst:665:17
+  function 'sum' @ std/System.pst:694:17
 use Main.pst 46:52-46:54
   let 'xs' @ Main.pst:32:5
 use Main.pst 46:65-46:70
-  function 'count' @ std/System.pst:658:17
+  function 'count' @ std/System.pst:687:17
 use Main.pst 46:71-46:76
-  function 'chars' @ std/System.pst:568:17
+  function 'chars' @ std/System.pst:597:17
 use Main.pst 47:1-47:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 47:11-47:18
-  function 'collect' @ std/System.pst:651:17
+  function 'collect' @ std/System.pst:680:17
 use Main.pst 47:19-47:21
   let 'xs' @ Main.pst:32:5
 use Main.pst 47:33-47:39
   function 'double' @ Main.pst:16:10
 use Main.pst 47:63-47:66
-  function 'any' @ std/System.pst:678:17
+  function 'any' @ std/System.pst:707:17
 use Main.pst 47:67-47:69
   let 'xs' @ Main.pst:32:5
 use Main.pst 47:78-47:83
   function 'isOdd' @ Main.pst:19:10
 use Main.pst 47:87-47:90
-  function 'all' @ std/System.pst:685:17
+  function 'all' @ std/System.pst:714:17
 use Main.pst 47:91-47:93
   let 'xs' @ Main.pst:32:5
 use Main.pst 47:102-47:107
@@ -165,9 +165,9 @@ def Main.pst 48:5-48:6
 use Main.pst 49:1-49:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 49:11-49:14
-  function 'get' @ std/System.pst:487:17
+  function 'get' @ std/System.pst:516:17
 use Main.pst 49:15-49:19
-  function 'find' @ std/System.pst:692:17
+  function 'find' @ std/System.pst:721:17
 use Main.pst 49:20-49:22
   let 'xs' @ Main.pst:32:5
 use Main.pst 49:31-49:36
@@ -235,49 +235,49 @@ use Main.pst 14:19-14:20
 use Main.pst 29:20-29:21
   field 'n' @ Main.pst:8:9
 use Main.pst 34:13-34:17
-  function 'iter' @ std/System.pst:512:17
+  function 'iter' @ std/System.pst:541:17
 use Main.pst 34:20-34:26
-  function 'filter' @ std/System.pst:591:17
+  function 'filter' @ std/System.pst:620:17
 use Main.pst 34:34-34:37
-  function 'map' @ std/System.pst:582:17
+  function 'map' @ std/System.pst:611:17
 use Main.pst 34:46-34:50
-  function 'skip' @ std/System.pst:614:17
+  function 'skip' @ std/System.pst:643:17
 use Main.pst 34:54-34:58
-  function 'take' @ std/System.pst:604:17
+  function 'take' @ std/System.pst:633:17
 use Main.pst 36:16-36:20
-  function 'iter' @ std/System.pst:512:17
+  function 'iter' @ std/System.pst:541:17
 use Main.pst 36:23-36:26
-  function 'map' @ std/System.pst:582:17
+  function 'map' @ std/System.pst:611:17
 use Main.pst 38:20-38:24
-  function 'iter' @ std/System.pst:512:17
+  function 'iter' @ std/System.pst:541:17
 use Main.pst 38:34-38:38
-  function 'iter' @ std/System.pst:512:17
+  function 'iter' @ std/System.pst:541:17
 use Main.pst 38:28-38:29
-  parameter 'b' @ std/System.pst:625:65
+  parameter 'b' @ std/System.pst:654:65
 use Main.pst 39:16-39:21
   field 'first' @ std/System.pst:43:16
 use Main.pst 39:25-39:31
   field 'second' @ std/System.pst:44:16
 use Main.pst 40:26-40:30
-  function 'iter' @ std/System.pst:512:17
+  function 'iter' @ std/System.pst:541:17
 use Main.pst 41:16-41:21
   field 'index' @ std/System.pst:48:16
 use Main.pst 41:26-41:31
   field 'value' @ std/System.pst:49:16
 use Main.pst 43:14-43:18
-  function 'iter' @ std/System.pst:512:17
+  function 'iter' @ std/System.pst:541:17
 use Main.pst 46:39-46:40
   field 'n' @ Main.pst:8:9
 use Main.pst 46:55-46:59
-  function 'iter' @ std/System.pst:512:17
+  function 'iter' @ std/System.pst:541:17
 use Main.pst 47:22-47:26
-  function 'iter' @ std/System.pst:512:17
+  function 'iter' @ std/System.pst:541:17
 use Main.pst 47:29-47:32
-  function 'map' @ std/System.pst:582:17
+  function 'map' @ std/System.pst:611:17
 use Main.pst 47:70-47:74
-  function 'iter' @ std/System.pst:512:17
+  function 'iter' @ std/System.pst:541:17
 use Main.pst 47:94-47:98
-  function 'iter' @ std/System.pst:512:17
+  function 'iter' @ std/System.pst:541:17
 use Main.pst 49:23-49:27
-  function 'iter' @ std/System.pst:512:17
+  function 'iter' @ std/System.pst:541:17
 --- stderr

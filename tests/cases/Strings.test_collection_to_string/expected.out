@@ -1,0 +1,24 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+[]
+[1, 2, 3]
+[[a, b], [c]]
+digits [4, 2]
+{x: [1], y: []}
+{}
+{Red, Blue}
+{a, b}
+{}
+P3 P3
+[P3, P4]
+{k: [P3, P4]}
+[a, b]
+[plain, two words]
+{k: v}
+[x] top
+--- stderr

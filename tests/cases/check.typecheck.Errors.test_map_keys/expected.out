@@ -32,7 +32,7 @@ def Main.pst 10:5-10:6
 use Main.pst 11:1-11:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 11:11-11:14
-  function 'len' @ std/System.pst:295:17
+  function 'len' @ std/System.pst:304:17
 use Main.pst 11:15-11:16
   let 'n' @ Main.pst:10:5
 use Main.pst 11:20-11:24

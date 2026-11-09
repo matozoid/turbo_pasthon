@@ -3012,7 +3012,7 @@ procedure toString(g: ref Em, e: Expr)
     let t := base(g.env, typeOfExpr(g, e))
     let isEnum := kind(g, t) = "enum"
     if t <> stringT() and t <> booleanT() and t <> charT() and not isEnum and not isInt(t) then
-        unsupported(g, exprSpan(e), "converting {show(t)} to a string")
+        declaredToString(g, e, t)
         return
     expr(g, e)
     if g.bad then
@@ -3035,6 +3035,41 @@ procedure toString(g: ref Em, e: Expr)
             add(var names, Byte(0))
         leaData(a, Rsi, label: data(a, names))
         call(a, runtime(g, "rt_enum_name"))
+
+## Computes `e`, of type `t`, and calls the `toString` that makes `t` Printable, found
+## where `t` became concrete, as bound members are.
+procedure declaredToString(g: ref Em, e: Expr, t: Type)
+    let a := g.a
+    let site := siteOf(g, rawType(g, exprId(e)))
+    let tr := decl(g.env, sys(g.env, "Printable").get())
+    var sub: Subst := {}
+    sub[ThisId] := t
+    var s2: Subst := {}
+    let found := provider(
+        g.env.checkers[site],
+        t,
+        m: tr.routines[0],
+        sub: sub,
+        s: var s2,
+        vars: {},
+    )
+    if found.isNone() or not isRoutineNode(found.get().f) then
+        unsupported(g, exprSpan(e), "converting {show(t)} to a string")
+        return
+    let fd := found.get()
+    var targs: List[Type] := []
+    var sites: Map[Integer, String] := {}
+    for tp in sig(g.env, fd.f).tparams do
+        add(var targs, getOr(fd.sf, tp.id, default: noneT()))
+        sites[tp.id] := site
+    let target := labelOf(g, exprSpan(e), fd.f, targs, sites: sites)
+    if g.bad then
+        return
+    expr(g, e)
+    if g.bad then
+        return
+    mov(a, Rdi, Rax)
+    call(a, target)
 
 # -------------------------------------------------------------------------- calls
 

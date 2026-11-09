@@ -16,12 +16,12 @@ ok   std/Strings.pst:168: split and join are inverses
 ok   std/Strings.pst:176: trim and replace
 ok   std/Strings.pst:182: parseInt
 ok   std/Strings.pst:192: bytes and fromBytes
-ok   std/System.pst:707: list editing
-ok   std/System.pst:720: sort is stable
-ok   std/System.pst:731: maps
-ok   std/System.pst:743: sets
-ok   std/System.pst:754: options and results
-ok   std/System.pst:764: iterators
+ok   std/System.pst:736: list editing
+ok   std/System.pst:749: sort is stable
+ok   std/System.pst:760: maps
+ok   std/System.pst:772: sets
+ok   std/System.pst:783: options and results
+ok   std/System.pst:793: iterators
 21 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/compiler

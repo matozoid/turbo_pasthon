@@ -511,6 +511,9 @@ Built-in traits in `System`: `Iterator[T]` (§4.14), `Sendable` (§11.2), `Equat
 type's structure (e.g. a record is `Equatable` if all its fields are). `Printable` is
 satisfied built-in by primitives (except C types), enums, and subranges, and structurally
 (a visible `toString`) by everything else.
+System declares `toString` for `List`, `Map` and `Set` with Printable items, so they print
+as `[1, 2]`, `{a: 1, b: 2}` (insertion order) and `{Red, Blue}` (`ord` order); items show
+by their own `toString`, so strings appear without quotes.
 
 ### 4.11 Function types
 
