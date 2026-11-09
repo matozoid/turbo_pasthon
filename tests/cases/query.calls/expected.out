@@ -175,6 +175,7 @@ exit 0
 "name":"removeLast"
 "name":"insert"
 "name":"sort"
+"name":"sort"
 "name":"concat"
 "name":"iter"
 --- stderr

@@ -61,31 +61,31 @@ def Main.pst 16:5-16:6
 use Main.pst 17:1-17:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 17:11-17:14
-  function 'len' @ std/System.pst:423:17
+  function 'len' @ std/System.pst:458:17
 use Main.pst 17:15-17:16
   let 'a' @ Main.pst:10:5
 use Main.pst 17:20-17:23
-  function 'len' @ std/System.pst:423:17
+  function 'len' @ std/System.pst:458:17
 use Main.pst 17:24-17:25
   let 'b' @ Main.pst:11:5
 use Main.pst 17:29-17:32
-  function 'len' @ std/System.pst:423:17
+  function 'len' @ std/System.pst:458:17
 use Main.pst 17:33-17:34
   let 'c' @ Main.pst:12:5
 use Main.pst 17:38-17:41
-  function 'len' @ std/System.pst:423:17
+  function 'len' @ std/System.pst:458:17
 use Main.pst 17:42-17:43
   let 'd' @ Main.pst:13:5
 use Main.pst 17:47-17:50
-  function 'len' @ std/System.pst:423:17
+  function 'len' @ std/System.pst:458:17
 use Main.pst 17:51-17:52
   let 'e' @ Main.pst:14:5
 use Main.pst 17:56-17:59
-  function 'len' @ std/System.pst:423:17
+  function 'len' @ std/System.pst:458:17
 use Main.pst 17:60-17:61
   let 'f' @ Main.pst:15:5
 use Main.pst 17:65-17:68
-  function 'len' @ std/System.pst:423:17
+  function 'len' @ std/System.pst:458:17
 use Main.pst 17:69-17:70
   let 'g' @ Main.pst:16:5
 Main.pst error E0700 12:8-12:17 "Real can't be a Set element: it needs an ordinal type with at most 256 values (Boolean, Byte, an enum, or a subrange)"

@@ -261,6 +261,41 @@ export procedure sort[T](var xs: List[T], less: function(T, T): Boolean)
         width := 2 * width
     xs := src
 
+## Sorts `xs` by the `key` of each element, ascending, as the other `sort` does. Each
+## key is computed once.
+export procedure sort[T, K: Ordered](var xs: List[T], key: function(T): K)
+    let n := len(xs)
+    var src := xs
+    var dst := xs
+    var srcKeys := for x in xs do key(x)
+    var dstKeys := srcKeys
+    var width := 1
+    while width < n do
+        var lo := 0
+        while lo < n do
+            let mid := min(lo + width, n)
+            let hi := min(lo + 2 * width, n)
+            var i := lo
+            var j := mid
+            for k := lo to hi - 1 do
+                if j < hi and (i >= mid or srcKeys[j] < srcKeys[i]) then
+                    dst[k] := src[j]
+                    dstKeys[k] := srcKeys[j]
+                    j := j + 1
+                else
+                    dst[k] := src[i]
+                    dstKeys[k] := srcKeys[i]
+                    i := i + 1
+            lo := hi
+        let t := src
+        src := dst
+        dst := t
+        let tk := srcKeys
+        srcKeys := dstKeys
+        dstKeys := tk
+        width := 2 * width
+    xs := src
+
 function min(a, b: Integer): Integer
     if a < b then
         return a
@@ -698,6 +733,12 @@ export function find[T, I: Iterator[T]](it: I, pred: function(T): Boolean): Opti
 function lessByTens(a, b: Integer): Boolean
     return a div 10 < b div 10
 
+function negated(x: Integer): Integer
+    return -x
+
+function tens(x: Integer): Integer
+    return x div 10
+
 function isEven(x: Integer): Boolean
     return x mod 2 = 0
 
@@ -721,8 +762,14 @@ test "sort is stable"
     var ys := [31, 12, 35, 10, 22]
     sort(var ys, less: lessByTens)
     assert ys = [12, 10, 22, 31, 35]
+    var zs := [31, 12, 35, 10, 22]
+    sort(var zs, key: tens)
+    assert zs = [12, 10, 22, 31, 35]
+    sort(var zs, key: negated)
+    assert zs = [35, 31, 22, 12, 10]
     var empty: List[Integer] := []
     sort(var empty)
+    sort(var empty, key: tens)
     assert len(empty) = 0
 
 test "maps"

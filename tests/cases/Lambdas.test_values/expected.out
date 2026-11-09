@@ -17,4 +17,7 @@ Hello, Ann!
 9
 49
 304
+[<1>, <2>]
+[Ann, Bob, Cy]
+[Bob, Cy, Ann]
 --- stderr

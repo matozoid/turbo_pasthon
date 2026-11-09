@@ -71,7 +71,7 @@ use Main.pst 22:13-22:14
 use Main.pst 23:1-23:8
   procedure 'writeln' @ std/IO.pst:18:22
 use Main.pst 24:11-24:17
-  function 'concat' @ std/System.pst:270:17
+  function 'concat' @ std/System.pst:305:17
 use Main.pst 24:18-24:20
   var 'xs' @ Main.pst:13:5
 use Main.pst 24:25-24:27
@@ -231,7 +231,7 @@ use Main.pst 11:5-11:6
 use Main.pst 11:10-11:11
   parameter 'x' @ Main.pst:10:20
 use Main.pst 24:22-24:23
-  parameter 'b' @ std/System.pst:270:30
+  parameter 'b' @ std/System.pst:305:30
 use Main.pst 30:16-30:20
   field 'name' @ Main.pst:7:9
 use Main.pst 30:27-30:31

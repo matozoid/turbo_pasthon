@@ -380,8 +380,9 @@ built on those. Growing at least doubles the capacity, so `add` is amortized O(1
 - `insert(var xs, index, x)` puts `x` at `index` (`0 <= index <= len(xs)`, else `P0001`),
   moving the elements from there up.
 - `sort(var xs)` sorts a list of an `Ordered` type ascending; `sort(var xs, less: f)` sorts
-  by a function `f(a, b): Boolean` that says whether `a` goes before `b`. Both are stable
-  merge sorts, O(n log n).
+  by a function `f(a, b): Boolean` that says whether `a` goes before `b`;
+  `sort(var xs, key: f)` sorts by an `Ordered` key `f(x)`, computed once per element. All
+  are stable merge sorts, O(n log n).
 
 A `Map` is a record in System holding lists of keys, values and hashes, in insertion
 order, plus an open-addressing slot table that points into them. The compiler provides
@@ -545,7 +546,9 @@ Lambdas are restricted so that the common, safe cases work and the classic bugs 
 - The body is a single expression, never a block. For a procedure type, it's a call with
   no value.
 - Parameter types come from the expected function type, so a lambda can only appear where
-  one is expected (`E0806`), with as many parameters (`E0807`).
+  one is expected (`E0806`), with as many parameters (`E0807`). When that type's result
+  is a type parameter still to infer, as `K` of `sort(var xs, key: f)`, the type of the
+  body gives it.
 - Captures are **by value**: the lambda keeps a copy of each variable it uses, taken when it
   is created. There is no shared loop-variable bug, and captured variables can't be changed
   through it (`E0341`). A lambda that captures nothing is as cheap as a named routine.

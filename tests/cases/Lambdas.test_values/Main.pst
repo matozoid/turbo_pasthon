@@ -29,6 +29,9 @@ function compose(
 function mapAll[T](xs: List[T], f: function(T): T): List[T]
     return for x in xs do f(x)
 
+function mapped[T, U](xs: List[T], f: function(T): U): List[U]
+    return for x in xs do f(x)
+
 function scaleAll[T](xs: List[T], k: T, mul: function(T, T): T): List[T]
     return mapAll(xs, f: x => mul(x, k))
 
@@ -62,3 +65,15 @@ for f in fs do
     writeln(f(7))
 let nest: function(Integer): function(Integer): Integer := a => b => a * 100 + b
 writeln(nest(3)(4))
+
+# A type parameter only in the result is inferred from the body
+writeln(mapped([1, 2], f: x => "<{x}>"))
+var crew := [
+    Person(name: "Cy", age: 30),
+    Person(name: "Ann", age: 40),
+    Person(name: "Bob", age: 30),
+]
+sort(var crew, key: p => p.name)
+writeln(for p in crew do p.name)
+sort(var crew, key: p => p.age)
+writeln(for p in crew do p.name)

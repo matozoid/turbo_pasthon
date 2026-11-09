@@ -3948,7 +3948,11 @@ function argDesc(a: CArg): String
     if a.flex = emptyBracesT() then
         return "\{}"
     if a.flex = lambdaT() then
-        return "a lambda"
+        case a.expr of
+            Lambda(l):
+                return "a lambda taking {len(l.params)} parameter{plural(len(l.params))}"
+            else:
+                return "a lambda"
     if a.flex = listLitT() then
         if known(a.ty) then
             return show(a.ty)
@@ -4293,7 +4297,7 @@ function flexFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Int
                 case a.expr of
                     Lambda(l):
                         if len(f.params) = len(l.params) then
-                            return 0
+                            return lambdaFit(tc, l, f, var s, vars)
                     else:
                         pass
             else:
@@ -4353,6 +4357,39 @@ function flexFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Int
     return -1
 
 ## Whether a list literal fits `want`: 0 as typed, 1 with its items converted, -1 not.
+## Fits lambda `l` to function type `f`, which has as many parameters: when the result
+## has type parameters still to infer and the parameter types are known, they are
+## inferred from the type of the body, checked here without reporting its errors (the
+## body is checked again once the call is chosen). 0 if it fits, -1 if not.
+function lambdaFit(tc: ref TC, l: Lambda, f: FuncT, var s: Subst, vars: Vars): Integer
+    if not mentionsUnbound(f.result, vars, s) then
+        return 0
+    for p in f.params do
+        if mentionsUnbound(p, vars, s) then
+            return 0
+    let n := len(tc.c.diagnostics)
+    for i := 0 to len(l.params) - 1 do
+        setType(tc, symAt(tc, l.params[i].span), subst(f.params[i], s))
+    tc.lambdas := tc.lambdas + 1
+    let t := expr(tc, l.body, noType())
+    tc.lambdas := tc.lambdas - 1
+    while len(tc.c.diagnostics) > n do
+        removeLast(var tc.c.diagnostics)
+    if not known(t) then
+        return 0
+    if hasError(t) then  # the body's errors are reported when it is checked again
+        var found: Vars := {}
+        paramsIn(f.result, var found)
+        for id, _ in found do
+            if id in vars and not (id in s) then
+                s[id] := errorT()
+        return 0
+    var s2 := s
+    if not unify(f.result, t, var s2, vars) then
+        return -1
+    s := s2
+    return 0
+
 function listFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Integer
     if known(a.ty) then
         var s2 := s

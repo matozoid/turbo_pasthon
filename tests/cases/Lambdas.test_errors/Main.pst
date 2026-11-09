@@ -2,12 +2,20 @@ program Main
 
 uses IO
 
+type
+    Person = record
+        name: String
+
 var n := 0
 let f := x => x
 let g: function(Integer): Integer := (a, b) => a
 let h: function(Integer): Integer := x => "s"
 let k: function(Integer): Integer := x => inc2(var n)
 let m: procedure(Integer) := x => x + 1
+var people := [Person(name: "Ann")]
+sort(var people, key: p => p)
+sort(var people, key: p => p.nam)
+sort(var people, key: (a, b) => a.name)
 writeln(f)
 writeln(g(1) + h(1) + k(1))
 m(1)
