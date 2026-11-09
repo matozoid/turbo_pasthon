@@ -1,0 +1,5 @@
+# The repository's own Pasthon code is formatted (SPEC §15.3).
+$PST fmt --check $ROOT/std
+$PST fmt --check $ROOT/compiler
+$PST fmt --check $ROOT/examples
+$PST fmt --check $ROOT/tests/Run.pst

@@ -154,14 +154,26 @@ function text(lx: State, start: Integer, end: Integer): String
     return sub(lx.src, start, end: end)
 
 procedure emit(var lx: State, kind: TokenKind, start: Integer, end: Integer, value: TokenValue)
-    add(var lx.tokens, Token(kind: kind, text: text(lx, start, end: end), span: span(lx.src, start, end: end), value: value))
+    add(var lx.tokens, Token(
+        kind: kind,
+        text: text(lx, start, end: end),
+        span: span(lx.src, start, end: end),
+        value: value,
+    ))
     if not isLayout(kind) then
         lx.lineHasTokens := true
 
 procedure emitPlain(var lx: State, kind: TokenKind, start: Integer, end: Integer)
     emit(var lx, kind, start, end: end, value: NoValue())
 
-procedure errorWith(var lx: State, code: String, start: Integer, end: Integer, message: String, fixes: List[Fix])
+procedure errorWith(
+    var lx: State,
+    code: String,
+    start: Integer,
+    end: Integer,
+    message: String,
+    fixes: List[Fix],
+)
     add(var lx.diags, Diagnostic(
         file: lx.file,
         span: span(lx.src, start, end: end),
@@ -261,9 +273,19 @@ procedure closeUnclosed(var lx: State)
         closers := "{closers}{lx.brackets[i].closer}"
         i := i - 1
     let end := if len(lx.tokens) > 0 then lx.tokens[len(lx.tokens) - 1].span.end else lx.pos
-    let fix := Fix(description: "insert '{closers}'", edits: [Edit(span: span(lx.src, end, end: end), text: closers)])
+    let fix := Fix(description: "insert '{closers}'", edits: [Edit(
+        span: span(lx.src, end, end: end),
+        text: closers,
+    )])
     for b in lx.brackets do
-        errorWith(var lx, "E0009", b.offset, end: b.offset + 1, message: "unclosed '{openerOf(b.closer)}'", fixes: [fix])
+        errorWith(
+            var lx,
+            "E0009",
+            b.offset,
+            end: b.offset + 1,
+            message: "unclosed '{openerOf(b.closer)}'",
+            fixes: [fix],
+        )
     truncate(var lx.brackets, 0)
 
 ## Whether the source at `i` starts with keyword `w`, not followed by a word character.
@@ -280,9 +302,30 @@ function isWordCharOrOther(c: Char): Boolean
 ## `name :=`, or an end marker.
 function startsStatement(lx: State, i: Integer): Boolean
     let words := [
-        "var", "let", "if", "while", "for", "repeat", "case", "defer", "break", "continue",
-        "pass", "return", "assert", "function", "procedure", "type", "const", "extern", "test",
-        "export", "unsafe", "uses", "program", "unit",
+        "var",
+        "let",
+        "if",
+        "while",
+        "for",
+        "repeat",
+        "case",
+        "defer",
+        "break",
+        "continue",
+        "pass",
+        "return",
+        "assert",
+        "function",
+        "procedure",
+        "type",
+        "const",
+        "extern",
+        "test",
+        "export",
+        "unsafe",
+        "uses",
+        "program",
+        "unit",
     ]
     for w in words do
         if hasWord(lx, w, i) then
@@ -361,11 +404,23 @@ function lineStart(var lx: State): Boolean
 
 procedure indent(var lx: State, width: Integer, lineBegin: Integer)
     if width mod IndentWidth <> 0 then
-        error(var lx, "E0002", lineBegin, end: lx.pos, message: "indentation of {width} spaces is not a multiple of {IndentWidth}")
+        error(
+            var lx,
+            "E0002",
+            lineBegin,
+            end: lx.pos,
+            message: "indentation of {width} spaces is not a multiple of {IndentWidth}",
+        )
     let top := lx.indents[len(lx.indents) - 1]
     if width > top then
         if width - top > IndentWidth then
-            error(var lx, "E0003", lineBegin, end: lx.pos, message: "indentation increases by {width - top} spaces; one level is {IndentWidth}")
+            error(
+                var lx,
+                "E0003",
+                lineBegin,
+                end: lx.pos,
+                message: "indentation increases by {width - top} spaces; one level is {IndentWidth}",
+            )
         add(var lx.indents, width)
         emitPlain(var lx, TokenKind.Indent, lx.pos, end: lx.pos)
     else if width < top then
@@ -381,7 +436,11 @@ procedure comment(var lx: State)
     let start := lx.pos
     lx.pos := lineEnd(lx)
     let t := text(lx, start, end: lx.pos)
-    add(var lx.comments, Comment(text: t, span: span(lx.src, start, end: lx.pos), isDoc: startsWith(t, prefix: "##")))
+    add(var lx.comments, Comment(
+        text: t,
+        span: span(lx.src, start, end: lx.pos),
+        isDoc: startsWith(t, prefix: "##"),
+    ))
 
 ## The value and end of an end marker at `lx.pos`: `# end <keyword> [<name>]` (SPEC §2.4).
 ## Names only follow keywords that declare one.
@@ -404,7 +463,11 @@ function matchMarker(lx: State): Option[Indexed[MarkerValue]]
                 while i < stop and isWordChar(at(lx, i)) do
                     i := i + 1
                 if onlySpaces(lx, i, stop: stop) then
-                    return Some(Indexed(index: stop, value: MarkerValue(keyword: k, name: Some(text(lx, nameStart, end: i)))))
+                    return Some(Indexed(index: stop, value: MarkerValue(keyword: k, name: Some(text(
+                        lx,
+                        nameStart,
+                        end: i,
+                    )))))
                 return None
             if onlySpaces(lx, i, stop: stop) then
                 return Some(Indexed(index: stop, value: MarkerValue(keyword: k, name: None)))
@@ -434,7 +497,10 @@ procedure tab(var lx: State, offset: Integer)
         severity: Severity.Error,
         code: "E0001",
         message: "tab character; indent with 4 spaces",
-        fixes: [Fix(description: "replace tab with 4 spaces", edits: [Edit(span: s, text: "    ")])],
+        fixes: [Fix(
+            description: "replace tab with 4 spaces",
+            edits: [Edit(span: s, text: "    ")],
+        )],
     ))
 
 # --------------------------------------------------------------------------- words
@@ -448,7 +514,12 @@ procedure word(var lx: State)
         # `_` or `_name`: a discard (SPEC §7.9). The text keeps the name.
         emitPlain(var lx, TokenKind.Underscore, start, end: lx.pos)
         return
-    emitPlain(var lx, getOr(lx.keywords, text(lx, start, end: lx.pos), default: TokenKind.Ident), start, end: lx.pos)
+    emitPlain(
+        var lx,
+        getOr(lx.keywords, text(lx, start, end: lx.pos), default: TokenKind.Ident),
+        start,
+        end: lx.pos,
+    )
 
 # ------------------------------------------------------------------------- numbers
 
@@ -530,7 +601,13 @@ procedure number(var lx: State)
             value := value * b + d
         i := i + 1
     if tooBig then
-        error(var lx, "E0007", start, end: lx.pos, message: "integer literal '{t}' does not fit in 64 bits")
+        error(
+            var lx,
+            "E0007",
+            start,
+            end: lx.pos,
+            message: "integer literal '{t}' does not fit in 64 bits",
+        )
         value := 0
     emit(var lx, TokenKind.IntLit, start, end: lx.pos, value: IntValue(value: value))
 
@@ -576,15 +653,27 @@ procedure stringBody(var lx: State, start: Integer, first: Boolean)
             if j < lx.n and at(lx, j) = '}' then
                 let brace := span(lx.src, lx.pos, end: lx.pos + 1)
                 errorWith(
-                    var lx, "E0030", lx.pos, end: j + 1,
+                    var lx,
+                    "E0030",
+                    lx.pos,
+                    end: j + 1,
                     message: "empty placeholder '\{}'; write '\\\{' for a literal brace",
-                    fixes: [Fix(description: "escape the brace", edits: [Edit(span: brace, text: "\\\{")])],
+                    fixes: [Fix(
+                        description: "escape the brace",
+                        edits: [Edit(span: brace, text: "\\\{")],
+                    )],
                 )
                 add(var buf, text(lx, lx.pos, end: j + 1))
                 lx.pos := j + 1
                 continue
             lx.pos := lx.pos + 1
-            emit(var lx, if first then TokenKind.StringBegin else TokenKind.StringMid, start, end: lx.pos, value: TextValue(text: join(buf)))
+            emit(
+                var lx,
+                if first then TokenKind.StringBegin else TokenKind.StringMid,
+                start,
+                end: lx.pos,
+                value: TextValue(text: join(buf)),
+            )
             add(var lx.placeholders, len(lx.brackets))
             return
         add(var buf, toString(c))
@@ -592,7 +681,13 @@ procedure stringBody(var lx: State, start: Integer, first: Boolean)
 
 ## A line ended inside a placeholder: closes every open string on this line.
 procedure abortPlaceholders(var lx: State)
-    error(var lx, "E0030", lx.pos, end: lx.pos, message: "string placeholder '\{' is not closed on this line; write '\\\{' for a literal brace")
+    error(
+        var lx,
+        "E0030",
+        lx.pos,
+        end: lx.pos,
+        message: "string placeholder '\{' is not closed on this line; write '\\\{' for a literal brace",
+    )
     truncate(var lx.brackets, lx.placeholders[0])
     for _ in lx.placeholders do
         emit(var lx, TokenKind.StringEnd, lx.pos, end: lx.pos, value: TextValue(text: ""))
@@ -613,7 +708,13 @@ procedure charLiteral(var lx: State)
     else
         error(var lx, "E0008", start, end: lx.pos, message: "unterminated char literal")
     if len(chars) <> 1 then
-        error(var lx, "E0008", start, end: lx.pos, message: "char literal must contain exactly one character, found {len(chars)}")
+        error(
+            var lx,
+            "E0008",
+            start,
+            end: lx.pos,
+            message: "char literal must contain exactly one character, found {len(chars)}",
+        )
     # An escape may decode to no character: `'\` at the end of a line.
     var value := '\0'
     if len(chars) = 1 then
@@ -646,7 +747,13 @@ function escape(var lx: State): String
                 lx.pos := j + 1
                 if cp <= 0x10FFFF and not (cp >= 0xD800 and cp <= 0xDFFF) then
                     return toString(Char(cp))
-                error(var lx, "E0005", start, end: lx.pos, message: "'\\u\{{digits}}' is not a Unicode scalar value")
+                error(
+                    var lx,
+                    "E0005",
+                    start,
+                    end: lx.pos,
+                    message: "'\\u\{{digits}}' is not a Unicode scalar value",
+                )
                 return "\u{FFFD}"
         lx.pos := lx.pos + 1
         # Swallow a malformed `{...}` so it is not mistaken for a placeholder.
@@ -657,7 +764,13 @@ function escape(var lx: State): String
                 k := k + 1
             if k < stop then
                 lx.pos := k + 1
-        error(var lx, "E0005", start, end: lx.pos, message: "expected '\\u\{XXXX}' with 1 to 6 hex digits")
+        error(
+            var lx,
+            "E0005",
+            start,
+            end: lx.pos,
+            message: "expected '\\u\{XXXX}' with 1 to 6 hex digits",
+        )
         return "\u{FFFD}"
     lx.pos := lx.pos + 1
     error(var lx, "E0005", start, end: lx.pos, message: "invalid escape sequence '\\{c}'")
@@ -721,4 +834,10 @@ procedure operatorOrError(var lx: State)
         hint := "; use 'mod'"
     else if c = ';' then
         hint := "; statements end at the end of the line"
-    error(var lx, "E0006", start, end: lx.pos, message: "unexpected character '{c}' (U+{hex4(ord(c))}){hint}")
+    error(
+        var lx,
+        "E0006",
+        start,
+        end: lx.pos,
+        message: "unexpected character '{c}' (U+{hex4(ord(c))}){hint}",
+    )

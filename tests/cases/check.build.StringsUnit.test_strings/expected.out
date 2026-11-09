@@ -61,39 +61,39 @@ use Main.pst 23:12-23:16
 use Main.pst 24:1-24:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 24:12-24:16
-  function 'trim' @ std/Strings.pst:106:24
+  function 'trim' @ std/Strings.pst:114:24
 use Main.pst 25:1-25:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 25:12-25:16
-  function 'trim' @ std/Strings.pst:106:24
+  function 'trim' @ std/Strings.pst:114:24
 use Main.pst 26:1-26:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 26:9-26:16
-  function 'replace' @ std/Strings.pst:117:17
+  function 'replace' @ std/Strings.pst:125:17
 use Main.pst 27:1-27:5
   procedure 'show' @ Main.pst:5:11
 use Main.pst 27:6-27:14
-  function 'parseInt' @ std/Strings.pst:122:24
+  function 'parseInt' @ std/Strings.pst:130:24
 use Main.pst 28:1-28:5
   procedure 'show' @ Main.pst:5:11
 use Main.pst 28:6-28:14
-  function 'parseInt' @ std/Strings.pst:122:24
+  function 'parseInt' @ std/Strings.pst:130:24
 use Main.pst 29:1-29:5
   procedure 'show' @ Main.pst:5:11
 use Main.pst 29:6-29:14
-  function 'parseInt' @ std/Strings.pst:122:24
+  function 'parseInt' @ std/Strings.pst:130:24
 use Main.pst 30:1-30:5
   procedure 'show' @ Main.pst:5:11
 use Main.pst 30:6-30:14
-  function 'parseInt' @ std/Strings.pst:122:24
+  function 'parseInt' @ std/Strings.pst:130:24
 use Main.pst 31:1-31:5
   procedure 'show' @ Main.pst:5:11
 use Main.pst 31:6-31:14
-  function 'parseInt' @ std/Strings.pst:122:24
+  function 'parseInt' @ std/Strings.pst:130:24
 use Main.pst 32:1-32:5
   procedure 'show' @ Main.pst:5:11
 use Main.pst 32:6-32:14
-  function 'parseInt' @ std/Strings.pst:122:24
+  function 'parseInt' @ std/Strings.pst:130:24
 use Main.pst 33:1-33:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 33:9-33:18
@@ -162,7 +162,7 @@ use Main.pst 19:29-19:32
 use Main.pst 22:32-22:35
   parameter 'sep' @ std/Strings.pst:80:50
 use Main.pst 26:26-26:32
-  parameter 'target' @ std/Strings.pst:117:36
+  parameter 'target' @ std/Strings.pst:125:36
 use Main.pst 26:39-26:50
-  parameter 'replacement' @ std/Strings.pst:117:52
+  parameter 'replacement' @ std/Strings.pst:125:52
 --- stderr

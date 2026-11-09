@@ -12,7 +12,7 @@ use Main.pst 7:1-7:8
 use Main.pst 7:9-7:12
   function 'get' @ std/System.pst:487:17
 use Main.pst 7:13-7:17
-  function 'find' @ std/System.pst:690:17
+  function 'find' @ std/System.pst:692:17
 use Main.pst 7:33-7:36
   function 'big' @ Main.pst:5:10
 use Main.pst 5:17-5:24

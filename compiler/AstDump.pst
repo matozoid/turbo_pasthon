@@ -100,7 +100,13 @@ procedure typeExpr(t: TypeExpr, d: Integer, label: String)
             line(d, label, kind: "RefType", span: x.span, scalars: "")
             typeExpr(x.target, d + 1, label: one("target"))
         FuncType(x):
-            line(d, label, kind: "FuncType", span: x.span, scalars: flag("is_function", value: x.isFunction))
+            line(
+                d,
+                label,
+                kind: "FuncType",
+                span: x.span,
+                scalars: flag("is_function", value: x.isFunction),
+            )
             typeExprs(x.params, d + 1, field: "params")
             optType(x.result, d + 1, label: one("result"))
 
@@ -141,8 +147,20 @@ procedure expr(e: Expr, d: Integer, label: String)
         IntLit(x): line(d, label, kind: "IntLit", span: x.span, scalars: " value={x.value}")
         RealLit(x): line(d, label, kind: "RealLit", span: x.span, scalars: " value={x.digits}")
         CharLit(x): line(d, label, kind: "CharLit", span: x.span, scalars: " value={ord(x.value)}")
-        BoolLit(x): line(d, label, kind: "BoolLit", span: x.span, scalars: flag("value", value: x.value))
-        StringLit(x): line(d, label, kind: "StringLit", span: x.span, scalars: str("value", value: x.value))
+        BoolLit(x): line(
+            d,
+            label,
+            kind: "BoolLit",
+            span: x.span,
+            scalars: flag("value", value: x.value),
+        )
+        StringLit(x): line(
+            d,
+            label,
+            kind: "StringLit",
+            span: x.span,
+            scalars: str("value", value: x.value),
+        )
         InterpString(x):
             line(d, label, kind: "InterpString", span: x.span, scalars: "")
             for i := 0 to len(x.parts) - 1 do
@@ -171,7 +189,13 @@ procedure expr(e: Expr, d: Integer, label: String)
             line(d, label, kind: "Unary", span: x.span, scalars: str("op", value: x.op))
             expr(x.operand, c, label: one("operand"))
         Binary(x):
-            line(d, label, kind: "Binary", span: x.span, scalars: "{str("op", value: x.op)} op_span={where(x.opSpan)}")
+            line(
+                d,
+                label,
+                kind: "Binary",
+                span: x.span,
+                scalars: "{str("op", value: x.op)} op_span={where(x.opSpan)}",
+            )
             expr(x.left, c, label: one("left"))
             expr(x.right, c, label: one("right"))
         Call(x):
@@ -179,7 +203,13 @@ procedure expr(e: Expr, d: Integer, label: String)
             expr(x.callee, c, label: one("callee"))
             for i := 0 to len(x.args) - 1 do
                 let a := x.args[i]
-                line(c, item("args", i), kind: "Arg", span: a.span, scalars: flag("is_var", value: a.isVar))
+                line(
+                    c,
+                    item("args", i),
+                    kind: "Arg",
+                    span: a.span,
+                    scalars: flag("is_var", value: a.isVar),
+                )
                 if isSome(a.name) then
                     ident(get(a.name), c + 1, label: one("name"))
                 expr(a.value, c + 1, label: one("value"))
@@ -245,7 +275,13 @@ procedure stmt(s: Stmt, d: Integer, label: String)
     let c := d + 1
     case s of
         VarDecl(x):
-            line(d, label, kind: "VarDecl", span: x.span, scalars: flag("mutable", value: x.mutable))
+            line(
+                d,
+                label,
+                kind: "VarDecl",
+                span: x.span,
+                scalars: flag("mutable", value: x.mutable),
+            )
             ident(x.name, c, label: one("name"))
             optType(x.declType, c, label: one("type"))
             expr(x.value, c, label: one("value"))
@@ -260,7 +296,13 @@ procedure stmt(s: Stmt, d: Integer, label: String)
             line(d, label, kind: "ExprStmt", span: x.span, scalars: "")
             expr(x.expr, c, label: one("expr"))
         If(x):
-            line(d, label, kind: "If", span: x.span, scalars: optSpan("end_marker", value: x.endMarker))
+            line(
+                d,
+                label,
+                kind: "If",
+                span: x.span,
+                scalars: optSpan("end_marker", value: x.endMarker),
+            )
             for i := 0 to len(x.branches) - 1 do
                 let b := x.branches[i]
                 line(c, item("branches", i), kind: "CondBlock", span: b.span, scalars: "")
@@ -269,7 +311,13 @@ procedure stmt(s: Stmt, d: Integer, label: String)
             if isSome(x.elseBody) then
                 block(get(x.elseBody), c, label: one("else_body"))
         While(x):
-            line(d, label, kind: "While", span: x.span, scalars: optSpan("end_marker", value: x.endMarker))
+            line(
+                d,
+                label,
+                kind: "While",
+                span: x.span,
+                scalars: optSpan("end_marker", value: x.endMarker),
+            )
             expr(x.cond, c, label: one("cond"))
             block(x.body, c, label: one("body"))
         Repeat(x):
@@ -284,12 +332,24 @@ procedure stmt(s: Stmt, d: Integer, label: String)
             expr(x.stop, c, label: one("stop"))
             block(x.body, c, label: one("body"))
         ForIn(x):
-            line(d, label, kind: "ForIn", span: x.span, scalars: optSpan("end_marker", value: x.endMarker))
+            line(
+                d,
+                label,
+                kind: "ForIn",
+                span: x.span,
+                scalars: optSpan("end_marker", value: x.endMarker),
+            )
             idents(x.vars, c, field: "vars")
             expr(x.iterable, c, label: one("iterable"))
             block(x.body, c, label: one("body"))
         Case(x):
-            line(d, label, kind: "Case", span: x.span, scalars: optSpan("end_marker", value: x.endMarker))
+            line(
+                d,
+                label,
+                kind: "Case",
+                span: x.span,
+                scalars: optSpan("end_marker", value: x.endMarker),
+            )
             expr(x.subject, c, label: one("subject"))
             for i := 0 to len(x.arms) - 1 do
                 let a := x.arms[i]
@@ -297,7 +357,13 @@ procedure stmt(s: Stmt, d: Integer, label: String)
                 labels(a.labels, c + 1)
                 armBody(a.body, c + 1, label: one("body"))
         Defer(x):
-            line(d, label, kind: "Defer", span: x.span, scalars: optSpan("end_marker", value: x.endMarker))
+            line(
+                d,
+                label,
+                kind: "Defer",
+                span: x.span,
+                scalars: optSpan("end_marker", value: x.endMarker),
+            )
             armBody(x.body, c, label: one("body"))
         Break(x): line(d, label, kind: "Break", span: x.span, scalars: "")
         Continue(x): line(d, label, kind: "Continue", span: x.span, scalars: "")

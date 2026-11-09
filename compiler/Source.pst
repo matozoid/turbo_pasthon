@@ -29,7 +29,14 @@ type
 
 ## The span from the start of `a` to the end of `b`.
 export function join(a: Span, b: Span): Span
-    return Span(start: a.start, end: b.end, line: a.line, col: a.col, endLine: b.endLine, endCol: b.endCol)
+    return Span(
+        start: a.start,
+        end: b.end,
+        line: a.line,
+        col: a.col,
+        endLine: b.endLine,
+        endCol: b.endCol,
+    )
 
 ## Strips a UTF-8 byte order mark and converts CRLF and CR line endings to LF.
 export function normalize(text: String): String

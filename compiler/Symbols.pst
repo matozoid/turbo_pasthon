@@ -10,8 +10,22 @@ uses Source, Ast
 
 type
     export Kind = (
-        UnitSym, TypeSym, TraitSym, BuiltinType, BuiltinTrait, EnumMember, FieldSym, ConstSym,
-        FunctionSym, ProcedureSym, TypeParamSym, ParamSym, VarSym, LetSym, LoopVar, Binding,
+        UnitSym,
+        TypeSym,
+        TraitSym,
+        BuiltinType,
+        BuiltinTrait,
+        EnumMember,
+        FieldSym,
+        ConstSym,
+        FunctionSym,
+        ProcedureSym,
+        TypeParamSym,
+        ParamSym,
+        VarSym,
+        LetSym,
+        LoopVar,
+        Binding,
         ResultSym,
     )
 
@@ -112,7 +126,9 @@ export function isUpperCamel(k: Kind): Boolean
 
 ## Names of these kinds are lowerCamel (SPEC §2.5).
 export function isLowerCamel(k: Kind): Boolean
-    return isRoutine(k) or k = Kind.ParamSym or k = Kind.VarSym or k = Kind.LetSym or k = Kind.LoopVar or k = Kind.Binding or k = Kind.FieldSym
+    return isRoutine(
+        k,
+    ) or k = Kind.ParamSym or k = Kind.VarSym or k = Kind.LetSym or k = Kind.LoopVar or k = Kind.Binding or k = Kind.FieldSym
 
 ## `function 'area'`.
 export function describe(s: ref Symbol): String
@@ -128,7 +144,13 @@ export function location(s: ref Symbol): String
 export function newIndex(): ref SymbolIndex
     return new(SymbolIndex(refs: [], bySpan: {}))
 
-export procedure add(ix: ref SymbolIndex, file: String, span: Span, targets: List[ref Symbol], isDef: Boolean := false)
+export procedure add(
+    ix: ref SymbolIndex,
+    file: String,
+    span: Span,
+    targets: List[ref Symbol],
+    isDef: Boolean := false,
+)
     ix.bySpan[SpanKey(file: file, start: span.start, end: span.end)] := len(ix.refs)
     add(var ix.refs, Ref(file: file, span: span, targets: targets, isDef: isDef))
 

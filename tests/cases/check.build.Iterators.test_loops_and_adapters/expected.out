@@ -98,7 +98,7 @@ use Main.pst 39:14-39:15
 use Main.pst 39:23-39:24
   loop variable 'p' @ Main.pst:38:5
 use Main.pst 40:10-40:19
-  function 'enumerate' @ std/System.pst:636:17
+  function 'enumerate' @ std/System.pst:638:17
 use Main.pst 40:20-40:25
   let 'words' @ Main.pst:33:5
 def Main.pst 40:5-40:6
@@ -122,37 +122,37 @@ use Main.pst 44:10-44:12
 use Main.pst 46:1-46:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 46:11-46:16
-  function 'count' @ std/System.pst:656:17
+  function 'count' @ std/System.pst:658:17
 use Main.pst 46:17-46:19
   var 'it' @ Main.pst:43:5
 use Main.pst 46:23-46:28
-  function 'count' @ std/System.pst:656:17
+  function 'count' @ std/System.pst:658:17
 use Main.pst 46:29-46:38
   type 'Countdown' @ Main.pst:7:5
 use Main.pst 46:48-46:51
-  function 'sum' @ std/System.pst:663:17
+  function 'sum' @ std/System.pst:665:17
 use Main.pst 46:52-46:54
   let 'xs' @ Main.pst:32:5
 use Main.pst 46:65-46:70
-  function 'count' @ std/System.pst:656:17
+  function 'count' @ std/System.pst:658:17
 use Main.pst 46:71-46:76
   function 'chars' @ std/System.pst:568:17
 use Main.pst 47:1-47:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 47:11-47:18
-  function 'collect' @ std/System.pst:649:17
+  function 'collect' @ std/System.pst:651:17
 use Main.pst 47:19-47:21
   let 'xs' @ Main.pst:32:5
 use Main.pst 47:33-47:39
   function 'double' @ Main.pst:16:10
 use Main.pst 47:63-47:66
-  function 'any' @ std/System.pst:676:17
+  function 'any' @ std/System.pst:678:17
 use Main.pst 47:67-47:69
   let 'xs' @ Main.pst:32:5
 use Main.pst 47:78-47:83
   function 'isOdd' @ Main.pst:19:10
 use Main.pst 47:87-47:90
-  function 'all' @ std/System.pst:683:17
+  function 'all' @ std/System.pst:685:17
 use Main.pst 47:91-47:93
   let 'xs' @ Main.pst:32:5
 use Main.pst 47:102-47:107
@@ -167,7 +167,7 @@ use Main.pst 49:1-49:8
 use Main.pst 49:11-49:14
   function 'get' @ std/System.pst:487:17
 use Main.pst 49:15-49:19
-  function 'find' @ std/System.pst:690:17
+  function 'find' @ std/System.pst:692:17
 use Main.pst 49:20-49:22
   let 'xs' @ Main.pst:32:5
 use Main.pst 49:31-49:36

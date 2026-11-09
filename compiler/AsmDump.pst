@@ -236,7 +236,14 @@ procedure main(text: String)
     dump("rodata", a.rodata)
     writeln("imports {join(a.imports, sep: " ")}")
     writeln("globals {join(a.globals, sep: " ")}")
-    dump("executable", executable(a.code, a.rodata, 0, a.imports, needed: needed, globals: len(a.globals)))
+    dump("executable", executable(
+        a.code,
+        a.rodata,
+        0,
+        a.imports,
+        needed: needed,
+        globals: len(a.globals),
+    ))
 
 let a := args()
 if len(a) <> 1 then

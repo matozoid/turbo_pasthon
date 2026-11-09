@@ -29,7 +29,16 @@ procedure usage(message: String)
 function parseArgs(a: List[String]): Options
     if len(a) = 0 then
         usage("missing command")
-    var o := Options(command: a[0], file: "", output: "", json: false, unchecked: false, filter: "", check: false, rest: [])
+    var o := Options(
+        command: a[0],
+        file: "",
+        output: "",
+        json: false,
+        unchecked: false,
+        filter: "",
+        check: false,
+        rest: [],
+    )
     if not (o.command in ["check", "build", "run", "test", "fmt", "tokens", "ast"]) then
         usage("unknown command '{o.command}'")
     let dump := o.command = "tokens" or o.command = "ast" or o.command = "fmt"
@@ -114,7 +123,13 @@ procedure forget(result: Checked)
 
 ## Checks and compiles `path` into the executable `out`, and prints the diagnostics.
 ## Whether it succeeded.
-function buildTo(path: String, stdDir: String, out: String, asJson: Boolean, checked: Boolean): Boolean
+function buildTo(
+    path: String,
+    stdDir: String,
+    out: String,
+    asJson: Boolean,
+    checked: Boolean,
+): Boolean
     let result := typecheck(path, stdDir: stdDir, keep: true)
     let ds := result.resolved.checker.diagnostics
     if hasErrors(ds) then

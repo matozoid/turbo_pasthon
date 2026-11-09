@@ -345,7 +345,11 @@ export function subst(t: Type, s: Subst): Type
         RefT(r):
             return RefT(target: subst(r.target, s))
         FuncT(f):
-            return FuncT(isFunction: f.isFunction, params: substAll(f.params, s), result: subst(f.result, s))
+            return FuncT(
+                isFunction: f.isFunction,
+                params: substAll(f.params, s),
+                result: subst(f.result, s),
+            )
         SpecialT(x):
             if x.name = "This" and ThisId in s then
                 return s[ThisId]
@@ -447,7 +451,12 @@ export function unify(pattern, actual: Type, var s: Subst, vars: Vars): Boolean
         FuncT(p):
             case actual of
                 FuncT(a):
-                    return p.isFunction = a.isFunction and unifyAll(p.params, a.params, var s, vars) and unify(p.result, a.result, var s, vars)
+                    return p.isFunction = a.isFunction and unifyAll(
+                        p.params,
+                        a.params,
+                        var s,
+                        vars,
+                    ) and unify(p.result, a.result, var s, vars)
                 else:
                     return false
         else:

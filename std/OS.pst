@@ -103,8 +103,24 @@ export unsafe function realPath(path: String): Result[String, String]
 ## The file type bits of `path` (following symbolic links), or -1 if it doesn't exist.
 unsafe function fileType(path: String): Integer
     var st := Stat(
-        w0: 0, w1: 0, w2: 0, w3: 0, w4: 0, w5: 0, w6: 0, w7: 0, w8: 0,
-        w9: 0, w10: 0, w11: 0, w12: 0, w13: 0, w14: 0, w15: 0, w16: 0, w17: 0,
+        w0: 0,
+        w1: 0,
+        w2: 0,
+        w3: 0,
+        w4: 0,
+        w5: 0,
+        w6: 0,
+        w7: 0,
+        w8: 0,
+        w9: 0,
+        w10: 0,
+        w11: 0,
+        w12: 0,
+        w13: 0,
+        w14: 0,
+        w15: 0,
+        w16: 0,
+        w17: 0,
     )
     if cStat(toCString(path), addr(var st)) <> 0 then
         return -1
@@ -190,9 +206,14 @@ export unsafe function removeDir(path: String): Result[Integer, String]
 ## `errors` names another file for it. With `input`, the program reads that file as its
 ## standard input. With `dir`, it runs in that directory; the paths of the files are
 ## relative to the current directory, not to `dir`.
-export unsafe function run(path: String, args: List[String], output: String := "",
-                           errors: String := "", input: String := "",
-                           dir: String := ""): Result[Integer, String]
+export unsafe function run(
+    path: String,
+    args: List[String],
+    output: String := "",
+    errors: String := "",
+    input: String := "",
+    dir: String := "",
+): Result[Integer, String]
     let n := len(args)
     let argv := cast[Ptr[CString]](malloc(CSize(8 * (n + 2))))
     deref(argv) := strdup(toCString(path))

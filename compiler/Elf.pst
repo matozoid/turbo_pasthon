@@ -75,7 +75,13 @@ export function align(n, a: Integer): Integer
 function interpLen(): Integer
     return len(bytes(Interp)) + 1
 
-function layout(codeLen, rodataLen: Integer, imports, needed: List[String], globals: Integer): Layout
+function layout(
+    codeLen,
+    rodataLen: Integer,
+    imports,
+    needed: List[String],
+    globals: Integer,
+): Layout
     let n := len(imports)
     let rodata := CodeOffset + align(codeLen, 16)
     let interp := align(rodata + rodataLen, 8)
@@ -86,7 +92,19 @@ function layout(codeLen, rodataLen: Integer, imports, needed: List[String], glob
     let roEnd := rela + 24 * n
     let dynamic := align(roEnd, 8)
     let got := dynamic + 16 * (DynamicEntries + len(needed))
-    return Layout(codeLen: codeLen, rodata: rodata, interp: interp, dynstr: dynstr, dynsym: dynsym, hash: hash, rela: rela, roEnd: roEnd, dynamic: dynamic, got: got, end: got + 8 * (n + globals))
+    return Layout(
+        codeLen: codeLen,
+        rodata: rodata,
+        interp: interp,
+        dynstr: dynstr,
+        dynsym: dynsym,
+        hash: hash,
+        rela: rela,
+        roEnd: roEnd,
+        dynamic: dynamic,
+        got: got,
+        end: got + 8 * (n + globals),
+    )
 
 ## The address a file offset is loaded at.
 function addr(lay: Layout, offset: Integer): Integer
@@ -143,7 +161,14 @@ procedure programHeader(var out: List[Byte], i: Integer, h: List[Integer])
 ## An executable whose code starts at `CodeOffset`; `entry` is an offset into `code`.
 ## `imports` are the C functions the code calls through the GOT, found in the `needed`
 ## libraries. `globals` zeroed words follow the GOT.
-export function executable(code, rodata: List[Byte], entry: Integer, imports, needed: List[String], globals: Integer): List[Byte]
+export function executable(
+    code,
+    rodata: List[Byte],
+    entry: Integer,
+    imports,
+    needed: List[String],
+    globals: Integer,
+): List[Byte]
     let lay := layout(len(code), len(rodata), imports, needed: needed, globals: globals)
     let n := len(imports)
     var out: List[Byte] := []
@@ -165,8 +190,22 @@ export function executable(code, rodata: List[Byte], entry: Integer, imports, ne
     programHeader(var out, 0, h: [PtPhdr, PfR, Ehdr, addr(lay, Ehdr), Phdr * Segments, 8])
     programHeader(var out, 1, h: [PtInterp, PfR, lay.interp, addr(lay, lay.interp), interpLen(), 1])
     programHeader(var out, 2, h: [PtLoad, PfR + PfX, 0, addr(lay, 0), lay.roEnd, Page])
-    programHeader(var out, 3, h: [PtLoad, PfR + PfW, lay.dynamic, addr(lay, lay.dynamic), rwSize, Page])
-    programHeader(var out, 4, h: [PtDynamic, PfR + PfW, lay.dynamic, addr(lay, lay.dynamic), 16 * (DynamicEntries + len(needed)), 8])
+    programHeader(var out, 3, h: [
+        PtLoad,
+        PfR + PfW,
+        lay.dynamic,
+        addr(lay, lay.dynamic),
+        rwSize,
+        Page,
+    ])
+    programHeader(var out, 4, h: [
+        PtDynamic,
+        PfR + PfW,
+        lay.dynamic,
+        addr(lay, lay.dynamic),
+        16 * (DynamicEntries + len(needed)),
+        8,
+    ])
     programHeader(var out, 5, h: [PtGnuStack, PfR + PfW, 0, 0, 0, 16])
 
     put(var out, CodeOffset, data: code)

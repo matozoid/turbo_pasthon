@@ -60,7 +60,13 @@ function above(x, y: Score): Boolean
     return l > r or (l = r and x.name > y.name)
 
 ## Up to `n` of `candidates` whose ratio to `word` is at least `num / den`, best first.
-export function closeMatches(word: String, candidates: List[String], n: Integer, num, den: Integer): List[String]
+export function closeMatches(
+    word: String,
+    candidates: List[String],
+    n: Integer,
+    num,
+    den: Integer,
+): List[String]
     let b := charsOf(word)
     var scores: List[Score] := []
     for c in candidates do
@@ -82,6 +88,12 @@ export function closeMatches(word: String, candidates: List[String], n: Integer,
     return out
 
 test "close matches, best first"
-    assert closeMatches("lenght", ["length", "len", "height", "other"], 3, num: 3, den: 5) = ["length", "len", "height"]
+    assert closeMatches(
+        "lenght",
+        ["length", "len", "height", "other"],
+        3,
+        num: 3,
+        den: 5,
+    ) = ["length", "len", "height"]
     assert closeMatches("abc", ["abd", "abc", "xyz"], 1, num: 3, den: 5) = ["abc"]
     assert closeMatches("abc", [], 3, num: 3, den: 5) = []

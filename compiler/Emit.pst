@@ -263,8 +263,21 @@ function uint64T(): Type
 function newFrame(file: String, sym: Option[ref Symbol], exit: String): ref Frame
     let first: List[Entry] := []
     return new(Frame(
-        file: file, sym: sym, exit: exit, slots: {}, size: 0, scopes: [first], loops: [],
-        resultSlot: None, posts: [], old: {}, s: {}, sites: {}, depth: 0, keep: {}, noTry: 0,
+        file: file,
+        sym: sym,
+        exit: exit,
+        slots: {},
+        size: 0,
+        scopes: [first],
+        loops: [],
+        resultSlot: None,
+        posts: [],
+        old: {},
+        s: {},
+        sites: {},
+        depth: 0,
+        keep: {},
+        noTry: 0,
     ))
 
 function alloc(g: ref Em): Integer
@@ -401,7 +414,14 @@ procedure unsupported(g: ref Em, span: Span, what: String)
     let k := "{g.f.file}|{span.start}|{span.end}|{message}"
     if not (k in g.reported) then
         g.reported[k] := true
-        add(var g.diagnostics, Diagnostic(file: g.f.file, span: span, severity: Severity.Error, code: "E0990", message: message, fixes: []))
+        add(var g.diagnostics, Diagnostic(
+            file: g.f.file,
+            span: span,
+            severity: Severity.Error,
+            code: "E0990",
+            message: message,
+            fixes: [],
+        ))
     g.bad := true
 
 function rawType(g: ref Em, id: Integer): Type
@@ -509,14 +529,24 @@ function supported(g: ref Em, t: Type): Boolean
         g.supportedCache[k] := ok
     return g.supportedCache[k]
 
-function supportedAll(g: ref Em, ts: List[Type], var seen: Map[String, Boolean], var done: List[String]): Boolean
+function supportedAll(
+    g: ref Em,
+    ts: List[Type],
+    var seen: Map[String, Boolean],
+    var done: List[String],
+): Boolean
     for p in ts do
         if not supportedIn(g, p, var seen, var done) then
             return false
     return true
 
 ## `seen`: the records and unions being visited; `done`: those visited.
-function supportedIn(g: ref Em, t: Type, var seen: Map[String, Boolean], var done: List[String]): Boolean
+function supportedIn(
+    g: ref Em,
+    t: Type,
+    var seen: Map[String, Boolean],
+    var done: List[String],
+): Boolean
     let k := key(t)
     if t = integerT() or t = booleanT() or t = charT() or t = stringT() or hasError(t) then
         return true
@@ -590,7 +620,13 @@ function fieldIndex(g: ref Em, t: Type, name: String): Integer
 
 ## The data label of the descriptor for blocks of `k` holding `parts`, with equality
 ## routine `eq` and drop routine `drop` (code labels) if not "".
-function descriptor(g: ref Em, k: String, parts: List[Type], eq: String := "", drop: String := ""): String
+function descriptor(
+    g: ref Em,
+    k: String,
+    parts: List[Type],
+    eq: String := "",
+    drop: String := "",
+): String
     if not (k in g.descs) then
         var bs: List[Byte] := []
         word(var bs, len(parts))
@@ -651,7 +687,13 @@ function boxDesc(g: ref Em, t: Type, span: Span): String
             return "?"
         let dropLabel := newLabel(g.a, "drop")
         add(var g.drops, BoxDrop(label: dropLabel, hook: hook))
-        _ := descriptor(g, k, [t, builtin("Weak", [t])], eq: runtime(g, "rt_ref_eq"), drop: dropLabel)
+        _ := descriptor(
+            g,
+            k,
+            [t, builtin("Weak", [t])],
+            eq: runtime(g, "rt_ref_eq"),
+            drop: dropLabel,
+        )
     return g.descs[k]
 
 ## The drop routine of a box type, for rt_release: rdi is the box.
@@ -780,7 +822,6 @@ procedure releaseScopes(g: ref Em, depth: Integer)
                     if entry.slot in keep then  # the scope may be entered again without reaching toCString
                         storeImm(g.a, Rbp, disp: entry.slot, value: 0)
 
-
 ## The key of a call or other expression in `Frame.keep` and `Frame.old`.
 function exprKey(g: ref Em, id: Integer): String
     return "{g.f.file}:{id}"
@@ -858,15 +899,39 @@ export function build(result: Checked, checked: Boolean := true, tests: Boolean 
                 else:
                     pass
     let g := new(Em(
-        env: env, index: r.checker.index, checked: checked, tests: tests, main: main, a: newAssembler(),
-        diagnostics: [], reported: {}, runtime: [], used: {}, panics: [], labels: {}, queue: [],
-        descs: {}, supportedCache: {}, thunks: [], drops: [], needed: [Libc], library: library,
-        units: units, types: types, calls: calls, f: newFrame(main.path, None, exit: ""),
+        env: env,
+        index: r.checker.index,
+        checked: checked,
+        tests: tests,
+        main: main,
+        a: newAssembler(),
+        diagnostics: [],
+        reported: {},
+        runtime: [],
+        used: {},
+        panics: [],
+        labels: {},
+        queue: [],
+        descs: {},
+        supportedCache: {},
+        thunks: [],
+        drops: [],
+        needed: [Libc],
+        library: library,
+        units: units,
+        types: types,
+        calls: calls,
+        f: newFrame(main.path, None, exit: ""),
         bad: false,
     ))
     return run(g)
 
-procedure mergeChecker(var types: Map[String, Map[Integer, Type]], var calls: Map[String, Map[Integer, Match]], path: String, tc: ref TC)
+procedure mergeChecker(
+    var types: Map[String, Map[Integer, Type]],
+    var calls: Map[String, Map[Integer, Match]],
+    path: String,
+    tc: ref TC,
+)
     if not (path in types) then
         types[path] := {}
         calls[path] := {}
@@ -880,8 +945,12 @@ function run(g: ref Em): Built
     let file := g.main.parsed.file
     if file.kind <> "program" and not g.tests then
         add(var g.diagnostics, Diagnostic(
-            file: g.main.path, span: file.name.span, severity: Severity.Error, code: "E0990",
-            message: "only a program can be built; a unit is compiled with the program that uses it", fixes: [],
+            file: g.main.path,
+            span: file.name.span,
+            severity: Severity.Error,
+            code: "E0990",
+            message: "only a program can be built; a unit is compiled with the program that uses it",
+            fixes: [],
         ))
         return Built(executable: None, diagnostics: g.diagnostics)
     g.f := newFrame(g.main.path, None, exit: newLabel(a, "exit"))
@@ -935,7 +1004,14 @@ function run(g: ref Em): Built
         return Built(executable: None, diagnostics: g.diagnostics)
     let got := gotOffset(len(a.code), len(a.rodata), a.imports, needed: g.needed)
     finish(a, rodataOffset(len(a.code)), gotOffset: got)
-    let exe := executable(a.code, a.rodata, a.labels["_start"], a.imports, needed: g.needed, globals: len(a.globals))
+    let exe := executable(
+        a.code,
+        a.rodata,
+        a.labels["_start"],
+        a.imports,
+        needed: g.needed,
+        globals: len(a.globals),
+    )
     return Built(executable: Some(exe), diagnostics: [])
 
 ## The body of a test executable: runs test block number `atoi(argv[1])` of the main
@@ -975,7 +1051,13 @@ procedure testBlocks(g: ref Em, file: SourceFile)
 
 ## The label of a routine, or of a generic routine's instance for `targs`. An instance is
 ## compiled once, however many places use it (SPEC §8.1).
-function labelOf(g: ref Em, span: Span, sym: ref Symbol, targs: List[Type], sites: Map[Integer, String]): String
+function labelOf(
+    g: ref Em,
+    span: Span,
+    sym: ref Symbol,
+    targs: List[Type],
+    sites: Map[Integer, String],
+): String
     let k := "{sym.id}|{typesKey(targs)}"
     if not (k in g.labels) then
         var depth := g.f.depth
@@ -983,7 +1065,10 @@ function labelOf(g: ref Em, span: Span, sym: ref Symbol, targs: List[Type], site
             depth := depth + 1
         if depth > MaxDepth then
             add(var g.diagnostics, Diagnostic(
-                file: g.f.file, span: span, severity: Severity.Error, code: "E0720",
+                file: g.f.file,
+                span: span,
+                severity: Severity.Error,
+                code: "E0720",
                 message: "generic instances nest more than {MaxDepth} deep here: '{sym.name}' keeps instantiating itself with a bigger type",
                 fixes: [],
             ))
@@ -1069,7 +1154,12 @@ procedure routineBody(g: ref Em, node: Routine, sg: Sig)
             if g.bad then
                 return
             testR(a, Rax, Rax)
-            jcc(a, "e", label: panic(g, "P0010", "requires violated: {text(g, exprSpan(e))}", span: exprSpan(e)))
+            jcc(a, "e", label: panic(
+                g,
+                "P0010",
+                "requires violated: {text(g, exprSpan(e))}",
+                span: exprSpan(e),
+            ))
         if len(node.post) > 0 then
             f.posts := node.post
             f.resultSlot := Some(alloc(g))
@@ -1087,7 +1177,12 @@ procedure routineBody(g: ref Em, node: Routine, sg: Sig)
             if g.bad then
                 return
             testR(a, Rax, Rax)
-            jcc(a, "e", label: panic(g, "P0011", "ensures violated: {text(g, exprSpan(e))}", span: exprSpan(e)))
+            jcc(a, "e", label: panic(
+                g,
+                "P0011",
+                "ensures violated: {text(g, exprSpan(e))}",
+                span: exprSpan(e),
+            ))
         load(a, Rax, Rbp, disp: rs)
     releaseScopes(g, 0)
 
@@ -1262,7 +1357,11 @@ function isC(g: ref Em, c: Call, name: String): Boolean
 function isOld(g: ref Em, c: Call): Boolean
     case c.callee of
         Name(n):
-            return n.name = "old" and not hasCall(g, c.id) and lookup(g.index, g.f.file, n.span).isNone()
+            return n.name = "old" and not hasCall(g, c.id) and lookup(
+                g.index,
+                g.f.file,
+                n.span,
+            ).isNone()
         else:
             return false
 
@@ -1447,7 +1546,11 @@ procedure stmt(g: ref Em, s: Stmt)
                         StringLit(sl):
                             message := "{message}: {sl.value}"
                         else:
-                            unsupported(g, exprSpan(m.value), "an assert message other than a string literal")
+                            unsupported(
+                                g,
+                                exprSpan(m.value),
+                                "an assert message other than a string literal",
+                            )
                             return
                 None:
                     pass
@@ -1669,7 +1772,12 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
                 var vars: Vars := {}
                 for tp in fs.tparams do
                     vars[tp.id] := true
-                if len(fs.params) = 1 and isRoutineNode(f) and unify(fs.params[0].ty, t, var sf, vars: vars) then
+                if len(fs.params) = 1 and isRoutineNode(f) and unify(
+                    fs.params[0].ty,
+                    t,
+                    var sf,
+                    vars: vars,
+                ) then
                     let made := subst(fs.result, sf)
                     item := iteratorItem(chk, made)
                     if item.isSome() then
@@ -1783,7 +1891,14 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
 
 ## A `case` statement (`stmtArms`), or a `case` expression (`exprArms`) of type `result`,
 ## each arm's value then ending up in rax. The subject is kept in a slot of its own block.
-procedure caseOf(g: ref Em, subject: Expr, stmtArms: List[CaseArm], exprArms: List[CaseExprArm], result: Type, isExpr: Boolean)
+procedure caseOf(
+    g: ref Em,
+    subject: Expr,
+    stmtArms: List[CaseArm],
+    exprArms: List[CaseExprArm],
+    result: Type,
+    isExpr: Boolean,
+)
     let a := g.a
     let t := typeOfExpr(g, subject)
     let depth := len(g.f.scopes)
@@ -2695,15 +2810,33 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
         let t := typeOfExpr(g, x.right)
         let targs := argsOf(t)
         if isMap(g.env, t) then
-            sysCall(g, x.span, "containsKey", [SysArg(e: x.left, ty: targs[0]), SysArg(e: x.right, ty: t)], targs: targs)
+            sysCall(
+                g,
+                x.span,
+                "containsKey",
+                [SysArg(e: x.left, ty: targs[0]), SysArg(e: x.right, ty: t)],
+                targs: targs,
+            )
             return
         if isSet(g.env, t) then
-            sysCall(g, x.span, "includes", [SysArg(e: x.left, ty: targs[0]), SysArg(e: x.right, ty: t)], targs: targs)
+            sysCall(
+                g,
+                x.span,
+                "includes",
+                [SysArg(e: x.left, ty: targs[0]), SysArg(e: x.right, ty: t)],
+                targs: targs,
+            )
             return
         if not isList(t) then
             unsupported(g, x.span, "'in' on {show(t)}")
             return
-        sysCall(g, x.span, "contains", [SysArg(e: x.left, ty: targs[0]), SysArg(e: x.right, ty: t)], targs: [targs[0]])
+        sysCall(
+            g,
+            x.span,
+            "contains",
+            [SysArg(e: x.left, ty: targs[0]), SysArg(e: x.right, ty: t)],
+            targs: [targs[0]],
+        )
         return
     if isPtr(typeOfExpr(g, x.left)) and (op = "+" or op = "-") then
         pointerArith(g, x)
@@ -3075,7 +3208,12 @@ function boxesOf(g: ref Em, e: Expr): Map[String, Boolean]
 ## Whether a value of type `t` can hold a `ref` or `Weak` to one of the types `boxes`.
 ## `seen`: the types already visited. A function value can't: it is a top-level routine,
 ## which holds nothing.
-function reaches(g: ref Em, t: Type, boxes: Map[String, Boolean], var seen: Map[String, Boolean]): Boolean
+function reaches(
+    g: ref Em,
+    t: Type,
+    boxes: Map[String, Boolean],
+    var seen: Map[String, Boolean],
+): Boolean
     let k := key(t)
     if k in seen then
         return false
@@ -3160,7 +3298,10 @@ procedure convert(g: ref Em, c: Call)
         return
     if src = dst then
         return
-    if g.checked and (src = uint64T()) <> (dst = uint64T()) and (src = uint64T() or not intSigned(dst)) then
+    if g.checked and (src = uint64T()) <> (dst = uint64T()) and (
+        src = uint64T()
+        or not intSigned(dst)
+    ) then
         testR(a, Rax, Rax)  # UInt64 above Int64's range, or a negative value to UInt64
         jcc(a, "s", label: panic(g, "P0002", "integer overflow", span: c.span))
     fit(g, dst, c.span)
@@ -3338,7 +3479,14 @@ function boundMember(g: ref Em, c: Call, m: Match): Callee
         None:
             pass
     var s2: Subst := {}
-    let found := provider(g.env.checkers[site], getOr(sub, ThisId, default: noneT()), m: member, sub: sub, s: var s2, vars: {})
+    let found := provider(
+        g.env.checkers[site],
+        getOr(sub, ThisId, default: noneT()),
+        m: member,
+        sub: sub,
+        s: var s2,
+        vars: {},
+    )
     if found.isNone() then
         unsupported(g, c.span, "calling '{member.name}' here")
         return Callee(sym: member, targs: [], sites: {})
@@ -3476,7 +3624,10 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         call(a, runtime(g, "rt_write_str"))
     else if sysU and n = "toString" then
         toString(g, args[0])
-    else if sysU and n = "ord" and (typeOfExpr(g, args[0]) = charT() or kind(g, typeOfExpr(g, args[0])) = "enum") then
+    else if sysU and n = "ord" and (
+        typeOfExpr(g, args[0]) = charT()
+        or kind(g, typeOfExpr(g, args[0])) = "enum"
+    ) then
         expr(g, args[0])
     else if sysU and n = "halt" then
         expr(g, args[0])
@@ -3599,7 +3750,15 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
                 subImm(a, Rax, value: lo)
             else
                 addImm(a, Rax, value: lo)
-    else if (sysU or u = "Bits") and (n = "band" or n = "bor" or n = "bxor" or n = "bnot" or n = "shl" or n = "shr" or n = "popCount") then
+    else if (sysU or u = "Bits") and (
+        n = "band"
+        or n = "bor"
+        or n = "bxor"
+        or n = "bnot"
+        or n = "shl"
+        or n = "shr"
+        or n = "popCount"
+    ) then
         bitsOp(g, c, n, args, targ0(g, m))
     else if sysU and n = "new" then
         let t := targ0(g, m)

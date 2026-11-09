@@ -87,10 +87,18 @@ export unsafe function join(parts: List[String], sep: String := ""): String
     var at := 0
     for i := 0 to len(parts) - 1 do
         if i > 0 then
-            _ := memcpy(cast[Pointer](buf + at), src: cast[Pointer](toCString(sep)), n: CSize(byteLen(sep)))
+            _ := memcpy(
+                cast[Pointer](buf + at),
+                src: cast[Pointer](toCString(sep)),
+                n: CSize(byteLen(sep)),
+            )
             at := at + byteLen(sep)
         let part := parts[i]
-        _ := memcpy(cast[Pointer](buf + at), src: cast[Pointer](toCString(part)), n: CSize(byteLen(part)))
+        _ := memcpy(
+            cast[Pointer](buf + at),
+            src: cast[Pointer](toCString(part)),
+            n: CSize(byteLen(part)),
+        )
         at := at + byteLen(part)
     let r := fromCBytes(cast[Pointer](buf), total)
     free(cast[Pointer](buf))

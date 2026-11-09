@@ -26,9 +26,9 @@ function restock(var item: Item, amount: Integer): Result[Integer, String]
 
 function describe(item: Item): String
     return case item.status of
-        Active:       "{item.name}: {item.qty}"
+        Active: "{item.name}: {item.qty}"
         Discontinued: "{item.name}: gone"
-        Backorder:    "{item.name}: waiting"
+        Backorder: "{item.name}: waiting"
 
 function names[T: Named](xs: List[T]): String
     var parts: List[String] := []
@@ -52,7 +52,7 @@ var items := [
     Item(name: "nut", qty: 0, status: Status.Backorder),
 ]
 case restockAll(var items, amount: 5) of
-    Ok(n):  writeln("total stock: {n.value}")
+    Ok(n): writeln("total stock: {n.value}")
     Err(e): writeln("error: {e.error}")
 for item in items do
     writeln(item.describe())

@@ -1312,6 +1312,8 @@ transcript (exit status, standard output and standard error) must match the case
 `expected.out`; `-- --update` writes the transcripts instead.
 The standard units and the compiler's units have `test` blocks (§13), which the case
 `unit-tests` runs with `pst test`.
+The code in `std/`, `compiler/`, `examples/` and `tests/Run.pst` is formatted with `pst fmt`;
+the case `fmt.repo` checks it.
 
 ### 15.1 Diagnostics
 Human format: `Main.pst:12:5: error E0502: result of 'restock' is ignored`.

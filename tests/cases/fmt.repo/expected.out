@@ -1,0 +1,16 @@
+$ $PST fmt --check $ROOT/std
+exit 0
+--- stdout
+--- stderr
+$ $PST fmt --check $ROOT/compiler
+exit 0
+--- stdout
+--- stderr
+$ $PST fmt --check $ROOT/examples
+exit 0
+--- stdout
+--- stderr
+$ $PST fmt --check $ROOT/tests/Run.pst
+exit 0
+--- stdout
+--- stderr

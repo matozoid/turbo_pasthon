@@ -61,7 +61,20 @@ type
         export stack: List[Boolean]
 
 export function newAssembler(): ref Assembler
-    return new(Assembler(code: [], rodata: [], labels: {}, dataLabels: {}, fixups: [], codeRefs: [], strings: {}, imports: [], globals: [], n: 0, tracked: false, stack: []))
+    return new(Assembler(
+        code: [],
+        rodata: [],
+        labels: {},
+        dataLabels: {},
+        fixups: [],
+        codeRefs: [],
+        strings: {},
+        imports: [],
+        globals: [],
+        n: 0,
+        tracked: false,
+        stack: [],
+    ))
 
 # ---------------------------------------------------------------------- bytes
 
@@ -206,7 +219,14 @@ export procedure movImm64(a: ref Assembler, dst: Integer, value: Integer)
 ## An instruction with a `[base + disp]` operand. `reg` is the register operand or the
 ## opcode extension. `flags`: 1 for a 64-bit operand (REX.W), 2 for a byte register
 ## operand, 4 for a 0x66 prefix.
-procedure mem(a: ref Assembler, op: List[Integer], reg, base: Integer, disp: Integer, flags: Integer := 1)
+procedure mem(
+    a: ref Assembler,
+    op: List[Integer],
+    reg,
+    base: Integer,
+    disp: Integer,
+    flags: Integer := 1,
+)
     if band(flags, 4) <> 0 then
         emit(a, [0x66])
     let x := rex(band(flags, 1) <> 0, reg, rm: base)
@@ -252,7 +272,14 @@ export procedure load8(a: ref Assembler, dst, base: Integer, disp: Integer := 0)
     mem(a, [0x0F, 0xB6], dst, base, disp: disp, flags: 0)
 
 ## Loads a `bits`-wide integer, sign- or zero-extended to 64 bits.
-export procedure loadW(a: ref Assembler, dst, base: Integer, disp: Integer, bits: Integer, signed: Boolean)
+export procedure loadW(
+    a: ref Assembler,
+    dst,
+    base: Integer,
+    disp: Integer,
+    bits: Integer,
+    signed: Boolean,
+)
     if bits = 64 then
         load(a, dst, base, disp: disp)
     else if bits = 8 and signed then
@@ -412,7 +439,24 @@ export procedure decR(a: ref Assembler, r: Integer)
 
 ## The number of a condition code, for jcc: `jcc(a, "e", l)` jumps if equal.
 function cc(name: String): Integer
-    let names := ["o", "no", "b", "ae", "e", "ne", "be", "a", "s", "ns", "", "", "l", "ge", "le", "g"]
+    let names := [
+        "o",
+        "no",
+        "b",
+        "ae",
+        "e",
+        "ne",
+        "be",
+        "a",
+        "s",
+        "ns",
+        "",
+        "",
+        "l",
+        "ge",
+        "le",
+        "g",
+    ]
     let i := indexOf(names, name)
     assert i >= 0 and name <> "", "unknown condition"
     return i

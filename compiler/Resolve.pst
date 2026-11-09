@@ -126,8 +126,22 @@ function isName(e: Expr): Boolean
         else:
             return false
 
-export procedure error(c: ref Checker, file, code: String, span: Span, message: String, fixes: List[Fix] := [])
-    let d := Diagnostic(file: file, span: span, severity: Severity.Error, code: code, message: message, fixes: fixes)
+export procedure error(
+    c: ref Checker,
+    file,
+    code: String,
+    span: Span,
+    message: String,
+    fixes: List[Fix] := [],
+)
+    let d := Diagnostic(
+        file: file,
+        span: span,
+        severity: Severity.Error,
+        code: code,
+        message: message,
+        fixes: fixes,
+    )
     for x in c.diagnostics do
         if x = d then
             return
@@ -136,7 +150,14 @@ export procedure error(c: ref Checker, file, code: String, span: Span, message: 
 function replaceFix(span: Span, text: String): Fix
     return Fix(description: "replace with '{text}'", edits: [Edit(span: span, text: text)])
 
-export function newSymbol(c: ref Checker, kind: Kind, name: String, span: Option[Span], file: String, unitName: String): ref Symbol
+export function newSymbol(
+    c: ref Checker,
+    kind: Kind,
+    name: String,
+    span: Option[Span],
+    file: String,
+    unitName: String,
+): ref Symbol
     c.nextSymbol := c.nextSymbol + 1
     return new(Symbol(
         id: c.nextSymbol,
@@ -306,7 +327,14 @@ function load(c: ref Checker, path: String, std: Boolean, expected: String := ""
             text := t.value
         Err(e):
             let span := Span(start: 0, end: 0, line: 1, col: 1, endLine: 1, endCol: 1)
-            add(var c.diagnostics, Diagnostic(file: path, span: span, severity: Severity.Error, code: "E0000", message: e.error, fixes: []))
+            add(var c.diagnostics, Diagnostic(
+                file: path,
+                span: span,
+                severity: Severity.Error,
+                code: "E0000",
+                message: e.error,
+                fixes: [],
+            ))
             return None
     let parsed := parse(text, file: path)
     for d in parsed.diagnostics do
@@ -338,9 +366,15 @@ function load(c: ref Checker, path: String, std: Boolean, expected: String := ""
     if tree.name.name <> "" and tree.name.name <> stem then
         var fixes: List[Fix] := []
         if isPlainName(stem) then
-            add(var fixes, Fix(description: "rename to '{stem}'", edits: [Edit(span: tree.name.span, text: stem)]))
+            add(var fixes, Fix(
+                description: "rename to '{stem}'",
+                edits: [Edit(span: tree.name.span, text: stem)],
+            ))
         error(
-            c, path, "E0105", tree.name.span,
+            c,
+            path,
+            "E0105",
+            tree.name.span,
             message: "{tree.kind} '{tree.name.name}' must be in a file named '{tree.name.name}.pst', not '{basename(path)}'",
             fixes: fixes,
         )
@@ -383,7 +417,12 @@ procedure report(c: ref Checker, user: ref Unit, span: Option[Span], code: Strin
         None:
             return
 
-function findUnit(c: ref Checker, name: String, user: ref Unit, span: Option[Span]): Option[ref Unit]
+function findUnit(
+    c: ref Checker,
+    name: String,
+    user: ref Unit,
+    span: Option[Span],
+): Option[ref Unit]
     if name = user.name then
         report(c, user, span, code: "E0107", message: "'{name}' can't use itself")
         return None
@@ -407,7 +446,13 @@ function findUnit(c: ref Checker, name: String, user: ref Unit, span: Option[Spa
                 Some(u):
                     if u.value.parsed.file.kind <> "unit" then
                         c.programs[name] := true
-                        report(c, user, span, code: "E0102", message: "'{name}' is a program, not a unit")
+                        report(
+                            c,
+                            user,
+                            span,
+                            code: "E0102",
+                            message: "'{name}' is a program, not a unit",
+                        )
                         return None
                     return Some(u.value)
                 None:
@@ -416,7 +461,13 @@ function findUnit(c: ref Checker, name: String, user: ref Unit, span: Option[Spa
     var dir := dirname(user.path)
     if dir = "" then
         dir := "."
-    report(c, user, span, code: "E0102", message: "unit '{name}' not found: no '{name}.pst' in {dir} or the standard units")
+    report(
+        c,
+        user,
+        span,
+        code: "E0102",
+        message: "unit '{name}' not found: no '{name}.pst' in {dir} or the standard units",
+    )
     return None
 
 procedure checkCycles(c: ref Checker, main: ref Unit)
@@ -425,7 +476,12 @@ procedure checkCycles(c: ref Checker, main: ref Unit)
     var stack: List[ref Unit] := []
     visit(c, main, state: var state, stack: var stack)
 
-procedure visit(c: ref Checker, u: ref Unit, var state: Map[Integer, Integer], var stack: List[ref Unit])
+procedure visit(
+    c: ref Checker,
+    u: ref Unit,
+    var state: Map[Integer, Integer],
+    var stack: List[ref Unit],
+)
     state[u.id] := 1
     add(var stack, u)
     for ident in u.parsed.file.units do
@@ -441,7 +497,13 @@ procedure visit(c: ref Checker, u: ref Unit, var state: Map[Integer, Integer], v
                         if on then
                             add(var names, w.name)
                     add(var names, v.name)
-                    error(c, u.path, "E0107", ident.span, message: "cyclic uses: {Strings.join(names, sep: " -> ")}")
+                    error(
+                        c,
+                        u.path,
+                        "E0107",
+                        ident.span,
+                        message: "cyclic uses: {Strings.join(names, sep: " -> ")}",
+                    )
                 else if not (v.id in state) then
                     visit(c, v, state: var state, stack: var stack)
             None:
@@ -452,7 +514,24 @@ procedure visit(c: ref Checker, u: ref Unit, var state: Map[Integer, Integer], v
 # --------------------------------------------------------------- declaration pass
 
 const
-    SystemTypes = ["Int8", "Int16", "Int32", "Int64", "UInt8", "UInt16", "UInt32", "UInt64", "Real32", "Real64", "Boolean", "Char", "String", "List", "Array", "Weak"]
+    SystemTypes = [
+        "Int8",
+        "Int16",
+        "Int32",
+        "Int64",
+        "UInt8",
+        "UInt16",
+        "UInt32",
+        "UInt64",
+        "Real32",
+        "Real64",
+        "Boolean",
+        "Char",
+        "String",
+        "List",
+        "Array",
+        "Weak",
+    ]
     CTypes = ["CString", "Ptr", "Pointer"]
     SystemTraits = ["Equatable", "Ordered", "Hashable", "Sendable"]
 
@@ -470,7 +549,14 @@ procedure collect(c: ref Checker, u: ref Unit)
             u.top[name] := [b]
         if u.name = "System" then
             for name in SystemTraits do
-                let b := newSymbol(c, Kind.BuiltinTrait, name, span: None, file: "", unitName: u.name)
+                let b := newSymbol(
+                    c,
+                    Kind.BuiltinTrait,
+                    name,
+                    span: None,
+                    file: "",
+                    unitName: u.name,
+                )
                 b.exported := true
                 u.top[name] := [b]
     for item in u.parsed.file.items do
@@ -494,25 +580,59 @@ procedure declaration(c: ref Checker, u: ref Unit, d: Decl)
             for cd in cs.decls do
                 addTop(c, u, declare(c, u, Kind.ConstSym, cd.name, exported: cd.exported, node: cd))
         Routine(r):
-            addTop(c, u, declare(c, u, routineKind(r.sig), r.sig.name, exported: r.exported, node: r))
+            addTop(c, u, declare(
+                c,
+                u,
+                routineKind(r.sig),
+                r.sig.name,
+                exported: r.exported,
+                node: r,
+            ))
         ExternBlock(b):
             if b.library = "pst" and not u.std then
-                error(c, u.path, "E0106", b.span, message: "'extern \"pst\"' is reserved for the standard units")
+                error(
+                    c,
+                    u.path,
+                    "E0106",
+                    b.span,
+                    message: "'extern \"pst\"' is reserved for the standard units",
+                )
             for item in b.decls do
                 case item of
                     TypeSection(ts):
                         for td in ts.decls do
                             typeDecl(c, u, td)
                     ExternDecl(e):
-                        let sym := declare(c, u, routineKind(e.sig), e.sig.name, exported: e.exported, node: e)
+                        let sym := declare(
+                            c,
+                            u,
+                            routineKind(e.sig),
+                            e.sig.name,
+                            exported: e.exported,
+                            node: e,
+                        )
                         sym.isExtern := true
                         addTop(c, u, sym)
         TestBlock(_):
             return
 
 ## A new symbol for a declaration in `u`, entered in the index.
-function declare(c: ref Checker, u: ref Unit, kind: Kind, ident: Ident, exported: Boolean, node: DeclNode): ref Symbol
-    let sym := newSymbol(c, kind, ident.name, span: Some(ident.span), file: u.path, unitName: u.name)
+function declare(
+    c: ref Checker,
+    u: ref Unit,
+    kind: Kind,
+    ident: Ident,
+    exported: Boolean,
+    node: DeclNode,
+): ref Symbol
+    let sym := newSymbol(
+        c,
+        kind,
+        ident.name,
+        span: Some(ident.span),
+        file: u.path,
+        unitName: u.name,
+    )
     sym.exported := exported
     sym.node := node
     add(c.index, u.path, ident.span, targets: [sym], isDef: true)
@@ -522,7 +642,13 @@ procedure addTop(c: ref Checker, u: ref Unit, sym: ref Symbol)
     var existing := getOr(u.top, sym.name, default: [])
     for s in existing do
         if not (isRoutine(s.kind) and isRoutine(sym.kind)) then
-            error(c, u.path, "E0108", sym.span.get(), message: "'{sym.name}' is already declared ({describe(s)}, {location(s)})")
+            error(
+                c,
+                u.path,
+                "E0108",
+                sym.span.get(),
+                message: "'{sym.name}' is already declared ({describe(s)}, {location(s)})",
+            )
             return
     add(var existing, sym)
     u.top[sym.name] := existing
@@ -531,7 +657,13 @@ procedure addTop(c: ref Checker, u: ref Unit, sym: ref Symbol)
 procedure member(c: ref Checker, u: ref Unit, owner, sym: ref Symbol)
     case get(owner.members, sym.name) of
         Some(prev):
-            error(c, u.path, "E0108", sym.span.get(), message: "'{sym.name}' is already declared in '{owner.name}' ({location(prev.value)})")
+            error(
+                c,
+                u.path,
+                "E0108",
+                sym.span.get(),
+                message: "'{sym.name}' is already declared in '{owner.name}' ({location(prev.value)})",
+            )
         None:
             owner.members[sym.name] := sym
 
@@ -549,12 +681,33 @@ procedure typeDecl(c: ref Checker, u: ref Unit, d: TypeDecl)
                 member(c, u, sym, declare(c, u, Kind.EnumMember, m, exported: d.exported, node: m))
         RecordType(rt):
             for f in rt.fields do
-                member(c, u, sym, declare(c, u, Kind.FieldSym, f.name, exported: d.exported and f.exported, node: f))
+                member(c, u, sym, declare(
+                    c,
+                    u,
+                    Kind.FieldSym,
+                    f.name,
+                    exported: d.exported and f.exported,
+                    node: f,
+                ))
         TraitType(tt):
             for f in tt.fields do
-                member(c, u, sym, declare(c, u, Kind.FieldSym, f.name, exported: d.exported, node: f))
+                member(c, u, sym, declare(
+                    c,
+                    u,
+                    Kind.FieldSym,
+                    f.name,
+                    exported: d.exported,
+                    node: f,
+                ))
             for sig in tt.routines do
-                member(c, u, sym, declare(c, u, routineKind(sig), sig.name, exported: d.exported, node: sig))
+                member(c, u, sym, declare(
+                    c,
+                    u,
+                    routineKind(sig),
+                    sig.name,
+                    exported: d.exported,
+                    node: sig,
+                ))
         else:
             kind := Kind.TypeSym
     addTop(c, u, sym)
@@ -732,7 +885,12 @@ function visibleNames(r: ref Resolver): List[String]
 
 procedure unknown(r: ref Resolver, name: String, span: Span)
     if r.hasCtx and not r.isMain and name in r.mainLocals then
-        fail(r, "E0103", span, message: "'{name}' is a top-level variable of the program, which functions can't see; pass it as a parameter ('var' to change it)")
+        fail(
+            r,
+            "E0103",
+            span,
+            message: "'{name}' is a top-level variable of the program, which functions can't see; pass it as a parameter ('var' to change it)",
+        )
         return
     if not r.hasCtx and name in r.mainLocals then
         fail(r, "E0103", span, message: "'{name}' is a top-level variable and isn't visible here")
@@ -747,15 +905,29 @@ procedure unknown(r: ref Resolver, name: String, span: Span)
         add(var fixes, replaceFix(span, text: m))
     fail(r, "E0100", span, message: "unknown name '{name}'", fixes: fixes)
 
-function resolveName(r: ref Resolver, name: String, span: Span, read: Boolean := true): List[ref Symbol]
+function resolveName(
+    r: ref Resolver,
+    name: String,
+    span: Span,
+    read: Boolean := true,
+): List[ref Symbol]
     let found := lookup(r, name)
     if len(found.ambiguous) > 0 then
         var fixes: List[Fix] := []
         var units: List[String] := []
         for u in found.ambiguous do
-            add(var fixes, Fix(description: "qualify as '{u.name}.{name}'", edits: [Edit(span: span, text: "{u.name}.{name}")]))
+            add(var fixes, Fix(
+                description: "qualify as '{u.name}.{name}'",
+                edits: [Edit(span: span, text: "{u.name}.{name}")],
+            ))
             add(var units, u.name)
-        fail(r, "E0110", span, message: "'{name}' is ambiguous: declared in units {Strings.join(units, sep: ", ")}; qualify it", fixes: fixes)
+        fail(
+            r,
+            "E0110",
+            span,
+            message: "'{name}' is ambiguous: declared in units {Strings.join(units, sep: ", ")}; qualify it",
+            fixes: fixes,
+        )
         return []
     if len(found.symbols) = 0 then
         unknown(r, name, span)
@@ -773,7 +945,12 @@ function unitMember(r: ref Resolver, unitSym: ref Symbol, ident: Ident): List[re
             let syms := exports(u, ident.name)
             if len(syms) = 0 then
                 if ident.name in u.top then
-                    fail(r, "E0109", ident.span, message: "'{ident.name}' is not exported by unit {u.name}")
+                    fail(
+                        r,
+                        "E0109",
+                        ident.span,
+                        message: "'{ident.name}' is not exported by unit {u.name}",
+                    )
                 else
                     fail(r, "E0100", ident.span, message: "unit {u.name} has no '{ident.name}'")
                 return []
@@ -787,7 +964,12 @@ procedure enumMember(r: ref Resolver, enum: ref Symbol, ident: Ident)
         Some(found):
             let m := found.value
             if enum.unitName <> r.cur.name and not m.exported then
-                fail(r, "E0109", ident.span, message: "'{enum.name}' is not exported by unit {enum.unitName}")
+                fail(
+                    r,
+                    "E0109",
+                    ident.span,
+                    message: "'{enum.name}' is not exported by unit {enum.unitName}",
+                )
             note(r, ident.span, targets: [m])
         None:
             var names: List[String] := []
@@ -797,7 +979,13 @@ procedure enumMember(r: ref Resolver, enum: ref Symbol, ident: Ident)
             var fixes: List[Fix] := []
             for m in closeMatches(ident.name, names, 3, num: 3, den: 5) do
                 add(var fixes, replaceFix(ident.span, text: m))
-            fail(r, "E0100", ident.span, message: "enum '{enum.name}' has no member '{ident.name}'", fixes: fixes)
+            fail(
+                r,
+                "E0100",
+                ident.span,
+                message: "enum '{enum.name}' has no member '{ident.name}'",
+                fixes: fixes,
+            )
 
 function isEnum(s: ref Symbol): Boolean
     if s.kind <> Kind.TypeSym then
@@ -851,10 +1039,23 @@ procedure push(r: ref Resolver)
 procedure pop(r: ref Resolver)
     removeLast(var r.scopes)
 
-procedure define(r: ref Resolver, kind: Kind, ident: Ident, node: DeclNode, unusedFix: Option[Span] := None)
+procedure define(
+    r: ref Resolver,
+    kind: Kind,
+    ident: Ident,
+    node: DeclNode,
+    unusedFix: Option[Span] := None,
+)
     if isDiscard(ident.name) or not r.hasCtx then
         return
-    let sym := newSymbol(r.c, kind, ident.name, span: Some(ident.span), file: r.file, unitName: r.cur.name)
+    let sym := newSymbol(
+        r.c,
+        kind,
+        ident.name,
+        span: Some(ident.span),
+        file: r.file,
+        unitName: r.cur.name,
+    )
     sym.node := node
     sym.unusedFix := unusedFix
     for scope in r.scopes do
@@ -865,7 +1066,12 @@ procedure define(r: ref Resolver, kind: Kind, ident: Ident, node: DeclNode, unus
                     var where := "routine"
                     if r.isMain then
                         where := "program body"
-                    fail(r, "E0205", ident.span, message: "'{ident.name}' is already declared in this {where} ({name(prev.kind)}, line {prev.span.get().line}); choose another name")
+                    fail(
+                        r,
+                        "E0205",
+                        ident.span,
+                        message: "'{ident.name}' is already declared in this {where} ({name(prev.kind)}, line {prev.span.get().line}); choose another name",
+                    )
                     break
             None:
                 continue
@@ -879,18 +1085,39 @@ procedure finishCtx(r: ref Resolver)
             continue
         case sym.unusedFix of
             Some(fix):
-                let f := Fix(description: "discard: replace with '_'", edits: [Edit(span: fix.value, text: "_")])
-                fail(r, "E0206", sym.span.get(), message: "{name(sym.kind)} '{sym.name}' is never used", fixes: [f])
+                let f := Fix(
+                    description: "discard: replace with '_'",
+                    edits: [Edit(span: fix.value, text: "_")],
+                )
+                fail(
+                    r,
+                    "E0206",
+                    sym.span.get(),
+                    message: "{name(sym.kind)} '{sym.name}' is never used",
+                    fixes: [f],
+                )
             None:
                 continue
 
 procedure pushTypeParams(r: ref Resolver, params: List[TypeParam])
     var scope: Map[String, ref Symbol] := {}
     for p in params do
-        let sym := newSymbol(r.c, Kind.TypeParamSym, p.name.name, span: Some(p.name.span), file: r.file, unitName: r.cur.name)
+        let sym := newSymbol(
+            r.c,
+            Kind.TypeParamSym,
+            p.name.name,
+            span: Some(p.name.span),
+            file: r.file,
+            unitName: r.cur.name,
+        )
         sym.node := p
         if p.name.name in scope then
-            fail(r, "E0108", p.name.span, message: "type parameter '{p.name.name}' is declared twice")
+            fail(
+                r,
+                "E0108",
+                p.name.span,
+                message: "type parameter '{p.name.name}' is declared twice",
+            )
         else
             scope[p.name.name] := sym
         note(r, p.name.span, targets: [sym], isDef: true)
@@ -1032,7 +1259,14 @@ procedure routine(r: ref Resolver, rt: Routine)
     if len(rt.post) > 0 then
         push(r)
         if sig.isFunction then
-            let res := newSymbol(r.c, Kind.ResultSym, "result", span: Some(sig.name.span), file: r.file, unitName: r.cur.name)
+            let res := newSymbol(
+                r.c,
+                Kind.ResultSym,
+                "result",
+                span: Some(sig.name.span),
+                file: r.file,
+                unitName: r.cur.name,
+            )
             res.node := rt
             r.scopes[len(r.scopes) - 1]["result"] := res
         r.inEnsures := true
@@ -1270,4 +1504,10 @@ procedure checkCasing(r: ref Resolver)
         for x in references(r.c.index, sym) do
             if x.file = r.file and len(x.targets) = 1 then
                 add(var edits, Edit(span: x.span, text: want))
-        fail(r, "E0020", d.span, message: "{name(sym.kind)} names are {style}: '{want}', not '{sym.name}'", fixes: [Fix(description: "rename to '{want}'", edits: edits)])
+        fail(
+            r,
+            "E0020",
+            d.span,
+            message: "{name(sym.kind)} names are {style}: '{want}', not '{sym.name}'",
+            fixes: [Fix(description: "rename to '{want}'", edits: edits)],
+        )

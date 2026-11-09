@@ -625,7 +625,9 @@ export function next[T, I: Iterator[T]](var it: SkipIter[I]): Option[T]
 export function zip[A, B, I: Iterator[A], J: Iterator[B]](a: I, b: J): ZipIter[I, J]
     return ZipIter(a: a, b: b)
 
-export function next[A, B, I: Iterator[A], J: Iterator[B]](var it: ZipIter[I, J]): Option[Pair[A, B]]
+export function next[A, B, I: Iterator[A], J: Iterator[B]](
+    var it: ZipIter[I, J],
+): Option[Pair[A, B]]
     let x := next(var it.a)
     let y := next(var it.b)
     if isNone(x) or isNone(y) then

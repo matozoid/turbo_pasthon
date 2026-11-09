@@ -86,5 +86,8 @@ export function json(d: Diagnostic): String
         var edits: List[String] := []
         for e in f.edits do
             add(var edits, "\{{jsonSpan(e.span)}, \"text\": {jsonString(e.text)}}")
-        add(var fixes, "\{\"description\": {jsonString(f.description)}, \"edits\": [{join(edits, sep: ", ")}]}")
+        add(
+            var fixes,
+            "\{\"description\": {jsonString(f.description)}, \"edits\": [{join(edits, sep: ", ")}]}",
+        )
     return "\{\"file\": {jsonString(d.file)}, {jsonSpan(d.span)}, \"severity\": \"{name(d.severity)}\", \"code\": {jsonString(d.code)}, \"message\": {jsonString(d.message)}, \"fixes\": [{join(fixes, sep: ", ")}]}"

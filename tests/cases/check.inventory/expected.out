@@ -61,9 +61,9 @@ use Inventory.pst 55:5-55:7
 def Inventory.pst 55:8-55:9
   case binding 'n' @ Inventory.pst:55:8
     : Ok[Integer]
-use Inventory.pst 55:13-55:20
+use Inventory.pst 55:12-55:19
   procedure 'writeln' @ std/IO.pst:16:22
-use Inventory.pst 55:36-55:37
+use Inventory.pst 55:35-55:36
   case binding 'n' @ Inventory.pst:55:8
 use Inventory.pst 56:5-56:8
   type 'Err' @ std/System.pst:29:12
@@ -148,13 +148,13 @@ use Inventory.pst 27:32-27:38
   builtin type 'String' @ built into unit System
 use Inventory.pst 28:17-28:21
   parameter 'item' @ Inventory.pst:27:19
-use Inventory.pst 29:25-29:29
+use Inventory.pst 29:19-29:23
   parameter 'item' @ Inventory.pst:27:19
-use Inventory.pst 29:38-29:42
+use Inventory.pst 29:32-29:36
   parameter 'item' @ Inventory.pst:27:19
 use Inventory.pst 30:25-30:29
   parameter 'item' @ Inventory.pst:27:19
-use Inventory.pst 31:25-31:29
+use Inventory.pst 31:22-31:26
   parameter 'item' @ Inventory.pst:27:19
 def Inventory.pst 33:16-33:17
   type parameter 'T' @ Inventory.pst:33:16
@@ -270,13 +270,13 @@ use Inventory.pst 30:9-30:21
   enum member 'Discontinued' @ Inventory.pst:6:23
 use Inventory.pst 31:9-31:18
   enum member 'Backorder' @ Inventory.pst:6:37
-use Inventory.pst 29:30-29:34
+use Inventory.pst 29:24-29:28
   field 'name' @ Inventory.pst:9:9
-use Inventory.pst 29:43-29:46
+use Inventory.pst 29:37-29:40
   field 'qty' @ Inventory.pst:10:9
 use Inventory.pst 30:30-30:34
   field 'name' @ Inventory.pst:9:9
-use Inventory.pst 31:30-31:34
+use Inventory.pst 31:27-31:31
   field 'name' @ Inventory.pst:9:9
 use Inventory.pst 36:26-36:30
   field 'name' @ Inventory.pst:14:9
@@ -306,7 +306,7 @@ use Inventory.pst 52:31-52:37
   field 'status' @ Inventory.pst:11:9
 use Inventory.pst 54:28-54:34
   parameter 'amount' @ Inventory.pst:39:44
-use Inventory.pst 55:38-55:43
+use Inventory.pst 55:37-55:42
   field 'value' @ std/System.pst:27:16
 use Inventory.pst 56:32-56:37
   field 'error' @ std/System.pst:30:16

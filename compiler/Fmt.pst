@@ -408,7 +408,11 @@ procedure decide(var atoms: List[Atom], from: Integer, stop: Integer, budget: In
         if atoms[i].close >= 0 or isLogical(atoms[i].kind) then
             inner := true
     # Breaking a group with one item that can't be broken further gains little.
-    if itemCount(atoms, g) <= 1 and not inner and flatWidth(atoms, from: g + 1, stop: c) > budget - 5 then
+    if itemCount(atoms, g) <= 1 and not inner and flatWidth(
+        atoms,
+        from: g + 1,
+        stop: c,
+    ) > budget - 5 then
         return
     atoms[g].explode := true
 
@@ -454,7 +458,13 @@ procedure emit(var w: Writer, a: Atom)
         w.pending := a.after
 
 ## Writes atoms `from` up to `stop` of a line at `depth`.
-procedure renderSeq(var w: Writer, var atoms: List[Atom], from: Integer, stop: Integer, depth: Integer)
+procedure renderSeq(
+    var w: Writer,
+    var atoms: List[Atom],
+    from: Integer,
+    stop: Integer,
+    depth: Integer,
+)
     var k := from
     while k < stop do
         let a := atoms[k]
