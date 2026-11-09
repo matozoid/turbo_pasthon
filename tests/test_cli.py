@@ -1,20 +1,16 @@
-"""The command line tool: `pst test` (SPEC §13)."""
+"""The command line tool: `pst test` (SPEC §13), run with the port's `pst`."""
 
 import json
-import os
 import platform
 import shutil
 import subprocess
-import sys
 import tempfile
 import textwrap
 import unittest
 from pathlib import Path
 
-from pst.emit import build
-from pst.resolve import check
+from tests.tool import pst_tool
 
-ROOT = Path(__file__).resolve().parent.parent
 _NATIVE = platform.system() == "Linux" and platform.machine() == "x86_64"
 
 SHOP = """
@@ -66,9 +62,8 @@ class Test(unittest.TestCase):
             (self.dir / name).write_text(textwrap.dedent(text).lstrip("\n"))
 
     def pst(self, *args: str) -> subprocess.CompletedProcess:
-        env = {**os.environ, "PYTHONPATH": str(ROOT)}
-        return subprocess.run([sys.executable, "-m", "pst", *args], cwd=self.dir, env=env,
-                              capture_output=True, text=True, timeout=120)
+        return subprocess.run([pst_tool(), *args], cwd=self.dir, capture_output=True, text=True,
+                              timeout=120)
 
     def test_file(self):
         r = self.pst("test", "Shop.pst")
@@ -121,15 +116,12 @@ class Test(unittest.TestCase):
 
     @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
     def test_valgrind(self):
-        result = check(str(self.dir / "Main.pst"))
-        exe = self.dir / "tests"
-        exe.write_bytes(build(result, tests=True).executable)
-        exe.chmod(0o755)
-        for args in ([], ["0"], ["1"]):
-            r = subprocess.run(["valgrind", "-q", "--leak-check=full", "--error-exitcode=9",
-                                str(exe), *args], capture_output=True, text=True)
-            self.assertEqual((r.returncode, r.stderr), (0, ""))
-            self.assertEqual(r.stdout, "ok\n" if args == ["0"] else "")
+        """The tool and the tests executable it builds and runs."""
+        r = subprocess.run(["valgrind", "-q", "--trace-children=yes", "--leak-check=full",
+                            "--error-exitcode=9", pst_tool(), "test", "Main.pst"],
+                           cwd=self.dir, capture_output=True, text=True, timeout=600)
+        self.assertEqual((r.returncode, r.stderr), (0, ""))
+        self.assertEqual(r.stdout, "ok   Main.pst:7: uses a unit\n1 passed, 0 failed\n")
 
 
 if __name__ == "__main__":

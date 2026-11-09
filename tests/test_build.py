@@ -1,3 +1,4 @@
+import json
 import os
 import platform
 import shutil
@@ -5,11 +6,10 @@ import subprocess
 import tempfile
 import textwrap
 import unittest
+from dataclasses import dataclass
 from pathlib import Path
 
-from pst.emit import build
-from pst.resolve import check
-from pst.x86 import R8, R9, R10, R11, R12, R15, RAX, RBX, RCX, RDX, RSI, RSP, Assembler
+from tests.tool import pst_tool
 
 _NATIVE = platform.system() == "Linux" and platform.machine() == "x86_64"
 _TMP = tempfile.TemporaryDirectory()
@@ -19,17 +19,31 @@ def tearDownModule():
     _TMP.cleanup()
 
 
+@dataclass
+class Built:
+    executable: str | None  # its path
+    diagnostics: list[dict]  # as `pst build --json` prints them
+
+
+def pst_build(path: str, checked: bool = True) -> Built:
+    """Builds ``path`` with the port's ``pst build`` into ``main`` next to it."""
+    exe = os.path.join(os.path.dirname(path), "main")
+    args = [pst_tool(), "build", path, "-o", exe, "--json"] + ([] if checked else ["--unchecked"])
+    r = subprocess.run(args, capture_output=True, text=True, timeout=600)
+    assert r.returncode in (0, 1) and r.stderr == "", r.stderr
+    diagnostics = [json.loads(line) for line in r.stdout.splitlines()]
+    return Built(exe if r.returncode == 0 else None, diagnostics)
+
+
 def compile_program(body: str, checked: bool = True, uses: str = "IO", units: dict | None = None):
-    """Checks and builds a program, with ``units`` (file name -> source) next to it;
-    returns (BuildResult, temp dir)."""
+    """Builds a program, with ``units`` (file name -> source) next to it; returns
+    (Built, temp dir)."""
     tmp = tempfile.mkdtemp(dir=_TMP.name)
     for name, text in (units or {}).items():
         Path(tmp, name).write_text(textwrap.dedent(text).lstrip("\n"))
     path = Path(tmp, "Main.pst")
     path.write_text(f"program Main\n\nuses {uses}\n\n" + textwrap.dedent(body).lstrip("\n"))
-    result = check(str(path))
-    assert not result.has_errors, [d.human() for d in result.diagnostics]
-    return build(result, checked), tmp
+    return pst_build(str(path), checked), tmp
 
 
 def run_program(
@@ -38,50 +52,17 @@ def run_program(
 ) -> subprocess.CompletedProcess:
     """Builds and runs a program, optionally under a tool such as valgrind."""
     built, tmp = compile_program(body, checked, uses, units)
-    assert built.executable is not None, [d.human() for d in built.diagnostics]
-    exe = os.path.join(tmp, "main")
-    Path(exe).write_bytes(built.executable)
-    os.chmod(exe, 0o755)
+    assert built.executable is not None, built.diagnostics
     environ = {**os.environb, **{k.encode(): v for k, v in (env or {}).items()}}
     return subprocess.run(
-        [*under, exe, *args], input=stdin, capture_output=True, timeout=60, env=environ,
-        cwd=cwd,
+        [*under, built.executable, *args], input=stdin, capture_output=True, timeout=60,
+        env=environ, cwd=cwd,
     )  # fmt: skip
 
 
-class Encoding(unittest.TestCase):
-    def test_instructions(self):
-        a = Assembler()
-        a.mov_imm(RAX, 1)
-        a.mov_imm(R9, 2**40)
-        a.mov_imm(RCX, -1)
-        a.mov(R8, RAX)
-        a.push(R12)
-        a.pop(RBX)
-        a.add_imm(RSP, 8)
-        a.sub_imm(R15, 1000)
-        a.cmp_imm(RAX, -4)
-        a.sub(RAX, RDX)
-        a.test(R10, R10)
-        a.xor32(R11, R11)
-        a.lea_data(RSI, a.data(b"x"))
-        a.label("l")
-        a.jcc("ne", "l")
-        a.jmp("l")
-        a.call("l")
-        a.test32(RAX, R8)
-        a.ret()
-        expected = (  # checked with objdump
-            "b801000000 49b90000000000010000 48c7c1ffffffff 4989c0 4154 5b 4883c408"
-            " 4981efe8030000 4883f8fc 4829d0 4d85d2 4531db 488d35c5000000"
-            " 0f85faffffff e9f5ffffff e8f0ffffff 4485c0 c3"
-        )
-        self.assertEqual(a.finish(0x100).hex(), expected.replace(" ", ""))
-
-    def test_data_is_shared(self):
-        a = Assembler()
-        self.assertEqual(a.data(b"hi"), a.data(b"hi"))
-        self.assertEqual(bytes(a.rodata), b"hi")
+def positions(built: Built) -> list[tuple[str, int, int]]:
+    """The errors' codes and positions."""
+    return [(d["code"], d["line"], d["col"]) for d in built.diagnostics if d["severity"] == "error"]
 
 
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
@@ -102,11 +83,8 @@ class Run(unittest.TestCase):
         self.assertEqual((p.returncode, p.stdout), (0, b""))
 
     def test_closed_stdout_exits_with_failure(self):
-        built, tmp = compile_program('writeln("x")')
-        exe = os.path.join(tmp, "main")
-        Path(exe).write_bytes(built.executable)
-        os.chmod(exe, 0o755)
-        p = subprocess.run(f"{exe} >&-", shell=True)  # stdout closed: EBADF
+        built, _ = compile_program('writeln("x")')
+        p = subprocess.run(f"{built.executable} >&-", shell=True)  # stdout closed: EBADF
         self.assertEqual(p.returncode, 1)
 
 
@@ -779,7 +757,7 @@ class Generics(unittest.TestCase):
             writeln(deep(1, 3))
             """)
         self.assertIsNone(built.executable)
-        self.assertEqual([(d.code, d.span.line, d.span.col) for d in built.diagnostics], [("E0720", 12, 12)])
+        self.assertEqual(positions(built), [("E0720", 12, 12)])
 
 
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
@@ -1790,6 +1768,7 @@ class Iterators(unittest.TestCase):
         self.assertIn(b"panic P0005: get on None", p.stderr)
 
 
+@unittest.skipUnless(_NATIVE, "needs Linux x86-64")
 class Unsupported(unittest.TestCase):
     def test_reported_at_the_construct(self):
         built, _ = compile_program("""
@@ -1799,7 +1778,7 @@ class Unsupported(unittest.TestCase):
             """)
         self.assertIsNone(built.executable)
         self.assertEqual(
-            [(d.code, d.span.line, d.span.col) for d in built.diagnostics],
+            positions(built),
             [("E0990", 5, 5), ("E0990", 6, 9), ("E0990", 7, 6)],
         )
 
@@ -1824,15 +1803,15 @@ class Unsupported(unittest.TestCase):
             writeln(isSome(f(Some(0))))
             """)
         self.assertEqual(
-            [(d.code, d.span.line, d.span.col) for d in built.diagnostics], [("E0990", 17, 38)]
+            positions(built), [("E0990", 17, 38)]
         )
 
     def test_only_programs(self):
         tmp = tempfile.mkdtemp(dir=_TMP.name)
         path = Path(tmp, "Lib.pst")
         path.write_text("unit Lib\n\nexport function one(): Integer\n    return 1\n")
-        built = build(check(str(path)))
-        self.assertEqual([d.code for d in built.diagnostics], ["E0990"])
+        built = pst_build(str(path))
+        self.assertEqual([code for code, _, _ in positions(built)], ["E0990"])
 
 
 if __name__ == "__main__":

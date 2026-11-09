@@ -16,47 +16,15 @@ import unittest
 from pathlib import Path
 
 from pst.emit import build
-from pst.resolve import STD_DIR, check
+from pst.resolve import check
+from tests.tool import COMPILER, ROOT, STD_DIR, build_tool, install, pst_tool
 
-ROOT = Path(__file__).resolve().parent.parent
-COMPILER = ROOT / "compiler"
 _NATIVE = platform.system() == "Linux" and platform.machine() == "x86_64"
 _TMP = tempfile.TemporaryDirectory()
 
 
 def tearDownModule():
     _TMP.cleanup()
-
-
-def build_tool(name: str) -> str:
-    """Builds ``compiler/<name>.pst`` and returns the executable's path."""
-    result = check(str(COMPILER / f"{name}.pst"))
-    assert not result.has_errors, [d.human() for d in result.diagnostics]
-    built = build(result, True)
-    assert built.executable is not None, [d.human() for d in built.diagnostics]
-    exe = os.path.join(_TMP.name, name)
-    Path(exe).write_bytes(built.executable)
-    os.chmod(exe, 0o755)
-    return exe
-
-
-def install(exe: str, where: Path) -> str:
-    """Moves the executable ``exe`` of the port's command line tool to ``where/pst``, next
-    to a ``units`` link to the standard units, where it looks for them."""
-    os.makedirs(where)
-    os.symlink(STD_DIR, where / "units")
-    shutil.move(exe, where / "pst")
-    return str(where / "pst")
-
-
-_PST: list[str] = []
-
-
-def pst_tool() -> str:
-    """The port's command line tool (compiler/Pst.pst), built once."""
-    if not _PST:
-        _PST.append(install(build_tool("Pst"), Path(_TMP.name, "bin")))
-    return _PST[0]
 
 
 GOLDEN = ROOT / "tests" / "golden"
@@ -628,26 +596,21 @@ def build_inputs(out: str) -> list[tuple[Path, bool]]:
     import tests.test_build as tb
 
     inputs = []
-    last = []
 
-    def record(path, std_dir=STD_DIR):
-        last[:] = [path]
-        return check(path, std_dir)
-
-    def skip(result, checked=True):
+    def skip(path, checked=True):
         d = Path(out, str(len(inputs)))
-        shutil.copytree(os.path.dirname(os.path.abspath(last[0])), d)
-        inputs.append((d / os.path.basename(last[0]), checked))
+        shutil.copytree(os.path.dirname(os.path.abspath(path)), d)
+        inputs.append((d / os.path.basename(path), checked))
         raise unittest.SkipTest("only collecting")
 
     os.makedirs(tb._TMP.name, exist_ok=True)  # removed if test_build already ran
-    saved = tb.check, tb.build
-    tb.check, tb.build = record, skip
+    saved = tb.pst_build
+    tb.pst_build = skip
     try:
         suite = unittest.defaultTestLoader.loadTestsFromModule(tb)
         unittest.TextTestRunner(stream=io.StringIO()).run(suite)
     finally:
-        tb.check, tb.build = saved
+        tb.pst_build = saved
     return inputs
 
 
