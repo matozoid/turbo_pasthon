@@ -47,7 +47,7 @@ export function pstFiles(path: String): Result[List[String], String]
             return Err(e.error)
 
 ## A server with the files as its open documents, read from disk.
-function serverFor(stdDir: String, files: List[String]): Result[Server, String]
+export function serverFor(stdDir: String, files: List[String]): Result[Server, String]
     var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)
     for file in files do
         case readFile(file) of
@@ -57,7 +57,7 @@ function serverFor(stdDir: String, files: List[String]): Result[Server, String]
                 return Err(e.error)
     return Ok(s)
 
-function readFile(path: String): Result[String, String]
+export function readFile(path: String): Result[String, String]
     if not isFile(path) then
         return Err("can't read '{shown(path)}'")
     case open(path) of
@@ -69,13 +69,13 @@ function readFile(path: String): Result[String, String]
             return Err(e.error)
 
 ## `path` relative to the current directory if it is inside it, else as it is.
-function shown(path: String): String
+export function shown(path: String): String
     let dir := "{currentDir()}/"
     if startsWith(path, prefix: dir) then
         return slice(path, byteLen(dir), byteLen(path))
     return path
 
-function location(file: String, span: Span): String
+export function location(file: String, span: Span): String
     let where := "\"file\":{quote(shown(file))},\"line\":{span.line},\"col\":{span.col}"
     return "\{{where},\"endLine\":{span.endLine},\"endCol\":{span.endCol}}"
 
@@ -205,20 +205,39 @@ export function findName(name: String, stdDir: String): Result[String, String]
         return Err("'{name}' is ambiguous: {join(shownAs, sep: ", ")}")
     return Ok(found[0])
 
+## The file, line and column of `position`: `file:line:col`, or a symbol's name.
+export function locate(position: String, stdDir: String): Result[Pair[String, List[Integer]], String]
+    if len(split(position, sep: ":")) = 1 then
+        case findName(position, stdDir: stdDir) of
+            Ok(at):
+                return parsePosition(at.value)
+            Err(e):
+                return Err(e.error)
+    return parsePosition(position)
+
+## `file` and the other `.pst` files of its directory, where references are searched.
+export function neighbours(file: String): Result[List[String], String]
+    case pstFiles(dirname(file)) of
+        Ok(f):
+            var files: List[String] := []
+            for x in f.value do
+                add(var files, absolute(x))
+            if not (file in files) then
+                add(var files, file)
+            return Ok(files)
+        Err(e):
+            return Err(e.error)
+
 ## The answer to `def`, `refs`, `type`, `hover`, `complete`, `impls`, `callers` or
 ## `callees` at a position, or an error.
 export function queryAt(request: String, position: String, stdDir: String): Result[String, String]
     var file := ""
     var line := 0
     var col := 0
-    var pos := position
-    if len(split(position, sep: ":")) = 1 and request <> "complete" then
-        case findName(position, stdDir: stdDir) of
-            Ok(at):
-                pos := at.value
-            Err(e):
-                return Err(e.error)
-    case parsePosition(pos) of
+    var at: Result[Pair[String, List[Integer]], String] := parsePosition(position)
+    if request <> "complete" then
+        at := locate(position, stdDir: stdDir)
+    case at of
         Ok(p):
             file := p.value.first
             line := p.value.second[0]
@@ -229,13 +248,9 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
     ## and the units they use.
     var files := [file]
     if request in ["refs", "impls", "callers"] then
-        case pstFiles(dirname(file)) of
+        case neighbours(file) of
             Ok(f):
-                files := []
-                for x in f.value do
-                    add(var files, absolute(x))
-                if not (file in files) then
-                    add(var files, file)
+                files := f.value
             Err(e):
                 return Err(e.error)
     var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)

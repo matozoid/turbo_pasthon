@@ -31,6 +31,11 @@ type
         ## The errors in the open documents.
         export errors: Integer
 
+    ## A rename's edits: the uses to replace in each file, and the changed files' texts.
+    export Renaming = record
+        export byFile: Map[String, List[Ref]]
+        export texts: Map[String, String]
+
     ## A completion item: a name, or a keyword (`kind` "keyword", no `detail`).
     export Candidate = record
         export label: String
@@ -519,11 +524,10 @@ function renamed(t: Text, refs: List[Ref], name: String): String
         done := ends[start]
     return "{out}{sub(t, done, end: len(t.chars))}"
 
-## The edits that rename the symbol at the position, or why it can't be renamed: it is
-## in a standard unit, the name doesn't suit it, or the open documents would get errors.
-function rename(s: Server, path: String, params: JValue): Result[String, String]
-    let newName := asString(field(params, key: "newName")).getOr("")
-    let o := occurrences(s, path, params: params)
+## The uses that renaming the symbol `o` is about replaces in each file, and the files'
+## new texts, or why it can't be renamed: it is in a standard unit, the name doesn't suit
+## it, or the open documents would get errors.
+export function renamingOf(s: Server, o: Occurrences, newName: String): Result[Renaming, String]
     if o.sym.isNone() then
         return Err("there is nothing to rename here")
     let sym := o.sym.get()
@@ -539,14 +543,11 @@ function rename(s: Server, path: String, params: JValue): Result[String, String]
         add(var rs, r)
         byFile[r.file] := rs
     var texts := s.texts
-    var changes: List[String] := []
+    var changed: Map[String, String] := {}
     for file, refs in byFile do
-        let t := o.texts[file]
-        texts[file] := renamed(t, refs: refs, name: newName)
-        var edits: List[String] := []
-        for r in refs do
-            add(var edits, "\{\"range\":{range(t, r.span)},\"newText\":{quote(newName)}}")
-        add(var changes, "{quote(uriFor(s, file))}:[{join(edits, sep: ",")}]")
+        let text := renamed(o.texts[file], refs: refs, name: newName)
+        texts[file] := text
+        changed[file] := text
     var errors := 0
     for open, _ in s.texts do
         for d in typecheck(open, stdDir: s.stdDir, overlay: texts).resolved.checker.diagnostics do
@@ -554,7 +555,24 @@ function rename(s: Server, path: String, params: JValue): Result[String, String]
                 errors := errors + 1
     if errors > o.errors then
         return Err("renaming {describe(sym)} to '{newName}' would cause errors")
-    return Ok("\{\"changes\":\{{join(changes, sep: ",")}}}")
+    return Ok(Renaming(byFile: byFile, texts: changed))
+
+## The edits that rename the symbol at the position, or why it can't be renamed.
+function rename(s: Server, path: String, params: JValue): Result[String, String]
+    let newName := asString(field(params, key: "newName")).getOr("")
+    let o := occurrences(s, path, params: params)
+    case renamingOf(s, o, newName: newName) of
+        Ok(r):
+            var changes: List[String] := []
+            for file, refs in r.value.byFile do
+                let t := o.texts[file]
+                var edits: List[String] := []
+                for u in refs do
+                    add(var edits, "\{\"range\":{range(t, u.span)},\"newText\":{quote(newName)}}")
+                add(var changes, "{quote(uriFor(s, file))}:[{join(edits, sep: ",")}]")
+            return Ok("\{\"changes\":\{{join(changes, sep: ",")}}}")
+        Err(e):
+            return Err(e.error)
 
 # ------------------------------------------------------------------------- signature help
 

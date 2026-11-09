@@ -1,0 +1,6 @@
+# The MCP server's tools that write files (SPEC §15.7): pst_fmt, pst_apply_fix and
+# pst_rename, on a copy of the project.
+rm -rf work; cp -r proj work
+$PST mcp --root work < session.jsonl; echo "status $?"
+cat work/Fix.pst; grep -n edge work/*.pst
+rm -rf work

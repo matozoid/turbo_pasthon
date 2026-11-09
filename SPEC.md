@@ -1625,7 +1625,8 @@ Configure it in an agent with the command `pst mcp --root <project-dir>`.
   tools are re-checked automatically before the next tool call.
 
 So far `pst mcp [--root DIR]` has `pst_check`, `pst_symbols`, `pst_index`, `pst_def`,
-`pst_refs`, `pst_type`, `pst_hover`, `pst_impls`, `pst_callers` and `pst_callees`. It reads
+`pst_refs`, `pst_type`, `pst_hover`, `pst_impls`, `pst_callers`, `pst_callees`, `pst_fmt`,
+`pst_apply_fix` and `pst_rename`. It reads
 one JSON-RPC message per line and answers `initialize`, `ping`, `tools/list` and
 `tools/call`; notifications are ignored. It runs in the root (by default the current
 directory), so paths are relative to it, and it reads the files from disk on every call,
@@ -1636,6 +1637,15 @@ so it needs no watching.
   directory as `file`, and its `query` keeps the names that contain its letters in order.
 - `pst_check` gives `"errors"`, the number of errors, and `"diagnostics"` as `pst check
   --json` prints them (§15.1), each once, for the `.pst` files of `paths`.
+- `pst_fmt` gives the `"changed"` files, whether they were `"written"`, and the
+  `"diagnostics"` of files that don't parse.
+- `pst_apply_fix` applies the fix numbered `fix` (by default 0, the first) of the
+  diagnostic with `code` whose range holds the position. It gives the `"file"`, the
+  `"edits"` made (as in §15.1) and the file's new `"errors"` and `"diagnostics"`.
+- `pst_rename` takes `symbol`, or `file`, `line` and `col`. It gives the `"files"` it
+  changes, the `"edits"` (the locations of the old name) and whether they were
+  `"written"`. It searches like `pst query refs`, and is refused like the language
+  server's rename (§15.4), or when a file to change is outside the root.
 - A tool that fails, such as on an unreadable file or a name that means nothing, gives
   its message with `"isError": true`.
 

@@ -1,0 +1,40 @@
+$ rm -rf work; cp -r proj work
+exit 0
+--- stdout
+--- stderr
+$ $PST mcp --root work < session.jsonl; echo "status $?"
+exit 0
+--- stdout
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{\"changed\":[\"Fix.pst\"],\"written\":false,\"diagnostics\":[]}"}]}}
+{"jsonrpc":"2.0","id":2,"result":{"content":[{"type":"text","text":"{\"file\":\"Fix.pst\",\"edits\":[{\"line\": 8, \"col\": 1, \"endLine\": 8, \"endCol\": 1, \"text\": \"_ := \"}],\"errors\":0,\"diagnostics\":[]}"}]}}
+{"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"no E0502 diagnostic at Fix.pst:8:3"}],"isError":true}}
+{"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"E0320 at Main.pst:10:12 has no fix 2"}],"isError":true}}
+{"jsonrpc":"2.0","id":5,"result":{"content":[{"type":"text","text":"expected 'file', 'line', 'col' and 'code'"}],"isError":true}}
+{"jsonrpc":"2.0","id":6,"result":{"content":[{"type":"text","text":"{\"changed\":[\"Fix.pst\"],\"written\":true,\"diagnostics\":[]}"}]}}
+{"jsonrpc":"2.0","id":7,"result":{"content":[{"type":"text","text":"{\"files\":[\"Shapes.pst\",\"Main.pst\"],\"edits\":[{\"file\":\"Shapes.pst\",\"line\":13,\"col\":17,\"endLine\":13,\"endCol\":22},{\"file\":\"Main.pst\",\"line\":9,\"col\":15,\"endLine\":9,\"endCol\":20}],\"written\":false}"}]}}
+{"jsonrpc":"2.0","id":8,"result":{"content":[{"type":"text","text":"{\"files\":[\"Shapes.pst\",\"Main.pst\"],\"edits\":[{\"file\":\"Shapes.pst\",\"line\":8,\"col\":16,\"endLine\":8,\"endCol\":20},{\"file\":\"Shapes.pst\",\"line\":11,\"col\":15,\"endLine\":11,\"endCol\":19},{\"file\":\"Shapes.pst\",\"line\":11,\"col\":25,\"endLine\":11,\"endCol\":29},{\"file\":\"Main.pst\",\"line\":8,\"col\":18,\"endLine\":8,\"endCol\":22}],\"written\":true}"}]}}
+{"jsonrpc":"2.0","id":9,"result":{"content":[{"type":"text","text":"'area' is ambiguous: Shape.area (Shapes.pst:5:18), Shapes.area (Shapes.pst:10:17)"}],"isError":true}}
+{"jsonrpc":"2.0","id":10,"result":{"content":[{"type":"text","text":"renaming type 'Square' to 'Shape' would cause errors"}],"isError":true}}
+{"jsonrpc":"2.0","id":11,"result":{"content":[{"type":"text","text":"function 'readln' is in a standard unit"}],"isError":true}}
+{"jsonrpc":"2.0","id":12,"result":{"content":[{"type":"text","text":"'no way' is not a valid name for a function"}],"isError":true}}
+status 0
+--- stderr
+$ cat work/Fix.pst; grep -n edge work/*.pst
+exit 0
+--- stdout
+program Fix
+
+uses Shapes
+
+function twice(n: Integer): Integer
+    return n + n
+
+_ := twice(2)
+work/Main.pst:8:let sq := Square(edge: 3)
+work/Shapes.pst:8:        export edge: Integer
+work/Shapes.pst:11:    return sq.edge * sq.edge
+--- stderr
+$ rm -rf work
+exit 0
+--- stdout
+--- stderr

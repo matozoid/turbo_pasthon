@@ -1,0 +1,8 @@
+program Fix
+
+uses Shapes
+
+function twice(n: Integer): Integer
+    return n+n
+
+twice(2)

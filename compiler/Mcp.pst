@@ -4,7 +4,7 @@ unit Mcp
 ## message per line. Each tool answers like the `pst` command or query it wraps, reading
 ## the files from disk on every call, so edits made by other tools are always seen.
 
-uses IO, OS, Strings, Diagnostics, Typecheck, Json, Query
+uses IO, OS, Strings, Source, Diagnostics, Symbols, Typecheck, Fmt, Json, Paths, Lsp, Query
 
 const
     ProtocolVersion = "2025-06-18"
@@ -135,6 +135,68 @@ function tools(): String
             properties: named,
             required: ["symbol"],
         ),
+        tool(
+            "pst_fmt",
+            description: "Formats .pst files in place, or with check only lists the files that would change. Writes files.",
+            properties: [
+                pathsProperty("Files or directories; by default the project root."),
+                property(
+                    "check",
+                    kind: "boolean",
+                    description: "Only list the files; write nothing.",
+                ),
+            ],
+            required: [],
+        ),
+        tool(
+            "pst_apply_fix",
+            description: "Applies the fix of the diagnostic with the code at a position, and returns the edits made and the file's new diagnostics. Writes the file.",
+            properties: [
+                property(
+                    "file",
+                    kind: "string",
+                    description: "A .pst file, relative to the project root.",
+                ),
+                property(
+                    "line",
+                    kind: "integer",
+                    description: "A line in the diagnostic's range, from 1.",
+                ),
+                property(
+                    "col",
+                    kind: "integer",
+                    description: "A column in the diagnostic's range, from 1.",
+                ),
+                property(
+                    "code",
+                    kind: "string",
+                    description: "The diagnostic's code, such as E0502.",
+                ),
+                property(
+                    "fix",
+                    kind: "integer",
+                    description: "Which of its fixes, from 0; by default the first.",
+                ),
+            ],
+            required: ["file", "line", "col", "code"],
+        ),
+        tool(
+            "pst_rename",
+            description: "Renames a symbol and every use of it in the project, refused if it is in a standard unit or would cause errors. Writes files unless dryRun.",
+            properties: [
+                property("symbol", kind: "string", description: "A name, Unit.name or Type.name."),
+                property("file", kind: "string", description: "Instead of symbol: a .pst file."),
+                property("line", kind: "integer", description: "With file: the line, from 1."),
+                property("col", kind: "integer", description: "With file: the column, from 1."),
+                property("newName", kind: "string", description: "The new name."),
+                property(
+                    "dryRun",
+                    kind: "boolean",
+                    description: "Only return the edits; write nothing.",
+                ),
+            ],
+            required: ["newName"],
+        ),
     ]
     return "\{\"tools\":[{join(list, sep: ",")}]}"
 
@@ -194,6 +256,158 @@ function check(files: List[String], stdDir: String): String
                     errors := errors + 1
     return "\{\"errors\":{errors},\"diagnostics\":[{join(items, sep: ",")}]}"
 
+## Whether `path` is inside the project root, the only place tools may write.
+function inside(path: String): Boolean
+    return startsWith(absolute(path), prefix: "{currentDir()}/")
+
+## Replaces the file at `path` with `text`, if it is inside the project root.
+function save(path, text: String): Result[Integer, String]
+    if not inside(path) then
+        return Err("'{shown(absolute(path))}' is outside the project root")
+    case create(path) of
+        Ok(out):
+            let written := writeAll(out.value, text: text)
+            _ := close(out.value)
+            case written of
+                Ok(_):
+                    return Ok(0)
+                Err(e):
+                    return Err(e.error)
+        Err(e):
+            return Err(e.error)
+
+## Formats `files`, and writes those that change unless `check`.
+function fmt(files: List[String], check: Boolean): Result[String, String]
+    var changed: List[String] := []
+    var problems: List[String] := []
+    for file in files do
+        case readFile(file) of
+            Ok(text):
+                case format(text.value, file: file) of
+                    Ok(f):
+                        if f.value <> text.value then
+                            add(var changed, quote(file))
+                            if not check then
+                                case save(file, text: f.value) of
+                                    Ok(_):
+                                        pass
+                                    Err(e):
+                                        return Err(e.error)
+                    Err(ds):
+                        for d in ds.error do
+                            add(var problems, json(d))
+            Err(e):
+                return Err(e.error)
+    let listed := "\"changed\":[{join(changed, sep: ",")}]"
+    return Ok("\{{listed},\"written\":{not check},\"diagnostics\":[{join(problems, sep: ",")}]}")
+
+## Whether line `line`, column `col` is in `s`, its ends included.
+function holds(s: Span, line, col: Integer): Boolean
+    if line < s.line or line > s.endLine then
+        return false
+    if line = s.line and col < s.col then
+        return false
+    return not (line = s.endLine and col > s.endCol)
+
+## Applies fix `which` of the diagnostic with `code` at the position in `file`.
+function applyFix(arguments: JValue, stdDir: String): Result[String, String]
+    let file := asString(field(arguments, key: "file"))
+    let line := asInteger(field(arguments, key: "line"))
+    let col := asInteger(field(arguments, key: "col"))
+    let code := asString(field(arguments, key: "code"))
+    if file.isNone() or line.isNone() or col.isNone() or code.isNone() then
+        return Err("expected 'file', 'line', 'col' and 'code'")
+    let path := file.get()
+    let which := asInteger(field(arguments, key: "fix")).getOr(0)
+    var source := ""
+    case readFile(path) of
+        Ok(text):
+            source := text.value
+        Err(e):
+            return Err(e.error)
+    for d in typecheck(path, stdDir: stdDir).resolved.checker.diagnostics do
+        if absolute(d.file) <> absolute(path) or d.code <> code.get() then
+            continue
+        if not holds(d.span, line.get(), col: col.get()) then
+            continue
+        if which < 0 or which >= len(d.fixes) then
+            return Err("{code.get()} at {path}:{line.get()}:{col.get()} has no fix {which}")
+        ## The edits, applied from the last so that the earlier offsets still hold.
+        var edits := d.fixes[which].edits
+        sort(var edits, less: later)
+        let t := textOf(source)
+        var out := t.str
+        var shown: List[String] := []
+        for e in edits do
+            out := "{slice(out, 0, t.offsets[e.span.start])}{e.text}{slice(out, t.offsets[e.span.end], byteLen(out))}"
+            insert(var shown, 0, x: "\{{jsonSpan(e.span)}, \"text\": {jsonString(e.text)}}")
+        case save(path, text: out) of
+            Ok(_):
+                pass
+            Err(e):
+                return Err(e.error)
+        let result := check([path], stdDir: stdDir)
+        let after := slice(result, 1, byteLen(result))
+        return Ok("\{\"file\":{quote(path)},\"edits\":[{join(shown, sep: ",")}],{after}")
+    return Err("no {code.get()} diagnostic at {path}:{line.get()}:{col.get()}")
+
+## Whether edit `a` starts after `b`.
+function later(a, b: Edit): Boolean
+    return a.span.start > b.span.start
+
+## Renames the symbol the arguments name to `newName`, and writes the files unless
+## `dryRun`.
+function renameSymbol(arguments: JValue, stdDir: String): Result[String, String]
+    let newName := asString(field(arguments, key: "newName")).getOr("")
+    let dryRun := asBoolean(field(arguments, key: "dryRun")).getOr(false)
+    var file := ""
+    var line := 0
+    var col := 0
+    case positionOf(arguments, key: "symbol") of
+        Ok(position):
+            case locate(position.value, stdDir: stdDir) of
+                Ok(p):
+                    file := p.value.first
+                    line := p.value.second[0]
+                    col := p.value.second[1]
+                Err(e):
+                    return Err(e.error)
+        Err(e):
+            return Err(e.error)
+    var files: List[String] := []
+    case neighbours(file) of
+        Ok(f):
+            files := f.value
+        Err(e):
+            return Err(e.error)
+    case serverFor(stdDir, files) of
+        Ok(s):
+            let a := analyze(s.value, file)
+            let found := refAtLine(a, file, line, col: col)
+            case renamingOf(s.value, occurrencesOf(s.value, a, found: found), newName: newName) of
+                Ok(r):
+                    var edits: List[String] := []
+                    var changed: List[String] := []
+                    for path, refs in r.value.byFile do
+                        if not inside(path) then
+                            return Err("'{shown(path)}' is outside the project root")
+                        add(var changed, quote(shown(path)))
+                        for u in refs do
+                            add(var edits, location(u.file, span: u.span))
+                    if not dryRun then
+                        for path, text in r.value.texts do
+                            case save(path, text: text) of
+                                Ok(_):
+                                    pass
+                                Err(e):
+                                    return Err(e.error)
+                    let listed := "\"files\":[{join(changed, sep: ",")}],\"edits\":[{join(edits, sep: ",")}]"
+                    return Ok("\{{listed},\"written\":{not dryRun}}")
+                Err(e):
+                    return Err(e.error)
+        Err(e):
+            return Err(e.error)
+
 ## The answer of tool `name`, or an error for the agent.
 function call(name: String, arguments: JValue, stdDir: String): Result[String, String]
     if name = "pst_check" or name = "pst_index" then
@@ -215,6 +429,19 @@ function call(name: String, arguments: JValue, stdDir: String): Result[String, S
                 )
             Err(e):
                 return Err(e.error)
+    if name = "pst_fmt" then
+        case filesOf(pathsOf(arguments)) of
+            Ok(files):
+                return fmt(
+                    files.value,
+                    check: asBoolean(field(arguments, key: "check")).getOr(false),
+                )
+            Err(e):
+                return Err(e.error)
+    if name = "pst_apply_fix" then
+        return applyFix(arguments, stdDir: stdDir)
+    if name = "pst_rename" then
+        return renameSymbol(arguments, stdDir: stdDir)
     var request := ""
     var key := "symbol"
     if name in ["pst_def", "pst_refs", "pst_type", "pst_hover", "pst_callers", "pst_callees"] then

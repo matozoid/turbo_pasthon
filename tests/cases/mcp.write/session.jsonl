@@ -1,0 +1,12 @@
+{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pst_fmt","arguments":{"check":true}}}
+{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"pst_apply_fix","arguments":{"file":"Fix.pst","line":8,"col":3,"code":"E0502"}}}
+{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"pst_apply_fix","arguments":{"file":"Fix.pst","line":8,"col":3,"code":"E0502"}}}
+{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"pst_apply_fix","arguments":{"file":"Main.pst","line":10,"col":12,"code":"E0320","fix":2}}}
+{"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"pst_apply_fix","arguments":{"file":"Main.pst"}}}
+{"jsonrpc":"2.0","id":6,"method":"tools/call","params":{"name":"pst_fmt"}}
+{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{"name":"pst_rename","arguments":{"symbol":"Shapes.total","newName":"sumOf","dryRun":true}}}
+{"jsonrpc":"2.0","id":8,"method":"tools/call","params":{"name":"pst_rename","arguments":{"file":"Shapes.pst","line":8,"col":16,"newName":"edge"}}}
+{"jsonrpc":"2.0","id":9,"method":"tools/call","params":{"name":"pst_rename","arguments":{"symbol":"area","newName":"size"}}}
+{"jsonrpc":"2.0","id":10,"method":"tools/call","params":{"name":"pst_rename","arguments":{"symbol":"Square","newName":"Shape"}}}
+{"jsonrpc":"2.0","id":11,"method":"tools/call","params":{"name":"pst_rename","arguments":{"symbol":"IO.readln","newName":"x"}}}
+{"jsonrpc":"2.0","id":12,"method":"tools/call","params":{"name":"pst_rename","arguments":{"symbol":"Main.twice","newName":"no way"}}}
