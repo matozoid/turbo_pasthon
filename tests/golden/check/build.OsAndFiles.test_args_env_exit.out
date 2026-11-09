@@ -5,7 +5,7 @@ use Main.pst 3:6-3:8
 use Main.pst 3:10-3:12
   unit 'OS' @ std/OS.pst:1:6
 use Main.pst 5:10-5:14
-  function 'args' @ std/OS.pst:59:24
+  function 'args' @ std/OS.pst:61:24
 def Main.pst 5:5-5:6
   loop variable 'a' @ Main.pst:5:5
     : String
@@ -14,7 +14,7 @@ use Main.pst 6:5-6:12
 use Main.pst 6:16-6:17
   loop variable 'a' @ Main.pst:5:5
 use Main.pst 7:6-7:9
-  function 'env' @ std/OS.pst:68:17
+  function 'env' @ std/OS.pst:70:17
 use Main.pst 8:5-8:9
   type 'Some' @ std/System.pst:19:12
 def Main.pst 8:10-8:11
@@ -29,11 +29,11 @@ use Main.pst 11:9-11:16
 use Main.pst 12:1-12:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 12:9-12:12
-  function 'env' @ std/OS.pst:68:17
+  function 'env' @ std/OS.pst:70:17
 use Main.pst 13:1-13:11
   procedure 'writelnErr' @ std/IO.pst:22:22
 use Main.pst 14:1-14:5
-  procedure 'exit' @ std/OS.pst:75:18
+  procedure 'exit' @ std/OS.pst:77:18
 use Main.pst 9:19-9:24
   field 'value' @ std/System.pst:20:16
 use Main.pst 10:5-10:9

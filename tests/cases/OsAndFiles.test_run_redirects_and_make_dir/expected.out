@@ -1,0 +1,42 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main
+exit 0
+--- stdout
+0
+d: File exists
+0
+missing/d: No such file or directory
+true
+4
+0
+127
+127
+127
+--- stderr
+$ cat out
+exit 0
+--- stdout
+line 1
+line 2
+out
+d
+--- stderr
+$ cat err
+exit 0
+--- stdout
+err
+--- stderr
+$ cat both
+exit 0
+--- stdout
+both
+both
+--- stderr
+$ test -d e && ls -ld e | cut -c1-10
+exit 0
+--- stdout
+drwx------
+--- stderr

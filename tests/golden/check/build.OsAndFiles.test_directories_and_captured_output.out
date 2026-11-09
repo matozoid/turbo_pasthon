@@ -7,17 +7,17 @@ use Main.pst 3:10-3:12
 use Main.pst 5:1-5:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 5:9-5:14
-  function 'isDir' @ std/OS.pst:102:17
+  function 'isDir' @ std/OS.pst:104:17
 use Main.pst 6:1-6:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 6:9-6:14
-  function 'isDir' @ std/OS.pst:102:17
+  function 'isDir' @ std/OS.pst:104:17
 use Main.pst 7:1-7:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 7:9-7:14
-  function 'isDir' @ std/OS.pst:102:17
+  function 'isDir' @ std/OS.pst:104:17
 use Main.pst 8:6-8:13
-  function 'listDir' @ std/OS.pst:107:24
+  function 'listDir' @ std/OS.pst:109:24
 use Main.pst 9:5-9:7
   type 'Ok' @ std/System.pst:26:12
 def Main.pst 9:8-9:13
@@ -48,7 +48,7 @@ use Main.pst 14:9-14:16
 use Main.pst 14:17-14:18
   case binding 'e' @ Main.pst:13:9
 use Main.pst 15:6-15:13
-  function 'listDir' @ std/OS.pst:107:24
+  function 'listDir' @ std/OS.pst:109:24
 use Main.pst 16:5-16:7
   type 'Ok' @ std/System.pst:26:12
 use Main.pst 17:9-17:16
@@ -65,11 +65,11 @@ use Main.pst 19:17-19:18
 use Main.pst 20:1-20:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 20:9-20:12
-  function 'run' @ std/OS.pst:168:24
+  function 'run' @ std/OS.pst:179:24
 use Main.pst 21:1-21:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 21:9-21:12
-  function 'run' @ std/OS.pst:168:24
+  function 'run' @ std/OS.pst:179:24
 use Main.pst 10:27-10:32
   field 'value' @ std/System.pst:27:16
 use Main.pst 11:24-11:29
@@ -79,6 +79,6 @@ use Main.pst 14:19-14:24
 use Main.pst 19:19-19:24
   field 'error' @ std/System.pst:30:16
 use Main.pst 20:66-20:72
-  parameter 'output' @ std/OS.pst:168:62
+  parameter 'output' @ std/OS.pst:179:62
 use Main.pst 21:30-21:36
-  parameter 'output' @ std/OS.pst:168:62
+  parameter 'output' @ std/OS.pst:179:62

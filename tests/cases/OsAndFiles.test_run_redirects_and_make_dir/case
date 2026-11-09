@@ -1,0 +1,6 @@
+$PST build Main.pst -o main
+$VALGRIND ./main
+cat out
+cat err
+cat both
+test -d e && ls -ld e | cut -c1-10

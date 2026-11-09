@@ -14,7 +14,6 @@ cd "$(dirname "$0")/.."
 RELEASE=https://github.com/matozoid/turbo_pasthon/releases/latest/download/pst-linux-x86_64.tar.gz
 
 rm -rf build/seed build/stage1 build/stage2 build/pst build/units
-mkdir -p build/seed
 
 # Puts the units link next to an executable in build/$1.
 stage() {
@@ -22,17 +21,18 @@ stage() {
     ln -s ../../std "build/$1/units"
 }
 
-seed=${PST_SEED:-}
-if [ -z "$seed" ]; then
-    curl -fsSL "$RELEASE" | tar -xz -C build/seed
-    seed=build/seed/pst
-    echo "seed: the latest release"
+# The seed runs from build/seed, with this checkout's standard units, not its own.
+stage seed
+if [ -n "${PST_SEED:-}" ]; then
+    cp "$PST_SEED" build/seed/pst
+    echo "seed: $PST_SEED"
 else
-    echo "seed: $seed"
+    curl -fsSL "$RELEASE" | tar -xz -C build/seed pst
+    echo "seed: the latest release"
 fi
 
 stage stage1
-"$seed" build compiler/Pst.pst -o build/stage1/pst
+build/seed/pst build compiler/Pst.pst -o build/stage1/pst
 stage stage2
 build/stage1/pst build compiler/Pst.pst -o build/stage2/pst
 if ! cmp -s build/stage1/pst build/stage2/pst; then

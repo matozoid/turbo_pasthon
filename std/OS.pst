@@ -16,6 +16,8 @@ extern "libc.so.6"
     function mkdtemp(template: CString): CString
     function unlink(path: CString): CInt
     function rmdir(path: CString): CInt
+    function mkdir(path: CString, mode: CInt): CInt
+    function chdir(path: CString): CInt
     function fork(): CInt
     function execv(path: CString, argv: Ptr[CString]): CInt
     procedure cExit(code: CInt) as "_exit"
@@ -155,6 +157,12 @@ export unsafe function removeFile(path: String): Result[Integer, String]
         return Err("{path}: {lastError()}")
     return Ok(0)
 
+## Creates the directory `path`, with permissions `mode` less the umask.
+export unsafe function makeDir(path: String, mode: Integer := 0o755): Result[Integer, String]
+    if mkdir(toCString(path), CInt(mode)) <> 0 then
+        return Err("{path}: {lastError()}")
+    return Ok(0)
+
 ## Deletes the empty directory at `path`.
 export unsafe function removeDir(path: String): Result[Integer, String]
     if rmdir(toCString(path)) <> 0 then
@@ -164,8 +172,13 @@ export unsafe function removeDir(path: String): Result[Integer, String]
 ## Runs the executable at `path` with arguments `args` and waits for it to finish. The
 ## result is its exit status, or minus the signal that ended it. If the program can't be
 ## started, the child process exits with status 127. With `output`, the program's standard
-## output and standard error go to that file, created or emptied.
-export unsafe function run(path: String, args: List[String], output: String := ""): Result[Integer, String]
+## output goes to that file, created or emptied, and so does its standard error unless
+## `errors` names another file for it. With `input`, the program reads that file as its
+## standard input. With `dir`, it runs in that directory; the paths of the files are
+## relative to the current directory, not to `dir`.
+export unsafe function run(path: String, args: List[String], output: String := "",
+                           errors: String := "", input: String := "",
+                           dir: String := ""): Result[Integer, String]
     let n := len(args)
     let argv := cast[Ptr[CString]](malloc(CSize(8 * (n + 2))))
     deref(argv) := strdup(toCString(path))
@@ -173,12 +186,27 @@ export unsafe function run(path: String, args: List[String], output: String := "
         deref(argv + (i + 1)) := strdup(toCString(args[i]))
     deref(argv + (n + 1)) := cast[CString](0)
     let out := toCString(output)
+    let err := toCString(errors)
+    let inp := toCString(input)
+    let cwd := toCString(dir)
     let pid := fork()
     if pid = 0 then
+        if input <> "" then
+            let fd := cOpen(inp, CInt(0))
+            if fd < 0 or dup2(fd, fd2: CInt(0)) < 0 then
+                cExit(CInt(127))
         if output <> "" then
             let fd := cOpen(out, CInt(0o1 + 0o100 + 0o1000), CInt(0o644))
-            if fd < 0 or dup2(fd, fd2: CInt(1)) < 0 or dup2(fd, fd2: CInt(2)) < 0 then
+            if fd < 0 or dup2(fd, fd2: CInt(1)) < 0 then
                 cExit(CInt(127))
+            if errors = "" and dup2(fd, fd2: CInt(2)) < 0 then
+                cExit(CInt(127))
+        if errors <> "" then
+            let fd := cOpen(err, CInt(0o1 + 0o100 + 0o1000), CInt(0o644))
+            if fd < 0 or dup2(fd, fd2: CInt(2)) < 0 then
+                cExit(CInt(127))
+        if dir <> "" and chdir(cwd) <> 0 then
+            cExit(CInt(127))
         _ := execv(deref(argv), argv)
         cExit(CInt(127))
     var message := ""

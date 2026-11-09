@@ -1,0 +1,22 @@
+program Main
+
+uses IO, OS
+
+procedure show(r: Result[Integer, String])
+    case r of
+        Ok(c):
+            writeln(c.value)
+        Err(e):
+            writeln(e.error)
+
+show(makeDir("d"))
+show(makeDir("d"))
+show(makeDir("e", 0o700))
+show(makeDir("missing/d"))
+writeln(isDir("d"))
+show(run("/bin/sh", ["-c", "cat; echo out; echo err >&2; pwd; exit 4"], output: "out",
+         errors: "err", input: "in", dir: "d"))
+show(run("/bin/sh", ["-c", "echo both; echo both >&2"], output: "both"))
+show(run("/bin/cat", [], input: "missing"))
+show(run("/bin/true", [], dir: "missing"))
+show(run("/bin/true", [], errors: "missing/x"))
