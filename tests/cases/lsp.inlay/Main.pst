@@ -1,0 +1,16 @@
+program Main
+
+uses IO, Shop
+
+function total(items: List[Item]): Integer
+    var sum := 0
+    for item in items do
+        sum := sum + item.qty
+    return sum
+
+let i := Item(name: "a", qty: 2)
+let named: Item := i
+let sizes := [Size.Small, Size.Large]
+for k, v in {"a": 1} do
+    writeln("{k}{v}")
+writeln(total([i, named]) + len(sizes))
