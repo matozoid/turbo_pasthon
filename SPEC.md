@@ -360,9 +360,15 @@ passing produce logically independent copies. They are implemented as refcounted
 with **copy-on-write**, so copies are O(1) until mutated.
 
 A `List` is one block holding its length, its capacity and its elements; the compiler
-provides only that block, indexing, `len` and an internal `resize`. `add`, `remove`,
-`removeLast`, `concat` and `in` are ordinary Pasthon routines in System, built on those.
-Growing at least doubles the capacity, so `add` is amortized O(1).
+provides only that block, indexing, `len` and an internal `resize`. `add`, `insert`,
+`remove`, `removeLast`, `concat`, `sort` and `in` are ordinary Pasthon routines in System,
+built on those. Growing at least doubles the capacity, so `add` is amortized O(1).
+
+- `insert(var xs, index, x)` puts `x` at `index` (`0 <= index <= len(xs)`, else `P0001`),
+  moving the elements from there up.
+- `sort(var xs)` sorts a list of an `Ordered` type ascending; `sort(var xs, less: f)` sorts
+  by a function `f(a, b): Boolean` that says whether `a` goes before `b`. Both are stable
+  merge sorts, O(n log n).
 
 A `Map` is a record in System holding lists of keys, values and hashes, in insertion
 order, plus an open-addressing slot table that points into them. The compiler provides
@@ -1258,7 +1264,7 @@ test "largest of empty list is None"
 
 | Unit | Contents |
 |---|---|
-| `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters (including `chars`) and consumers (§4.14), `len`, `add`, `concat`, `remove`, `removeLast`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, conversions, `halt`, `assert` support |
+| `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters (including `chars`) and consumers (§4.14), `len`, `add`, `insert`, `concat`, `remove`, `removeLast`, `sort`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, conversions, `halt`, `assert` support |
 | `IO` | `write`, `writeln` (standard output), `writeErr`, `writelnErr` (standard error), `readln(): Option[String]`; files: `open` (reading), `create(path, mode := 0o644)` (writing; creates or empties), `close`, `readAll`, `readBytes`, `writeAll`, `writeBytes` returning `Result[_, String]` with C's error message. A `File` closes when its last reference goes away. Written in Pasthon on libc's `open`, `read`, `write`, `close` |
 | `Strings` | `bytes`, `fromBytes` (invalid UTF-8 becomes U+FFFD), `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `endsWith`, `parseInt`, `parseReal`. `split` and `replace` require a non-empty separator. Written in Pasthon on libc's `memmem` and `memcpy`, except `charCount`, `byteLen`, `slice` and `startsWith` (compiler intrinsics) |
 | `Math` | `Pi`, `sqrt`, `sin`, `cos`, `abs`, `min`, `max`, `floor`, `ceil` |

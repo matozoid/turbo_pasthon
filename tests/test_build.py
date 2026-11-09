@@ -1022,9 +1022,53 @@ class Lists(unittest.TestCase):
             "true false\n",
         )
 
+    @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
+    def test_insert_and_sort(self):
+        """`insert` and the stable merge `sort`, by `<` or by a function; every block is
+        freed once."""
+        p = run_program("""
+            type
+                P = record
+                    k: Integer
+                    name: String
+
+            function byK(a, b: P): Boolean
+                return a.k < b.k
+
+            var xs := [5, 3, 9, 1, 3, 7, 2, 8, 0]
+            let before := xs
+            sort(var xs)
+            for x in xs do
+                write("{x} ")
+            writeln(len(before))
+            var ss := ["pear", "apple", "fig", "b"]
+            sort(var ss)
+            for s in ss do
+                write("{s} ")
+            writeln()
+            var ps := [P(k: 2, name: "a"), P(k: 1, name: "b"), P(k: 2, name: "c"), P(k: 1, name: "d")]
+            sort(var ps, less: byK)
+            for q in ps do
+                write(q.name)
+            writeln()
+            var e: List[String] := []
+            sort(var e)
+            insert(var e, 0, x: "c")
+            insert(var e, 0, x: "a")
+            insert(var e, 2, x: "d")
+            insert(var e, 1, x: "b")
+            for s in e do
+                write(s)
+            writeln()
+            """, under=("valgrind", "-q", "--leak-check=full", "--error-exitcode=9"))  # fmt: skip
+        self.assertEqual((p.returncode, p.stderr), (0, b""))
+        self.assertEqual(p.stdout.decode(), "0 1 2 3 3 5 7 8 9 9\napple b fig pear \nbdac\nabcd\n")
+
     def test_bounds(self):
         for body in ["let xs := [1]\nwriteln(xs[1])", "var xs := [1]\nxs[-1] := 2",
                      "var xs: List[Integer] := []\nremove(var xs, 0)",
+                     "var xs := [1]\ninsert(var xs, 2, x: 0)",
+                     "var xs := [1]\ninsert(var xs, -1, x: 0)",
                      "var xs: List[Integer] := []\nremoveLast(var xs)"]:
             with self.subTest(body):
                 p = run_program(body)

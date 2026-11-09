@@ -86,18 +86,6 @@ function containsUnit(xs: List[ref Unit], u: ref Unit): Boolean
             return true
     return false
 
-## The strings in order.
-function sortedStrings(xs: List[String]): List[String]
-    var out: List[String] := []
-    for x in xs do
-        add(var out, x)
-        var j := len(out) - 1
-        while j > 0 and x < out[j - 1] do
-            out[j] := out[j - 1]
-            j := j - 1
-        out[j] := x
-    return out
-
 function isUpper(c: Char): Boolean
     return c >= 'A' and c <= 'Z'
 
@@ -270,28 +258,24 @@ export function resolveUnits(path: String, stdDir: String): Resolved
             runResolver(c, u)
     return Resolved(main: main, units: order, checker: c)
 
-## Whether `a` goes before `b`: the main file's diagnostics first, then by file and
-## position.
-function before(a, b: Diagnostic, mainFile: String): Boolean
-    let am := a.file = mainFile
-    let bm := b.file = mainFile
-    if am <> bm then
-        return am
+## Whether `a` goes before `b`: by file, then by position.
+function before(a, b: Diagnostic): Boolean
     if a.file <> b.file then
         return a.file < b.file
     return a.span.start < b.span.start
 
 ## The diagnostics of the main file first, then by file and position.
 export function sortedDiagnostics(ds: List[Diagnostic], mainFile: String): List[Diagnostic]
-    var out: List[Diagnostic] := []
+    var main: List[Diagnostic] := []
+    var others: List[Diagnostic] := []
     for d in ds do
-        add(var out, d)
-        var j := len(out) - 1
-        while j > 0 and before(d, b: out[j - 1], mainFile: mainFile) do
-            out[j] := out[j - 1]
-            j := j - 1
-        out[j] := d
-    return out
+        if d.file = mainFile then
+            add(var main, d)
+        else
+            add(var others, d)
+    sort(var main, less: before)
+    sort(var others, less: before)
+    return concat(main, b: others)
 
 ## Whether `stem` can be a unit name: an ASCII letter, then ASCII letters, digits, `_`.
 function isPlainName(stem: String): Boolean
@@ -732,7 +716,8 @@ function visibleNames(r: ref Resolver): List[String]
     var out: List[String] := []
     for n, _ in names do
         add(var out, n)
-    return sortedStrings(out)
+    sort(var out)
+    return out
 
 procedure unknown(r: ref Resolver, name: String, span: Span)
     if r.hasCtx and not r.isMain and name in r.mainLocals then
@@ -797,8 +782,9 @@ procedure enumMember(r: ref Resolver, enum: ref Symbol, ident: Ident)
             var names: List[String] := []
             for n, _ in enum.members do
                 add(var names, n)
+            sort(var names)
             var fixes: List[Fix] := []
-            for m in closeMatches(ident.name, sortedStrings(names), 3, num: 3, den: 5) do
+            for m in closeMatches(ident.name, names, 3, num: 3, den: 5) do
                 add(var fixes, replaceFix(ident.span, text: m))
             fail(r, "E0100", ident.span, message: "enum '{enum.name}' has no member '{ident.name}'", fixes: fixes)
 

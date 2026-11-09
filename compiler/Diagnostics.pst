@@ -42,12 +42,9 @@ function hex4(n: Integer): String
     var cs: List[String] := []
     var m := n
     while m > 0 or len(cs) < 4 do
-        add(var cs, toString(digits[m mod 16]))
+        insert(var cs, 0, x: toString(digits[m mod 16]))
         m := m div 16
-    var r: List[String] := []
-    for i := len(cs) - 1 downto 0 do
-        add(var r, cs[i])
-    return join(r)
+    return join(cs)
 
 ## `s` as a JSON string, ASCII only, as Python's `json.dumps` writes it.
 export function jsonString(s: String): String

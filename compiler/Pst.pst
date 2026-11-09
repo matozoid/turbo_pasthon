@@ -139,18 +139,6 @@ procedure writeExe(out: String, exe: List[Byte])
         Err(e):
             fatal(e.error)
 
-## The strings in order.
-function sorted(xs: List[String]): List[String]
-    var out: List[String] := []
-    for x in xs do
-        add(var out, x)
-        var j := len(out) - 1
-        while j > 0 and x < out[j - 1] do
-            out[j] := out[j - 1]
-            j := j - 1
-        out[j] := x
-    return out
-
 ## `dir/name` without `.` and empty parts, like Python's `os.path.normpath`.
 function joinPath(dir: String, name: String): String
     var parts: List[String] := []
@@ -251,7 +239,9 @@ procedure testCommand(o: Options, stdDir: String)
         files := []
         case listDir(o.file) of
             Ok(names):
-                for name in sorted(names.value) do
+                var sorted := names.value
+                sort(var sorted)
+                for name in sorted do
                     if endsWith(name, suffix: ".pst") then
                         add(var files, joinPath(o.file, name: name))
             Err(e):

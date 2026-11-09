@@ -202,6 +202,77 @@ export procedure removeLast[T](var xs: List[T])
     _ := xs[n - 1]  # P0001 if there is no such element
     resize(var xs, n - 1)
 
+## Inserts `x` at `index`, moving the elements from there up. `index` may be `len(xs)`,
+## which appends.
+export procedure insert[T](var xs: List[T], index: Integer, x: T)
+    let n := len(xs)
+    if index <> n then
+        _ := xs[index]  # P0001 if there is no such position
+    resize(var xs, n + 1)
+    for i := n downto index + 1 do
+        xs[i] := xs[i - 1]
+    xs[index] := x
+
+## Sorts `xs` into ascending order. Equal elements keep their order. A merge sort:
+## O(n log n) comparisons.
+export procedure sort[T: Ordered](var xs: List[T])
+    let n := len(xs)
+    var src := xs
+    var dst := xs
+    var width := 1
+    while width < n do
+        var lo := 0
+        while lo < n do
+            let mid := min(lo + width, n)
+            let hi := min(lo + 2 * width, n)
+            var i := lo
+            var j := mid
+            for k := lo to hi - 1 do
+                if j < hi and (i >= mid or src[j] < src[i]) then
+                    dst[k] := src[j]
+                    j := j + 1
+                else
+                    dst[k] := src[i]
+                    i := i + 1
+            lo := hi
+        let t := src
+        src := dst
+        dst := t
+        width := 2 * width
+    xs := src
+
+## Sorts `xs` so that no element is `less` than one before it, as the other `sort` does.
+export procedure sort[T](var xs: List[T], less: function(T, T): Boolean)
+    let n := len(xs)
+    var src := xs
+    var dst := xs
+    var width := 1
+    while width < n do
+        var lo := 0
+        while lo < n do
+            let mid := min(lo + width, n)
+            let hi := min(lo + 2 * width, n)
+            var i := lo
+            var j := mid
+            for k := lo to hi - 1 do
+                if j < hi and (i >= mid or less(src[j], src[i])) then
+                    dst[k] := src[j]
+                    j := j + 1
+                else
+                    dst[k] := src[i]
+                    i := i + 1
+            lo := hi
+        let t := src
+        src := dst
+        dst := t
+        width := 2 * width
+    xs := src
+
+function min(a, b: Integer): Integer
+    if a < b then
+        return a
+    return b
+
 ## A new list: `a` followed by `b`.
 export function concat[T](a, b: List[T]): List[T]
     var out := a

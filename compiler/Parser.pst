@@ -128,14 +128,8 @@ export function parse(text: String, file: String := "<input>"): ParseResult
 
 ## The diagnostics by position, stably.
 function sorted(ds: List[Diagnostic]): List[Diagnostic]
-    var out: List[Diagnostic] := []
-    for d in ds do
-        add(var out, d)
-        var j := len(out) - 1
-        while j > 0 and before(d, b: out[j - 1]) do
-            out[j] := out[j - 1]
-            j := j - 1
-        out[j] := d
+    var out := ds
+    sort(var out, less: before)
     return out
 
 function before(a: Diagnostic, b: Diagnostic): Boolean
