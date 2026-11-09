@@ -37,6 +37,13 @@ type
         seen: Map[String, Boolean]
         items: List[String]
 
+    ## A token to color (semantic tokens).
+    Semantic = record
+        start: Integer
+        span: Span
+        kind: Integer
+        mods: Integer
+
     ## A call around a position (signature help).
     CallSite = record
         callee: Token
@@ -985,6 +992,114 @@ function documentSymbols(s: Server, path: String): String
             add(var parts, documentSymbol(t.get(), sym))
     return "[{join(parts, sep: ",")}]"
 
+# ------------------------------------------------------------------------- semantic tokens
+
+## The token types and modifiers of `semanticTokens`, by index in these lists.
+function legend(): String
+    let types := "[\"namespace\",\"type\",\"enum\",\"interface\",\"struct\",\"typeParameter\",\"parameter\",\"variable\",\"property\",\"enumMember\",\"function\",\"keyword\",\"comment\",\"string\",\"number\"]"
+    return "\{\"tokenTypes\":{types},\"tokenModifiers\":[\"declaration\",\"readonly\",\"defaultLibrary\"]}"
+
+## The semantic token type of a name that means `sym` (an index into the legend).
+function semType(env: ref Env, sym: ref Symbol): Integer
+    case sym.kind of
+        Kind.UnitSym:
+            return 0
+        Kind.TypeSym:
+            let k := decl(env, sym).kind
+            if k = "enum" then
+                return 2
+            if k = "record" then
+                return 4
+            return 1
+        Kind.BuiltinType:
+            return 1
+        Kind.TraitSym, Kind.BuiltinTrait:
+            return 3
+        Kind.TypeParamSym:
+            return 5
+        Kind.ParamSym:
+            return 6
+        Kind.FieldSym:
+            return 8
+        Kind.EnumMember:
+            return 9
+        Kind.FunctionSym, Kind.ProcedureSym:
+            return 10
+        else:
+            return 7
+
+function semBefore(a, b: Semantic): Boolean
+    return a.start < b.start
+
+## The document's names, by what they mean, and its keywords, literals and comments, as
+## LSP's relative encoding: five numbers per token.
+function semanticTokens(s: Server, path: String): String
+    let a := analyze(s, path)
+    let text := get(a.texts, path)
+    if text.isNone() or a.checked.env.isNone() then
+        return "\{\"data\":[]}"
+    let t := text.get()
+    let env := a.checked.env.get()
+    var std: Map[String, Boolean] := {}
+    for u in a.checked.resolved.units do
+        if u.std then
+            std[u.path] := true
+    var refs: Map[Integer, Ref] := {}
+    for r in a.checked.resolved.checker.index.refs do
+        if r.file = path and len(r.targets) > 0 then
+            refs[r.span.start] := r
+    let lexed := lex(t.str, file: path)
+    var found: List[Semantic] := []
+    for tok in lexed.tokens do
+        var ty := -1
+        var mods := 0
+        let k := ord(tok.kind)
+        if tok.kind = TokenKind.Ident then
+            case get(refs, tok.span.start) of
+                Some(r):
+                    let sym := r.value.targets[0]
+                    ty := semType(env, sym)
+                    if r.value.isDef then
+                        mods := mods + 1
+                    if sym.kind in [Kind.ConstSym, Kind.LetSym, Kind.EnumMember] then
+                        mods := mods + 2
+                    if sym.file in std or sym.kind in [Kind.BuiltinType, Kind.BuiltinTrait] then
+                        mods := mods + 4
+                None:
+                    pass
+        else if k >= ord(TokenKind.KwAnd) and k <= ord(TokenKind.KwWhile) then
+            ty := 11
+        else if tok.kind in [TokenKind.IntLit, TokenKind.RealLit] then
+            ty := 14
+        else if tok.kind in [
+            TokenKind.CharLit,
+            TokenKind.StringLit,
+            TokenKind.StringBegin,
+            TokenKind.StringMid,
+            TokenKind.StringEnd,
+        ] then
+            ty := 13
+        if ty >= 0 and tok.span.line = tok.span.endLine and tok.span.end > tok.span.start then
+            add(var found, Semantic(start: tok.span.start, span: tok.span, kind: ty, mods: mods))
+    for c in lexed.comments do
+        if c.span.line = c.span.endLine then
+            add(var found, Semantic(start: c.span.start, span: c.span, kind: 12, mods: 0))
+    sort(var found, less: semBefore)
+    var data: List[String] := []
+    var line := 0
+    var char := 0
+    for f in found do
+        let l := f.span.line - 1
+        let from := utf16(t, f.span.line, col: f.span.col)
+        let length := utf16(t, f.span.line, col: f.span.endCol) - from
+        var delta := from
+        if l = line then
+            delta := from - char
+        add(var data, "{l - line},{delta},{length},{f.kind},{f.mods}")
+        line := l
+        char := from
+    return "\{\"data\":[{join(data, sep: ",")}]}"
+
 # ------------------------------------------------------------------------- implementation
 
 ## The types that satisfy the trait at the position, or for a trait routine, the routines
@@ -1333,7 +1448,7 @@ function codeActions(s: Server, path: String, params: JValue): String
 # ------------------------------------------------------------------------- requests
 
 function capabilities(): String
-    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"typeDefinitionProvider\":true,\"implementationProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"workspaceSymbolProvider\":true,\"callHierarchyProvider\":true,\"foldingRangeProvider\":true,\"renameProvider\":true,\"completionProvider\":\{\"triggerCharacters\":[\".\"]},\"signatureHelpProvider\":\{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":\{\"name\":\"pst\"}}"
+    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"typeDefinitionProvider\":true,\"implementationProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"workspaceSymbolProvider\":true,\"callHierarchyProvider\":true,\"semanticTokensProvider\":\{\"legend\":{legend()},\"full\":true},\"foldingRangeProvider\":true,\"renameProvider\":true,\"completionProvider\":\{\"triggerCharacters\":[\".\"]},\"signatureHelpProvider\":\{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":\{\"name\":\"pst\"}}"
 
 ## The edits that format the document at `uri`: none if it is formatted, or can't be.
 function formatting(s: Server, uri: String): String
@@ -1394,6 +1509,8 @@ procedure handle(var s: Server, m: JValue)
         respond(id, result: implementations(s, pathOf(uri), params: params))
     else if method = "textDocument/typeDefinition" then
         respond(id, result: typeDefinition(s, pathOf(uri), params: params))
+    else if method = "textDocument/semanticTokens/full" then
+        respond(id, result: semanticTokens(s, pathOf(uri)))
     else if method = "textDocument/prepareCallHierarchy" then
         respond(id, result: prepareCallHierarchy(s, pathOf(uri), params: params))
     else if method = "callHierarchy/incomingCalls" then

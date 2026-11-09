@@ -1,0 +1,5 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file://DIR/Main.pst","languageId":"pasthon","version":1,"text":"program Main\n\nuses IO\n\ntype\n    Size = (Small, Large)\n    Box = record\n        side: Integer\n\nconst\n    Limit = 10\n\n## The area of `b`.\nfunction area(b: Box): Integer\n    return b.side * b.side  # square\n\nlet b := Box(side: 2)\nwriteln(\"area {area(b)} of {Size.Small}, limit {Limit}\")\n"}}}
+{"jsonrpc":"2.0","id":2,"method":"textDocument/semanticTokens/full","params":{"textDocument":{"uri":"file://DIR/Main.pst"}}}
+{"jsonrpc":"2.0","id":3,"method":"shutdown"}
+{"jsonrpc":"2.0","method":"exit"}

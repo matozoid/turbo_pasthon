@@ -1,0 +1,5 @@
+# The language server (SPEC §15.4): semantic tokens color each name by what it means (with
+# declaration, readonly and standard-library modifiers), and keywords, literals, string
+# parts and comments; the capabilities line carries the legend.
+$PST build Frames.pst -o frames
+sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v publishDiagnostics | sed 's/.*"semanticTokensProvider":\({"legend":.*"full":true}\).*/legend \1/'
