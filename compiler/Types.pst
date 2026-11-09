@@ -97,6 +97,9 @@ export function listLitT(): Type
 export function emptyBracesT(): Type
     return SpecialT(name: "\{}")
 
+export function lambdaT(): Type
+    return SpecialT(name: "<lambda>")
+
 export function intLitT(): Type
     return SpecialT(name: "<integer literal>")
 

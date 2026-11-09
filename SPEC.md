@@ -528,8 +528,28 @@ type
     Callback = procedure(String)
 ```
 
-Values of function type are **named top-level functions** only (no closures/lambdas in v0.1).
-A generic function must be instantiated to be used as a value: `apply(max[Integer])`.
+A value of function type is a named top-level routine or a lambda. A generic function must
+be instantiated to be used as a value: `apply(max[Integer])`.
+
+A **lambda** writes a function value inline: its parameters, `=>`, and one expression.
+
+```pascal
+sort(var people, key: p => p.name)
+let found := find(iter(people), p => p.name = wanted)
+let add: function(Integer, Integer): Integer := (a, b) => a + b
+let tick: function(): Integer := () => count + 1
+```
+
+Lambdas are restricted so that the common, safe cases work and the classic bugs can't happen:
+
+- The body is a single expression, never a block. For a procedure type, it's a call with
+  no value.
+- Parameter types come from the expected function type, so a lambda can only appear where
+  one is expected (`E0806`), with as many parameters (`E0807`).
+- Captures are **by value**: the lambda keeps a copy of each variable it uses, taken when it
+  is created. There is no shared loop-variable bug, and captured variables can't be changed
+  through it (`E0341`). A lambda that captures nothing is as cheap as a named routine.
+- A lambda is `Sendable` if all its captures are.
 
 ### 4.12 Generic types
 
@@ -647,8 +667,8 @@ them compile to direct calls with no allocation:
 `find(it, pred): Option[T]`.
 
 There is no `map` or `filter`: a `for` expression (§9.4) is the one way to map and filter,
-`for x in xs do if x > 0 then double(x) else continue`. A `pred` is a named function for
-now; in v0.3, lambdas make it inline (§18a.1): `any(iter(xs), x => x < 0)`.
+`for x in xs do if x > 0 then double(x) else continue`. A `pred` is a named function
+or a lambda (§4.11): `any(iter(xs), x => x < 0)`.
 
 ---
 
@@ -1299,7 +1319,7 @@ v0.1 is single-threaded, but the design is fixed now so v0.1 doesn't rule it out
 - Only `Sendable` values cross threads: types containing no `ref`, `Weak`, `Ptr`, or
   `Pointer`. Sending transfers the value (a runtime operation, not compile-time move tracking). Buffers with refcount 1 are handed over in O(1),
   shared buffers are deep-copied, so the receiver always gets an object it owns alone.
-- `spawn` takes a named top-level function (or a v0.3 lambda that only captures `Sendable`
+- `spawn` takes a named top-level function (or a lambda that only captures `Sendable`
   values).
 - v0.1 implementation constraint: the runtime must not rely on any global mutable state
   of its own (allocator caches, string tables) without being made per-thread.
@@ -1843,7 +1863,9 @@ caseArm     = (label { "," label } | "else") ":" (simpleStmt | block) ;
 label       = constExpr [".." constExpr] | IDENT ["(" (IDENT | DISCARD) ")"] ;
 deferStmt   = "defer" (simpleStmt | block) ;
 
-expr        = ifExpr | orExpr ;              (* orExpr: precedence levels of §9.1 *)
+expr        = lambda | ifExpr | orExpr ;     (* orExpr: precedence levels of §9.1 *)
+lambda      = (lambdaParam | "(" [lambdaParam { "," lambdaParam }] ")") "=>" expr ;
+lambdaParam = IDENT | DISCARD ;
 ifExpr      = "if" expr "then" expr { "else" "if" expr "then" expr } "else" expr ;
 caseExpr    = "case" expr "of" NEWLINE INDENT { exprArm } DEDENT ;
 exprArm     = (label { "," label } | "else") ":" expr NEWLINE ;
@@ -1948,6 +1970,8 @@ already has a lexical error are not reported.
 | `E0803` | `if` or `for` expression used as an operand without parentheses |
 | `E0804` | `case` expression that isn't the whole right side of `:=`, `var`, `let`, or `return` |
 | `E0805` | `for` expression whose `if` gives no value in any branch, only `continue` or `break` |
+| `E0806` | lambda where no function type is expected |
+| `E0807` | lambda with a different number of parameters than the function type expected |
 | `E0901` | type isn't C-compatible (extern signature, C record field, C varargs argument; §10.1) |
 | `E0902` | unsafe operation outside an `unsafe` routine (§10.4) |
 | `E0903` | invalid declaration in an extern block's `type` section (§10.5) |
@@ -1969,8 +1993,8 @@ already has a lexical error are not reported.
 
 Classes, inheritance, exceptions, null, implicit numeric conversions, operator overloading,
 macros, mutable globals, `goto`, `with`, compound assignment, chained comparisons,
-semicolon-separated statements, tuples (use records), closures/lambdas (v0.1),
-runtime trait objects (use unions).
+semicolon-separated statements, tuples (use records), closures that share
+variables (lambdas copy them), runtime trait objects (use unions).
 
 ---
 
@@ -1980,23 +2004,7 @@ None at the moment.
 
 ## 18a. Planned
 
-### 18a.1 v0.3: lambdas
-
-Lambdas are restricted so that the common, safe cases work and the classic bugs can't happen:
-
-```pascal
-sort(var people, key: p => p.name)
-let found := find(iter(people), p => p.name = wanted)
-if any(iter(items), item => item.qty = 0) then
-    ...
-```
-
-- The body is a single expression, never a block.
-- Captures are **by value**: a frozen copy taken when the lambda is created. There is no
-  shared loop-variable bug, and captured variables can't be mutated.
-- Parameter types are inferred from the expected function type. Lambdas can't appear where
-  no function type is expected.
-- A lambda is `Sendable` if all its captures are.
+Nothing at the moment.
 
 ---
 

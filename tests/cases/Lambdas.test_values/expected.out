@@ -1,0 +1,20 @@
+$ $PST run Main.pst
+exit 0
+--- stdout
+40
+true
+9
+4
+1
+2
+1
+15
+Hello, Ann!
+106
+[a!, b!]
+[10, 20, 30]
+8
+9
+49
+304
+--- stderr

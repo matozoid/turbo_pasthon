@@ -1793,7 +1793,47 @@ function expr(p: ref State): Parsed[Expr]
     if at(p, TokenKind.KwFor) then
         let e := try forExpr(p)
         return Ok(e)
+    if lambdaAhead(p) then
+        let e := try lambda(p)
+        return Ok(e)
     return orExpr(p)
+
+function isParamName(k: TokenKind): Boolean
+    return k = TokenKind.Ident or k = TokenKind.Underscore
+
+## Whether a lambda starts here: `x =>`, `() =>`, or `(a, b) =>`.
+function lambdaAhead(p: ref State): Boolean
+    if isParamName(peek(p).kind) then
+        return peek(p, 1).kind = TokenKind.Arrow
+    if not at(p, TokenKind.Lparen) then
+        return false
+    var i := 1
+    if peek(p, i).kind <> TokenKind.Rparen then
+        while true do
+            if not isParamName(peek(p, i).kind) then
+                return false
+            i := i + 1
+            if peek(p, i).kind <> TokenKind.Comma then
+                break
+            i := i + 1
+    return peek(p, i).kind = TokenKind.Rparen and peek(p, i + 1).kind = TokenKind.Arrow
+
+function lambda(p: ref State): Parsed[Lambda]
+    let start := peek(p).span
+    var params: List[Ident] := []
+    if accept(p, TokenKind.Lparen) then
+        while not at(p, TokenKind.Rparen) do
+            let t := advance(p)
+            add(var params, Ident(span: t.span, name: t.text))
+            if not accept(p, TokenKind.Comma) then
+                break
+        step(p)
+    else
+        let t := advance(p)
+        add(var params, Ident(span: t.span, name: t.text))
+    step(p)  # =>
+    let body := try expr(p)
+    return Ok(Lambda(span: finish(p, start), id: newId(p), params: params, body: body))
 
 function ifExpr(p: ref State): Parsed[IfExpr]
     let start := advance(p).span

@@ -1,0 +1,4 @@
+program Main
+let f: function(Integer, Integer): Integer := (a,b)=>a+b
+let g: function(): Integer := ( )  =>  1
+let h: function(Integer): Integer := x=>x

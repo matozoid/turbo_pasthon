@@ -1,0 +1,17 @@
+$ $PST fmt Main.pst
+exit 0
+--- stdout
+Main.pst
+--- stderr
+$ cat Main.pst
+exit 0
+--- stdout
+program Main
+let f: function(Integer, Integer): Integer := (a, b) => a + b
+let g: function(): Integer := () => 1
+let h: function(Integer): Integer := x => x
+--- stderr
+$ $PST fmt Main.pst --check
+exit 0
+--- stdout
+--- stderr

@@ -1,0 +1,17 @@
+program Main
+
+uses IO
+
+var n := 0
+let f := x => x
+let g: function(Integer): Integer := (a, b) => a
+let h: function(Integer): Integer := x => "s"
+let k: function(Integer): Integer := x => inc2(var n)
+let m: procedure(Integer) := x => x + 1
+writeln(f)
+writeln(g(1) + h(1) + k(1))
+m(1)
+
+function inc2(var v: Integer): Integer
+    v := v + 1
+    return v

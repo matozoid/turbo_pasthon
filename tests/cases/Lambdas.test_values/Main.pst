@@ -1,0 +1,64 @@
+program Main
+
+uses IO
+
+type
+    Person = record
+        name: String
+        age: Integer
+
+function apply(x: Integer, f: function(Integer): Integer): Integer
+    return f(x)
+
+procedure each(xs: List[Integer], p: procedure(Integer))
+    for x in xs do
+        p(x)
+
+function adder(n: Integer): function(Integer): Integer
+    return x => x + n
+
+function greeter(greeting: String): function(String): String
+    return name => "{greeting}, {name}!"
+
+function compose(
+    f: function(Integer): Integer,
+    g: function(Integer): Integer,
+): function(Integer): Integer
+    return x => g(f(x))
+
+function mapAll[T](xs: List[T], f: function(T): T): List[T]
+    return for x in xs do f(x)
+
+function scaleAll[T](xs: List[T], k: T, mul: function(T, T): T): List[T]
+    return mapAll(xs, f: x => mul(x, k))
+
+# Without captures, and with captured lets
+let people := [Person(name: "Ann", age: 30), Person(name: "Bob", age: 40)]
+let wanted := "Bob"
+writeln(find(iter(people), p => p.name = wanted).get().age)
+writeln(any(iter(people), q => q.age > 35))
+writeln(apply(3, f: x => x * x))
+let twice: function(Integer, Integer): Integer := (a, b) => 2 * a + b
+writeln(twice(1, 2))
+each([1, 2], p: x => writeln(x))
+
+# A captured variable is a copy, taken when the lambda is made
+var n := 0
+let g: function(): Integer := () => n + 1
+n := 10
+writeln(g())
+
+# Lambdas outliving their routine, capturing strings and other lambdas
+let add5 := adder(5)
+writeln(add5(10))
+writeln(greeter("Hello")("Ann"))
+let both := compose(add5, g: adder(100))
+writeln(both(1))
+let suffix := "!"
+writeln(mapAll(["a", "b"], f: w => "{w}{suffix}"))
+writeln(scaleAll([1, 2, 3], k: 10, mul: (a, b) => a * b))
+let fs: List[function(Integer): Integer] := [adder(1), adder(2), x => x * x]
+for f in fs do
+    writeln(f(7))
+let nest: function(Integer): function(Integer): Integer := a => b => a * 100 + b
+writeln(nest(3)(4))

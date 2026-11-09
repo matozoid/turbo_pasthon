@@ -244,6 +244,10 @@ procedure expr(e: Expr, d: Integer, label: String)
         ForExpr(x):
             line(d, label, kind: "ForExpr", span: x.span, scalars: "")
             stmt(x.loop, c, label: one("loop"))
+        Lambda(x):
+            line(d, label, kind: "Lambda", span: x.span, scalars: "")
+            idents(x.params, c, field: "params")
+            expr(x.body, c, label: one("body"))
         ErrorExpr(x): line(d, label, kind: "ErrorExpr", span: x.span, scalars: "")
 
 procedure labels(ls: List[Label], d: Integer)

@@ -1,0 +1,9 @@
+$ $PST check Main.pst
+exit 1
+--- stdout
+--- stderr
+Main.pst:6:10: error E0806: a lambda needs a function type here, to know its parameter types; give the variable a type
+Main.pst:7:38: error E0807: this lambda takes 2 parameters, but function(Integer): Integer takes 1
+Main.pst:8:43: error E0300: expected Integer, found String
+Main.pst:9:52: error E0341: can't pass captured variable 'n' (a lambda has its own copy) as 'var'
+Main.pst:10:35: error E0300: expected no value (the lambda is a procedure), found Integer

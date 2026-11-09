@@ -198,6 +198,14 @@ type
         export id: Integer
         export loop: Stmt
 
+    ## `x => e`, `(a, b) => e`: a function value whose parameter types come from the
+    ## function type expected where it is written (SPEC §4.11).
+    export Lambda = record
+        export span: Span
+        export id: Integer
+        export params: List[Ident]
+        export body: Expr
+
     export ErrorExpr = record
         export span: Span
         export id: Integer
@@ -235,7 +243,7 @@ type
         export subject: Expr
         export arms: List[CaseExprArm]
 
-    export Expr = Name | IntLit | RealLit | CharLit | BoolLit | StringLit | InterpString | ListLit | MapLit | SetLit | EmptyBraces | Paren | Unary | Binary | Call | Index | FieldAccess | Deref | IfExpr | CaseExpr | ForExpr | ErrorExpr
+    export Expr = Name | IntLit | RealLit | CharLit | BoolLit | StringLit | InterpString | ListLit | MapLit | SetLit | EmptyBraces | Paren | Unary | Binary | Call | Index | FieldAccess | Deref | IfExpr | CaseExpr | ForExpr | Lambda | ErrorExpr
 
     # ------------------------------------------------------------------ statements
 
@@ -513,6 +521,7 @@ export function exprSpan(e: Expr): Span
         IfExpr(x): return x.span
         CaseExpr(x): return x.span
         ForExpr(x): return x.span
+        Lambda(x): return x.span
         ErrorExpr(x): return x.span
 
 export function stmtSpan(s: Stmt): Span
@@ -566,4 +575,5 @@ export function exprId(e: Expr): Integer
         IfExpr(x): return x.id
         CaseExpr(x): return x.id
         ForExpr(x): return x.id
+        Lambda(x): return x.id
         ErrorExpr(x): return x.id

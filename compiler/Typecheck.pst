@@ -236,6 +236,8 @@ type
         ## The element types of the `for` expressions being checked, innermost last;
         ## unknown until the first value.
         fors: List[Type]
+        ## How many lambdas the expression being checked is inside.
+        lambdas: Integer
         inDefer: Boolean
         inEnsures: Boolean
         ## Ids of the arguments of `new` calls, for resources().
@@ -622,6 +624,7 @@ function newTC(env: ref Env, u: ref Unit): ref TC
         tparams: [],
         loops: [],
         fors: [],
+        lambdas: 0,
         inDefer: false,
         inEnsures: false,
         newArgs: {},
@@ -1992,6 +1995,8 @@ procedure walkChildren(tc: ref TC, e: Expr)
                 walkExpr(tc, arm.value, none)
         ForExpr(x):
             walkStmt(tc, x.loop)
+        Lambda(x):
+            walkExpr(tc, x.body, none)
         else:
             pass
 
@@ -2122,6 +2127,57 @@ function stmt(tc: ref TC, s: Stmt): Boolean
 
 ## A `for` expression: its loops are checked as statements, and its values give the
 ## element type, as the items of a list literal do.
+## A lambda takes its parameter types from the function type `expected`; its body is
+## checked against the result type, with what it captures read-only.
+function lambda(tc: ref TC, x: Lambda, expected: Type): Type
+    var params: List[Type] := []
+    var result := errorT()
+    var ok := false
+    case expected of
+        FuncT(f):
+            if len(f.params) = len(x.params) then
+                params := f.params
+                result := f.result
+                ok := true
+            else
+                fail(
+                    tc,
+                    x.span,
+                    "E0807",
+                    "this lambda takes {len(x.params)} parameter{plural(len(x.params))}, but {show(expected)} takes {len(f.params)}",
+                )
+        else:
+            if not hasError(expected) then
+                fail(
+                    tc,
+                    x.span,
+                    "E0806",
+                    "a lambda needs a function type here, to know its parameter types; give the variable a type",
+                )
+    for i := 0 to len(x.params) - 1 do
+        var t := errorT()
+        if ok then
+            t := params[i]
+        setType(tc, symAt(tc, x.params[i].span), t)
+    tc.lambdas := tc.lambdas + 1
+    if not ok then
+        _ := expr(tc, x.body, noType())
+    else if result = voidT() then
+        let t := expr(tc, x.body, noType())
+        if not (t = voidT()) and not hasError(t) then
+            fail(
+                tc,
+                exprSpan(x.body),
+                "E0300",
+                "expected no value (the lambda is a procedure), found {show(t)}",
+            )
+    else
+        _ := check(tc, x.body, result)
+    tc.lambdas := tc.lambdas - 1
+    if not ok then
+        return errorT()
+    return expected
+
 function forExpr(tc: ref TC, x: ForExpr, expected: Type): Type
     var elem := noType()
     if isBuiltin(expected, "List") then
@@ -2726,6 +2782,8 @@ function expr(tc: ref TC, e: Expr, expected: Type): Type
             t := callExpr(tc, x, expected)
         ForExpr(x):
             t := forExpr(tc, x, expected)
+        Lambda(x):
+            t := lambda(tc, x, expected)
     tc.types[exprId(e)] := t
     return t
 
@@ -3535,7 +3593,9 @@ function callExpr(tc: ref TC, e: Call, expected: Type): Type
         return t
     if isRoutine(s0.kind) then
         return call(tc, request(e, name, candidates(tc, syms), explicit, expected, Some(span)))
-    return callValue(tc, e, asValue(tc, symValue(tc, syms, span, noType()), callee), name)
+    let ct := asValue(tc, symValue(tc, syms, span, noType()), callee)
+    tc.types[exprId(callee)] := ct
+    return callValue(tc, e, ct, name)
 
 ## `cast[T](x)`: reinterprets a pointer or integer as another (SPEC §10.4).
 function cast(tc: ref TC, e: Call, explicit: Option[List[Type]]): Type
@@ -3797,6 +3857,8 @@ function flex(tc: ref TC, v: Expr): Type
                 return emptyListT()
         EmptyBraces(_):
             return emptyBracesT()
+        Lambda(_):
+            return lambdaT()
         else:
             pass
     let lit := literalValue(v)
@@ -3885,6 +3947,8 @@ function argDesc(a: CArg): String
         return "[]"
     if a.flex = emptyBracesT() then
         return "\{}"
+    if a.flex = lambdaT() then
+        return "a lambda"
     if a.flex = listLitT() then
         if known(a.ty) then
             return show(a.ty)
@@ -4223,6 +4287,18 @@ function flexFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Int
         return 0
     if k = listLitT() then
         return listFit(tc, a, want, var s, vars)
+    if k = lambdaT() then  # its body is checked once the call is chosen (`finish`)
+        case want of
+            FuncT(f):
+                case a.expr of
+                    Lambda(l):
+                        if len(f.params) = len(l.params) then
+                            return 0
+                    else:
+                        pass
+            else:
+                pass
+        return -1
     case want of
         ParamT(p):
             if p.sym.id in vars then
@@ -4495,6 +4571,14 @@ function immutable(tc: ref TC, e: Expr): String
             if r.isNone() or len(r.get().targets) <> 1 then
                 return ""  # already reported
             let s := r.get().targets[0]
+            var own := false
+            case s.node of
+                Ident(_):
+                    own := true  # a lambda's own parameter
+                else:
+                    pass
+            if tc.lambdas > 0 and not own and (s.kind = Kind.VarSym or s.kind = Kind.ParamSym) then
+                return "captured variable '{s.name}' (a lambda has its own copy)"
             if s.kind = Kind.VarSym then
                 return ""
             if s.kind = Kind.ParamSym then

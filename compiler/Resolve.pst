@@ -1478,6 +1478,12 @@ procedure expr(r: ref Resolver, e: Expr)
             expr(r, i.elseValue)
         ForExpr(fe):
             stmt(r, fe.loop)
+        Lambda(l):
+            push(r)
+            for prm in l.params do
+                define(r, Kind.ParamSym, prm, node: prm)
+            expr(r, l.body)
+            pop(r)
         CaseExpr(ce):
             expr(r, ce.subject)
             for arm in ce.arms do

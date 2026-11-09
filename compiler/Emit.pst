@@ -143,6 +143,18 @@ type
         sites: Map[Integer, String]
         depth: Integer
 
+    ## A lambda to compile as a routine at `label`: its function type `ty`, the variables
+    ## it captures, in its block's order, and the generic context it is written in.
+    Lam = record
+        label: String
+        node: Lambda
+        file: String
+        ty: Type
+        captures: List[ref Symbol]
+        s: Subst
+        sites: Map[Integer, String]
+        depth: Integer
+
     ## A callback's thunk: its label, the routine's label, the parameter and result
     ## types, and where the callback is named.
     Thunk = record
@@ -248,6 +260,7 @@ type
         ## Routine and type arguments -> label.
         labels: Map[String, String]
         queue: List[Inst]
+        lams: List[Lam]
         ## Type keys -> descriptor label.
         descs: Map[String, String]
         supportedCache: Map[String, Boolean]
@@ -1059,6 +1072,7 @@ export function build(result: Checked, checked: Boolean := true, tests: Boolean 
         panics: [],
         labels: {},
         queue: [],
+        lams: [],
         descs: {},
         supportedCache: {},
         thunks: [],
@@ -1131,7 +1145,12 @@ function run(g: ref Em): Built
     xor32(a, Rdi, Rdi)
     exitProgram(g)
     patch32(a, sizeAt, value: align(g.f.size, 16))
-    while len(g.queue) > 0 do
+    while len(g.queue) > 0 or len(g.lams) > 0 do
+        if len(g.lams) > 0 then
+            let lm := g.lams[len(g.lams) - 1]
+            removeLast(var g.lams)
+            lambdaRoutine(g, lm)
+            continue
         let inst := g.queue[len(g.queue) - 1]
         removeLast(var g.queue)
         routine(g, inst)
@@ -2747,6 +2766,8 @@ procedure exprHere(g: ref Em, e: Expr)
             caseOf(g, x.subject, [], exprArms: x.arms, result: t, isExpr: true)
         ForExpr(x):
             forExpr(g, x, t)
+        Lambda(x):
+            lambdaValue(g, x, t)
         Call(x):
             let k := exprKey(g, x.id)
             if k in g.f.old then
@@ -3013,6 +3034,127 @@ function closureOf(g: ref Em, target: String): String
         codeRef(g.a, lbl, offset: Fields, label: target)
         g.labels[k] := lbl
     return g.labels[k]
+
+## rax := lambda `x` as a value of function type `t`: a new block holding its code and
+## copies of the variables it captures, or without any, an immortal one (SPEC §4.11).
+procedure lambdaValue(g: ref Em, x: Lambda, t: Type)
+    let a := g.a
+    var caps: List[ref Symbol] := []
+    captures(g, x.body, var caps)
+    let lbl := newLabel(a, "lambda")
+    add(var g.lams, Lam(
+        label: lbl,
+        node: x,
+        file: g.f.file,
+        ty: subT(g, t),
+        captures: caps,
+        s: g.f.s,
+        sites: g.f.sites,
+        depth: g.f.depth,
+    ))
+    if len(caps) = 0 then
+        routineValue(g, lbl, t)
+        return
+    var parts := [integerT()]
+    for c in caps do
+        add(var parts, subT(g, symType(g, c)))
+    newBlock(g, descriptor(g, "lambda|{lbl}", parts, name: "lambda"))
+    leaCode(a, R11, label: lbl)
+    sub(a, R11, Rax)
+    store(a, Rax, disp: Fields, src: R11)
+    for i := 0 to len(caps) - 1 do
+        push(a, Rax)
+        load(a, Rax, Rbp, disp: g.f.slots[caps[i].id])
+        if managed(g, parts[i + 1]) then
+            retain(g)
+        mov(a, Rcx, Rax)
+        pop(a, Rax)
+        store(a, Rax, disp: Fields + 8 * (i + 1), src: Rcx)
+
+## Adds the variables of the routine being compiled that `e` reads to `out`.
+procedure captures(g: ref Em, e: Expr, var out: List[ref Symbol])
+    case e of
+        Name(x):
+            case refSym(g, x.span) of
+                Some(s):
+                    if s.value.id in g.f.slots then
+                        var seen := false
+                        for c in out do
+                            if c.id = s.value.id then
+                                seen := true
+                        if not seen then
+                            add(var out, s.value)
+                None:
+                    pass
+        Lambda(x):
+            captures(g, x.body, var out)
+        else:
+            pass
+    for k in exprKids(e) do
+        captures(g, k, var out)
+
+## Compiles a lambda's body as a routine. It takes the block in r10 and copies the
+## captured variables into its own slots.
+procedure lambdaRoutine(g: ref Em, lm: Lam)
+    let a := g.a
+    let f := newFrame(lm.file, None, exit: newLabel(a, "ret"))
+    f.s := lm.s
+    f.sites := lm.sites
+    f.depth := lm.depth
+    g.f := f
+    label(a, lm.label)
+    push(a, Rbp)
+    mov(a, Rbp, Rsp)
+    let sizeAt := subImm32Fixed(a, Rsp)
+    a.tracked := true
+    a.stack := []
+    let env := alloc(g)
+    store(a, Rbp, disp: env, src: R10)
+    var params: List[Type] := []
+    var result := voidT()
+    case lm.ty of
+        FuncT(ft):
+            params := ft.params
+            result := ft.result
+        else:
+            pass
+    keepAliveExpr(g, lm.node.body)
+    for i := 0 to len(lm.node.params) - 1 do
+        let t := params[i]
+        valueType(g, t, lm.node.params[i].span, what: "parameter '{lm.node.params[i].name}'")
+        if g.bad then
+            break
+        let slot := local(g, lm.node.params[i].span)
+        if i < 6 then
+            store(a, Rbp, disp: slot, src: argReg(i))
+        else
+            load(a, Rax, Rbp, disp: 16 + 8 * (i - 6))
+            store(a, Rbp, disp: slot, src: Rax)
+        if managed(g, t) then
+            ownParam(g, slot)
+    if not g.bad then
+        for i := 0 to len(lm.captures) - 1 do
+            let c := lm.captures[i]
+            let slot := alloc(g)
+            f.slots[c.id] := slot
+            load(a, Rax, Rbp, disp: env)
+            load(a, Rax, Rax, disp: Fields + 8 * (i + 1))
+            store(a, Rbp, disp: slot, src: Rax)
+            if managed(g, subT(g, symType(g, c))) then
+                retain(g)
+                ownParam(g, slot)
+        if result = voidT() then
+            expr(g, lm.node.body)
+        else
+            coerce(g, lm.node.body, result)
+    if g.bad then
+        g.bad := false
+    else
+        releaseScopes(g, 0)
+    label(a, f.exit)
+    leave(a)
+    ret(a)
+    patch32(a, sizeAt, value: align(f.size, 16))
 
 ## rax := the address of the instance of generic routine `sym` that `x`, `f[T]`, names.
 procedure instanceValue(g: ref Em, sym: ref Symbol, x: Index, e: Expr)
@@ -3644,6 +3786,8 @@ function countUses(g: ref Em, e: Expr, id: Integer): Integer
                         n := 1
                 None:
                     pass
+        Lambda(x):
+            n := countUses(g, x.body, id)
         else:
             pass
     for k in exprKids(e) do

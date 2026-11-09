@@ -1,0 +1,3 @@
+$PST fmt Main.pst
+cat Main.pst
+$PST fmt Main.pst --check
