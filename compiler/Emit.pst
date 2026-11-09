@@ -142,6 +142,18 @@ type
         result: Type
         span: Span
 
+    ## A routine used as a value of function type `ty`.
+    Taken = record
+        sym: ref Symbol
+        ty: Type
+
+    ## A routine mapping a routine of function type `ty`, used as a value, to its thunk:
+    ## its label, and where it is first needed.
+    Lookup = record
+        label: String
+        ty: Type
+        span: Span
+
     ## The drop routine of a box type, and the destroy hook it calls ("" for none).
     BoxDrop = record
         label: String
@@ -230,6 +242,8 @@ type
         descs: Map[String, String]
         supportedCache: Map[String, Boolean]
         thunks: List[Thunk]
+        taken: List[Taken]
+        lookups: List[Lookup]
         drops: List[BoxDrop]
         ## Shared libraries, in DT_NEEDED order.
         needed: List[String]
@@ -1037,6 +1051,8 @@ export function build(result: Checked, checked: Boolean := true, tests: Boolean 
         descs: {},
         supportedCache: {},
         thunks: [],
+        taken: [],
+        lookups: [],
         drops: [],
         needed: [Libc],
         library: library,
@@ -1109,6 +1125,8 @@ function run(g: ref Em): Built
         removeLast(var g.queue)
         routine(g, inst)
     a.tracked := false
+    for lk in g.lookups do
+        lookup(g, lk)
     var i := 0
     while i < len(g.thunks) do
         thunk(g, g.thunks[i])
@@ -2848,6 +2866,10 @@ procedure loadSym(g: ref Em, sym: ref Symbol, e: Expr)
         if g.bad then
             return
         leaCode(a, Rax, label: lbl)
+        for tk in g.taken do
+            if tk.sym.id = sym.id then
+                return
+        add(var g.taken, Taken(sym: sym, ty: t))
         return
     if sym.kind = Kind.ResultSym and g.f.resultSlot.isSome() then
         load(a, Rax, Rbp, disp: g.f.resultSlot.get())
@@ -3762,7 +3784,7 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
     else if m.sig.isFunction then
         widen(g, result)  # C leaves the upper bits of small results undefined
 
-## rax := the address of a thunk through which C calls the routine named by `e`
+## rax := the address of a thunk through which C calls the routine `e` names or holds
 ## (SPEC §10.3).
 procedure callback(g: ref Em, e: Expr, t: Type)
     var sym: Option[ref Symbol] := None
@@ -3773,9 +3795,26 @@ procedure callback(g: ref Em, e: Expr, t: Type)
             sym := refSym(g, calleeSpan(e))
         else:
             pass
-    if sym.isNone() or not isRoutineNode(sym.get()) or len(sig(g.env, sym.get()).tparams) > 0 then
-        unsupported(g, exprSpan(e), "a callback other than the name of a top-level routine")
+    if sym.isSome() and isRoutineNode(sym.get()) and len(sig(g.env, sym.get()).tparams) = 0 then
+        let lbl := thunkOf(g, sym.get(), t, exprSpan(e))
+        if g.bad then
+            return
+        leaCode(g.a, Rax, label: lbl)
         return
+    expr(g, e)
+    if g.bad then
+        return
+    let k := "lookup|{key(t)}"
+    if not (k in g.labels) then
+        g.labels[k] := newLabel(g.a, "lookup")
+        add(var g.lookups, Lookup(label: g.labels[k], ty: t, span: exprSpan(e)))
+    call(g.a, g.labels[k])
+
+## The label of the thunk through which C calls routine `sym` of function type `t`.
+function thunkOf(g: ref Em, sym: ref Symbol, t: Type, span: Span): String
+    let k := "thunk|{sym.id}"
+    if k in g.labels then
+        return g.labels[k]
     var params: List[Type] := []
     var result := voidT()
     case t of
@@ -3784,18 +3823,27 @@ procedure callback(g: ref Em, e: Expr, t: Type)
             result := ft.result
         else:
             pass
-    let k := "thunk|{sym.get().id}"
-    if not (k in g.labels) then
-        let lbl := newLabel(g.a, "thunk")
-        g.labels[k] := lbl
-        let target := labelOf(g, exprSpan(e), sym.get(), [], sites: {})
-        if g.bad then
-            return
-        add(
-            var g.thunks,
-            Thunk(label: lbl, target: target, params: params, result: result, span: exprSpan(e)),
-        )
-    leaCode(g.a, Rax, label: g.labels[k])
+    let lbl := newLabel(g.a, "thunk")
+    g.labels[k] := lbl
+    let target := labelOf(g, span, sym, [], sites: {})
+    add(var g.thunks, Thunk(label: lbl, target: target, params: params, result: result, span: span))
+    return lbl
+
+## rax := the thunk of the routine at address rax, of function type `lk.ty`: one of the
+## routines used as values, since only a named routine is a function value (SPEC §4.11).
+procedure lookup(g: ref Em, lk: Lookup)
+    let a := g.a
+    label(a, lk.label)
+    for tk in g.taken do
+        if key(tk.ty) = key(lk.ty) then
+            let next := newLabel(a, "next")
+            leaCode(a, R11, label: labelOf(g, lk.span, tk.sym, [], sites: {}))
+            cmp(a, Rax, R11)
+            jcc(a, "ne", label: next)
+            leaCode(a, Rax, label: thunkOf(g, tk.sym, lk.ty, lk.span))
+            ret(a)
+            label(a, next)
+    ret(a)
 
 ## C passes reals in xmm registers and the rest in the integer ones, counted apart, and
 ## what doesn't fit, or a C record over 16 bytes, on the stack; the routine takes each

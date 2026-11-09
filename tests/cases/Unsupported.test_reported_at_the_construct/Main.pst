@@ -1,14 +1,16 @@
 program Main
 
-uses IO, C
+uses IO
 
-extern "libc.so.6"
-    procedure take(f: function(CDouble): CInt)
+type
+    BinOp = function(Integer, Integer): Integer
 
-function half(x: CDouble): CInt
-    return 0
+function bigger[T: Ordered](a, b: T): T
+    if a > b then
+        return a
+    return b
 
-unsafe procedure demo()
-    let h := half
-    take(h)
-demo()
+function apply(f: BinOp, a, b: Integer): Integer
+    return f(a, b)
+
+writeln(apply(bigger[Integer], a: 3, b: 4))

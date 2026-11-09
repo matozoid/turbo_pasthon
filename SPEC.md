@@ -1133,8 +1133,8 @@ extern "libm.so.6"
 
 ### 10.3 Callbacks
 A top-level, non-generic Pasthon function whose signature is C-compatible can be passed
-where C expects a function pointer. C may call it any number of times while the program
-runs.
+where C expects a function pointer, by name or as any value of its function type (§4.11).
+C may call it any number of times while the program runs.
 
 ### 10.4 unsafe
 Dereferencing `Ptr[T]`/`Pointer`, pointer arithmetic (`p + n`, in units of `T`), `cast[T](x)`

@@ -1,0 +1,38 @@
+program Main
+
+uses IO, C
+
+type
+    Hook = procedure(CInt, Pointer)
+    Hooks = record
+        last: Hook
+
+extern "libc.so.6"
+    function on_exit(f: Hook, arg: Pointer): CInt
+
+procedure first(status: CInt, arg: Pointer)
+    writeln("first {status}")
+
+procedure second(status: CInt, arg: Pointer)
+    writeln("second {status}")
+
+procedure third(status: CInt, arg: Pointer)
+    writeln("third {status}")
+
+function pick(n: Integer): Hook
+    if n = 1 then
+        return first
+    return second
+
+unsafe procedure register()
+    let none := cast[Pointer](0)
+    var h := pick(2)
+    _ := on_exit(h, arg: none)
+    h := pick(1)
+    _ := on_exit(h, arg: none)
+    let hooks := Hooks(last: third)
+    _ := on_exit(hooks.last, arg: none)
+    _ := on_exit(pick(2), arg: none)
+
+register()
+writeln("main done")
