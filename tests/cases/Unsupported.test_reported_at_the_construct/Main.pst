@@ -3,14 +3,10 @@ program Main
 uses IO
 
 type
-    BinOp = function(Integer, Integer): Integer
+    Node = record
+        value: Integer
 
-function bigger[T: Ordered](a, b: T): T
-    if a > b then
-        return a
-    return b
+function make(): ref Node
+    return new(Node(value: 1))
 
-function apply(f: BinOp, a, b: Integer): Integer
-    return f(a, b)
-
-writeln(apply(bigger[Integer], a: 3, b: 4))
+make().value := 3

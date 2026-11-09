@@ -142,9 +142,9 @@ type
         result: Type
         span: Span
 
-    ## A routine used as a value of function type `ty`.
+    ## A routine used as a value of function type `ty`: its label.
     Taken = record
-        sym: ref Symbol
+        target: String
         ty: Type
 
     ## A routine mapping a routine of function type `ty`, used as a value, to its thunk:
@@ -2613,7 +2613,7 @@ procedure exprHere(g: ref Em, e: Expr)
             else
                 sysCall(g, x.span, "emptySet", [], targs: argsOf(t))
         Index(x):
-            eIndex(g, x)
+            eIndex(g, x, e)
         Deref(x):
             let tt := typeOfExpr(g, x.target)
             expr(g, x.target)
@@ -2769,8 +2769,21 @@ procedure eSetLit(g: ref Em, x: SetLit, e: Expr)
         call(a, include)
     pop(a, Rax)
 
-procedure eIndex(g: ref Em, x: Index)
+procedure eIndex(g: ref Em, x: Index, e: Expr)
     let a := g.a
+    case x.target of
+        Name(_):
+            let sym := refSym(g, calleeSpan(x.target))
+            if sym.isSome() and isRoutineNode(sym.get()) then
+                instanceValue(g, sym.get(), x, e)
+                return
+        FieldAccess(_):
+            let sym := refSym(g, calleeSpan(x.target))
+            if sym.isSome() and isRoutineNode(sym.get()) then
+                instanceValue(g, sym.get(), x, e)
+                return
+        else:
+            pass
     let t := typeOfExpr(g, x.target)
     if isMap(g.env, t) then
         mapValue(g, x, t)
@@ -2862,14 +2875,7 @@ procedure loadSym(g: ref Em, sym: ref Symbol, e: Expr)
         if not isRoutineNode(sym) or len(sig(g.env, sym).tparams) > 0 then
             unsupported(g, span, "{describe(sym)} as a value")
             return
-        let lbl := labelOf(g, span, sym, [], sites: {})
-        if g.bad then
-            return
-        leaCode(a, Rax, label: lbl)
-        for tk in g.taken do
-            if tk.sym.id = sym.id then
-                return
-        add(var g.taken, Taken(sym: sym, ty: t))
+        routineValue(g, labelOf(g, span, sym, [], sites: {}), t)
         return
     if sym.kind = Kind.ResultSym and g.f.resultSlot.isSome() then
         load(a, Rax, Rbp, disp: g.f.resultSlot.get())
@@ -2884,6 +2890,32 @@ procedure loadSym(g: ref Em, sym: ref Symbol, e: Expr)
         return
     if managed(g, t) then
         retain(g)
+
+## rax := the address of the routine at label `target`, used as a value of function type
+## `t`; noted for callbacks.
+procedure routineValue(g: ref Em, target: String, t: Type)
+    if g.bad then
+        return
+    leaCode(g.a, Rax, label: target)
+    for tk in g.taken do
+        if tk.target = target then
+            return
+    add(var g.taken, Taken(target: target, ty: t))
+
+## rax := the address of the instance of generic routine `sym` that `x`, `f[T]`, names.
+procedure instanceValue(g: ref Em, sym: ref Symbol, x: Index, e: Expr)
+    var s: Subst := {}
+    case get(g.calls, g.f.file) of
+        Some(m):
+            case get(m.value, x.id) of
+                Some(c):
+                    s := c.value.s
+                None:
+                    pass
+        None:
+            pass
+    let callee := instance(g, sym, sig(g.env, sym).tparams, s)
+    routineValue(g, labelOf(g, x.span, sym, callee.targs, sites: callee.sites), typeOfExpr(g, e))
 
 ## The 64-bit pattern of `v`.
 function wrap(v: UInt64): Integer
@@ -3796,10 +3828,10 @@ procedure callback(g: ref Em, e: Expr, t: Type)
         else:
             pass
     if sym.isSome() and isRoutineNode(sym.get()) and len(sig(g.env, sym.get()).tparams) = 0 then
-        let lbl := thunkOf(g, sym.get(), t, exprSpan(e))
+        let target := labelOf(g, exprSpan(e), sym.get(), [], sites: {})
         if g.bad then
             return
-        leaCode(g.a, Rax, label: lbl)
+        leaCode(g.a, Rax, label: thunkOf(g, target, t, exprSpan(e)))
         return
     expr(g, e)
     if g.bad then
@@ -3810,9 +3842,10 @@ procedure callback(g: ref Em, e: Expr, t: Type)
         add(var g.lookups, Lookup(label: g.labels[k], ty: t, span: exprSpan(e)))
     call(g.a, g.labels[k])
 
-## The label of the thunk through which C calls routine `sym` of function type `t`.
-function thunkOf(g: ref Em, sym: ref Symbol, t: Type, span: Span): String
-    let k := "thunk|{sym.id}"
+## The label of the thunk through which C calls the routine at label `target`, of
+## function type `t`.
+function thunkOf(g: ref Em, target: String, t: Type, span: Span): String
+    let k := "thunk|{target}"
     if k in g.labels then
         return g.labels[k]
     var params: List[Type] := []
@@ -3825,7 +3858,6 @@ function thunkOf(g: ref Em, sym: ref Symbol, t: Type, span: Span): String
             pass
     let lbl := newLabel(g.a, "thunk")
     g.labels[k] := lbl
-    let target := labelOf(g, span, sym, [], sites: {})
     add(var g.thunks, Thunk(label: lbl, target: target, params: params, result: result, span: span))
     return lbl
 
@@ -3837,10 +3869,10 @@ procedure lookup(g: ref Em, lk: Lookup)
     for tk in g.taken do
         if key(tk.ty) = key(lk.ty) then
             let next := newLabel(a, "next")
-            leaCode(a, R11, label: labelOf(g, lk.span, tk.sym, [], sites: {}))
+            leaCode(a, R11, label: tk.target)
             cmp(a, Rax, R11)
             jcc(a, "ne", label: next)
-            leaCode(a, Rax, label: thunkOf(g, tk.sym, lk.ty, lk.span))
+            leaCode(a, Rax, label: thunkOf(g, tk.target, lk.ty, lk.span))
             ret(a)
             label(a, next)
     ret(a)

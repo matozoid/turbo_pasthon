@@ -2,4 +2,4 @@ $ $PST build Main.pst -o main
 exit 1
 --- stdout
 --- stderr
-Main.pst:16:15: error E0990: indexing <none> is not supported by the code generator yet
+Main.pst:12:1: error E0990: changing a value through a ref that isn't in a variable is not supported by the code generator yet

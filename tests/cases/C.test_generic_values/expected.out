@@ -1,0 +1,11 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+4
+pear
+1 3 4 5 9 3 4 5 7 9 
+--- stderr

@@ -3343,13 +3343,33 @@ function typeArgs(tc: ref TC, ix: Index): Option[List[Type]]
                 add(var out, typeArg(tc.env, x, tc.file, false))
     return Some(out)
 
+## Notes the instance a generic routine value `f[T]` names, for the backend as for a call.
+procedure instanceValue(tc: ref TC, ix: Index, span: Span, targs: List[Type], t: Type)
+    let sym := refAt(tc, span).get().targets[0]
+    let g := sig(tc.env, sym)
+    let sb := zipSubst(g.tparams, targs)
+    tc.calls[ix.id] := Match(
+        sig: g,
+        params: g.params,
+        result: t,
+        s: sb,
+        tier: 0,
+        slots: [],
+        extra: [],
+        pre: {},
+    )
+    add(var tc.env.calls, Instance(sym: sym, args: targs, file: tc.file, span: span))
+
 function index(tc: ref TC, ix: Index, expected: Type): Type
     case typeArgs(tc, ix) of
         Some(ta):
             let span := instSpan(tc, ix.target).get()
             let syms := refAt(tc, span).get().targets
             if isRoutine(syms[0].kind) then
-                return routineValue(tc, syms, span, expected, Some(ta.value))
+                let t := routineValue(tc, syms, span, expected, Some(ta.value))
+                if not hasError(t) then
+                    instanceValue(tc, ix, span, ta.value, t)
+                return t
             let d := decl(tc.env, syms[0])
             if len(ta.value) <> len(d.params) then
                 return arity(tc.env, ix.span, tc.file, syms[0].name, len(d.params), len(ta.value))
