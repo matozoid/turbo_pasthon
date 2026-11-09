@@ -1158,7 +1158,11 @@ procedure routineBody(g: ref Em, node: Routine, sg: Sig)
             return
         let slot := alloc(g)
         f.slots[p.sym.get().id] := slot
-        store(a, Rbp, disp: slot, src: argReg(i))
+        if i < 6 then
+            store(a, Rbp, disp: slot, src: argReg(i))
+        else  # pushed by the caller, the seventh nearest
+            load(a, Rax, Rbp, disp: 16 + 8 * (i - 6))
+            store(a, Rbp, disp: slot, src: Rax)
         if managed(g, subT(g, p.ty)) and not p.isVar then
             ownParam(g, slot)
     if sg.isFunction then
@@ -3087,9 +3091,6 @@ procedure callExpr(g: ref Em, c: Call)
     if not isRoutineNode(callee.sym) then
         unsupported(g, c.span, "calling {describe(callee.sym)}")
         return
-    if len(m.extra) > 0 or len(m.params) > 6 then
-        unsupported(g, c.span, "a call with more than 6 arguments")
-        return
     let outer := g.f.noTry
     callRoutine(g, c, m, callee)
     g.f.noTry := outer
@@ -3148,12 +3149,13 @@ procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
             add(var copies, Copy(place: place, tmp: tmp))
             g.f.noTry := outer + 1
         add(var pushed, i)
-    for k := len(pushed) - 1 downto 0 do
-        pop(a, argReg(pushed[k]))
+    let words := placeArgs(g, pushed)
     let target := labelOf(g, c.span, callee.sym, callee.targs, sites: callee.sites)
     if g.bad then
         return
     call(a, target)
+    if words > 0 then
+        addImm(a, Rsp, value: 8 * words)
     if len(copies) > 0 then
         push(a, Rax)
         for cp in copies do
@@ -3169,23 +3171,48 @@ procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
 ## Calls a function value: `f(x)` with `f: function(T): U`.
 procedure callValue(g: ref Em, c: Call, m: Match)
     let a := g.a
-    if len(m.extra) > 0 or len(m.params) > 6 then
-        unsupported(g, c.span, "a call with more than 6 arguments")
-        return
     expr(g, c.callee)
     if g.bad then
         return
     push(a, Rax)
+    var pushed: List[Integer] := []
     for i := 0 to len(m.params) - 1 do
         let p := m.params[i]
         argument(g, p, m.slots[i], m, file: g.f.file)
         if g.bad then
             return
         save(g, subT(g, subst(p.ty, m.s)))
-    for i := len(m.params) - 1 downto 0 do
-        pop(a, argReg(i))
-    pop(a, R11)
-    callReg(a, R11)
+        add(var pushed, i)
+    let words := placeArgs(g, pushed)
+    if words = 0 then
+        pop(a, R11)
+        callReg(a, R11)
+    else
+        load(a, R11, Rsp, disp: 8 * words)
+        callReg(a, R11)
+        addImm(a, Rsp, value: 8 * (words + 1))
+
+## Moves the pushed arguments, the parameter indexes `pushed` in push order, to where
+## the callee takes them: the first six into registers, the others pushed again with the
+## seventh on top. Returns the words left on the stack, to drop after the call.
+function placeArgs(g: ref Em, pushed: List[Integer]): Integer
+    let a := g.a
+    let n := len(pushed)
+    if n <= 6 then
+        for k := n - 1 downto 0 do
+            pop(a, argReg(pushed[k]))
+        return 0
+    var extra := 0
+    for i := n - 1 downto 6 do
+        for k := 0 to n - 1 do
+            if pushed[k] = i then
+                load(a, R11, Rsp, disp: 8 * (n - 1 - k + extra))
+        push(a, R11)
+        extra := extra + 1
+    for k := 0 to n - 1 do
+        if pushed[k] < 6 then
+            load(a, argReg(pushed[k]), Rsp, disp: 8 * (n - 1 - k + extra))
+    return n + extra
 
 function countUses(g: ref Em, e: Expr, id: Integer): Integer
     var n := 0

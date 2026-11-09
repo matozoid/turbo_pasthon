@@ -1,0 +1,16 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+87654321
+abcdefg!
+abcdefg?
+xyz
+5 15
+12345678
+qr
+4 3
+--- stderr

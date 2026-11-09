@@ -1,0 +1,44 @@
+program Main
+
+uses IO
+
+type
+    Op = function(Integer, Integer, Integer, Integer, Integer, Integer, Integer, Integer): Integer
+    Pair = record
+        a: Integer
+        b: Integer
+
+function eight(a, b, c, d, e, f, g, h: Integer): Integer
+    return a + 10 * b + 100 * c + 1000 * d + 10000 * e + 100000 * f + 1000000 * g + 10000000 * h
+
+function words(a, b, c, d, e, f, g: String, h: String := "!"): String
+    return "{a}{b}{c}{d}{e}{f}{g}{h}"
+
+procedure bump(
+    var p: Pair,
+    b: Integer,
+    c: Boolean,
+    d: Char,
+    e: String,
+    f: Integer,
+    var g: Integer,
+    h: Integer,
+)
+    p.a := p.a + b + f
+    if c then
+        g := g + h
+    writeln("{d}{e}")
+
+writeln(eight(1, 2, 3, 4, 5, 6, 7, 8))
+writeln(words("a", "b", "c", "d", "e", "f", g: "g"))
+writeln(words("a", "b", "c", "d", "e", "f", g: "g", h: "?"))
+var p := Pair(a: 1, b: 2)
+var y := 10
+bump(var p, 1, true, 'x', "yz", f: 3, g: var y, h: 5)
+writeln("{p.a} {y}")
+let op: Op := eight
+writeln(op(8, 7, 6, 5, 4, 3, 2, 1))
+var xs := [0, 0]
+var ps := [Pair(a: 0, b: 0)]
+bump(var ps[0], 2, true, 'q', "r", f: 2, g: var xs[1], h: 3)
+writeln("{ps[0].a} {xs[1]}")
