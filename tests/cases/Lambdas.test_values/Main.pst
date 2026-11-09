@@ -104,6 +104,19 @@ let shelf := new(Shelf(items: ["a", "b"]))
 grow(var shelf.items, peek: () => len(shelf.items))
 writeln(len(shelf.items))
 
+# A lambda that is a whole right side may have a `case` body
+let word: function(Integer): String := k => case k of
+    0: "zero"
+    1: "one"
+    else: "many"
+writeln(for k in [0, 1, 7] do word(k))
+writeln(namer("#")(2))
+
+function namer(prefix: String): function(Integer): String
+    return n => case n of
+        0: "none"
+        else: "{prefix}{n}"
+
 procedure grow(var xs: List[String], peek: function(): Integer)
     add(var xs, "x")
     writeln("the shelf still has {peek()}")

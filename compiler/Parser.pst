@@ -1495,10 +1495,17 @@ function equalsSign(e: Expr): Option[Span]
         else: return None
 
 ## The right side of `:=` / `var` / `let`, or the operand of `return`. Ends the line.
+## The right side of `:=`, `var`, `let`, or `return`: an expression on the rest of the
+## line, or a `case` expression, also as the body of a lambda: `s => case s of`.
 function rhs(p: ref State): Parsed[Expr]
     if at(p, TokenKind.KwCase) then
         let c := try caseExpr(p)
         return Ok(c)
+    if lambdaAhead(p) then
+        let l := try lambda(p, whole: true)
+        if not endsInCase(l) then
+            try endLine(p)
+        return Ok(l)
     let e := try expr(p)
     try endLine(p)
     return Ok(e)
@@ -1818,7 +1825,19 @@ function lambdaAhead(p: ref State): Boolean
             i := i + 1
     return peek(p, i).kind = TokenKind.Rparen and peek(p, i + 1).kind = TokenKind.Arrow
 
-function lambda(p: ref State): Parsed[Lambda]
+## Whether `e` is a `case` expression, or a lambda whose body ends in one.
+function endsInCase(e: Expr): Boolean
+    case e of
+        CaseExpr(_):
+            return true
+        Lambda(l):
+            return endsInCase(l.body)
+        else:
+            return false
+
+## A lambda. `whole`: it is the whole right side of an assignment (`rhs`), so its body
+## may be a `case` expression.
+function lambda(p: ref State, whole: Boolean := false): Parsed[Lambda]
     let start := peek(p).span
     var params: List[Ident] := []
     if accept(p, TokenKind.Lparen) then
@@ -1832,8 +1851,17 @@ function lambda(p: ref State): Parsed[Lambda]
         let t := advance(p)
         add(var params, Ident(span: t.span, name: t.text))
     step(p)  # =>
-    let body := try expr(p)
+    let body := try lambdaBody(p, whole: whole)
     return Ok(Lambda(span: finish(p, start), id: newId(p), params: params, body: body))
+
+function lambdaBody(p: ref State, whole: Boolean): Parsed[Expr]
+    if whole and at(p, TokenKind.KwCase) then
+        let c := try caseExpr(p)
+        return Ok(c)
+    if whole and lambdaAhead(p) then
+        let l := try lambda(p, whole: true)
+        return Ok(l)
+    return expr(p)
 
 function ifExpr(p: ref State): Parsed[IfExpr]
     let start := advance(p).span
@@ -2077,7 +2105,7 @@ function primary(p: ref State): Parsed[Expr]
             p,
             "E0804",
             tok.span,
-            message: "a 'case' expression must be the whole right side of ':=', 'var', 'let', or 'return'",
+            message: "a 'case' expression must be the whole right side of ':=', 'var', 'let', or 'return', or the body of a lambda that is",
         )
         let c := try caseExpr(p)
         return Ok(c)

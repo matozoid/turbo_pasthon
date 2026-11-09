@@ -214,7 +214,7 @@ error E0803 15:10-15:28 "an 'if' expression used as an operand must be in parent
   fix "add parentheses"
     edit 15:10-15:10 "("
     edit 15:28-15:28 ")"
-error E0804 16:10-16:14 "a 'case' expression must be the whole right side of ':=', 'var', 'let', or 'return'"
+error E0804 16:10-16:14 "a 'case' expression must be the whole right side of ':=', 'var', 'let', or 'return', or the body of a lambda that is"
 error E0801 18:17-18:17 "an 'if' expression needs an 'else' branch"
 error E0104 19:6-19:7 "'_' is a discard and can't be read"
 error E0040 22:11-22:12 "expected '}' to close the placeholder, found identifier 'c'"

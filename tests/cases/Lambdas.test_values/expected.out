@@ -26,4 +26,6 @@ Hello, Ann!
 [10, 20, 30]
 the shelf still has 2
 3
+[zero, one, many]
+#2
 --- stderr

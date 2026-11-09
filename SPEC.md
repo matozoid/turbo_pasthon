@@ -544,7 +544,13 @@ let tick: function(): Integer := () => count + 1
 Lambdas are restricted so that the common, safe cases work and the classic bugs can't happen:
 
 - The body is a single expression, never a block. For a procedure type, it's a call with
-  no value.
+  no value. A lambda that is the whole right side of `:=` / `var` / `let` or `return` may
+  have a `case` expression as its body:
+  ```pascal
+  let area: function(Shape): Real := s => case s of
+      Circle(c): pi * c.r * c.r
+      Rect(r): r.w * r.h
+  ```
 - Parameter types come from the expected function type, so a lambda can only appear where
   one is expected (`E0806`), with as many parameters (`E0807`). When that type's result
   is a type parameter still to infer, as `K` of `sort(var xs, key: f)`, the type of the
@@ -1089,8 +1095,8 @@ Rules:
   parenthesized: `1 + (if a then 2 else 3)` (`E0803` otherwise).
 - **`case` expression layout:** as the statement, with an expression after each arm's
   colon. Because its arms form an indented block, a `case` expression may only appear as
-  the whole right-hand side of `:=` / `var` / `let`, or as the whole operand of `return`
-  (`E0804`).
+  the whole right-hand side of `:=` / `var` / `let`, or as the whole operand of `return`,
+  or as the body of a lambda that is (§4.11; `E0804`).
 - **Prefer the expression.** A statement `if`/`case` whose every branch only assigns the
   same variable gets warning `W0801` from `pst check`, with a fix that rewrites it to the
   expression form.
@@ -1879,7 +1885,8 @@ lambdaParam = IDENT | DISCARD ;
 ifExpr      = "if" expr "then" expr { "else" "if" expr "then" expr } "else" expr ;
 caseExpr    = "case" expr "of" NEWLINE INDENT { exprArm } DEDENT ;
 exprArm     = (label { "," label } | "else") ":" expr NEWLINE ;
-rhs         = caseExpr | expr NEWLINE ;      (* right side of := / var / let, and return operand *)
+rhs         = caseExpr | rhsLambda | expr NEWLINE ;  (* right side of := / var / let, and return operand *)
+rhsLambda   = (lambdaParam | "(" [lambdaParam { "," lambdaParam }] ")") "=>" (caseExpr | rhsLambda) ;
 ```
 
 The parser can't tell `name[...]` (index) from `name[...]` (explicit instantiation)
@@ -1979,7 +1986,7 @@ already has a lexical error are not reported.
 | `E0801` | `if` expression without `else` |
 | `E0802` | `if` / `case` expression branches of different types |
 | `E0803` | `if` or `for` expression used as an operand without parentheses |
-| `E0804` | `case` expression that isn't the whole right side of `:=`, `var`, `let`, or `return` |
+| `E0804` | `case` expression that isn't the whole right side of `:=`, `var`, `let`, or `return`, or the body of a lambda that is |
 | `E0805` | `for` expression whose `if` gives no value in any branch, only `continue` or `break` |
 | `E0806` | lambda where no function type is expected |
 | `E0807` | lambda with a different number of parameters than the function type expected |

@@ -40,5 +40,5 @@ pst: error: missing CODE
 $ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pst_explain","arguments":{"code":"E0804"}}}' | $PST mcp
 exit 0
 --- stdout
-{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{\"schema\":\"pst-query/1\",\"explanations\":[{\"code\":\"E0804\",\"meaning\":\"`case` expression that isn't the whole right side of `:=`, `var`, `let`, or `return`\",\"section\":\"16.3\",\"title\":\"Type errors\"}]}"}]}}
+{"jsonrpc":"2.0","id":1,"result":{"content":[{"type":"text","text":"{\"schema\":\"pst-query/1\",\"explanations\":[{\"code\":\"E0804\",\"meaning\":\"`case` expression that isn't the whole right side of `:=`, `var`, `let`, or `return`, or the body of a lambda that is\",\"section\":\"16.3\",\"title\":\"Type errors\"}]}"}]}}
 --- stderr
