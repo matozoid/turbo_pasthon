@@ -5,6 +5,6 @@
 {"jsonrpc":"2.0","method":"textDocument/didChange","params":{"textDocument":{"uri":"file://DIR/Main.pst","version":2},"contentChanges":[{"text":"program Main\n\nuses IO, Shop\n\nwriteln( \"😀 {cost( x )}\" )\n"}]}}
 {"jsonrpc":"2.0","id":2,"method":"textDocument/formatting","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"options":{"tabSize":4,"insertSpaces":true}}}
 {"jsonrpc":"2.0","method":"textDocument/didClose","params":{"textDocument":{"uri":"file://DIR/Shop.pst"}}}
-{"jsonrpc":"2.0","id":3,"method":"textDocument/typeDefinition","params":{}}
+{"jsonrpc":"2.0","id":3,"method":"textDocument/implementation","params":{}}
 {"jsonrpc":"2.0","id":4,"method":"shutdown"}
 {"jsonrpc":"2.0","method":"exit"}

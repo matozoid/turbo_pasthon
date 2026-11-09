@@ -1,0 +1,17 @@
+$ $PST build Frames.pst -o frames
+exit 0
+--- stdout
+--- stderr
+$ sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities
+exit 0
+--- stdout
+status 0
+{"jsonrpc":"2.0","id":2,"result":[{"uri":"file://Shop.pst","range":{"start":{"line":3,"character":11},"end":{"line":3,"character":15}}}]}
+{"jsonrpc":"2.0","id":3,"result":[]}
+{"jsonrpc":"2.0","id":4,"result":[{"uri":"file://Shop.pst","range":{"start":{"line":3,"character":11},"end":{"line":3,"character":15}}}]}
+{"jsonrpc":"2.0","id":5,"result":[{"uri":"file://Shop.pst","range":{"start":{"line":3,"character":11},"end":{"line":3,"character":15}}}]}
+{"jsonrpc":"2.0","id":6,"result":[{"uri":"file://Shop.pst","range":{"start":{"line":7,"character":11},"end":{"line":7,"character":15}}}]}
+{"jsonrpc":"2.0","id":7,"result":[{"uri":"file://Shop.pst","range":{"start":{"line":7,"character":11},"end":{"line":7,"character":15}}}]}
+{"jsonrpc":"2.0","id":8,"result":[]}
+{"jsonrpc":"2.0","id":9,"result":null}
+--- stderr

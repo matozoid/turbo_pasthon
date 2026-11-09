@@ -326,6 +326,75 @@ function definition(s: Server, path: String, params: JValue): String
             pass
     return "[{join(parts, sep: ",")}]"
 
+## The type of a value the symbol names: a local's, a constant's, a field's, an enum
+## member's, or what a function returns.
+function typeOfSym(env: ref Env, sym: ref Symbol): Option[Type]
+    if isLocal(sym.kind) then
+        return get(env.symTypes, sym.id)
+    if sym.kind = Kind.ConstSym then
+        return Some(constType(env, sym))
+    if isRoutine(sym.kind) then
+        return Some(sig(env, sym).result)
+    case get(env.owner, sym.id) of
+        Some(o):
+            if sym.kind = Kind.EnumMember then
+                return Some(named(o.value, []))
+            if sym.kind = Kind.FieldSym then
+                for f in decl(env, o.value).fields do
+                    if f.name = sym.name then
+                        return Some(f.ty)
+        None:
+            pass
+    return None
+
+## The declared types a type is made of: `ref Item` and `List[Item]` lead to `Item`.
+procedure typeSyms(t: Type, var out: List[ref Symbol])
+    case t of
+        NamedT(n):
+            add(var out, n.sym)
+            for x in n.args do
+                typeSyms(x, var out)
+        BuiltinT(b):
+            for x in b.args do
+                typeSyms(x, var out)
+        RefT(r):
+            typeSyms(r.target, var out)
+        ParamT(p):
+            add(var out, p.sym)
+        TypeValueT(v):
+            typeSyms(v.inner, var out)
+        else:
+            pass
+
+function typeDefinition(s: Server, path: String, params: JValue): String
+    let a := analyze(s, path)
+    var parts: List[String] := []
+    if a.checked.env.isNone() then
+        return "[]"
+    let env := a.checked.env.get()
+    case refAt(a, path, params: params) of
+        Some(r):
+            var syms: List[ref Symbol] := []
+            for sym in r.value.targets do
+                case typeOfSym(env, sym) of
+                    Some(t):
+                        typeSyms(t.value, var syms)
+                    None:
+                        pass
+            var seen: Map[Integer, Boolean] := {}
+            for sym in syms do
+                if sym.span.isSome() and sym.file in a.texts and not (sym.id in seen) then
+                    seen[sym.id] := true
+                    add(var parts, location(
+                        s,
+                        a.texts[sym.file],
+                        file: sym.file,
+                        span: sym.span.get(),
+                    ))
+        None:
+            pass
+    return "[{join(parts, sep: ",")}]"
+
 function errorCount(a: Analysis): Integer
     var n := 0
     for d in a.checked.resolved.checker.diagnostics do
@@ -976,7 +1045,7 @@ function codeActions(s: Server, path: String, params: JValue): String
 # ------------------------------------------------------------------------- requests
 
 function capabilities(): String
-    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"foldingRangeProvider\":true,\"renameProvider\":true,\"completionProvider\":\{\"triggerCharacters\":[\".\"]},\"signatureHelpProvider\":\{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":\{\"name\":\"pst\"}}"
+    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"typeDefinitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"foldingRangeProvider\":true,\"renameProvider\":true,\"completionProvider\":\{\"triggerCharacters\":[\".\"]},\"signatureHelpProvider\":\{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":\{\"name\":\"pst\"}}"
 
 ## The edits that format the document at `uri`: none if it is formatted, or can't be.
 function formatting(s: Server, uri: String): String
@@ -1033,6 +1102,8 @@ procedure handle(var s: Server, m: JValue)
         respond(id, result: formatting(s, uri: uri))
     else if method = "textDocument/hover" then
         respond(id, result: hover(s, pathOf(uri), params: params))
+    else if method = "textDocument/typeDefinition" then
+        respond(id, result: typeDefinition(s, pathOf(uri), params: params))
     else if method = "textDocument/definition" then
         respond(id, result: definition(s, pathOf(uri), params: params))
     else if method = "textDocument/references" then

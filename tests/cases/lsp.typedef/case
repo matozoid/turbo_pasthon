@@ -1,0 +1,5 @@
+# The language server (SPEC §15.4): type definition goes from a name to the declarations of
+# the types in its type (`List[ref Item]` leads to `Item`): of a local, a function's
+# result, an enum member. A field of type `Integer` and a unit name have none.
+$PST build Frames.pst -o frames
+sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities

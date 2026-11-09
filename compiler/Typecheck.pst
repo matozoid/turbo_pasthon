@@ -1138,7 +1138,8 @@ function constParamType(env: ref Env, tp: ref Symbol): Type
             return b
     return errorT()
 
-function constType(env: ref Env, sym: ref Symbol): Type
+## The type of the constant `sym`.
+export function constType(env: ref Env, sym: ref Symbol): Type
     case get(env.constCache, sym.id) of
         Some(t):
             return t.value
