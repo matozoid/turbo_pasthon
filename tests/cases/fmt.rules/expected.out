@@ -1,0 +1,142 @@
+$ mkdir o && cp Messy.pst o/Messy.pst && $PST fmt o/Messy.pst && cat o/Messy.pst
+exit 0
+--- stdout
+o/Messy.pst
+program Messy
+uses IO, Strings
+
+## Doc comment.
+type
+    Point = record
+        x: Integer
+        y: Integer
+
+    Color = (Red, Green, Blue)
+    Shades = (
+        Light,
+        Dark,
+    )
+
+function f(a: Integer, b: Integer): Integer  # trailing
+    if a > b then
+        return -a + b * -1
+    else if a = b then
+        # equal
+        return 0
+    else if a < 0 then
+        return a
+    else
+        return (b)
+
+    # end if
+    return a - (-b)
+# end function f
+
+function combine(
+    first: Integer,
+    second: Integer,
+    third: Integer,
+    fourth: Integer,
+    fifth: Integer,
+): Integer
+    return first + second + third + fourth + fifth
+
+function check(a: Integer, b: Integer): Boolean
+    return (
+        a > 0
+        and b > 0
+        and a < 1000000
+        and b < 1000000
+        and a + b < 1000000
+        and a * b < 999999999
+    )
+
+procedure show(xs: List[Integer])
+    for x in xs do
+        writeln("x = {x + 1}, {join(["a", "b"], sep: ",")}")
+        # a comment in the loop
+
+    # a comment after it
+    writeln("done")
+
+let p := Point(x: 1, y: 2)  # point
+let xs: List[Integer] := [
+    1,
+    2,
+    3,
+]
+let ys := [
+    10,  # ten
+    # twenty next
+    20,
+]
+let m: Map[String, Integer] := {"a": 1, "b": 2}
+show([p.x, p.y, combine(1000000, second: 2000000, third: 3000000, fourth: 4000000, fifth: 500000)])
+writeln("{f(1, b: 2)} {check(1, b: 2)} {len(xs)} {len(ys)} {len(m)} {Color.Blue} {Shades.Dark}")
+if xs[0] = 1 and not (xs[1] = 3) then
+    writeln("ok")
+for i := 0 to len(xs) - 1 do
+    writeln("{xs[len(xs) - 1 - i]}")
+writeln(join(
+    ["a long string to fill the line", "another long string", "and a third one"],
+    sep: ", ",
+))
+--- stderr
+$ $PST fmt --check o/Messy.pst && $PST check o/Messy.pst && $PST run o/Messy.pst
+exit 0
+--- stdout
+x = 2, a,b
+x = 3, a,b
+x = 10500001, a,b
+done
+2 true 3 2 2 Blue Dark
+ok
+3
+2
+1
+a long string to fill the line, another long string, and a third one
+--- stderr
+$ $PST fmt --check Messy.pst
+exit 1
+--- stdout
+Messy.pst
+--- stderr
+$ $PST fmt Bad.pst
+exit 1
+--- stdout
+--- stderr
+Bad.pst:3:10: error E0004: unterminated string literal
+$ $PST fmt --check .
+exit 1
+--- stdout
+Messy.pst
+--- stderr
+Bad.pst:3:10: error E0004: unterminated string literal
+$ $PST fmt Good.pst
+exit 0
+--- stdout
+--- stderr
+$ $PST fmt
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst fmt PATH [--check]
+       pst tokens FILE
+       pst ast FILE
+pst: error: missing FILE or PATH
+$ $PST fmt Good.pst --json
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst fmt PATH [--check]
+       pst tokens FILE
+       pst ast FILE
+pst: error: unrecognized argument '--json'

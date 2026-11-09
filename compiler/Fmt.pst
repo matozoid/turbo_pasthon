@@ -1,0 +1,573 @@
+unit Fmt
+
+## The formatter (SPEC §15.3), for `pst fmt`. It works on the lexer's tokens and
+## comments: each logical line is printed again with canonical spacing and indentation,
+## and broken inside its brackets when it is too long. The source must lex without errors.
+
+uses Strings, Tokens, Diagnostics, Lexer
+
+const
+    Width = 100
+
+type
+    ## A token as the formatter prints it. A string with placeholders is one atom, its
+    ## source text.
+    Atom = record
+        kind: TokenKind
+        text: String
+        ## A `-` or `+` sign rather than a binary operator.
+        unary: Boolean
+        ## The source offsets and lines.
+        start: Integer
+        stop: Integer
+        line: Integer
+        endLine: Integer
+        ## For an opening bracket, the index of its closing one; else -1.
+        close: Integer
+        ## For a closing bracket, the index of its opening one; else -1.
+        open: Integer
+        ## Whether the group that this bracket opens is printed one item per line.
+        explode: Boolean
+        ## The comments on lines of their own just before it (inside brackets).
+        before: List[String]
+        ## The comment after it on its line, or "".
+        after: String
+
+    ## A logical line (with atoms), or a comment on a line of its own.
+    Item = record
+        atoms: List[Atom]
+        comment: String
+        depth: Integer
+        ## The column of a comment.
+        col: Integer
+        ## The first and last source lines.
+        first: Integer
+        last: Integer
+
+    Writer = record
+        lines: List[String]
+        ## The line being written, and its depth.
+        cur: String
+        depth: Integer
+        ## Whether `cur` holds only the indentation.
+        empty: Boolean
+        ## The last atom on the line.
+        prevKind: TokenKind
+        prevUnary: Boolean
+        ## The comment that ends the line.
+        pending: String
+
+## Formats `text`, the contents of `file`. The diagnostics if it doesn't lex.
+export function format(text: String, file: String := "<input>"): Result[String, List[Diagnostic]]
+    let r := lex(text, file: file)
+    for d in r.diagnostics do
+        if d.severity = Severity.Error then
+            return Err(r.diagnostics)
+    var items := itemsOf(r)
+    elseIfs(var items)
+    return Ok(render(items))
+
+# ---------------------------------------------------------------------- items
+
+function isOperand(k: TokenKind): Boolean
+    return k in [
+        TokenKind.Ident,
+        TokenKind.IntLit,
+        TokenKind.RealLit,
+        TokenKind.CharLit,
+        TokenKind.StringLit,
+        TokenKind.Rparen,
+        TokenKind.Rbracket,
+        TokenKind.Rbrace,
+        TokenKind.KwTrue,
+        TokenKind.KwFalse,
+        TokenKind.KwThis,
+        TokenKind.KwThisType,
+        TokenKind.Underscore,
+    ]
+
+function isOpener(k: TokenKind): Boolean
+    return k = TokenKind.Lparen or k = TokenKind.Lbracket or k = TokenKind.Lbrace
+
+function isCloser(k: TokenKind): Boolean
+    return k = TokenKind.Rparen or k = TokenKind.Rbracket or k = TokenKind.Rbrace
+
+## The atoms of the tokens `ts` of a logical line, with their brackets matched.
+function atomsOf(ts: List[Token]): List[Atom]
+    var atoms: List[Atom] := []
+    var opened: List[Integer] := []
+    var i := 0
+    while i < len(ts) do
+        let t := ts[i]
+        var kind := t.kind
+        var text := t.text
+        var last := t
+        if kind = TokenKind.StringBegin then
+            # The text, with the expressions in the placeholders formatted.
+            var parts := [t.text]
+            var expr: List[Token] := []
+            var nested := 1
+            var j := i + 1
+            while true do
+                let k := ts[j].kind
+                if k = TokenKind.StringBegin then
+                    nested := nested + 1
+                else if k = TokenKind.StringEnd then
+                    nested := nested - 1
+                if nested = 0 or (nested = 1 and k = TokenKind.StringMid) then
+                    let e := atomsOf(expr)
+                    add(var parts, flatText(e))
+                    add(var parts, ts[j].text)
+                    expr := []
+                    if nested = 0 then
+                        break
+                else
+                    add(var expr, ts[j])
+                j := j + 1
+            last := ts[j]
+            kind := TokenKind.StringLit
+            text := join(parts)
+            i := j
+        let sign := kind = TokenKind.Minus or kind = TokenKind.Plus
+        let unary := sign and (len(atoms) = 0 or not isOperand(atoms[len(atoms) - 1].kind))
+        add(var atoms, Atom(
+            kind: kind,
+            text: text,
+            unary: unary,
+            start: t.span.start,
+            stop: last.span.end,
+            line: t.span.line,
+            endLine: last.span.endLine,
+            close: -1,
+            open: -1,
+            explode: false,
+            before: [],
+            after: "",
+        ))
+        let n := len(atoms) - 1
+        if isOpener(kind) then
+            add(var opened, n)
+        else if isCloser(kind) and len(opened) > 0 then
+            let o := opened[len(opened) - 1]
+            removeLast(var opened)
+            atoms[o].close := n
+            atoms[n].open := o
+        i := i + 1
+    return atoms
+
+## Attaches comment `c`, inside the logical line of `atoms` or after it, to an atom.
+procedure attach(var atoms: List[Atom], c: Comment)
+    var k := 0
+    while k < len(atoms) and atoms[k].start < c.span.start do
+        k := k + 1
+    if atoms[k - 1].endLine = c.span.line then
+        atoms[k - 1].after := c.text
+    else
+        add(var atoms[k].before, c.text)
+
+function commentItem(c: Comment): Item
+    return Item(
+        atoms: [],
+        comment: c.text,
+        depth: 0,
+        col: c.span.col,
+        first: c.span.line,
+        last: c.span.line,
+    )
+
+## The logical lines and the comments on lines of their own, in order.
+function itemsOf(r: LexResult): List[Item]
+    var items: List[Item] := []
+    var depth := 0
+    var line: List[Token] := []
+    var ci := 0
+    for t in r.tokens do
+        if t.kind = TokenKind.Indent then
+            depth := depth + 1
+        else if t.kind = TokenKind.Dedent then
+            depth := depth - 1
+        else if t.kind = TokenKind.Newline or t.kind = TokenKind.Eof then
+            if len(line) > 0 then
+                var atoms := atomsOf(line)
+                let first := atoms[0]
+                let last := atoms[len(atoms) - 1]
+                while ci < len(r.comments) and r.comments[ci].span.start < first.start do
+                    add(var items, commentItem(r.comments[ci]))
+                    ci := ci + 1
+                while ci < len(r.comments) and (
+                    r.comments[ci].span.start < last.stop
+                    or r.comments[ci].span.line = last.endLine
+                ) do
+                    attach(var atoms, r.comments[ci])
+                    ci := ci + 1
+                add(var items, Item(
+                    atoms: atoms,
+                    comment: "",
+                    depth: depth,
+                    col: 0,
+                    first: first.line,
+                    last: last.endLine,
+                ))
+                line := []
+        else
+            add(var line, t)
+    while ci < len(r.comments) do
+        add(var items, commentItem(r.comments[ci]))
+        ci := ci + 1
+    # A comment is indented like the next line, or deeper, up to the previous line, if it
+    # is indented more than the next line.
+    var next := 0
+    for i := len(items) - 1 downto 0 do
+        if len(items[i].atoms) > 0 then
+            next := items[i].depth
+        else
+            items[i].depth := next
+    var prev := 0
+    for i := 0 to len(items) - 1 do
+        if len(items[i].atoms) > 0 then
+            prev := items[i].depth
+        else
+            var own := (items[i].col - 1) div 4
+            if own > prev then
+                own := prev
+            if own > items[i].depth then
+                items[i].depth := own
+    return items
+
+## Whether `it` is a line with only `else`.
+function isBareElse(it: Item): Boolean
+    return len(it.atoms) = 1 and it.atoms[0].kind = TokenKind.KwElse and it.atoms[0].after = ""
+
+## Rewrites an `else` whose block is a single `if` statement to `else if` (SPEC §6).
+procedure elseIfs(var items: List[Item])
+    var i := 0
+    while i < len(items) do
+        if isBareElse(items[i]) and i + 1 < len(items) then
+            let d := items[i].depth
+            let j := i + 1
+            let atoms := items[j].atoms
+            if len(atoms) > 0 and items[j].depth = d + 1 and atoms[0].kind = TokenKind.KwIf then
+                var k := j + 1
+                var single := true
+                while k < len(items) and items[k].depth > d do
+                    let inChain := len(items[k].atoms) = 0 or items[k].depth > d + 1
+                    if not inChain and items[k].atoms[0].kind <> TokenKind.KwElse then
+                        single := false
+                    k := k + 1
+                if single then
+                    var merged := [items[i].atoms[0]]
+                    for a in atoms do
+                        add(var merged, a)
+                    items[j].atoms := merged
+                    items[j].first := items[i].first
+                    for m := j to k - 1 do
+                        items[m].depth := items[m].depth - 1
+                    remove(var items, i)
+                    continue
+        i := i + 1
+
+# ---------------------------------------------------------------------- printing
+
+## Whether a space goes between an atom of kind `a` (a sign if `unary`) and one of kind `b`.
+function spaced(a: TokenKind, unary: Boolean, b: TokenKind): Boolean
+    if unary then
+        return false
+    let tightBefore := [
+        TokenKind.Comma,
+        TokenKind.Colon,
+        TokenKind.Dot,
+        TokenKind.Dotdot,
+        TokenKind.Rparen,
+        TokenKind.Rbracket,
+        TokenKind.Rbrace,
+    ]
+    if b in tightBefore then
+        return false
+    let tightAfter := [
+        TokenKind.Dot,
+        TokenKind.Dotdot,
+        TokenKind.Lparen,
+        TokenKind.Lbracket,
+        TokenKind.Lbrace,
+    ]
+    if a in tightAfter then
+        return false
+    if b = TokenKind.Lparen or b = TokenKind.Lbracket then
+        return not (a in [
+            TokenKind.Ident,
+            TokenKind.StringLit,
+            TokenKind.Rparen,
+            TokenKind.Rbracket,
+            TokenKind.KwDeref,
+            TokenKind.KwFunction,
+            TokenKind.KwProcedure,
+            TokenKind.KwThisType,
+        ])
+    return true
+
+## The width of atoms `from` up to `stop` on one line.
+function flatWidth(atoms: List[Atom], from: Integer, stop: Integer): Integer
+    var n := 0
+    for k := from to stop - 1 do
+        if k > from and spaced(atoms[k - 1].kind, unary: atoms[k - 1].unary, b: atoms[k].kind) then
+            n := n + 1
+        n := n + charCount(atoms[k].text)
+    return n
+
+## The atoms on one line.
+function flatText(atoms: List[Atom]): String
+    var parts: List[String] := []
+    for k := 0 to len(atoms) - 1 do
+        if k > 0 and spaced(atoms[k - 1].kind, unary: atoms[k - 1].unary, b: atoms[k].kind) then
+            add(var parts, " ")
+        add(var parts, atoms[k].text)
+    return join(parts)
+
+## Whether the group opened at `o` is printed one item per line regardless of its width:
+## it ends with a comma or has comments. A group broken in turn is allowed only as the last
+## item, which hugs the brackets: `f(x, g(` ... `))`.
+function forced(atoms: List[Atom], o: Integer): Boolean
+    let c := atoms[o].close
+    if atoms[o].after <> "" or len(atoms[c].before) > 0 then
+        return true
+    if c - 1 > o and atoms[c - 1].kind = TokenKind.Comma then
+        return true
+    var k := o + 1
+    while k < c do
+        let a := atoms[k]
+        if len(a.before) > 0 then
+            return true
+        if a.close >= 0 then
+            if (a.explode and a.close <> c - 1) or atoms[a.close].after <> "" then
+                return true
+            k := a.close + 1
+        else
+            if a.after <> "" then
+                return true
+            k := k + 1
+    return false
+
+## Marks the groups of a logical line that `forced` breaks, innermost first.
+procedure markForced(var atoms: List[Atom])
+    for o := len(atoms) - 1 downto 0 do
+        if atoms[o].close >= 0 then
+            atoms[o].explode := forced(atoms, o)
+
+## The number of items in the group opened at `o`.
+function itemCount(atoms: List[Atom], o: Integer): Integer
+    let c := atoms[o].close
+    var n := 0
+    var k := o + 1
+    while k < c do
+        if atoms[k].close >= 0 then
+            k := atoms[k].close
+        else if atoms[k].kind = TokenKind.Comma then
+            n := n + 1
+        k := k + 1
+    if c - 1 > o and atoms[c - 1].kind <> TokenKind.Comma then
+        n := n + 1
+    return n
+
+## Breaks a group of atoms `from` up to `stop`, unless they fit in `budget` columns or a
+## group in them is already broken. The group is the widest one, preferring parentheses,
+## or the last item of that, if it makes up most of it and the line fits up to it.
+procedure decide(var atoms: List[Atom], from: Integer, stop: Integer, budget: Integer)
+    for k := from to stop - 1 do
+        if atoms[k].explode then
+            return
+    if flatWidth(atoms, from: from, stop: stop) <= budget then
+        return
+    var g := -1
+    var widest := -1
+    var paren := false
+    var k := from
+    while k < stop do
+        if atoms[k].close >= 0 then
+            let w := flatWidth(atoms, from: k, stop: atoms[k].close + 1)
+            let isParen := atoms[k].kind = TokenKind.Lparen
+            if (isParen and not paren) or (isParen = paren and w > widest) then
+                g := k
+                widest := w
+                paren := isParen
+            k := atoms[k].close + 1
+        else
+            k := k + 1
+    if g < 0 then
+        return
+    while true do
+        let c := atoms[g].close
+        let h := atoms[c - 1].open
+        if h < 0 or isParenExpr(atoms, g) or flatWidth(atoms, from: from, stop: h + 1) > budget then
+            break
+        if 2 * flatWidth(atoms, from: h, stop: c) <= flatWidth(atoms, from: g + 1, stop: c) then
+            break
+        g := h
+    let c := atoms[g].close
+    var inner := false
+    for i := g + 1 to c - 1 do
+        if atoms[i].close >= 0 or isLogical(atoms[i].kind) then
+            inner := true
+    # Breaking a group with one item that can't be broken further gains little.
+    if itemCount(atoms, g) <= 1 and not inner and flatWidth(atoms, from: g + 1, stop: c) > budget - 5 then
+        return
+    atoms[g].explode := true
+
+function spaces(depth: Integer): String
+    var s := ""
+    for i := 1 to depth do
+        s := "{s}    "
+    return s
+
+## Ends the current line, if it has anything, and starts one at `depth`.
+procedure newline(var w: Writer, depth: Integer)
+    if not w.empty then
+        if w.pending <> "" then
+            w.cur := "{w.cur}  {w.pending}"
+        add(var w.lines, w.cur)
+    w.pending := ""
+    w.cur := spaces(depth)
+    w.depth := depth
+    w.empty := true
+
+procedure put(var w: Writer, text: String)
+    w.cur := "{w.cur}{text}"
+    w.empty := false
+
+## Writes atom `a`, with the comments before it on lines of their own.
+procedure emit(var w: Writer, a: Atom)
+    let deeper := w.depth + 1
+    if w.pending <> "" and a.kind <> TokenKind.Comma then
+        newline(var w, deeper)
+    if len(a.before) > 0 then
+        if not w.empty then
+            newline(var w, deeper)
+        let d := w.depth
+        for c in a.before do
+            put(var w, c)
+            newline(var w, d)
+    if not w.empty and spaced(w.prevKind, unary: w.prevUnary, b: a.kind) then
+        put(var w, " ")
+    put(var w, a.text)
+    w.prevKind := a.kind
+    w.prevUnary := a.unary
+    if a.after <> "" then
+        w.pending := a.after
+
+## Writes atoms `from` up to `stop` of a line at `depth`.
+procedure renderSeq(var w: Writer, var atoms: List[Atom], from: Integer, stop: Integer, depth: Integer)
+    var k := from
+    while k < stop do
+        let a := atoms[k]
+        if a.close >= 0 and a.explode then
+            explodeGroup(var w, var atoms, a.close, depth: depth)
+            k := a.close + 1
+        else if a.close >= 0 then
+            emit(var w, a)
+            renderSeq(var w, var atoms, k + 1, stop: a.close, depth: depth)
+            emit(var w, atoms[a.close])
+            k := a.close + 1
+        else
+            emit(var w, a)
+            k := k + 1
+
+## Whether the group opened at `o` is a parenthesized expression.
+function isParenExpr(atoms: List[Atom], o: Integer): Boolean
+    if atoms[o].kind <> TokenKind.Lparen then
+        return false
+    return o = 0 or spaced(atoms[o - 1].kind, unary: atoms[o - 1].unary, b: TokenKind.Lparen)
+
+function isLogical(k: TokenKind): Boolean
+    return k = TokenKind.KwAnd or k = TokenKind.KwOr
+
+## Whether the group opened at `o` has an `and` or `or` of its own.
+function hasLogical(atoms: List[Atom], o: Integer): Boolean
+    var k := o + 1
+    while k < atoms[o].close do
+        if isLogical(atoms[k].kind) then
+            return true
+        if atoms[k].close >= 0 then
+            k := atoms[k].close
+        k := k + 1
+    return false
+
+## Writes the group closed at `c`, one item per line, with a comma after each item, except
+## after the last one of a parenthesized expression. A parenthesized expression without
+## commas is broken before each of its `and` and `or` operators instead.
+procedure explodeGroup(var w: Writer, var atoms: List[Atom], c: Integer, depth: Integer)
+    let o := atoms[c].open
+    emit(var w, atoms[o])
+    let paren := isParenExpr(atoms, o)
+    let budget := Width - 4 * (depth + 1)
+    var start := o + 1
+    var k := o + 1
+    if paren and itemCount(atoms, o) <= 1 then
+        while start < c do
+            if k < c and atoms[k].close >= 0 then
+                k := atoms[k].close + 1
+            else if k < c and (k = start or not isLogical(atoms[k].kind)) then
+                k := k + 1
+            else
+                newline(var w, depth + 1)
+                decide(var atoms, start, stop: k, budget: budget)
+                renderSeq(var w, var atoms, start, stop: k, depth: depth + 1)
+                start := k
+    else
+        let trailing := c - 1 > o and atoms[c - 1].kind = TokenKind.Comma
+        var comma := atoms[o]
+        comma.kind := TokenKind.Comma
+        comma.text := ","
+        comma.close := -1
+        comma.before := []
+        comma.after := ""
+        while start < c do
+            if k < c and atoms[k].close >= 0 then
+                k := atoms[k].close + 1
+            else if k < c and atoms[k].kind <> TokenKind.Comma then
+                k := k + 1
+            else
+                newline(var w, depth + 1)
+                decide(var atoms, start, stop: k, budget: budget - 1)
+                renderSeq(var w, var atoms, start, stop: k, depth: depth + 1)
+                if k < c then
+                    emit(var w, atoms[k])
+                else if not paren or trailing then
+                    emit(var w, comma)
+                start := k + 1
+                k := start
+    for text in atoms[c].before do
+        newline(var w, depth + 1)
+        put(var w, text)
+    newline(var w, depth)
+    var closer := atoms[c]
+    closer.before := []
+    emit(var w, closer)
+
+## The text of `items`.
+function render(items: List[Item]): String
+    var w := Writer(
+        lines: [],
+        cur: "",
+        depth: 0,
+        empty: true,
+        prevKind: TokenKind.Newline,
+        prevUnary: false,
+        pending: "",
+    )
+    for i := 0 to len(items) - 1 do
+        let it := items[i]
+        if i > 0 then
+            let p := items[i - 1]
+            if it.first - p.last > 1 and it.depth <= p.depth then
+                add(var w.lines, "")
+        newline(var w, it.depth)
+        if len(it.atoms) = 0 then
+            put(var w, it.comment)
+        else
+            var atoms := it.atoms
+            markForced(var atoms)
+            decide(var atoms, 0, stop: len(atoms), budget: Width - 4 * it.depth)
+            renderSeq(var w, var atoms, 0, stop: len(atoms), depth: it.depth)
+        newline(var w, 0)
+    if len(w.lines) = 0 then
+        return ""
+    return "{join(w.lines, sep: "\n")}\n"

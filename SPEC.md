@@ -1289,7 +1289,7 @@ test "largest of empty list is None"
 | `pst run Main.pst [-- args]` | build to a temp dir and run |
 | `pst test PATH [--filter text]` | run `test` blocks (§13) |
 | `pst check [path] --json` | type-check only, emit diagnostics |
-| `pst fmt [path] [--check]` | canonical formatter |
+| `pst fmt PATH [--check]` | canonical formatter (§15.3) |
 | `pst lsp` | language server over stdio, for human editors (§15.4) |
 | `pst mcp` | MCP server over stdio, for AI agents (§15.7) |
 | `pst query <request> --json` | one-shot semantic queries for scripts and AI agents (§15.5) |
@@ -1297,7 +1297,7 @@ test "largest of empty list is None"
 | `pst tokens FILE` / `pst ast FILE` | debugging dumps of the lexer and parser |
 
 `compiler/Pst.pst` is the tool, written in Pasthon. It has `check`, `build`, `run`, `test`,
-`tokens` and `ast` so far, and finds the standard units in `units` next to its executable.
+`fmt`, `tokens` and `ast` so far, and finds the standard units in `units` next to its executable.
 `tokens` and `ast` print their own text format, one token or node per line, then the
 diagnostics; they exit with status 1 if there are errors.
 
@@ -1353,10 +1353,37 @@ Checked build (default): bounds, overflow, subrange, contracts. `--unchecked` dr
 them except `assert`.
 
 ### 15.3 Formatter rules
+`pst fmt PATH` formats a file, or the `.pst` files of a directory (not its subdirectories),
+in place, and prints the path of each file it changed. With `--check` it writes nothing and
+exits with status 1 if a file would change. A file with lexer errors is left alone: its
+diagnostics go to standard error and the status is 1. The formatter works on the tokens and
+comments, so it formats a file that doesn't parse; it changes only layout, never tokens,
+except for adding a trailing comma to a broken group and rewriting `else` + `if` (below).
+
 - 4-space indent, max line length 100, one statement per line, no semicolons.
-- Single spaces around binary operators and `:=`. No space before `:` in declarations, one after.
-- Long calls and literals break inside brackets, one item per line, with a trailing comma.
+- Spaces: none before `,` `:` `.` `..` `)` `]` `}`, none after `.` `..` `(` `[` `{`, none
+  after a unary `-` or `+`, and none before `(` or `[` after a name, a string literal, `)`,
+  `]`, `deref`, `function`, `procedure` or `This`. One space everywhere else, so around
+  binary operators and `:=`, after `:` and `,`, and between `not` and `(`.
+- The expressions in string placeholders are formatted the same way.
+- Blank lines: a run of blank lines becomes one; none at the start of a block, the start or
+  the end of the file.
+- An `else` whose block is a single `if` chain (and nothing else, not even an end marker)
+  becomes `else if`.
+- Comments stay on their line. A trailing comment gets two spaces before `#`. A comment on
+  its own line is indented like the next line of code, or deeper (up to the previous line's
+  depth) if it was written deeper, so a comment closing a block stays in it.
 - Existing end markers are preserved. The formatter never adds or removes them.
+- A line longer than 100 columns breaks inside brackets: the widest group, preferring a
+  `(` group, is printed one item per line, one level deeper, each item followed by a comma,
+  and the closer on its own line. If its last item is itself a group taking more than half of
+  it, that group breaks instead and hugs the outer brackets (`writeln(join(` ... `))`).
+  This repeats until the line fits or nothing more can break.
+- A parenthesized expression gets no trailing comma; without commas, it breaks before each
+  `and` and `or` at its own level instead.
+- A group stays broken if it ends with a trailing comma, holds a comment, or holds a broken
+  group that isn't its last item. To keep a short list one item per line, end it with a
+  comma; to join it, remove the comma.
 
 ### 15.4 Language server (`pst lsp`)
 Intended for human editors. (AI agents should use `pst mcp` (§15.7) or `pst query` (§15.5).)

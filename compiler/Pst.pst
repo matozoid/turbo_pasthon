@@ -1,13 +1,13 @@
 program Pst
 
-## The command line tool (SPEC §15): `check`, `build`, `run` and `test`, and the `tokens`
-## and `ast` dumps. The standard units are found in
+## The command line tool (SPEC §15): `check`, `build`, `run`, `test` and `fmt`, and the
+## `tokens` and `ast` dumps. The standard units are found in
 ## `units` next to the executable.
 
-uses IO, OS, Strings, Source, Ast, Diagnostics, Typecheck, Emit, LexDump, AstDump
+uses IO, OS, Strings, Source, Ast, Diagnostics, Typecheck, Emit, Fmt, LexDump, AstDump
 
 const
-    Usage = "usage: pst check FILE [--json]\n       pst build FILE [-o OUT] [--unchecked] [--json]\n       pst run [--unchecked] FILE [-- ARGS]\n       pst test PATH [--filter TEXT] [--unchecked] [--json]\n       pst tokens FILE\n       pst ast FILE"
+    Usage = "usage: pst check FILE [--json]\n       pst build FILE [-o OUT] [--unchecked] [--json]\n       pst run [--unchecked] FILE [-- ARGS]\n       pst test PATH [--filter TEXT] [--unchecked] [--json]\n       pst fmt PATH [--check]\n       pst tokens FILE\n       pst ast FILE"
 
 type
     Options = record
@@ -17,6 +17,7 @@ type
         json: Boolean
         unchecked: Boolean
         filter: String
+        check: Boolean
         rest: List[String]
 
 procedure usage(message: String)
@@ -28,10 +29,10 @@ procedure usage(message: String)
 function parseArgs(a: List[String]): Options
     if len(a) = 0 then
         usage("missing command")
-    var o := Options(command: a[0], file: "", output: "", json: false, unchecked: false, filter: "", rest: [])
-    if not (o.command in ["check", "build", "run", "test", "tokens", "ast"]) then
+    var o := Options(command: a[0], file: "", output: "", json: false, unchecked: false, filter: "", check: false, rest: [])
+    if not (o.command in ["check", "build", "run", "test", "fmt", "tokens", "ast"]) then
         usage("unknown command '{o.command}'")
-    let dump := o.command = "tokens" or o.command = "ast"
+    let dump := o.command = "tokens" or o.command = "ast" or o.command = "fmt"
     var i := 1
     while i < len(a) do
         let x := a[i]
@@ -47,6 +48,8 @@ function parseArgs(a: List[String]): Options
                 usage("argument -o/--output: expected one argument")
             o.output := a[i]
             i := i + 1
+        else if x = "--check" and o.command = "fmt" then
+            o.check := true
         else if x = "--filter" and o.command = "test" then
             if i = len(a) then
                 usage("argument --filter: expected one argument")
@@ -235,19 +238,67 @@ function testFile(path: String, stdDir: String, o: Options, tmp: String): Tally
     _ := removeFile(exe)
     return tally
 
-procedure testCommand(o: Options, stdDir: String)
-    var files := [o.file]
-    if isDir(o.file) then
+## `path`, or the `.pst` files in it if it's a directory, sorted.
+function sourceFiles(path: String): List[String]
+    var files := [path]
+    if isDir(path) then
         files := []
-        case listDir(o.file) of
+        case listDir(path) of
             Ok(names):
                 var sorted := names.value
                 sort(var sorted)
                 for name in sorted do
                     if endsWith(name, suffix: ".pst") then
-                        add(var files, joinPath(o.file, name: name))
+                        add(var files, joinPath(path, name: name))
             Err(e):
                 fatal(e.error)
+    return files
+
+## The text of the file at `path`.
+function readSource(path: String): String
+    var text := ""
+    case open(path) of
+        Ok(f):
+            case readAll(f.value) of
+                Ok(t):
+                    text := t.value
+                Err(e):
+                    fatal(e.error)
+            _ := close(f.value)
+        Err(e):
+            fatal(e.error)
+    return text
+
+## Formats the files of `o.file` in place, or with `--check` only lists those that would
+## change (SPEC §15.3). The changed files are listed.
+procedure fmtCommand(o: Options)
+    var changed := false
+    var failed := false
+    for path in sourceFiles(o.file) do
+        let text := readSource(path)
+        case format(text, file: path) of
+            Ok(f):
+                if f.value <> text then
+                    writeln(path)
+                    changed := true
+                    if not o.check then
+                        case create(path) of
+                            Ok(out):
+                                case writeAll(out.value, text: f.value) of
+                                    Ok(_):
+                                        _ := close(out.value)
+                                    Err(e):
+                                        fatal(e.error)
+                            Err(e):
+                                fatal(e.error)
+            Err(ds):
+                report(ds.error, asJson: false)
+                failed := true
+    if failed or (o.check and changed) then
+        exit(1)
+
+procedure testCommand(o: Options, stdDir: String)
+    let files := sourceFiles(o.file)
     var dir := ""
     case tempDir() of
         Ok(d):
@@ -283,17 +334,10 @@ else if o.command = "build" then
         exit(1)
 else if o.command = "test" then
     testCommand(o, stdDir: stdDir)
+else if o.command = "fmt" then
+    fmtCommand(o)
 else if o.command = "tokens" or o.command = "ast" then
-    var text := ""
-    case open(o.file) of
-        Ok(f):
-            case readAll(f.value) of
-                Ok(t):
-                    text := t.value
-                Err(e):
-                    fatal(e.error)
-        Err(e):
-            fatal(e.error)
+    let text := readSource(o.file)
     var failed := false
     if o.command = "tokens" then
         failed := dumpTokens(text, file: o.file)

@@ -1,0 +1,4 @@
+unit Good
+
+export function g(): Integer
+    return 1

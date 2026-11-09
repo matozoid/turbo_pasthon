@@ -1,0 +1,9 @@
+# The formatter's rules (SPEC §15.3) on a messy program; the result is formatted, and checks.
+mkdir o && cp Messy.pst o/Messy.pst && $PST fmt o/Messy.pst && cat o/Messy.pst
+$PST fmt --check o/Messy.pst && $PST check o/Messy.pst && $PST run o/Messy.pst
+$PST fmt --check Messy.pst
+$PST fmt Bad.pst
+$PST fmt --check .
+$PST fmt Good.pst
+$PST fmt
+$PST fmt Good.pst --json
