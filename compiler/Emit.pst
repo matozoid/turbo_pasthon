@@ -905,6 +905,10 @@ function run(g: ref Em): Built
             keepAliveStmt(g, s)
         block(g, Block(span: file.span, stmts: body))
     label(a, g.f.exit)
+    if g.checked then
+        loadGlobal(a, Rcx, name: "blocks")
+        testR(a, Rcx, Rcx)
+        jcc(a, "ne", label: runtime(g, "rt_leak"))
     xor32(a, Rdi, Rdi)
     exitProgram(g)
     patch32(a, sizeAt, value: align(g.f.size, 16))
@@ -3849,6 +3853,7 @@ procedure runtimeRoutine(g: ref Em, name: String)
         "rt_enum_name": rtEnumName(g)
         "rt_alloc": rtAlloc(g)
         "rt_oom": rtOom(g)
+        "rt_leak": rtLeak(g)
         "rt_str_new": rtStrNew(g)
         "rt_str_from": rtStrFrom(g)
         "rt_utf8_len": rtUtf8Len(g)
@@ -4027,6 +4032,8 @@ procedure rtRelease(g: ref Em)
     decR(a, Rcx)
     jmp(a, loop)
     label(a, free)
+    if g.checked then
+        countBlocks(g, -1)
     mov(a, Rdi, Rsi)
     ccall(g, "free")
     popAll(a, callerSaved())
@@ -4395,13 +4402,35 @@ procedure rtEnumName(g: ref Em)
     pop(a, Rbx)
     ret(a)
 
-## rax := malloc(rdi). Running out of memory is fatal.
+## rax := malloc(rdi). Running out of memory is fatal. A checked build counts the blocks.
 procedure rtAlloc(g: ref Em)
     let a := g.a
     ccall(g, "malloc")
     testR(a, Rax, Rax)
     jcc(a, "e", label: runtime(g, "rt_oom"))
+    if g.checked then
+        countBlocks(g, 1)
     ret(a)
+
+## Adds `n` to the count of live blocks. Uses rcx.
+procedure countBlocks(g: ref Em, n: Integer)
+    let a := g.a
+    loadGlobal(a, Rcx, name: "blocks")
+    addImm(a, Rcx, value: n)
+    storeGlobal(a, "blocks", src: Rcx)
+
+## Reports the blocks still alive at the end of the program, and exits with status 70
+## (SPEC §12).
+procedure rtLeak(g: ref Em)
+    let a := g.a
+    movImm(a, Rdi, value: 2)
+    var bs := utf8("leak: %ld blocks still alive at exit\n")
+    add(var bs, Byte(0))
+    leaData(a, Rsi, label: data(a, bs))
+    loadGlobal(a, Rdx, name: "blocks")
+    ccall(g, "dprintf")
+    movImm(a, Rdi, value: PanicStatus)
+    exitProgram(g)
 
 procedure rtOom(g: ref Em)
     let a := g.a

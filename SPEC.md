@@ -1143,7 +1143,10 @@ unsafe procedure fill(s: Ptr[SdlSurface])
 
 - **Automatic reference counting.** `String`, records, unions, `List`, `Map`, `Set` and `ref T` are refcounted.
 - Increments and decrements are inserted by the compiler. Destruction is deterministic: memory is freed as soon as the last owner goes away.
-- **No cycle collector.** Strong cycles leak, so use `Weak[T]`.
+- **No cycle collector.** Strong cycles leak, so use `Weak[T]`. A checked build counts the
+  heap blocks it allocates and frees; if any are still alive when the program (or a test
+  block) reaches its end, it prints `leak: N blocks still alive at exit` to stderr and exits
+  with status 70. `halt`, `OS.exit` and panics end the program without this check.
 - Primitives, enums, arrays and C records (§10.5) live inline (stack or embedded). Strings, records and unions
   are pointers to refcounted heap blocks, shared on copy and copied before they're changed
   (§4.6). A union value's block records which variant it holds.
@@ -1228,6 +1231,8 @@ v0.1 is single-threaded, but the design is fixed now so v0.1 doesn't rule it out
 | `P0020` | `assert` failed |
 
 `halt(code)` exits immediately (deferred statements do not run).
+
+A checked build also ends with status 70 if heap blocks leaked (§11).
 
 ---
 

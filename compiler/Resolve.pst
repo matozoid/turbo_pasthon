@@ -22,8 +22,9 @@ type
         export parsed: ParseResult
         export symbol: ref Symbol
         export top: Map[String, List[ref Symbol]]
-        ## Explicit `uses`, then System.
-        export used: List[ref Unit]
+        ## Explicit `uses`, then System. Weak, since units can use each other (an
+        ## error, E0107); the checker's `units` own them.
+        export used: List[Weak[Unit]]
         ## The normalized source, for fixes that rewrite code.
         export text: String
         ## The same, decoded.
@@ -85,6 +86,15 @@ function containsUnit(xs: List[ref Unit], u: ref Unit): Boolean
         if x = u then
             return true
     return false
+
+## The units `u` uses: explicit `uses`, then System.
+export function usedUnits(u: ref Unit): List[ref Unit]
+    var out: List[ref Unit] := []
+    for w in u.used do
+        case get(w) of
+            Some(v): add(var out, v.value)
+            None: pass
+    return out
 
 function isUpper(c: Char): Boolean
     return c >= 'A' and c <= 'Z'
@@ -349,7 +359,7 @@ function load(c: ref Checker, path: String, std: Boolean, expected: String := ""
         seen[ident.name] := true
         case findUnit(c, ident.name, user: un, span: Some(ident.span)) of
             Some(used):
-                add(var un.used, used.value)
+                add(var un.used, weak(used.value))
                 add(c.index, path, ident.span, targets: [used.value.symbol])
             None:
                 continue
@@ -359,8 +369,8 @@ function load(c: ref Checker, path: String, std: Boolean, expected: String := ""
             system := findUnit(c, "System", user: un, span: None)
         case system of
             Some(s):
-                if not containsUnit(un.used, s.value) then
-                    add(var un.used, s.value)
+                if not containsUnit(usedUnits(un), s.value) then
+                    add(var un.used, weak(s.value))
             None:
                 return Some(un)
     return Some(un)
@@ -556,7 +566,7 @@ procedure runResolver(c: ref Checker, u: ref Unit)
 ## A resolver for `u`, outside any routine: what `unitLookup` uses.
 export function newResolver(c: ref Checker, u: ref Unit): ref Resolver
     var names: Map[String, ref Unit] := {}
-    for v in u.used do
+    for v in usedUnits(u) do
         names[v.name] := v
     return new(Resolver(
         c: c,
@@ -669,7 +679,7 @@ function lookup(r: ref Resolver, name: String): Lookup
     var routines := own
     var others: List[ref Symbol] := []
     var otherUnits: List[ref Unit] := []
-    for u in r.cur.used do
+    for u in usedUnits(r.cur) do
         for s in exports(u, name) do
             if isRoutine(s.kind) then
                 if not contains(routines, s) then
@@ -682,7 +692,7 @@ function lookup(r: ref Resolver, name: String): Lookup
     if len(others) = 1 and len(routines) = 0 then
         return Lookup(symbols: others, ambiguous: [])
     var units := otherUnits
-    for u in r.cur.used do
+    for u in usedUnits(r.cur) do
         for s in exports(u, name) do
             if contains(routines, s) then
                 add(var units, u)
@@ -707,7 +717,7 @@ function visibleNames(r: ref Resolver): List[String]
     for scope in r.typeScopes do
         for n, _ in scope do
             names[n] := true
-    for u in r.cur.used do
+    for u in usedUnits(r.cur) do
         for n, syms in u.top do
             for s in syms do
                 if s.exported then

@@ -1064,6 +1064,24 @@ class Lists(unittest.TestCase):
         self.assertEqual((p.returncode, p.stderr), (0, b""))
         self.assertEqual(p.stdout.decode(), "0 1 2 3 3 5 7 8 9 9\napple b fig pear \nbdac\nabcd\n")
 
+    def test_leak_report(self):
+        """A checked build reports blocks still alive at the end: here a strong cycle."""
+        body = """
+            type
+                Node = record
+                    next: Option[ref Node]
+
+            let a := new(Node(next: None))
+            let b := new(Node(next: Some(a)))
+            a.next := Some(b)
+            writeln("done")
+            """
+        p = run_program(body)
+        self.assertEqual((p.returncode, p.stdout), (70, b"done\n"))
+        self.assertRegex(p.stderr.decode(), r"^leak: \d+ blocks still alive at exit\n$")
+        p = run_program(body, checked=False)
+        self.assertEqual((p.returncode, p.stdout, p.stderr), (0, b"done\n", b""))
+
     def test_bounds(self):
         for body in ["let xs := [1]\nwriteln(xs[1])", "var xs := [1]\nxs[-1] := 2",
                      "var xs: List[Integer] := []\nremove(var xs, 0)",

@@ -498,6 +498,10 @@ class Emitter:
             self.keep_alive(body)
             self.block(A.Block(self.main.tree.span, body))
         a.label(self.f.exit)
+        if self.checked:
+            a.load_global(RCX, "blocks")
+            a.test(RCX, RCX)
+            a.jcc("ne", self.runtime("rt_leak"))
         a.xor32(RDI, RDI)
         self.exit()
         a.patch32(size_at, elf.align(self.f.size, 16))
@@ -2492,6 +2496,8 @@ class Emitter:
         a.dec(RCX)
         a.jmp(loop)
         a.label(free)
+        if self.checked:
+            self.count_blocks(-1)
         a.mov(RDI, RSI)
         self.ccall("free")
         for r in reversed(_CALLER_SAVED):
@@ -2841,12 +2847,33 @@ class Emitter:
         a.ret()
 
     def rt_alloc(self) -> None:
-        """rax := malloc(rdi). Running out of memory is fatal."""
+        """rax := malloc(rdi). Running out of memory is fatal. A checked build counts the
+        blocks."""
         a = self.asm
         self.ccall("malloc")
         a.test(RAX, RAX)
         a.jcc("e", self.runtime("rt_oom"))
+        if self.checked:
+            self.count_blocks(1)
         a.ret()
+
+    def count_blocks(self, n: int) -> None:
+        """Adds ``n`` to the count of live blocks. Uses rcx."""
+        a = self.asm
+        a.load_global(RCX, "blocks")
+        a.add_imm(RCX, n)
+        a.store_global("blocks", RCX)
+
+    def rt_leak(self) -> None:
+        """Reports the blocks still alive at the end of the program, and
+        exits with status 70 (SPEC §12)."""
+        a = self.asm
+        a.mov_imm(RDI, 2)
+        a.lea_data(RSI, a.data(b"leak: %ld blocks still alive at exit\n\0"))
+        a.load_global(RDX, "blocks")
+        self.ccall("dprintf")
+        a.mov_imm(RDI, _PANIC_STATUS)
+        self.exit()
 
     def rt_oom(self) -> None:
         a = self.asm
