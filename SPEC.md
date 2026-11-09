@@ -1301,6 +1301,12 @@ test "largest of empty list is None"
 `units` next to its executable. Its `tokens` and `ast` print the port's own text format, one
 token or node per line, then the diagnostics; they exit with status 1 if there are errors.
 
+`scripts/bootstrap.sh` builds the port into `build/pst` (with `build/units`). The seed is
+`$PST_SEED` if set, else the latest GitHub release, else the Python compiler. The seed builds
+stage 1, stage 1 builds stage 2, and the two must be identical. A tag `v*` makes the release
+workflow publish `pst-linux-x86_64.tar.gz` (`pst` and `units/`). The port may only use the
+features that the latest release compiles.
+
 ### 15.1 Diagnostics
 Human format: `Main.pst:12:5: error E0502: result of 'restock' is ignored`.
 
