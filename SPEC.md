@@ -1397,13 +1397,21 @@ Built into the `pst` executable, so it is always the same version as the compile
 the same front end. JSON-RPC over stdio, LSP 3.17. It has no dependencies beyond the compiler.
 
 So far it synchronizes whole documents (`textDocumentSync` 1), pushes diagnostics, formats,
-and answers hover, signature help, definition, references, rename, code actions, document
+and answers completion, hover, signature help, definition, references, rename, code actions, document
 symbols and folding ranges. After each change it checks
 every open document, with the open documents' texts read in place of their files (§15.6),
 and pushes the diagnostics that are in that document; closing a document clears its
 diagnostics. Columns are converted to UTF-16 code units. A request about a position checks
 its document again and looks up the name at the position, or the name just before it:
 
+- Completion after `x.` (also triggered by typing `.`) offers a unit's exports, an enum's
+  members, or the fields of a value's record type followed by the routines whose first
+  parameter takes it (UFCS, §6.6). Elsewhere it offers the locals declared earlier in the
+  same routine (or main body), the document's top-level names, the units it uses and their
+  exports, and keywords. Only names starting with the word before the position are
+  offered, each with its hover's first line as detail. When the text doesn't parse, the
+  receiver is looked up in the text without the `.` and the word, and then in the text
+  with the receiver alone on its line.
 - Hover shows a routine's signature, the first line of a type, constant or field
   declaration, a local's type (`let count: Integer`), or the kind and name of anything
   else, followed by the `##` doc comment.

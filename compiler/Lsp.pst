@@ -31,6 +31,12 @@ type
         ## The errors in the open documents.
         errors: Integer
 
+    ## The completion items found so far, for names starting with `prefix`.
+    Completions = record
+        prefix: String
+        seen: Map[String, Boolean]
+        items: List[String]
+
     ## A call around a position (signature help).
     CallSite = record
         callee: Token
@@ -196,11 +202,15 @@ procedure checkAll(s: Server)
 # ------------------------------------------------------------------------- symbols
 
 function analyze(s: Server, path: String): Analysis
-    let checked := typecheck(path, stdDir: s.stdDir, overlay: s.texts)
-    var texts: Map[String, Text] := {}
+    return analyzeWith(s, path, texts: s.texts)
+
+## A check of `path` with `texts` in place of the files.
+function analyzeWith(s: Server, path: String, texts: Map[String, String]): Analysis
+    let checked := typecheck(path, stdDir: s.stdDir, overlay: texts)
+    var srcs: Map[String, Text] := {}
     for u in checked.resolved.units do
-        texts[u.path] := u.src
-    return Analysis(checked: checked, texts: texts)
+        srcs[u.path] := u.src
+    return Analysis(checked: checked, texts: srcs)
 
 ## The reference at the request's position: on the name, or just after it.
 function refAt(a: Analysis, path: String, params: JValue): Option[Ref]
@@ -242,8 +252,8 @@ function firstLine(a: Analysis, file: String, span: Span): String
         None:
             return ""
 
-## How hover shows a symbol: its declaration, then its documentation.
-function hoverText(a: Analysis, sym: ref Symbol): String
+## A symbol's declaration, in short.
+function headOf(a: Analysis, sym: ref Symbol): String
     let kind := name(sym.kind)
     var head := "{kind} {sym.name}"
     case sym.node of
@@ -274,7 +284,11 @@ function hoverText(a: Analysis, sym: ref Symbol): String
                             pass
                 None:
                     pass
-    var text := "```pst\n{head}\n```"
+    return head
+
+## How hover shows a symbol: its declaration, then its documentation.
+function hoverText(a: Analysis, sym: ref Symbol): String
+    var text := "```pst\n{headOf(a, sym)}\n```"
     case docOf(sym) of
         Some(d):
             text := "{text}\n\n{d.value}"
@@ -599,6 +613,232 @@ function signatureHelp(s: Server, path: String, params: JValue): String
         None:
             return "null"
 
+# ------------------------------------------------------------------------- completion
+
+## The LSP `CompletionItemKind` of a symbol.
+function itemKind(sym: ref Symbol): Integer
+    case sym.kind of
+        Kind.UnitSym:
+            return 9
+        Kind.FieldSym:
+            return 5
+        Kind.ConstSym:
+            return 21
+        Kind.EnumMember:
+            return 20
+        Kind.TraitSym, Kind.BuiltinTrait:
+            return 8
+        Kind.TypeSym, Kind.BuiltinType:
+            return 7
+        Kind.TypeParamSym:
+            return 25
+        Kind.FunctionSym, Kind.ProcedureSym:
+            return 3
+        else:
+            return 6
+
+procedure offer(var c: Completions, a: Analysis, sym: ref Symbol, rank: String)
+    if not startsWith(sym.name, prefix: c.prefix) or sym.name in c.seen or startsWith(sym.name, prefix: "_") then
+        return
+    c.seen[sym.name] := true
+    let detail := quote(headOf(a, sym))
+    add(
+        var c.items,
+        "\{\"label\":{quote(sym.name)},\"kind\":{itemKind(sym)},\"detail\":{detail},\"sortText\":{quote("{rank}{sym.name}")}}",
+    )
+
+## The units whose exported names the document sees: those it uses, and System.
+function usedUnits(a: Analysis, path: String): List[ref Unit]
+    var out: List[ref Unit] := []
+    for u in a.checked.resolved.units do
+        if u.path = path then
+            for w in u.used do
+                case get(w) of
+                    Some(v):
+                        add(var out, v.value)
+                    None:
+                        pass
+    return out
+
+## The routines the document sees: its own, and those its units export.
+function visibleRoutines(a: Analysis, path: String): List[ref Symbol]
+    var out: List[ref Symbol] := []
+    for u in a.checked.resolved.units do
+        if u.path = path then
+            for _, syms in u.top do
+                for sym in syms do
+                    if isRoutine(sym.kind) then
+                        add(var out, sym)
+    for u in usedUnits(a, path) do
+        for _, syms in u.top do
+            for sym in syms do
+                if isRoutine(sym.kind) and sym.exported then
+                    add(var out, sym)
+    return out
+
+## The routine of this file whose declaration holds `offset`, as a span; None outside any.
+function enclosingRoutine(a: Analysis, path: String, offset: Integer): Option[Span]
+    for r in a.checked.resolved.checker.index.refs do
+        if r.isDef and r.file = path and len(r.targets) = 1 and isRoutine(r.targets[0].kind) then
+            let sp := declSpan(r.targets[0])
+            if sp.start <= offset and offset <= sp.end then
+                return Some(sp)
+    return None
+
+## Names after `receiver.`: a unit's exports, an enum's members, or the fields of a value's
+## record type and the routines that take it first (UFCS), fields first.
+procedure members(var c: Completions, a: Analysis, path: String, receiver: ref Symbol)
+    if a.checked.env.isNone() then
+        return
+    let env := a.checked.env.get()
+    if receiver.kind = Kind.UnitSym then
+        for u in a.checked.resolved.units do
+            if u.name = receiver.name then
+                for _, syms in u.top do
+                    for sym in syms do
+                        if sym.exported then
+                            offer(var c, a, sym: sym, rank: "0")
+        return
+    if receiver.kind = Kind.TypeSym then
+        for _, m in receiver.members do
+            if m.kind = Kind.EnumMember then
+                offer(var c, a, sym: m, rank: "0")
+        return
+    let t := get(env.symTypes, receiver.id)
+    if t.isNone() then
+        return
+    let ty := t.get()
+    case namedSym(ty) of
+        Some(owner):
+            for _, m in owner.value.members do
+                if m.kind = Kind.FieldSym and (m.exported or m.file = path) then
+                    offer(var c, a, sym: m, rank: "0")
+        None:
+            pass
+    for sym in visibleRoutines(a, path) do
+        let g := sig(env, sym)
+        if len(g.params) > 0 then
+            var vars: Vars := {}
+            for tp in g.tparams do
+                vars[tp.id] := true
+            var sub: Subst := {}
+            if unify(g.params[0].ty, ty, var sub, vars) then
+                offer(var c, a, sym: sym, rank: "1")
+
+## Names at the position: the locals declared before it in the same routine (or main
+## body), the document's own top-level names, the exports of the units it uses, and
+## keywords.
+procedure names(var c: Completions, a: Analysis, path: String, offset: Integer)
+    let inside := enclosingRoutine(a, path, offset: offset)
+    var locals: List[ref Symbol] := []
+    for r in a.checked.resolved.checker.index.refs do
+        if r.isDef and r.file = path and len(r.targets) = 1 and isLocal(r.targets[0].kind) and r.span.end <= offset then
+            let here := enclosingRoutine(a, path, offset: r.span.start)
+            let same := (here.isNone() and inside.isNone()) or (
+                here.isSome()
+                and inside.isSome()
+                and here.get().start = inside.get().start
+            )
+            if same then
+                add(var locals, r.targets[0])
+    var i := len(locals) - 1
+    while i >= 0 do
+        offer(var c, a, sym: locals[i], rank: "0")
+        i := i - 1
+    for u in a.checked.resolved.units do
+        if u.path = path then
+            for _, syms in u.top do
+                for sym in syms do
+                    offer(var c, a, sym: sym, rank: "1")
+    for u in usedUnits(a, path) do
+        offer(var c, a, sym: u.symbol, rank: "1")
+        for _, syms in u.top do
+            for sym in syms do
+                if sym.exported then
+                    offer(var c, a, sym: sym, rank: "2")
+    for word, _ in keywords() do
+        if startsWith(word, prefix: c.prefix) and not (word in c.seen) then
+            c.seen[word] := true
+            add(
+                var c.items,
+                "\{\"label\":{quote(word)},\"kind\":14,\"sortText\":{quote("3{word}")}}",
+            )
+
+function completion(s: Server, path: String, params: JValue): String
+    let text := get(s.texts, path)
+    if text.isNone() then
+        return "[]"
+    let t := textOf(text.get())
+    let pos := field(params, key: "position")
+    let line := asInteger(field(pos, key: "line")).getOr(0) + 1
+    if line > len(t.lineStarts) then
+        return "[]"
+    let col := column(t, line, character: asInteger(field(pos, key: "character")).getOr(0))
+    let offset := t.lineStarts[line - 1] + col - 1
+    # The word being typed, and the `.` before it.
+    var start := offset
+    while start > 0 and isWordChar(t.chars[start - 1]) do
+        start := start - 1
+    var c := Completions(prefix: sub(t, start, end: offset), seen: {}, items: [])
+    var dot := start
+    while dot > 0 and t.chars[dot - 1] = ' ' do
+        dot := dot - 1
+    if dot > 0 and t.chars[dot - 1] = '.' then
+        var end := dot - 1
+        while end > 0 and t.chars[end - 1] = ' ' do
+            end := end - 1
+        var begin := end
+        while begin > 0 and isWordChar(t.chars[begin - 1]) do
+            begin := begin - 1
+        if begin = end then
+            return "[]"
+        # Check the text without the `.` and the word, which the parser may not take.
+        var stop := offset
+        while stop < len(t.chars) and isWordChar(t.chars[stop]) do
+            stop := stop + 1
+        var texts := s.texts
+        texts[path] := "{sub(t, 0, end: dot - 1)}{sub(t, stop, end: len(t.chars))}"
+        let receiverSpan := span(t, begin, end: end)
+        var a := analyzeWith(s, path, texts: texts)
+        var r := at(
+            a.checked.resolved.checker.index,
+            path,
+            receiverSpan.line,
+            col: receiverSpan.col,
+        )
+        if r.isNone() then
+            # Still no parse: keep only the receiver of the line, as a statement of its own.
+            let lineStart := t.lineStarts[receiverSpan.line - 1]
+            var lineEnd := lineStart
+            while lineEnd < len(t.chars) and t.chars[lineEnd] <> '\n' do
+                lineEnd := lineEnd + 1
+            var indent := lineStart
+            while indent < begin and t.chars[indent] = ' ' do
+                indent := indent + 1
+            let before := sub(t, 0, end: lineStart)
+            let pad := sub(t, lineStart, end: indent)
+            texts[path] := "{before}{pad}{sub(t, begin, end: end)}{sub(t, lineEnd, end: len(t.chars))}"
+            a := analyzeWith(s, path, texts: texts)
+            r := at(
+                a.checked.resolved.checker.index,
+                path,
+                receiverSpan.line,
+                col: indent - lineStart + 1,
+            )
+        case r of
+            Some(found):
+                if len(found.value.targets) > 0 then
+                    members(var c, a, path: path, receiver: found.value.targets[0])
+            None:
+                pass
+    else
+        names(var c, analyze(s, path), path: path, offset: offset)
+    return "\{\"isIncomplete\":false,\"items\":[{join(c.items, sep: ",")}]}"
+
+## Whether `c` can be part of a name.
+function isWordChar(c: Char): Boolean
+    return (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9') or c = '_'
+
 ## The whole declaration of a symbol declared in source.
 function declSpan(sym: ref Symbol): Span
     case sym.node of
@@ -736,7 +976,7 @@ function codeActions(s: Server, path: String, params: JValue): String
 # ------------------------------------------------------------------------- requests
 
 function capabilities(): String
-    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"foldingRangeProvider\":true,\"renameProvider\":true,\"signatureHelpProvider\":\{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":\{\"name\":\"pst\"}}"
+    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"foldingRangeProvider\":true,\"renameProvider\":true,\"completionProvider\":\{\"triggerCharacters\":[\".\"]},\"signatureHelpProvider\":\{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":\{\"name\":\"pst\"}}"
 
 ## The edits that format the document at `uri`: none if it is formatted, or can't be.
 function formatting(s: Server, uri: String): String
@@ -805,6 +1045,8 @@ procedure handle(var s: Server, m: JValue)
                 respond(id, result: edit.value)
             Err(e):
                 respondError(id, code: -32803, message: e.error)
+    else if method = "textDocument/completion" then
+        respond(id, result: completion(s, pathOf(uri), params: params))
     else if method = "textDocument/signatureHelp" then
         respond(id, result: signatureHelp(s, pathOf(uri), params: params))
     else if method = "textDocument/documentSymbol" then

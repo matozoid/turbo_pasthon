@@ -1,0 +1,5 @@
+# The language server (SPEC §15.4): completion after a `.` (fields and routines that take
+# the value first, a unit's exports, an enum's members) and of plain names (locals in
+# scope, top-level names, keywords), also while the text doesn't parse.
+$PST build Frames.pst -o frames
+sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities

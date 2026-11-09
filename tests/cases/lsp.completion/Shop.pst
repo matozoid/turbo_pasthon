@@ -1,0 +1,16 @@
+unit Shop
+
+type
+    export Item = record
+        export name: String
+        export qty: Integer
+
+    export Size = (Small, Large)
+
+## The price of `n` items.
+export function price(n: Integer, discount: Integer := 0): Integer
+    return n * 2 - discount
+
+## How many of `item` are left.
+export function quantity(item: Item): Integer
+    return item.qty
