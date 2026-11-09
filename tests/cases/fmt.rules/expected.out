@@ -162,8 +162,8 @@ usage: pst check FILE [--json]
        pst test PATH [--filter TEXT] [--unchecked] [--json]
        pst fmt PATH [--check]
        pst lsp
-       pst query def|refs|type|hover|complete FILE:LINE:COL
-       pst query impls|callers|callees FILE:LINE:COL
+       pst query def|refs|type|hover|impls|callers|callees FILE:LINE:COL|NAME
+       pst query complete FILE:LINE:COL
        pst query symbols [PATH]
        pst index [PATH]
        pst tokens FILE
@@ -179,8 +179,8 @@ usage: pst check FILE [--json]
        pst test PATH [--filter TEXT] [--unchecked] [--json]
        pst fmt PATH [--check]
        pst lsp
-       pst query def|refs|type|hover|complete FILE:LINE:COL
-       pst query impls|callers|callees FILE:LINE:COL
+       pst query def|refs|type|hover|impls|callers|callees FILE:LINE:COL|NAME
+       pst query complete FILE:LINE:COL
        pst query symbols [PATH]
        pst index [PATH]
        pst tokens FILE

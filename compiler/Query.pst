@@ -133,13 +133,92 @@ function callsOf(key: String, groups: List[Calls]): List[String]
         add(var items, "\{{who},\"calls\":[{join(at, sep: ",")}]}")
     return items
 
+## Whether a symbol of kind `k` can be found by name: what `symbols` lists, and units.
+function named(k: Kind): Boolean
+    return k in [
+        Kind.UnitSym,
+        Kind.TypeSym,
+        Kind.TraitSym,
+        Kind.ConstSym,
+        Kind.FieldSym,
+        Kind.EnumMember,
+    ] or isRoutine(k)
+
+## The position of the definition that `name` means, `name`, `Unit.name` or `Type.name`,
+## searched in the `.pst` files of the current directory and the units they use.
+export function findName(name: String, stdDir: String): Result[String, String]
+    let parts := split(name, sep: ".")
+    if len(parts) > 2 then
+        return Err("expected NAME, Unit.NAME or Type.NAME, got '{name}'")
+    let last := parts[len(parts) - 1]
+    var qualifier := ""
+    if len(parts) = 2 then
+        qualifier := parts[0]
+    var paths: List[String] := []
+    case pstFiles(".") of
+        Ok(f):
+            for x in f.value do
+                add(var paths, absolute(x))
+        Err(e):
+            return Err(e.error)
+    var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)
+    case serverFor(stdDir, paths) of
+        Ok(made):
+            s := made.value
+        Err(e):
+            return Err(e.error)
+    var found: List[String] := []
+    var shownAs: List[String] := []
+    var seen: Map[String, Boolean] := {}
+    var covered: Map[String, Boolean] := {}
+    for path in paths do
+        if path in covered then
+            continue
+        let a := analyze(s, path)
+        var unitOf: Map[String, String] := {}
+        for u in a.checked.resolved.units do
+            unitOf[u.path] := u.name
+            covered[u.path] := true
+        for r in a.checked.resolved.checker.index.refs do
+            if not r.isDef or len(r.targets) <> 1 then
+                continue
+            let sym := r.targets[0]
+            if sym.name <> last or sym.file <> r.file or not named(sym.kind) then
+                continue
+            var outer := get(unitOf, r.file).getOr("")
+            if a.checked.env.isSome() then
+                case get(a.checked.env.get().owner, sym.id) of
+                    Some(o):
+                        outer := o.value.name
+                    None:
+                        pass
+            if qualifier <> "" and qualifier <> outer then
+                continue
+            let at := "{r.file}:{r.span.line}:{r.span.col}"
+            if not (at in seen) then
+                seen[at] := true
+                add(var found, at)
+                add(var shownAs, "{outer}.{last} ({shown(r.file)}:{r.span.line}:{r.span.col})")
+    if len(found) = 0 then
+        return Err("no symbol named '{name}' in the current directory or the units it uses")
+    if len(found) > 1 then
+        return Err("'{name}' is ambiguous: {join(shownAs, sep: ", ")}")
+    return Ok(found[0])
+
 ## The answer to `def`, `refs`, `type`, `hover`, `complete`, `impls`, `callers` or
 ## `callees` at a position, or an error.
 export function queryAt(request: String, position: String, stdDir: String): Result[String, String]
     var file := ""
     var line := 0
     var col := 0
-    case parsePosition(position) of
+    var pos := position
+    if len(split(position, sep: ":")) = 1 and request <> "complete" then
+        case findName(position, stdDir: stdDir) of
+            Ok(at):
+                pos := at.value
+            Err(e):
+                return Err(e.error)
+    case parsePosition(pos) of
         Ok(p):
             file := p.value.first
             line := p.value.second[0]

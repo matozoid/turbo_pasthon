@@ -7,7 +7,7 @@ program Pst
 uses IO, OS, Strings, Source, Ast, Diagnostics, Typecheck, Emit, Fmt, Lsp, Query, LexDump, AstDump
 
 const
-    Usage = "usage: pst check FILE [--json]\n       pst build FILE [-o OUT] [--unchecked] [--json]\n       pst run [--unchecked] FILE [-- ARGS]\n       pst test PATH [--filter TEXT] [--unchecked] [--json]\n       pst fmt PATH [--check]\n       pst lsp\n       pst query def|refs|type|hover|complete FILE:LINE:COL\n       pst query impls|callers|callees FILE:LINE:COL\n       pst query symbols [PATH]\n       pst index [PATH]\n       pst tokens FILE\n       pst ast FILE"
+    Usage = "usage: pst check FILE [--json]\n       pst build FILE [-o OUT] [--unchecked] [--json]\n       pst run [--unchecked] FILE [-- ARGS]\n       pst test PATH [--filter TEXT] [--unchecked] [--json]\n       pst fmt PATH [--check]\n       pst lsp\n       pst query def|refs|type|hover|impls|callers|callees FILE:LINE:COL|NAME\n       pst query complete FILE:LINE:COL\n       pst query symbols [PATH]\n       pst index [PATH]\n       pst tokens FILE\n       pst ast FILE"
 
 type
     Options = record
@@ -118,7 +118,7 @@ function queryArgs(a: List[String], o: Options): Options
         "callees",
     ] then
         if len(words) < 2 then
-            usage("missing FILE:LINE:COL")
+            usage("missing FILE:LINE:COL or NAME")
         q.file := words[1]
     else
         usage("unknown query '{q.filter}'")

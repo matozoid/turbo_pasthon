@@ -1498,7 +1498,8 @@ as does the end of the input. The table below is the full plan.
 ### 15.5 Query CLI for agents (`pst query`, `pst index`)
 AI agents and scripts often can't hold an LSP session open. The same data is available as
 one-shot commands with JSON output. Each command takes a position as `File.pst:line:col`
-(same convention as §15.1).
+(same convention as §15.1), or, apart from `complete`, a symbol's name: `name`,
+`Unit.name` or `Type.name`.
 
 | Request | Returns |
 |---|---|
@@ -1508,8 +1509,8 @@ one-shot commands with JSON output. Each command takes a position as `File.pst:l
 | `pst query hover File.pst:12:5` | everything hover shows, structured |
 | `pst query complete File.pst:12:9` | completion items with kinds and signatures |
 | `pst query symbols [File.pst]` | symbols of one file, or the project |
-| `pst query impls File.pst:12:5` | types and functions satisfying a trait |
-| `pst query callers File.pst:12:5` / `callees` | call graph edges |
+| `pst query impls Measurable` | types and functions satisfying a trait |
+| `pst query callers restock` / `callees restock` | call graph edges |
 | `pst query instances largest` | every generic instance and where each is created |
 | `pst query explain E0502` | error code documentation |
 
@@ -1552,6 +1553,12 @@ object with `"schema"` and one list:
 - `symbols [PATH]` gives `"symbols"` like hover's: the types, constants, routines, fields
   and enum members declared in a file, or in the `.pst` files of a directory (by default
   the current one).
+
+A name is looked up among the types, traits, constants, routines, fields, enum members
+and units declared in the `.pst` files of the current directory and the units they use,
+qualified by the unit, or by the type or trait it belongs to. The query is then answered at
+its definition. A name that means nothing, or more than one thing (such as overloads), is
+an error that lists what it may mean, with their positions.
 
 A location is an object with `"file"`, `"line"`, `"col"`, `"endLine"` and `"endCol"`
 (§15.1). Files inside the current directory are relative to it; others, such as the

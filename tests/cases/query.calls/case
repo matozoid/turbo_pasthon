@@ -13,3 +13,11 @@ $PST index --json | sed 's|"file":"/[^"]*/|"file":"STD/|g'
 $PST index Shapes.pst | grep -o '"name":"[a-zA-Z]*","kind":"[a-z ]*"'
 $PST index Nope.pst
 $PST index Main.pst Shapes.pst
+$PST query def Shapes.area
+$PST query impls Shape
+$PST query hover Square.side
+$PST query callers total
+$PST query def area
+$PST query def nope
+$PST query def a.b.c
+$PST query complete twice

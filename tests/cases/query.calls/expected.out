@@ -53,13 +53,13 @@ usage: pst check FILE [--json]
        pst test PATH [--filter TEXT] [--unchecked] [--json]
        pst fmt PATH [--check]
        pst lsp
-       pst query def|refs|type|hover|complete FILE:LINE:COL
-       pst query impls|callers|callees FILE:LINE:COL
+       pst query def|refs|type|hover|impls|callers|callees FILE:LINE:COL|NAME
+       pst query complete FILE:LINE:COL
        pst query symbols [PATH]
        pst index [PATH]
        pst tokens FILE
        pst ast FILE
-pst: error: missing FILE:LINE:COL
+pst: error: missing FILE:LINE:COL or NAME
 $ $PST index --json | sed 's|"file":"/[^"]*/|"file":"STD/|g'
 exit 0
 --- stdout
@@ -97,10 +97,50 @@ usage: pst check FILE [--json]
        pst test PATH [--filter TEXT] [--unchecked] [--json]
        pst fmt PATH [--check]
        pst lsp
-       pst query def|refs|type|hover|complete FILE:LINE:COL
-       pst query impls|callers|callees FILE:LINE:COL
+       pst query def|refs|type|hover|impls|callers|callees FILE:LINE:COL|NAME
+       pst query complete FILE:LINE:COL
        pst query symbols [PATH]
        pst index [PATH]
        pst tokens FILE
        pst ast FILE
 pst: error: unrecognized argument 'Shapes.pst'
+$ $PST query def Shapes.area
+exit 0
+--- stdout
+{"schema":"pst-query/1","locations":[{"file":"Shapes.pst","line":10,"col":17,"endLine":10,"endCol":21}]}
+--- stderr
+$ $PST query impls Shape
+exit 0
+--- stdout
+{"schema":"pst-query/1","symbols":[{"name":"Square","kind":"type","location":{"file":"Shapes.pst","line":7,"col":12,"endLine":7,"endCol":18}}]}
+--- stderr
+$ $PST query hover Square.side
+exit 0
+--- stdout
+{"schema":"pst-query/1","symbols":[{"name":"side","kind":"field","container":"Square","type":"Integer","declaration":"field side: Integer","location":{"file":"Shapes.pst","line":8,"col":16,"endLine":8,"endCol":20}}]}
+--- stderr
+$ $PST query callers total
+exit 0
+--- stdout
+{"schema":"pst-query/1","callers":[{"file":"Main.pst","calls":[{"file":"Main.pst","line":9,"col":15,"endLine":9,"endCol":20}]}]}
+--- stderr
+$ $PST query def area
+exit 1
+--- stdout
+--- stderr
+pst: error: 'area' is ambiguous: Shape.area (Shapes.pst:5:18), Shapes.area (Shapes.pst:10:17)
+$ $PST query def nope
+exit 1
+--- stdout
+--- stderr
+pst: error: no symbol named 'nope' in the current directory or the units it uses
+$ $PST query def a.b.c
+exit 1
+--- stdout
+--- stderr
+pst: error: expected NAME, Unit.NAME or Type.NAME, got 'a.b.c'
+$ $PST query complete twice
+exit 1
+--- stdout
+--- stderr
+pst: error: expected FILE:LINE:COL, got 'twice'
