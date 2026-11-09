@@ -644,16 +644,30 @@ function descriptor(
     eq: String := "",
     drop: String := "",
 ): String
+    var kinds: List[Integer] := []
+    for p in parts do
+        add(var kinds, slotKind(g, p))
+    return descriptorOf(g, k, kinds, name: name, eq: eq, drop: drop)
+
+## The descriptor `descriptor` makes, from the kinds of the slots.
+function descriptorOf(
+    g: ref Em,
+    k: String,
+    kinds: List[Integer],
+    name: String,
+    eq: String,
+    drop: String,
+): String
     if not (k in g.descs) then
         var bs: List[Byte] := []
-        word(var bs, len(parts))
-        word(var bs, Fields + 8 * len(parts))
+        word(var bs, len(kinds))
+        word(var bs, Fields + 8 * len(kinds))
         word(var bs, len(g.descs))
         word(var bs, 0)
         word(var bs, 0)
         word(var bs, 0)
-        for p in parts do
-            word(var bs, slotKind(g, p))
+        for kind in kinds do
+            word(var bs, kind)
         let lbl := data(g.a, bs, align: 8)
         dataRef(g.a, lbl, offset: DName, target: cText(g, name))
         g.descs[k] := lbl
@@ -2386,8 +2400,10 @@ function cLayout(g: ref Em, t: Type, span: Span): CStruct
         return cSize(intBits(t) div 8, al: intBits(t) div 8)
     if t = booleanT() then
         return cSize(1, al: 1)
-    if isPointer(t) or isFunc(t) then
+    if isPointer(t) or isFunc(t) or t = realT() then
         return cSize(8, al: 8)
+    if t = real32T() then
+        return cSize(4, al: 4)
     if isCRecord(g, t) then
         return cStruct(g, t, span)
     unsupported(g, span, "{show(t)} in C memory")
@@ -2415,16 +2431,53 @@ function cOffset(g: ref Em, t: Type, name: String, span: Span): Integer
             return f.offset
     return 0
 
+## The descriptor kind of each word of C record `t`: 2 for a `Real`, and for words holding
+## `Real32`s 3 (in the low half), 4 (in the high half) or 5 (in both), so `=` compares
+## them as numbers.
+function cKinds(g: ref Em, t: Type, span: Span): List[Integer]
+    let c := cStruct(g, t, span)
+    var kinds: List[Integer] := []
+    for k := 1 to (c.size + 7) div 8 do
+        add(var kinds, 0)
+    for f in c.fields do
+        let w := f.offset div 8
+        if f.ty = realT() then
+            kinds[w] := 2
+        else if f.ty = real32T() then
+            var halves := 1  # 1 the low half, 2 the high one
+            if f.offset mod 8 = 4 then
+                halves := 2
+            if kinds[w] > 0 then
+                halves := 3
+            kinds[w] := 2 + halves
+    return kinds
+
+## Whether each word of C record `t` is passed to C in an xmm register: the System V
+## class of an eightbyte holding only reals.
+function sseWords(g: ref Em, t: Type, span: Span): List[Boolean]
+    let c := cStruct(g, t, span)
+    var sse: List[Boolean] := []
+    var any: List[Boolean] := []
+    for k := 1 to (c.size + 7) div 8 do
+        add(var sse, true)
+        add(var any, false)
+    for f in c.fields do
+        let w := f.offset div 8
+        any[w] := true
+        if not isRealT(f.ty) then
+            sse[w] := false
+    for w := 0 to len(sse) - 1 do
+        if not any[w] then
+            sse[w] := false
+    return sse
+
 ## rax := a new zeroed block for C record `t`.
 procedure newCBlock(g: ref Em, t: Type, span: Span)
     let a := g.a
     let words := (cStruct(g, t, span).size + 7) div 8
     if g.bad then
         return
-    var parts: List[Type] := []
-    for k := 1 to words do
-        add(var parts, integerT())
-    newBlock(g, descriptor(g, key(t), parts, name: show(t)))
+    newBlock(g, descriptorOf(g, key(t), cKinds(g, t, span), name: show(t), eq: "", drop: ""))
     push(a, Rax)
     lea(a, Rdi, Rax, disp: Fields)
     xor32(a, Rsi, Rsi)
@@ -2439,8 +2492,10 @@ procedure loadC(g: ref Em, t: Type, span: Span)
         loadW(a, Rax, Rax, disp: 0, bits: intBits(t), signed: intSigned(t))
     else if t = booleanT() then
         load8(a, Rax, Rax)
-    else if isPointer(t) then
+    else if isPointer(t) or t = realT() then
         load(a, Rax, Rax)
+    else if t = real32T() then
+        loadW(a, Rax, Rax, disp: 0, bits: 32, signed: false)
     else if isCRecord(g, t) then
         push(a, Rax)
         newCBlock(g, t, span)
@@ -2463,8 +2518,10 @@ procedure storeC(g: ref Em, t: Type, span: Span)
         storeW(a, Rax, disp: 0, src: Rcx, bits: intBits(t))
     else if t = booleanT() then
         store8(a, Rax, disp: 0, src: Rcx)
-    else if isPointer(t) then
+    else if isPointer(t) or t = realT() then
         store(a, Rax, disp: 0, src: Rcx)
+    else if t = real32T() then
+        storeW(a, Rax, disp: 0, src: Rcx, bits: 32)
     else if isCRecord(g, t) then
         push(a, Rcx)
         mov(a, Rdi, Rax)
@@ -3613,23 +3670,38 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
             movqToXmm(a, reals, r: Rax)  # a single's upper half is 0
             reals := reals + 1
             continue
-        var words := 1
-        if args[i].byValue then
-            words := (cLayout(g, args[i].ty, c.span).size + 7) div 8
-            if g.bad then
+        if not args[i].byValue then
+            if regs = 6 then
+                unsupported(g, c.span, "a C call needing more than 6 registers")
                 return
-        if words > 2 then
+            load(a, argReg(regs), Rsp, disp: 8 * (n - 1 - i))
+            regs := regs + 1
+            continue
+        let sse := sseWords(g, args[i].ty, c.span)
+        if g.bad then
+            return
+        if len(sse) > 2 then
             unsupported(g, c.span, "passing a C record of more than 16 bytes")
             return
-        if regs + words > 6 then
+        var ints := 0
+        for x in sse do
+            if not x then
+                ints := ints + 1
+        if regs + ints > 6 then
             unsupported(g, c.span, "a C call needing more than 6 registers")
             return
-        load(a, argReg(regs), Rsp, disp: 8 * (n - 1 - i))
-        if args[i].byValue then
-            mov(a, R11, argReg(regs))
-            for w := 0 to words - 1 do
-                load(a, argReg(regs + w), R11, disp: Fields + 8 * w)
-        regs := regs + words
+        if reals + len(sse) - ints > 8 then
+            unsupported(g, c.span, "a C call needing more than 8 real registers")
+            return
+        load(a, R11, Rsp, disp: 8 * (n - 1 - i))
+        for w := 0 to len(sse) - 1 do
+            if sse[w] then
+                load(a, Rax, R11, disp: Fields + 8 * w)
+                movqToXmm(a, reals, r: Rax)
+                reals := reals + 1
+            else
+                load(a, argReg(regs), R11, disp: Fields + 8 * w)
+                regs := regs + 1
     ccall(g, getOr(xd.symbol, sym.name), vectors: reals)
     for i := 0 to n - 1 do
         if args[i].byValue then
@@ -3645,8 +3717,20 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
         if size > 16 then
             unsupported(g, c.span, "returning a C record of more than 16 bytes")
             return
-        push(a, Rdx)
-        push(a, Rax)
+        # Each word comes back in the next of rax, rdx, or of xmm0, xmm1 if it's all reals.
+        let sse := sseWords(g, result, c.span)
+        var ints := 0
+        var xmms := 0
+        var words: List[Integer] := [R8, R9]
+        for w := 0 to len(sse) - 1 do
+            if sse[w] then
+                movqFromXmm(a, words[w], x: xmms)
+                xmms := xmms + 1
+            else
+                mov(a, words[w], [Rax, Rdx][ints])
+                ints := ints + 1
+        push(a, R9)
+        push(a, R8)
         newCBlock(g, result, c.span)
         if g.bad then
             return
@@ -4720,6 +4804,8 @@ procedure rtEq(g: ref Em)
     let real := l[9]
     let single := newLabel(a, "eq")
     let compare := newLabel(a, "eq")
+    let lowBits := newLabel(a, "eq")
+    let high := newLabel(a, "eq")
     let saved := [Rbx, R12, R13, R14, R15]
     pushAll(a, saved)
     load(a, Rax, Rdi, disp: Desc)
@@ -4765,14 +4851,33 @@ procedure rtEq(g: ref Em)
     cmpImm(a, Rax, value: 2)
     jcc(a, "e", label: real)
     cmpImm(a, Rax, value: 3)
-    jcc(a, "e", label: single)
+    jcc(a, "ge", label: single)
     testR(a, Rax, Rax)
     jcc(a, "e", label: plain)
     callRuntime(g, "rt_eq")
     testR(a, Rax, Rax)
     jcc(a, "e", label: no)
     jmp(a, nxt)
-    label(a, single)
+    label(a, single)  # kind 3, 4 or 5: a single in the low half, the high one or both
+    mov(a, Rcx, Rax)
+    cmpImm(a, Rcx, value: 4)
+    jcc(a, "e", label: lowBits)
+    singleToXmm(a, Xmm0, r: Rdi)
+    singleToXmm(a, Xmm1, r: Rsi)
+    ucomisd(a, Xmm0, y: Xmm1)
+    jcc(a, "p", label: no)
+    jcc(a, "ne", label: no)
+    jmp(a, high)
+    label(a, lowBits)
+    mov(a, Rax, Rdi)
+    xor(a, Rax, Rsi)
+    shlImm(a, Rax, n: 32)
+    jcc(a, "ne", label: no)
+    label(a, high)
+    shrImm(a, Rdi, n: 32)
+    shrImm(a, Rsi, n: 32)
+    cmpImm(a, Rcx, value: 3)
+    jcc(a, "e", label: plain)
     singleToXmm(a, Xmm0, r: Rdi)
     singleToXmm(a, Xmm1, r: Rsi)
     jmp(a, compare)

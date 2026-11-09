@@ -1,0 +1,47 @@
+program Main
+
+uses IO, C
+
+extern "libm.so.6"
+    type
+        export Complex = record
+            re: CDouble
+            im: CDouble
+        export Complex32 = record
+            re: CFloat
+            im: CFloat
+        export Mixed = record
+            n: CInt
+            x: CFloat
+            y: CDouble
+            z: CFloat
+    function cabs(z: Complex): CDouble
+    function csqrt(z: Complex): Complex
+    function cabsf(z: Complex32): CFloat
+    function csqrtf(z: Complex32): Complex32
+
+let nan := 0.0 / 0.0
+let c := Complex(re: 3.0, im: 4.0)
+writeln("{c.re} {c.im} {cabs(c)}")
+let s := csqrt(Complex(re: -4.0, im: 0.0))
+writeln("{s.re} {s.im}")
+let f := Complex32(re: 3.0, im: 4.0)
+writeln("{f.re} {f.im} {cabsf(f)}")
+let g := csqrtf(Complex32(re: 0.0, im: 2.0))
+writeln("{g.re} {g.im}")
+writeln("{c = Complex(re: 3.0, im: 4.0)} {Complex(re: nan, im: 0.0) = Complex(re: nan, im: 0.0)}")
+writeln("{Complex(re: 0.0, im: 0.0) = Complex(re: -0.0, im: 0.0)} {c = Complex(re: 3.0, im: 5.0)}")
+let n32 := Real32(nan)
+writeln("{Complex32(re: n32, im: 1.0) = Complex32(re: n32, im: 1.0)} {Complex32(re: 0.0, im: 1.0) = Complex32(re: -0.0, im: 1.0)}")
+writeln("{Complex32(re: 1.0, im: 0.0) = Complex32(re: 1.0, im: -0.0)} {f = Complex32(re: 3.0, im: 4.5)} {f = Complex32(re: 3.5, im: 4.0)}")
+var m := Mixed(n: 7, x: 1.5, y: 2.25, z: 0.0)
+m.z := -0.0
+writeln("{m.n} {m.x} {m.y} {m.z} {m = Mixed(n: 7, x: 1.5, y: 2.25, z: 0.0)} {m = Mixed(n: 8, x: 1.5, y: 2.25, z: 0.0)}")
+writeln(m = Mixed(n: 7, x: 1.5, y: 2.5, z: 0.0))
+unsafe procedure pointers(var m: Mixed)
+    let p := addr(var m.y)
+    deref(p) := deref(p) * 2.0
+    let q := addr(var m.x)
+    deref(q) := deref(q) + 1.0
+pointers(var m)
+writeln("{m.x} {m.y}")

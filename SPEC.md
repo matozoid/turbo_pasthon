@@ -648,8 +648,9 @@ them compile to direct calls with no allocation:
 **Consumers:** `collect(it): List[T]`, `count`, `sum`, `any(it, pred)`, `all(it, pred)`,
 `find(it, pred): Option[T]`.
 
-In v0.1, `f` and `pred` are named functions (`map(xs, double)`). v0.3 lambdas (§18a) make
-them inline: `map(xs, x => x * 2)`.
+In v0.1, `f` and `pred` are named functions (`map(iter(xs), double)`). In v0.3 (§18a),
+`for` expressions replace `map` and `filter`, and lambdas make the remaining `pred`s
+inline: `any(iter(xs), x => x < 0)`.
 
 ---
 
@@ -1924,12 +1925,53 @@ None at the moment.
 
 ## 18a. Planned for v0.3
 
+**`for` expressions.** `for` becomes an expression too, like `if` and `case` (§9.3). It
+builds a list:
+
+```pascal
+let names := for p in people if p.age >= 18 yield p.name
+let squares := for i := 1 to 10 yield i * i
+let pairs := (
+    for a in xs
+    for b in neighbours(a) if a < b
+    yield Pair(first: a, second: b)
+)
+let total := sum(iter(for item in items yield item.qty * item.price))
+```
+
+- The form is chosen by the word that ends the clauses: `do` starts a statement body,
+  `yield` an expression. `yield` becomes a keyword.
+- A `for` expression is one or more `for` clauses, then `yield e`. A clause is any loop
+  head of §7.5 (`x in e`, `k, v in m`, `i := a to b`, `i := a downto b`), optionally
+  followed by `if cond`. `if` is only allowed before `yield`, not before `do`.
+- It means exactly the nested loops it looks like. The value is a new `List[T]`, where `T`
+  is the type of `e`, in loop order:
+  ```pascal
+  var r: List[T] := []
+  for a in xs do
+      for b in neighbours(a) do
+          if a < b then
+              add(var r, Pair(first: a, second: b))
+  ```
+  So a later clause sees the names of the earlier ones, loop variables are fresh `let`
+  bindings, and sources are snapshots (§4.14).
+- No function values are involved. `try` in any clause returns from the enclosing function,
+  as in a loop: `for s in parts yield try parseInt(s)`.
+- **Eager.** The loops run to the end before the value exists. An endless iterator must be
+  cut off first (`for n in take(naturals(), 10) yield n * n`). A loop that stops on what it
+  has found so far ("the first ten primes") is written as a statement with `break`.
+- **Layout and precedence** are those of the `if` expression: a single line, or wrapped in
+  parentheses, and parenthesized when it is an operand.
+- **One way.** `map` and `filter` are removed from System (§4.14). The adapters that take
+  no function stay: `take`, `skip`, `zip`, `enumerate`, `chars`.
+
 **Lambdas**, restricted so that the common, safe cases work and the classic bugs can't happen:
 
 ```pascal
-let doubled := map(xs, x => x * 2)
-let adults := filter(people, p => p.age >= 18)
 sort(var people, key: p => p.name)
+let found := find(iter(people), p => p.name = wanted)
+if any(iter(items), item => item.qty = 0) then
+    ...
 ```
 
 - The body is a single expression, never a block.
