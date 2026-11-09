@@ -152,7 +152,7 @@ if sh("command -v valgrind", dir: "", output: out, errors: err) = 0 then
     valgrind := "valgrind -q --leak-check=full --error-exitcode=9"
 let tools := "{tmp}/tools"
 _ := makeDir(tools)
-for tool in ["ResolveDump", "CheckDump", "AsmDump"] do
+for tool in ["ResolveDump", "CheckDump", "AsmDump", "ExplainCheck"] do
     if sh(
         "{quote(pst)} build compiler/{tool}.pst -o {quote("{tools}/{tool}")}",
         dir: "",

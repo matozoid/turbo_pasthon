@@ -1,7 +1,8 @@
 unit Explain
 
 ## The error and panic codes of SPEC §2.9, §12 and §16, for `pst explain`: what each
-## means, and the section that lists it. Keep in step with the SPEC's tables.
+## means, and the section that lists it. Keep in step with the SPEC's tables; the case
+## explain.spec checks that with ExplainCheck.
 
 type
     export Explanation = record

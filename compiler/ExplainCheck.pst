@@ -1,0 +1,91 @@
+program ExplainCheck
+
+## Compares the code tables of SPEC.md (§2.9, §12 and §16) with `Explain.explanations()`,
+## which `pst query explain` answers from, and prints each difference.
+##
+## Usage: `ExplainCheck SPEC`. Matches codes by name. Prints `N codes match` and exits
+## with 0 if they agree, else the differences and exits with 1.
+
+uses IO, OS, Strings, Explain
+
+## The code rows of the tables under the headings `### 2.9`, `## 12.` and `### 16.`.
+function specCodes(text: String): List[Explanation]
+    var out: List[Explanation] := []
+    var section := ""
+    var title := ""
+    for line in split(text, sep: "\n") do
+        if startsWith(line, prefix: "#") then
+            section := ""
+            let words := split(line, sep: " ")
+            if len(words) >= 3 then
+                var number := words[1]
+                if endsWith(number, suffix: ".") then
+                    number := slice(number, 0, stop: byteLen(number) - 1)
+                if number = "2.9" or number = "12" or startsWith(number, prefix: "16.") then
+                    section := number
+                    var rest: List[String] := []
+                    for i := 2 to len(words) - 1 do
+                        add(var rest, words[i])
+                    title := join(rest, sep: " ")
+        else if section <> "" and startsWith(line, prefix: "| `") then
+            let rest := slice(line, 3, stop: byteLen(line))
+            case find(rest, sub: "` | ") of
+                Some(at):
+                    if endsWith(rest, suffix: " |") then
+                        add(var out, Explanation(
+                            code: slice(rest, 0, stop: at.value),
+                            section: section,
+                            title: title,
+                            meaning: slice(rest, at.value + 4, stop: byteLen(rest) - 2),
+                        ))
+                None:
+                    pass
+    return out
+
+function show(e: Explanation): String
+    return "{e.code} ({e.section} {e.title}): {e.meaning}"
+
+## The entry for `code` in `es`.
+function lookup(es: List[Explanation], code: String): Option[Explanation]
+    for e in es do
+        if e.code = code then
+            return Some(e)
+    return None
+
+procedure main(text: String)
+    let spec := specCodes(text)
+    let known := explanations()
+    var problems := 0
+    for e in spec do
+        case lookup(known, code: e.code) of
+            Some(k):
+                if show(k.value) <> show(e) then
+                    writeln("SPEC.md:     {show(e)}")
+                    writeln("Explain.pst: {show(k.value)}")
+                    problems := problems + 1
+            None:
+                writeln("only in SPEC.md: {show(e)}")
+                problems := problems + 1
+    for k in known do
+        if lookup(spec, code: k.code).isNone() then
+            writeln("only in Explain.pst: {show(k)}")
+            problems := problems + 1
+    if problems > 0 then
+        exit(1)
+    writeln("{len(spec)} codes match")
+
+let a := args()
+if len(a) <> 1 then
+    writelnErr("usage: ExplainCheck SPEC")
+    exit(2)
+case open(a[0]) of
+    Ok(f):
+        case readAll(f.value) of
+            Ok(t):
+                main(t.value)
+            Err(e):
+                writelnErr(e.error)
+                exit(1)
+    Err(e):
+        writelnErr(e.error)
+        exit(1)
