@@ -1,0 +1,3 @@
+program P
+a.b[c] := 1
+deref(r) := 2

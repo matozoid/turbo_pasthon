@@ -1,0 +1,5 @@
+program P
+## Not attached.
+
+function f(): Int
+    return 1

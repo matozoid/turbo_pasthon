@@ -1,0 +1,13 @@
+program P
+type
+    Color = (Red, Green,)
+    Digit = 0..9
+    Shape = Circle | Geo.Square | ref Node
+    Fn = function(Int, String): Bool
+    Pair[K, V: Hash + Eq] = record
+        export key: K
+        value: V := 0
+    Empty = record
+    Named = trait
+        name: String
+        function greet(this): String

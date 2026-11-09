@@ -338,16 +338,37 @@ PARSER_SNIPPETS = {
     "header-extra": "program P Q\nx := 1\n",
 }
 
+class _FrontEnd(_Differential):
+    """A dump that also runs on the ``.pst`` files in its golden directory, which are the
+    inputs of the Python compiler's lexer and parser tests."""
+
+    def test_golden_inputs(self):
+        paths = sorted((GOLDEN / self.kind).glob("*.pst"))
+        self.assertGreater(len(paths), 50)
+        for path in paths:
+            with self.subTest(path.stem):
+                self.compare(path, path.stem)
+
+
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
-class Lexer(_Differential):
+class Lexer(_FrontEnd):
     kind = command = "tokens"
     snippets = SNIPPETS
 
 
 @unittest.skipUnless(_NATIVE, "needs Linux x86-64")
-class Parser(_Differential):
+class Parser(_FrontEnd):
     kind = command = "ast"
     snippets = PARSER_SNIPPETS
+
+    def test_never_crashes(self):
+        """Every prefix of a real program yields a tree."""
+        src = (ROOT / "examples" / "Inventory.pst").read_bytes()
+        path = Path(_TMP.name, "prefix.pst")
+        for n in range(0, len(src), 7):
+            with self.subTest(n):
+                path.write_bytes(src[:n])
+                self.dump(path)
 
 
 # Programs, each a set of files (the first is checked), that exercise the resolver's errors
@@ -519,6 +540,9 @@ class Check(_Differential):
 
     def test_std_unit(self):
         self.compare(Path(STD_DIR, "Strings.pst"), "std-strings")
+
+    def test_example(self):
+        self.compare(ROOT / "examples" / "Inventory.pst", "inventory", keep_std=False)
 
     @unittest.skipUnless(shutil.which("valgrind"), "needs valgrind")
     def test_valgrind(self):
@@ -804,4 +828,4 @@ class Bootstrap(unittest.TestCase):
             previous, compiler = got, install(out, where)
 
 
-del _Differential
+del _Differential, _FrontEnd

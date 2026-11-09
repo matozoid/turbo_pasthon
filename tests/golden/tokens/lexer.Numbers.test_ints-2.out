@@ -1,0 +1,3 @@
+IntLit 1:1-1:5 "0xFF" int 255
+Newline 1:5-1:5 "" -
+Eof 1:5-1:5 "" -

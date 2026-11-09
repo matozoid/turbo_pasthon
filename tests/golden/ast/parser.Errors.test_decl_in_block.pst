@@ -1,0 +1,6 @@
+program P
+function f(): Int
+    const C = 1
+    procedure g()
+        h()
+    return 1

@@ -1,0 +1,11 @@
+File 1:1-2:22 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: Assign 2:1-2:22
+    target: Name 2:1-2:2 name="x"
+    value: Binary 2:6-2:22 op="+" op_span=2:12-2:13
+      left: Name 2:6-2:11 name="total"
+      right: Unary 2:14-2:22 op="try"
+        operand: Call 2:18-2:22
+          callee: Name 2:18-2:19 name="f"
+          args[0]: Arg 2:20-2:21 is_var=false
+            value: Name 2:20-2:21 name="x"

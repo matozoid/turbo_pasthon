@@ -1,0 +1,3 @@
+program P
+x := 1 + case k of
+    else: 2

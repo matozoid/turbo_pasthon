@@ -1,0 +1,19 @@
+File 1:1-5:17 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: Assign 2:1-5:17
+    target: Name 2:1-2:2 name="s"
+    value: CaseExpr 2:6-5:17
+      subject: Name 2:11-2:12 name="k"
+      arms[0]: CaseExprArm 3:5-3:16
+        labels[0]: ValueLabel 3:5-3:6
+          value: IntLit 3:5-3:6 value=1
+        labels[1]: ValueLabel 3:8-3:9
+          value: IntLit 3:8-3:9 value=2
+        value: StringLit 3:11-3:16 value="low"
+      arms[1]: CaseExprArm 4:5-4:16
+        labels[0]: RangeLabel 4:5-4:9
+          low: IntLit 4:5-4:6 value=3
+          high: IntLit 4:8-4:9 value=9
+        value: StringLit 4:11-4:16 value="mid"
+      arms[2]: CaseExprArm 5:5-5:17
+        value: StringLit 5:11-5:17 value="high"

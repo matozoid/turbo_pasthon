@@ -1,0 +1,9 @@
+File 1:1-3:11 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: Assign 2:1-2:7
+    target: Name 2:1-2:2 name="x"
+    value: IntLit 2:6-2:7 value=1
+  items[1]: Assign 3:5-3:11
+    target: Name 3:5-3:6 name="y"
+    value: IntLit 3:10-3:11 value=2
+error E0041 3:5-3:5 "unexpected indentation"

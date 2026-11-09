@@ -1,0 +1,3 @@
+program P
+if a then
+f()

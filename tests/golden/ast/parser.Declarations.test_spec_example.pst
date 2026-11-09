@@ -1,0 +1,59 @@
+program Inventory
+
+uses IO, Strings
+
+type
+    Status = (Active, Discontinued, Backorder)
+
+    Item = record
+        name: String
+        qty: Integer
+        status: Status
+
+    Named = trait
+        name: String
+
+const
+    MaxQty = 1000
+
+function restock(var item: Item, amount: Integer): Result[Integer, String]
+    requires amount > 0
+    ensures item.qty <= MaxQty
+    if item.qty + amount > MaxQty then
+        return Err("{item.name}: over capacity")
+    item.qty := item.qty + amount
+    return Ok(item.qty)
+
+function describe(item: Item): String
+    return case item.status of
+        Active:       "{item.name}: {item.qty}"
+        Discontinued: "{item.name}: gone"
+        Backorder:    "{item.name}: waiting"
+
+function names[T: Named](xs: List[T]): String
+    var parts: List[String] := []
+    for x in xs do
+        add(var parts, x.name)
+    return join(parts, sep: ", ")
+
+function restockAll(var items: List[Item], amount: Integer): Result[Integer, String]
+    var total := 0
+    for i := 0 to len(items) - 1 do
+        total := total + try restock(var items[i], amount)
+    return Ok(total)
+
+test "restock refuses over capacity"
+    var it := Item(name: "bolt", qty: 999, status: Status.Active)
+    assert restock(var it, amount: 5).isErr()
+    assert it.qty = 999
+
+var items := [
+    Item(name: "bolt", qty: 10, status: Status.Active),
+    Item(name: "nut", qty: 0, status: Status.Backorder),
+]
+case restockAll(var items, amount: 5) of
+    Ok(n):  writeln("total stock: {n.value}")
+    Err(e): writeln("error: {e.error}")
+for item in items do
+    writeln(item.describe())
+writeln(names(items))

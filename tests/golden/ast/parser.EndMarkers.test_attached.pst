@@ -1,0 +1,7 @@
+program P
+function f(): Int
+    return 1
+# end function f
+if a then
+    g()
+# end if

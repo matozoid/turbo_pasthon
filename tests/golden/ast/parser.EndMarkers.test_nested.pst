@@ -1,0 +1,6 @@
+program P
+while a do
+    if b then
+        f()
+    # end if
+# end while

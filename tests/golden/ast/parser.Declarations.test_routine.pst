@@ -1,0 +1,5 @@
+program P
+export unsafe function f[T](var this, a, b: T := 1, ...): ref T
+    requires a > 0
+    ensures b > 0
+    return 1

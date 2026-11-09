@@ -1,0 +1,13 @@
+File 1:1-2:16 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: Assign 2:1-2:16
+    target: Name 2:1-2:2 name="x"
+    value: Unary 2:6-2:16 op="-"
+      operand: Index 2:7-2:16
+        target: Call 2:7-2:13
+          callee: FieldAccess 2:7-2:10
+            target: Name 2:7-2:8 name="a"
+            name: Ident 2:9-2:10 name="b"
+          args[0]: Arg 2:11-2:12 is_var=false
+            value: Name 2:11-2:12 name="c"
+        items[0]: Name 2:14-2:15 name="d"

@@ -1,0 +1,5 @@
+program P
+s := case k of
+    1, 2: "low"
+    3..9: "mid"
+    else: "high"

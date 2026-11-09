@@ -1,0 +1,3 @@
+program P
+test "it works"
+    assert true

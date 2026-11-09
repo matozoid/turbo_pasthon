@@ -1,0 +1,7 @@
+File 1:1-2:9 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: Assign 2:1-2:9
+    target: Call 2:1-2:4
+      callee: Name 2:1-2:2 name="f"
+    value: IntLit 2:8-2:9 value=1
+error E0046 2:1-2:4 "can't assign to this expression"

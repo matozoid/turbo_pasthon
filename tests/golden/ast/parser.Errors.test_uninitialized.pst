@@ -1,0 +1,3 @@
+program P
+var x: Int
+y := 1

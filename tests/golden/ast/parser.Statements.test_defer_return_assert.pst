@@ -1,0 +1,5 @@
+program P
+function f(): Int
+    defer close(h)
+    assert x > 0, "bad"
+    return 1

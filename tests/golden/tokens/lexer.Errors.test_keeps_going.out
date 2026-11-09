@@ -1,0 +1,23 @@
+Ident 1:1-1:2 "x" -
+Assign 1:3-1:5 ":=" -
+IntLit 1:6-1:10 "1abc" int 0
+Newline 1:10-2:1 "\n" -
+Ident 2:1-2:2 "y" -
+Assign 2:3-2:5 ":=" -
+CharLit 2:6-2:10 "'zz'" char 0
+Newline 2:10-3:1 "\n" -
+Ident 3:1-3:2 "z" -
+Assign 3:3-3:5 ":=" -
+StringLit 3:6-3:11 "\"q\\k\"" text "qk"
+Newline 3:11-4:1 "\n" -
+Indent 4:2-4:2 "" -
+Ident 4:2-4:3 "w" -
+Newline 4:3-5:1 "\n" -
+Dedent 5:1-5:1 "" -
+Eof 5:1-5:1 "" -
+error E0007 1:6-1:10 "malformed number literal '1abc'"
+error E0008 2:6-2:10 "char literal must contain exactly one character, found 2"
+error E0005 3:8-3:10 "invalid escape sequence '\\k'"
+error E0001 4:1-4:2 "tab character; indent with 4 spaces"
+  fix "replace tab with 4 spaces"
+    edit 4:1-4:2 "    "

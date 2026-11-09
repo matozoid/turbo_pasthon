@@ -1,0 +1,2 @@
+program P
+x := -a.b(c)[d]

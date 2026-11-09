@@ -1,0 +1,5 @@
+program P
+## Adds.
+## Really.
+function f(): Int
+    return 1

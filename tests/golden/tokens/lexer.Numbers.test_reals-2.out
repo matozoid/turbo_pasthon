@@ -1,0 +1,3 @@
+RealLit 1:1-1:6 "1.5e3" real 1.5e3
+Newline 1:6-1:6 "" -
+Eof 1:6-1:6 "" -

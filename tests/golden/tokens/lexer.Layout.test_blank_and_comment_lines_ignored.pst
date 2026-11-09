@@ -1,0 +1,6 @@
+if a then
+
+# top comment
+    b
+        # deep comment
+    c

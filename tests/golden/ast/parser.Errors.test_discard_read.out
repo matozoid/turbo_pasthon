@@ -1,0 +1,8 @@
+File 1:1-2:12 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: Assign 2:1-2:12
+    target: Name 2:1-2:2 name="x"
+    value: Binary 2:6-2:12 op="+" op_span=2:9-2:10
+      left: ErrorExpr 2:6-2:8
+      right: IntLit 2:11-2:12 value=1
+error E0104 2:6-2:8 "'_y' is a discard and can't be read"

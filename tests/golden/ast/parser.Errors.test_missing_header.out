@@ -1,0 +1,6 @@
+File 1:1-1:7 kind="program"
+  name: Ident 1:1-1:1 name=""
+  items[0]: Assign 1:1-1:7
+    target: Name 1:1-1:2 name="x"
+    value: IntLit 1:6-1:7 value=1
+error E0045 1:1-1:1 "a file must start with 'program Name' or 'unit Name'"

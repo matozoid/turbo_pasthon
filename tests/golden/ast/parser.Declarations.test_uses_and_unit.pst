@@ -1,0 +1,4 @@
+unit Geo
+uses IO, Math
+function f(): Int
+    return 1

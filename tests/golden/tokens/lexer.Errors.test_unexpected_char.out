@@ -1,0 +1,7 @@
+Ident 1:1-1:2 "a" -
+Ident 1:5-1:6 "b" -
+Ident 1:8-1:9 "c" -
+Newline 1:9-2:1 "\n" -
+Eof 2:1-2:1 "" -
+error E0006 1:3-1:4 "unexpected character '^' (U+005E); dereference with deref(r)"
+error E0006 1:6-1:7 "unexpected character ';' (U+003B); statements end at the end of the line"

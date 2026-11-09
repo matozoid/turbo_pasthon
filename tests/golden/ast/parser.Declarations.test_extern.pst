@@ -1,0 +1,3 @@
+program P
+extern "libc"
+    procedure exit(code: Int32) as "_exit"

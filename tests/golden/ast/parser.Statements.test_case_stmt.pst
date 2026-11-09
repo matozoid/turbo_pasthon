@@ -1,0 +1,6 @@
+program P
+case s of
+    Circle(c): f(c)
+    Empty, Square(_):
+        g()
+    else: h()

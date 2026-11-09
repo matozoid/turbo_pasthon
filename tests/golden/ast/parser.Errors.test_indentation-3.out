@@ -1,0 +1,10 @@
+File 1:1-2:14 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: If 2:1-2:14
+    branches[0]: CondBlock 2:4-2:14
+      cond: Name 2:4-2:5 name="a"
+      body: Block 2:11-2:14
+        stmts[0]: ExprStmt 2:11-2:14
+          expr: Call 2:11-2:14
+            callee: Name 2:11-2:12 name="f"
+error E0049 2:11-2:12 "a block must start on a new line, indented by 4 spaces"

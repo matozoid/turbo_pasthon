@@ -1,0 +1,2 @@
+program P
+x := 1 + if a then 2 else 3
