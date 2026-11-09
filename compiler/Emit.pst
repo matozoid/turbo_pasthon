@@ -559,7 +559,7 @@ procedure fit(g: ref Em, t: Type, span: Span, cc: String := "o")
 ## Whether values of type `t` are reference counted.
 function managed(g: ref Em, t: Type): Boolean
     let k := kind(g, t)
-    return t = stringT() or k = "record" or k = "union" or isList(t) or isRef(t) or isWeak(t)
+    return t = stringT() or k = "record" or k = "union" or isList(t) or isRef(t) or isWeak(t) or isFunc(t)
 
 ## Whether the code generator handles values of type `t`: every type reachable from it
 ## is.
@@ -2987,16 +2987,32 @@ procedure loadSym(g: ref Em, sym: ref Symbol, e: Expr)
     if managed(g, t) then
         retain(g)
 
-## rax := the address of the routine at label `target`, used as a value of function type
-## `t`; noted for callbacks.
+## rax := the routine at label `target` as a value of function type `t`: its immortal
+## block (see `closureOf`); noted for callbacks.
 procedure routineValue(g: ref Em, target: String, t: Type)
     if g.bad then
         return
-    leaCode(g.a, Rax, label: target)
+    leaData(g.a, Rax, label: closureOf(g, target))
     for tk in g.taken do
         if tk.target = target then
             return
     add(var g.taken, Taken(target: target, ty: t))
+
+## The data label of the immortal block that is the routine at label `target` as a
+## function value. A function value is a block whose first field holds the distance from
+## the block to its code; a call passes the block in r10.
+function closureOf(g: ref Em, target: String): String
+    let k := "closure|{target}"
+    if not (k in g.labels) then
+        var bs: List[Byte] := []
+        word(var bs, -1)
+        word(var bs, 0)
+        word(var bs, 0)
+        word(var bs, len(g.labels))  # keeps the block apart from equal ones
+        let lbl := data(g.a, bs, align: 8)
+        codeRef(g.a, lbl, offset: Fields, label: target)
+        g.labels[k] := lbl
+    return g.labels[k]
 
 ## rax := the address of the instance of generic routine `sym` that `x`, `f[T]`, names.
 procedure instanceValue(g: ref Em, sym: ref Symbol, x: Index, e: Expr)
@@ -3578,7 +3594,7 @@ procedure callValue(g: ref Em, c: Call, m: Match)
     expr(g, c.callee)
     if g.bad then
         return
-    push(a, Rax)
+    save(g, typeOfExpr(g, c.callee))
     var pushed: List[Integer] := []
     for i := 0 to len(m.params) - 1 do
         let p := m.params[i]
@@ -3588,13 +3604,13 @@ procedure callValue(g: ref Em, c: Call, m: Match)
         save(g, subT(g, subst(p.ty, m.s)))
         add(var pushed, i)
     let words := placeArgs(g, pushed)
-    if words = 0 then
-        pop(a, R11)
-        callReg(a, R11)
-    else
-        load(a, R11, Rsp, disp: 8 * words)
-        callReg(a, R11)
-        addImm(a, Rsp, value: 8 * (words + 1))
+    load(a, R10, Rsp, disp: 8 * words)
+    load(a, R11, R10, disp: Fields)
+    add(a, R11, R10)
+    callReg(a, R11)
+    if words > 0 then
+        addImm(a, Rsp, value: 8 * words)
+    drop(g, 1)
 
 ## Moves the pushed arguments, the parameter indexes `pushed` in push order, to where
 ## the callee takes them: the first six into registers, the others pushed again with the
@@ -3965,7 +3981,7 @@ procedure lookup(g: ref Em, lk: Lookup)
     for tk in g.taken do
         if key(tk.ty) = key(lk.ty) then
             let next := newLabel(a, "next")
-            leaCode(a, R11, label: tk.target)
+            leaData(a, R11, label: closureOf(g, tk.target))
             cmp(a, Rax, R11)
             jcc(a, "ne", label: next)
             leaCode(a, Rax, label: thunkOf(g, tk.target, lk.ty, lk.span))
