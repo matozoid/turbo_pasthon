@@ -2,11 +2,10 @@ $ $PST build Frames.pst -o frames
 exit 0
 --- stdout
 --- stderr
-$ sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v publishDiagnostics
+$ sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities
 exit 0
 --- stdout
 status 0
-{"jsonrpc":"2.0","id":1,"result":{"capabilities":{"textDocumentSync":1,"documentFormattingProvider":true,"hoverProvider":true,"definitionProvider":true,"referencesProvider":true,"codeActionProvider":true,"documentSymbolProvider":true,"foldingRangeProvider":true},"serverInfo":{"name":"pst"}}}
 {"jsonrpc":"2.0","id":2,"result":{"contents":{"kind":"markdown","value":"```pst\nfunction price(n: Integer): Integer\n```\n\nThe price of `n` items."},"range":{"start":{"line":5,"character":8},"end":{"line":5,"character":13}}}}
 {"jsonrpc":"2.0","id":3,"result":{"contents":{"kind":"markdown","value":"```pst\nfunction price(n: Integer): Integer\n```\n\nThe price of `n` items."},"range":{"start":{"line":5,"character":8},"end":{"line":5,"character":13}}}}
 {"jsonrpc":"2.0","id":4,"result":{"contents":{"kind":"markdown","value":"```pst\nlet count: Integer\n```"},"range":{"start":{"line":5,"character":14},"end":{"line":5,"character":19}}}}

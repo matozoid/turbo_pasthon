@@ -21,6 +21,16 @@ type
         checked: Checked
         texts: Map[String, Text]
 
+    ## The definition and uses of a symbol, and the decoded texts of their files.
+    Occurrences = record
+        sym: Option[ref Symbol]
+        ## The symbol is in a standard unit.
+        std: Boolean
+        refs: List[Ref]
+        texts: Map[String, Text]
+        ## The errors in the open documents.
+        errors: Integer
+
 # ------------------------------------------------------------------------- messages
 
 ## The next message's body, or `None` at the end of the input. Headers other than
@@ -207,12 +217,8 @@ function refAt(a: Analysis, path: String, params: JValue): Option[Ref]
 function uriFor(s: Server, path: String): String
     return get(s.uris, path).getOr(uriOf(path))
 
-function location(s: Server, a: Analysis, file: String, span: Span): Option[String]
-    case get(a.texts, file) of
-        Some(t):
-            return Some("\{\"uri\":{quote(uriFor(s, file))},\"range\":{range(t.value, span)}}")
-        None:
-            return None
+function location(s: Server, t: Text, file: String, span: Span): String
+    return "\{\"uri\":{quote(uriFor(s, file))},\"range\":{range(t, span)}}"
 
 ## The first line of a declaration, from `span`, without `export`.
 function firstLine(a: Analysis, file: String, span: Span): String
@@ -291,53 +297,134 @@ function definition(s: Server, path: String, params: JValue): String
     case refAt(a, path, params: params) of
         Some(r):
             for sym in r.value.targets do
-                if sym.span.isSome() then
-                    case location(s, a, file: sym.file, span: sym.span.get()) of
-                        Some(l):
-                            add(var parts, l.value)
-                        None:
-                            pass
+                if sym.span.isSome() and sym.file in a.texts then
+                    add(var parts, location(
+                        s,
+                        a.texts[sym.file],
+                        file: sym.file,
+                        span: sym.span.get(),
+                    ))
         None:
             pass
     return "[{join(parts, sep: ",")}]"
 
-## Every use of the symbol at the position, in the open documents and the units they use.
-function referencesTo(s: Server, path: String, params: JValue): String
-    let withDecl := asBoolean(field(
-        field(params, key: "context"),
-        key: "includeDeclaration",
-    )).getOr(true)
-    var file := ""
-    var span: Option[Span] := None
-    case refAt(analyze(s, path), path, params: params) of
+function errorCount(a: Analysis): Integer
+    var n := 0
+    for d in a.checked.resolved.checker.diagnostics do
+        if d.severity = Severity.Error then
+            n := n + 1
+    return n
+
+## Every definition and use of the symbol at the position, in the open documents and the
+## units they use, once each.
+function occurrences(s: Server, path: String, params: JValue): Occurrences
+    var o := Occurrences(sym: None, std: false, refs: [], texts: {}, errors: 0)
+    let first := analyze(s, path)
+    case refAt(first, path, params: params) of
         Some(r):
-            if len(r.value.targets) > 0 then
-                file := r.value.targets[0].file
-                span := r.value.targets[0].span
+            if len(r.value.targets) > 0 and r.value.targets[0].span.isSome() then
+                o.sym := Some(r.value.targets[0])
         None:
             pass
-    if span.isNone() then
-        return "[]"
+    if o.sym.isNone() then
+        return o
+    let target := o.sym.get()
+    for u in first.checked.resolved.units do
+        if u.path = target.file then
+            o.std := u.std
     var seen: Map[String, Boolean] := {}
-    var parts: List[String] := []
     for open, _ in s.texts do
         let a := analyze(s, open)
+        o.errors := o.errors + errorCount(a)
         if a.checked.env.isNone() then
             continue
-        case defSym(a.checked.env.get(), file, span.get()) of
+        case defSym(a.checked.env.get(), target.file, target.span.get()) of
             Some(sym):
                 for r in references(a.checked.resolved.checker.index, sym.value) do
                     let key := "{r.file}:{r.span.start}"
-                    if (withDecl or not r.isDef) and not (key in seen) then
+                    if not (key in seen) and r.file in a.texts then
                         seen[key] := true
-                        case location(s, a, file: r.file, span: r.span) of
-                            Some(l):
-                                add(var parts, l.value)
-                            None:
-                                pass
+                        add(var o.refs, r)
+                        o.texts[r.file] := a.texts[r.file]
             None:
                 pass
+    return o
+
+function referencesTo(s: Server, path: String, params: JValue): String
+    let context := field(params, key: "context")
+    let withDecl := asBoolean(field(context, key: "includeDeclaration")).getOr(true)
+    let o := occurrences(s, path, params: params)
+    var parts: List[String] := []
+    for r in o.refs do
+        if withDecl or not r.isDef then
+            add(var parts, location(s, o.texts[r.file], file: r.file, span: r.span))
     return "[{join(parts, sep: ",")}]"
+
+## Whether `n` is a name for a symbol of kind `k`: ASCII letters and digits, starting
+## with a capital letter for UpperCamel kinds and a small one for lowerCamel ones.
+function validName(n: String, k: Kind): Boolean
+    var first := true
+    for c in n do
+        let upper := c >= 'A' and c <= 'Z'
+        let lower := c >= 'a' and c <= 'z'
+        if first and ((isUpperCamel(k) and not upper) or (isLowerCamel(k) and not lower)) then
+            return false
+        if not (upper or lower or (c >= '0' and c <= '9')) then
+            return false
+        first := false
+    return not first
+
+## The text of `t` with the names at `refs` replaced by `name`.
+function renamed(t: Text, refs: List[Ref], name: String): String
+    var ends: Map[Integer, Integer] := {}
+    var starts: List[Integer] := []
+    for r in refs do
+        ends[r.span.start] := r.span.end
+        add(var starts, r.span.start)
+    sort(var starts)
+    var out := ""
+    var done := 0
+    for start in starts do
+        out := "{out}{sub(t, done, end: start)}{name}"
+        done := ends[start]
+    return "{out}{sub(t, done, end: len(t.chars))}"
+
+## The edits that rename the symbol at the position, or why it can't be renamed: it is
+## in a standard unit, the name doesn't suit it, or the open documents would get errors.
+function rename(s: Server, path: String, params: JValue): Result[String, String]
+    let newName := asString(field(params, key: "newName")).getOr("")
+    let o := occurrences(s, path, params: params)
+    if o.sym.isNone() then
+        return Err("there is nothing to rename here")
+    let sym := o.sym.get()
+    if o.std then
+        return Err("{describe(sym)} is in a standard unit")
+    if sym.kind = Kind.UnitSym then
+        return Err("units are renamed by renaming their files")
+    if not validName(newName, k: sym.kind) then
+        return Err("'{newName}' is not a valid name for a {name(sym.kind)}")
+    var byFile: Map[String, List[Ref]] := {}
+    for r in o.refs do
+        var rs := get(byFile, r.file).getOr([])
+        add(var rs, r)
+        byFile[r.file] := rs
+    var texts := s.texts
+    var changes: List[String] := []
+    for file, refs in byFile do
+        let t := o.texts[file]
+        texts[file] := renamed(t, refs: refs, name: newName)
+        var edits: List[String] := []
+        for r in refs do
+            add(var edits, "\{\"range\":{range(t, r.span)},\"newText\":{quote(newName)}}")
+        add(var changes, "{quote(uriFor(s, file))}:[{join(edits, sep: ",")}]")
+    var errors := 0
+    for open, _ in s.texts do
+        for d in typecheck(open, stdDir: s.stdDir, overlay: texts).resolved.checker.diagnostics do
+            if d.severity = Severity.Error then
+                errors := errors + 1
+    if errors > o.errors then
+        return Err("renaming {describe(sym)} to '{newName}' would cause errors")
+    return Ok("\{\"changes\":\{{join(changes, sep: ",")}}}")
 
 ## The whole declaration of a symbol declared in source.
 function declSpan(sym: ref Symbol): Span
@@ -476,7 +563,7 @@ function codeActions(s: Server, path: String, params: JValue): String
 # ------------------------------------------------------------------------- requests
 
 function capabilities(): String
-    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"foldingRangeProvider\":true},\"serverInfo\":\{\"name\":\"pst\"}}"
+    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"foldingRangeProvider\":true,\"renameProvider\":true},\"serverInfo\":\{\"name\":\"pst\"}}"
 
 ## The edits that format the document at `uri`: none if it is formatted, or can't be.
 function formatting(s: Server, uri: String): String
@@ -539,6 +626,12 @@ procedure handle(var s: Server, m: JValue)
         respond(id, result: referencesTo(s, pathOf(uri), params: params))
     else if method = "textDocument/codeAction" then
         respond(id, result: codeActions(s, pathOf(uri), params: params))
+    else if method = "textDocument/rename" then
+        case rename(s, pathOf(uri), params: params) of
+            Ok(edit):
+                respond(id, result: edit.value)
+            Err(e):
+                respondError(id, code: -32803, message: e.error)
     else if method = "textDocument/documentSymbol" then
         respond(id, result: documentSymbols(s, pathOf(uri)))
     else if method = "textDocument/foldingRange" then

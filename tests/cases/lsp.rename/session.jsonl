@@ -1,0 +1,13 @@
+{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"processId":null,"rootUri":null,"capabilities":{}}}
+{"jsonrpc":"2.0","method":"textDocument/didOpen","params":{"textDocument":{"uri":"file://DIR/Main.pst","languageId":"pasthon","version":1,"text":"program Main\n\nuses IO, Shop\n\nlet count := 3\nwriteln(price(count))\nwriteln(price(count + 1))\nvar unused := 1\n"}}}
+{"jsonrpc":"2.0","id":2,"method":"textDocument/rename","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":5,"character":9},"newName":"cost"}}
+{"jsonrpc":"2.0","id":3,"method":"textDocument/rename","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":4,"character":5},"newName":"total"}}
+{"jsonrpc":"2.0","id":4,"method":"textDocument/rename","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":5,"character":9},"newName":"Cost"}}
+{"jsonrpc":"2.0","id":5,"method":"textDocument/rename","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":4,"character":5},"newName":"price"}}
+{"jsonrpc":"2.0","id":6,"method":"textDocument/rename","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":5,"character":2},"newName":"say"}}
+{"jsonrpc":"2.0","id":7,"method":"textDocument/rename","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":2,"character":5},"newName":"Out"}}
+{"jsonrpc":"2.0","id":11,"method":"textDocument/rename","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":2,"character":10},"newName":"Store"}}
+{"jsonrpc":"2.0","id":8,"method":"textDocument/rename","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":3,"character":0},"newName":"x"}}
+{"jsonrpc":"2.0","id":9,"method":"textDocument/hover","params":{"textDocument":{"uri":"file://DIR/Main.pst"},"position":{"line":5,"character":9}}}
+{"jsonrpc":"2.0","id":10,"method":"shutdown"}
+{"jsonrpc":"2.0","method":"exit"}

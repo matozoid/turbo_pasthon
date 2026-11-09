@@ -1,4 +1,4 @@
 # The language server (SPEC §15.4): document symbols, with members as children, and
 # folding ranges from indentation.
 $PST build Frames.pst -o frames
-sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out
+sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v capabilities

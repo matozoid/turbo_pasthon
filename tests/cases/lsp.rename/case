@@ -1,0 +1,5 @@
+# The language server (SPEC §15.4): rename edits the definition and every use, also in
+# units that aren't open, and refuses standard symbols, units, bad names and renames that
+# cause errors.
+$PST build Frames.pst -o frames
+sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v -e publishDiagnostics -e capabilities
