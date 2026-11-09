@@ -4827,112 +4827,128 @@ use std/System.pst 759:29-759:32
   let 'err' @ std/System.pst:757:9
 def std/System.pst 762:9-762:11
   let 'xs' @ std/System.pst:762:9
-use std/System.pst 763:12-763:19
+use std/System.pst 763:22-763:24
+  let 'xs' @ std/System.pst:762:9
+def std/System.pst 763:17-763:18
+  loop variable 'x' @ std/System.pst:763:17
+use std/System.pst 763:28-763:29
+  loop variable 'x' @ std/System.pst:763:17
+use std/System.pst 764:22-764:24
+  let 'xs' @ std/System.pst:762:9
+def std/System.pst 764:17-764:18
+  loop variable 'x' @ std/System.pst:764:17
+use std/System.pst 764:31-764:37
+  function 'isEven' @ std/System.pst:701:10
+use std/System.pst 764:38-764:39
+  loop variable 'x' @ std/System.pst:764:17
+use std/System.pst 764:46-764:47
+  loop variable 'x' @ std/System.pst:764:17
+use std/System.pst 765:12-765:19
   function 'collect' @ std/System.pst:651:17
-use std/System.pst 763:20-763:24
+use std/System.pst 765:20-765:24
   function 'take' @ std/System.pst:604:17
-use std/System.pst 763:25-763:29
+use std/System.pst 765:25-765:29
   function 'iter' @ std/System.pst:534:17
   function 'iter' @ std/System.pst:544:17
   function 'iter' @ std/System.pst:555:17
   function 'iter' @ std/System.pst:567:17
   function 'iter' @ std/System.pst:593:17
-use std/System.pst 763:30-763:32
+use std/System.pst 765:30-765:32
   let 'xs' @ std/System.pst:762:9
-use std/System.pst 764:12-764:19
+use std/System.pst 766:12-766:19
   function 'collect' @ std/System.pst:651:17
-use std/System.pst 764:20-764:24
+use std/System.pst 766:20-766:24
   function 'skip' @ std/System.pst:614:17
-use std/System.pst 764:25-764:29
+use std/System.pst 766:25-766:29
   function 'iter' @ std/System.pst:534:17
   function 'iter' @ std/System.pst:544:17
   function 'iter' @ std/System.pst:555:17
   function 'iter' @ std/System.pst:567:17
   function 'iter' @ std/System.pst:593:17
-use std/System.pst 764:30-764:32
+use std/System.pst 766:30-766:32
   let 'xs' @ std/System.pst:762:9
-use std/System.pst 765:12-765:17
+use std/System.pst 767:12-767:17
   function 'count' @ std/System.pst:658:17
-use std/System.pst 765:18-765:22
+use std/System.pst 767:18-767:22
   function 'iter' @ std/System.pst:534:17
   function 'iter' @ std/System.pst:544:17
   function 'iter' @ std/System.pst:555:17
   function 'iter' @ std/System.pst:567:17
   function 'iter' @ std/System.pst:593:17
-use std/System.pst 765:23-765:25
+use std/System.pst 767:23-767:25
   let 'xs' @ std/System.pst:762:9
-use std/System.pst 765:36-765:39
+use std/System.pst 767:36-767:39
   function 'sum' @ std/System.pst:665:17
   function 'sum' @ std/System.pst:671:17
-use std/System.pst 765:40-765:44
+use std/System.pst 767:40-767:44
   function 'iter' @ std/System.pst:534:17
   function 'iter' @ std/System.pst:544:17
   function 'iter' @ std/System.pst:555:17
   function 'iter' @ std/System.pst:567:17
   function 'iter' @ std/System.pst:593:17
-use std/System.pst 765:45-765:47
+use std/System.pst 767:45-767:47
   let 'xs' @ std/System.pst:762:9
-use std/System.pst 766:12-766:15
+use std/System.pst 768:12-768:15
   function 'any' @ std/System.pst:678:17
-use std/System.pst 766:16-766:20
+use std/System.pst 768:16-768:20
   function 'iter' @ std/System.pst:534:17
   function 'iter' @ std/System.pst:544:17
   function 'iter' @ std/System.pst:555:17
   function 'iter' @ std/System.pst:567:17
   function 'iter' @ std/System.pst:593:17
-use std/System.pst 766:21-766:23
+use std/System.pst 768:21-768:23
   let 'xs' @ std/System.pst:762:9
-use std/System.pst 766:32-766:38
+use std/System.pst 768:32-768:38
   function 'isEven' @ std/System.pst:701:10
-use std/System.pst 766:48-766:51
+use std/System.pst 768:48-768:51
   function 'all' @ std/System.pst:685:17
-use std/System.pst 766:52-766:56
+use std/System.pst 768:52-768:56
   function 'iter' @ std/System.pst:534:17
   function 'iter' @ std/System.pst:544:17
   function 'iter' @ std/System.pst:555:17
   function 'iter' @ std/System.pst:567:17
   function 'iter' @ std/System.pst:593:17
-use std/System.pst 766:57-766:59
+use std/System.pst 768:57-768:59
   let 'xs' @ std/System.pst:762:9
-use std/System.pst 766:68-766:74
+use std/System.pst 768:68-768:74
   function 'isEven' @ std/System.pst:701:10
-use std/System.pst 767:12-767:16
+use std/System.pst 769:12-769:16
   function 'find' @ std/System.pst:348:10
   function 'find' @ std/System.pst:692:17
-use std/System.pst 767:17-767:21
+use std/System.pst 769:17-769:21
   function 'iter' @ std/System.pst:534:17
   function 'iter' @ std/System.pst:544:17
   function 'iter' @ std/System.pst:555:17
   function 'iter' @ std/System.pst:567:17
   function 'iter' @ std/System.pst:593:17
-use std/System.pst 767:22-767:24
+use std/System.pst 769:22-769:24
   let 'xs' @ std/System.pst:762:9
-use std/System.pst 767:33-767:39
+use std/System.pst 769:33-769:39
   function 'isEven' @ std/System.pst:701:10
-use std/System.pst 767:43-767:47
+use std/System.pst 769:43-769:47
   type 'Some' @ std/System.pst:19:12
-def std/System.pst 768:9-768:10
-  var 'n' @ std/System.pst:768:9
-use std/System.pst 769:14-769:23
+def std/System.pst 770:9-770:10
+  var 'n' @ std/System.pst:770:9
+use std/System.pst 771:14-771:23
   function 'enumerate' @ std/System.pst:638:17
-use std/System.pst 769:24-769:28
+use std/System.pst 771:24-771:28
   function 'iter' @ std/System.pst:534:17
   function 'iter' @ std/System.pst:544:17
   function 'iter' @ std/System.pst:555:17
   function 'iter' @ std/System.pst:567:17
   function 'iter' @ std/System.pst:593:17
-use std/System.pst 769:29-769:31
+use std/System.pst 771:29-771:31
   let 'xs' @ std/System.pst:762:9
-def std/System.pst 769:9-769:10
-  loop variable 'p' @ std/System.pst:769:9
-use std/System.pst 770:9-770:10
-  var 'n' @ std/System.pst:768:9
-use std/System.pst 770:14-770:15
-  var 'n' @ std/System.pst:768:9
-use std/System.pst 770:18-770:19
-  loop variable 'p' @ std/System.pst:769:9
-use std/System.pst 770:28-770:29
-  loop variable 'p' @ std/System.pst:769:9
-use std/System.pst 771:12-771:13
-  var 'n' @ std/System.pst:768:9
+def std/System.pst 771:9-771:10
+  loop variable 'p' @ std/System.pst:771:9
+use std/System.pst 772:9-772:10
+  var 'n' @ std/System.pst:770:9
+use std/System.pst 772:14-772:15
+  var 'n' @ std/System.pst:770:9
+use std/System.pst 772:18-772:19
+  loop variable 'p' @ std/System.pst:771:9
+use std/System.pst 772:28-772:29
+  loop variable 'p' @ std/System.pst:771:9
+use std/System.pst 773:12-773:13
+  var 'n' @ std/System.pst:770:9
 --- stderr

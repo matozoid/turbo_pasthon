@@ -760,6 +760,8 @@ test "options and results"
 
 test "iterators"
     let xs := [1, 2, 3, 4]
+    assert (for x in xs do x * 2) = [2, 4, 6, 8]
+    assert (for x in xs do if isEven(x) then x else continue) = [2, 4]
     assert collect(take(iter(xs), n: 2)) = [1, 2]
     assert collect(skip(iter(xs), n: 3)) = [4]
     assert count(iter(xs)) = 4 and sum(iter(xs)) = 10
