@@ -1,0 +1,4 @@
+# The language server (SPEC §15.4): hover, definition, references and quick fixes. Shop
+# is not open at first: it is read from its file, and its URI made from its path.
+$PST build Frames.pst -o frames
+sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out | grep -v publishDiagnostics

@@ -1,0 +1,29 @@
+program Frames
+
+## A stand-in for an editor: `Frames` frames each line of standard input as a message,
+## with a Content-Length header; `Frames unframe` prints the body of each message.
+
+uses IO, OS, Strings
+
+if len(args()) > 0 and args()[0] = "unframe" then
+    var length := -1
+    while true do
+        case readln() of
+            Some(l):
+                let line := trim(l.value)
+                if line = "" then
+                    writeln(read(length).getOr("(cut short)"))
+                else if startsWith(line, prefix: "Content-Length: ") then
+                    length := parseInt(slice(line, 16, byteLen(line))).getOr(0)
+                else
+                    writeln("(bad header: {line})")
+            None:
+                break
+else
+    while true do
+        case readln() of
+            Some(l):
+                if trim(l.value) <> "" then
+                    write("Content-Length: {byteLen(l.value)}\r\n\r\n{l.value}")
+            None:
+                break

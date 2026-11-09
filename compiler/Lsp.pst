@@ -3,8 +3,9 @@ unit Lsp
 ## The language server (SPEC §15.4): JSON-RPC over standard input and output, LSP 3.17.
 ## Documents are synchronized whole. After every change, each open document is checked
 ## with the open documents' texts in place of their files, and its diagnostics pushed.
+## Requests about a position check the document again, and answer from its symbol index.
 
-uses IO, OS, Strings, Source, Diagnostics, Typecheck, Fmt, Json
+uses IO, OS, Strings, Source, Diagnostics, Ast, Symbols, Resolve, Types, Typecheck, Fmt, Json
 
 type
     Server = record
@@ -14,6 +15,11 @@ type
         uris: Map[String, String]
         ## Whether `shutdown` came; `exit` then ends with status 0.
         down: Boolean
+
+    ## A check of one open document, with the decoded texts of the units it loaded.
+    Analysis = record
+        checked: Checked
+        texts: Map[String, Text]
 
 # ------------------------------------------------------------------------- messages
 
@@ -96,6 +102,44 @@ function utf16(t: Text, line: Integer, col: Integer): Integer
         i := i + 1
     return n
 
+## The 1-based column (in code points) of the 0-based UTF-16 offset `character` on the
+## 1-based line `line`.
+function column(t: Text, line: Integer, character: Integer): Integer
+    if line < 1 or line - 1 >= len(t.lineStarts) then
+        return 1
+    let start := t.lineStarts[line - 1]
+    var n := 0
+    var i := start
+    while n < character and i < len(t.chars) and t.chars[i] <> '\n' do
+        if ord(t.chars[i]) > 0xFFFF then
+            n := n + 2
+        else
+            n := n + 1
+        i := i + 1
+    return i - start + 1
+
+## Whether `c` stands for itself in a URI's path: an ASCII letter or digit, or `/._~-`.
+function unescaped(c: Char): Boolean
+    return (
+        (c >= 'a' and c <= 'z')
+        or (c >= 'A' and c <= 'Z')
+        or (c >= '0' and c <= '9')
+        or c in ['/', '.', '_', '~', '-']
+    )
+
+## The `file:` URI of `path`, with the other bytes escaped.
+function uriOf(path: String): String
+    let hex := "0123456789ABCDEF"
+    var out := "file://"
+    for b in bytes(path) do
+        let c := Char(Integer(b))
+        if unescaped(c) then
+            out := "{out}{c}"
+        else
+            let n := Integer(b)
+            out := "{out}%{slice(hex, n div 16, n div 16 + 1)}{slice(hex, n mod 16, n mod 16 + 1)}"
+    return out
+
 function position(t: Text, line: Integer, col: Integer): String
     return "\{\"line\":{line - 1},\"character\":{utf16(t, line, col: col)}}"
 
@@ -131,10 +175,200 @@ procedure checkAll(s: Server)
             params: "\{\"uri\":{uri},\"diagnostics\":[{join(parts, sep: ",")}]}",
         )
 
+# ------------------------------------------------------------------------- symbols
+
+function analyze(s: Server, path: String): Analysis
+    let checked := typecheck(path, stdDir: s.stdDir, overlay: s.texts)
+    var texts: Map[String, Text] := {}
+    for u in checked.resolved.units do
+        texts[u.path] := u.src
+    return Analysis(checked: checked, texts: texts)
+
+## The reference at the request's position: on the name, or just after it.
+function refAt(a: Analysis, path: String, params: JValue): Option[Ref]
+    case get(a.texts, path) of
+        Some(t):
+            let pos := field(params, key: "position")
+            let line := asInteger(field(pos, key: "line")).getOr(0) + 1
+            let col := column(
+                t.value,
+                line,
+                character: asInteger(field(pos, key: "character")).getOr(0),
+            )
+            let ix := a.checked.resolved.checker.index
+            let found := at(ix, path, line, col: col)
+            if found.isSome() or col = 1 then
+                return found
+            return at(ix, path, line, col: col - 1)
+        None:
+            return None
+
+## The URI of `path`: the client's, if the document is open.
+function uriFor(s: Server, path: String): String
+    return get(s.uris, path).getOr(uriOf(path))
+
+function location(s: Server, a: Analysis, file: String, span: Span): Option[String]
+    case get(a.texts, file) of
+        Some(t):
+            return Some("\{\"uri\":{quote(uriFor(s, file))},\"range\":{range(t.value, span)}}")
+        None:
+            return None
+
+## The first line of a declaration, from `span`, without `export`.
+function firstLine(a: Analysis, file: String, span: Span): String
+    case get(a.texts, file) of
+        Some(t):
+            var end := span.start
+            while end < len(t.value.chars) and t.value.chars[end] <> '\n' do
+                end := end + 1
+            let line := trim(sub(t.value, span.start, end: end))
+            if startsWith(line, prefix: "export ") then
+                return slice(line, byteLen("export "), byteLen(line))
+            return line
+        None:
+            return ""
+
+## How hover shows a symbol: its declaration, then its documentation.
+function hoverText(a: Analysis, sym: ref Symbol): String
+    let kind := name(sym.kind)
+    var head := "{kind} {sym.name}"
+    var doc: Option[String] := None
+    case sym.node of
+        Routine(r):
+            head := sub(a.texts[sym.file], r.sig.span.start, end: r.sig.span.end)
+            doc := r.doc
+        ExternDecl(e):
+            head := sub(a.texts[sym.file], e.sig.span.start, end: e.sig.span.end)
+            doc := e.doc
+        Signature(g):
+            head := sub(a.texts[sym.file], g.span.start, end: g.span.end)
+            doc := g.doc
+        TypeDecl(d):
+            head := "type {firstLine(a, sym.file, d.span)}"
+            doc := d.doc
+        ConstDecl(d):
+            head := "const {firstLine(a, sym.file, d.span)}"
+            doc := d.doc
+        FieldDecl(d):
+            head := "field {firstLine(a, sym.file, d.span)}"
+            doc := d.doc
+        else:
+            case a.checked.env of
+                Some(env):
+                    case get(env.value.symTypes, sym.id) of
+                        Some(t):
+                            head := "{kind} {sym.name}: {show(t.value)}"
+                        None:
+                            pass
+                    case get(env.value.owner, sym.id) of
+                        Some(o):
+                            head := "{kind} {o.value.name}.{sym.name}"
+                        None:
+                            pass
+                None:
+                    pass
+    var text := "```pst\n{head}\n```"
+    if doc.isSome() then
+        text := "{text}\n\n{doc.get()}"
+    return text
+
+function hover(s: Server, path: String, params: JValue): String
+    let a := analyze(s, path)
+    case refAt(a, path, params: params) of
+        Some(r):
+            if len(r.value.targets) = 0 then
+                return "null"
+            let t := a.texts[path]
+            let contents := "\{\"kind\":\"markdown\",\"value\":{quote(hoverText(a, r.value.targets[0]))}}"
+            return "\{\"contents\":{contents},\"range\":{range(t, r.value.span)}}"
+        None:
+            return "null"
+
+## Where the symbols at the position are defined: several for an overloaded name.
+function definition(s: Server, path: String, params: JValue): String
+    let a := analyze(s, path)
+    var parts: List[String] := []
+    case refAt(a, path, params: params) of
+        Some(r):
+            for sym in r.value.targets do
+                if sym.span.isSome() then
+                    case location(s, a, file: sym.file, span: sym.span.get()) of
+                        Some(l):
+                            add(var parts, l.value)
+                        None:
+                            pass
+        None:
+            pass
+    return "[{join(parts, sep: ",")}]"
+
+## Every use of the symbol at the position, in the open documents and the units they use.
+function referencesTo(s: Server, path: String, params: JValue): String
+    let withDecl := asBoolean(field(
+        field(params, key: "context"),
+        key: "includeDeclaration",
+    )).getOr(true)
+    var file := ""
+    var span: Option[Span] := None
+    case refAt(analyze(s, path), path, params: params) of
+        Some(r):
+            if len(r.value.targets) > 0 then
+                file := r.value.targets[0].file
+                span := r.value.targets[0].span
+        None:
+            pass
+    if span.isNone() then
+        return "[]"
+    var seen: Map[String, Boolean] := {}
+    var parts: List[String] := []
+    for open, _ in s.texts do
+        let a := analyze(s, open)
+        if a.checked.env.isNone() then
+            continue
+        case defSym(a.checked.env.get(), file, span.get()) of
+            Some(sym):
+                for r in references(a.checked.resolved.checker.index, sym.value) do
+                    let key := "{r.file}:{r.span.start}"
+                    if (withDecl or not r.isDef) and not (key in seen) then
+                        seen[key] := true
+                        case location(s, a, file: r.file, span: r.span) of
+                            Some(l):
+                                add(var parts, l.value)
+                            None:
+                                pass
+            None:
+                pass
+    return "[{join(parts, sep: ",")}]"
+
+## Quick fixes from the diagnostics of the document that touch the request's range.
+function codeActions(s: Server, path: String, params: JValue): String
+    let a := analyze(s, path)
+    let t := get(a.texts, path)
+    if t.isNone() then
+        return "[]"
+    let text := t.get()
+    let r := field(params, key: "range")
+    let first := asInteger(field(field(r, key: "start"), key: "line")).getOr(0) + 1
+    let last := asInteger(field(field(r, key: "end"), key: "line")).getOr(0) + 1
+    let uri := quote(uriFor(s, path))
+    var parts: List[String] := []
+    for d in a.checked.resolved.checker.diagnostics do
+        if d.file <> path or d.span.endLine < first or d.span.line > last then
+            continue
+        for f in d.fixes do
+            var edits: List[String] := []
+            for e in f.edits do
+                add(var edits, "\{\"range\":{range(text, e.span)},\"newText\":{quote(e.text)}}")
+            let edit := "\{\"changes\":\{{uri}:[{join(edits, sep: ",")}]}}"
+            add(
+                var parts,
+                "\{\"title\":{quote(f.description)},\"kind\":\"quickfix\",\"diagnostics\":[{diagnostic(text, d)}],\"edit\":{edit}}",
+            )
+    return "[{join(parts, sep: ",")}]"
+
 # ------------------------------------------------------------------------- requests
 
 function capabilities(): String
-    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true},\"serverInfo\":\{\"name\":\"pst\"}}"
+    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true},\"serverInfo\":\{\"name\":\"pst\"}}"
 
 ## The edits that format the document at `uri`: none if it is formatted, or can't be.
 function formatting(s: Server, uri: String): String
@@ -189,6 +423,14 @@ procedure handle(var s: Server, m: JValue)
         checkAll(s)
     else if method = "textDocument/formatting" then
         respond(id, result: formatting(s, uri: uri))
+    else if method = "textDocument/hover" then
+        respond(id, result: hover(s, pathOf(uri), params: params))
+    else if method = "textDocument/definition" then
+        respond(id, result: definition(s, pathOf(uri), params: params))
+    else if method = "textDocument/references" then
+        respond(id, result: referencesTo(s, pathOf(uri), params: params))
+    else if method = "textDocument/codeAction" then
+        respond(id, result: codeActions(s, pathOf(uri), params: params))
     else if not isNull(id) then
         respondError(id, code: -32601, message: "unsupported method '{method}'")
 

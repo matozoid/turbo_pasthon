@@ -1396,12 +1396,23 @@ Intended for human editors. (AI agents should use `pst mcp` (§15.7) or `pst que
 Built into the `pst` executable, so it is always the same version as the compiler and uses
 the same front end. JSON-RPC over stdio, LSP 3.17. It has no dependencies beyond the compiler.
 
-So far it synchronizes whole documents (`textDocumentSync` 1), pushes diagnostics and
-formats. After each change it checks every open document, with the open documents' texts
-read in place of their files (§15.6), and pushes the diagnostics that are in that document;
-closing a document clears its diagnostics. Columns are converted to UTF-16 code units.
+So far it synchronizes whole documents (`textDocumentSync` 1), pushes diagnostics, formats,
+and answers hover, definition, references and code actions. After each change it checks
+every open document, with the open documents' texts read in place of their files (§15.6),
+and pushes the diagnostics that are in that document; closing a document clears its
+diagnostics. Columns are converted to UTF-16 code units. A request about a position checks
+its document again and looks up the name at the position, or the name just before it:
+
+- Hover shows a routine's signature, the first line of a type, constant or field
+  declaration, a local's type (`let count: Integer`), or the kind and name of anything
+  else, followed by the `##` doc comment.
+- Definition gives the defining name, one per overload the name may still mean.
+- References searches every open document and the units it uses; documents that aren't
+  open are only searched as units used by an open one.
+- Code actions are the fixes of the document's diagnostics on the requested lines.
+
 Other requests get the error `-32601`. `exit` ends with status 0 after `shutdown`, else 1,
-as does the end of the input.
+as does the end of the input. The table below is the full plan.
 
 | LSP feature | Pasthon behavior |
 |---|---|
