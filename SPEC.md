@@ -1275,7 +1275,7 @@ test "largest of empty list is None"
 | `Math` | `Pi`, `sqrt`, `sin`, `cos`, `abs`, `min`, `max`, `floor`, `ceil` |
 | `Bits` | `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, `popCount` on all integer types (compiler intrinsics); results wrap to the type's width, `shr` shifts in zeros, a shift count outside 0 to width - 1 gives 0 |
 | `OS` | `args(): List[String]` (without the program name), `env(name): Option[String]`, `exit(code)`, `currentDir(): String`, `realPath(path): Result[String, String]` (absolute, with symbolic links, `.` and `..` resolved), `isFile(path): Boolean` (a regular file, following symbolic links), `isDir(path): Boolean`, `listDir(path): Result[List[String], String]` (the entry names, without `.` and `..`, in no particular order), `programPath(): String` (the running executable, from `/proc/self/exe`), `tempDir(): Result[String, String]` (a new private directory under `TMPDIR`, or `/tmp`), `makeDir(path, mode := 0o755)`, `removeFile(path)` and `removeDir(path)` (an empty directory; all three `Result[Integer, String]`), `run(path, args, output := "", errors := "", input := "", dir := ""): Result[Integer, String]` (runs an executable and waits: its exit status, or minus the signal that ended it; 127 if it can't be started; with `output`, its standard output goes to that file, and its standard error too unless `errors` names another file; with `input`, it reads that file; with `dir`, it runs in that directory, while the file paths stay relative to the caller's). Written in Pasthon on libc (`getcwd`, `realpath`, `stat`, `readlink`, `mkdtemp`, `mkdir`, `unlink`, `rmdir`, `opendir`, `readdir`, `fork`, `dup2`, `chdir`, `execv`, `waitpid`); `args` reads `argv`, which the program's entry point keeps in a writable word after the GOT (§15.2) |
-| `Json` | `Json = JNull \| JBool \| JNumber \| JString \| JArray \| JObject` (an object keeps its `Member`s in order; a number keeps its text), `parse(s): Result[Json, String]` (RFC 8259; the error gives the character offset), `toText(j)` (one line, no spaces), `quote(s)` (a JSON string literal), and readers that never fail: `field(j, key)` (`JNull` if missing), `isNull`, `asString`, `asBoolean`, `asInteger` (`Option`s), `items` (empty if not an array). Written in Pasthon |
+| `Json` | `JValue = JNull \| JBool \| JNumber \| JString \| JArray \| JObject` (an object keeps its `Member`s in order; a number keeps its text), `parse(s): Result[JValue, String]` (RFC 8259; the error gives the character offset), `toText(j)` (one line, no spaces), `quote(s)` (a JSON string literal), and readers that never fail: `field(j, key)` (`JNull` if missing), `isNull`, `asString`, `asBoolean`, `asInteger` (`Option`s), `items` (empty if not an array). Written in Pasthon |
 | `Threads` | reserved for §11.2; not in v0.1 |
 | `C` | C interop types, `toCString`, `fromCString`, `fromCBytes`, `isNull`, `addr`, `cast` |
 | `DateTime` | planned, not in v0.1: dates and times modeled on Joda-Time. Immutable values `Instant`, `LocalDate`, `LocalTime`, `LocalDateTime`, `DateTime` (with a time zone), `Duration`, `Period`, `Interval`. Written in Pasthon on libc's time functions |
@@ -1298,7 +1298,7 @@ test "largest of empty list is None"
 | `pst tokens FILE` / `pst ast FILE` | debugging dumps of the lexer and parser |
 
 `compiler/Pst.pst` is the tool, written in Pasthon. It has `check`, `build`, `run`, `test`,
-`fmt`, `tokens` and `ast` so far, and finds the standard units in `units` next to its executable.
+`fmt`, `lsp`, `tokens` and `ast` so far, and finds the standard units in `units` next to its executable.
 `tokens` and `ast` print their own text format, one token or node per line, then the
 diagnostics; they exit with status 1 if there are errors.
 
@@ -1392,6 +1392,13 @@ except for adding a trailing comma to a broken group and rewriting `else` + `if`
 Intended for human editors. (AI agents should use `pst mcp` (§15.7) or `pst query` (§15.5).)
 Built into the `pst` executable, so it is always the same version as the compiler and uses
 the same front end. JSON-RPC over stdio, LSP 3.17. It has no dependencies beyond the compiler.
+
+So far it synchronizes whole documents (`textDocumentSync` 1), pushes diagnostics and
+formats. After each change it checks every open document, with the open documents' texts
+read in place of their files (§15.6), and pushes the diagnostics that are in that document;
+closing a document clears its diagnostics. Columns are converted to UTF-16 code units.
+Other requests get the error `-32601`. `exit` ends with status 0 after `shutdown`, else 1,
+as does the end of the input.
 
 | LSP feature | Pasthon behavior |
 |---|---|

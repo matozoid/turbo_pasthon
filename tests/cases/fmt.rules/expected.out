@@ -125,6 +125,7 @@ usage: pst check FILE [--json]
        pst run [--unchecked] FILE [-- ARGS]
        pst test PATH [--filter TEXT] [--unchecked] [--json]
        pst fmt PATH [--check]
+       pst lsp
        pst tokens FILE
        pst ast FILE
 pst: error: missing FILE or PATH
@@ -137,6 +138,7 @@ usage: pst check FILE [--json]
        pst run [--unchecked] FILE [-- ARGS]
        pst test PATH [--filter TEXT] [--unchecked] [--json]
        pst fmt PATH [--check]
+       pst lsp
        pst tokens FILE
        pst ast FILE
 pst: error: unrecognized argument '--json'

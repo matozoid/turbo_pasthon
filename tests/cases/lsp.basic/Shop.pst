@@ -1,0 +1,4 @@
+unit Shop
+
+export function price(n: Integer): Integer
+    return n * 2

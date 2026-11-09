@@ -4633,8 +4633,14 @@ function builtinTraitOf(tc: ref TC, t: Type, name: String): Boolean
 
 ## Resolves and type-checks a program and the units it uses.
 ## `keep` keeps the checkers of the units, for the backend.
-export function typecheck(path, stdDir: String, keep: Boolean := false): Checked
-    let r := resolveUnits(path, stdDir: stdDir)
+## `overlay` holds texts by absolute path, read instead of the files.
+export function typecheck(
+    path,
+    stdDir: String,
+    keep: Boolean := false,
+    overlay: Map[String, String] := {},
+): Checked
+    let r := resolveUnits(path, stdDir: stdDir, overlay: overlay)
     var env: Option[ref Env] := None
     if r.main.isSome() then
         let e := newEnv(r.checker, r.units)

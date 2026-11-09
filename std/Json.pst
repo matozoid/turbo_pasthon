@@ -1,6 +1,6 @@
 unit Json
 
-## JSON (RFC 8259): parse text into a `Json` value, write one back, and read its parts.
+## JSON (RFC 8259): parse text into a `JValue`, write one back, and read its parts.
 ## A number keeps its text, since `Real` has no code generation yet; `asInteger` reads it.
 
 uses Strings
@@ -19,17 +19,17 @@ type
         export value: String
 
     export JArray = record
-        export items: List[Json]
+        export items: List[JValue]
 
     export Member = record
         export key: String
-        export value: Json
+        export value: JValue
 
     ## An object's members, in their order. A key may appear more than once.
     export JObject = record
         export members: List[Member]
 
-    export Json = JNull | JBool | JNumber | JString | JArray | JObject
+    export JValue = JNull | JBool | JNumber | JString | JArray | JObject
 
     ## The parser's state: the text's characters and the position in them.
     Reader = record
@@ -40,8 +40,8 @@ type
 
 ## The value of the member `key` of an object, or `JNull` if `j` isn't an object or has no
 ## such member. With a key that appears more than once, the last one counts.
-export function field(j: Json, key: String): Json
-    var result: Json := JNull()
+export function field(j: JValue, key: String): JValue
+    var result: JValue := JNull()
     case j of
         JObject(o):
             for m in o.members do
@@ -52,7 +52,7 @@ export function field(j: Json, key: String): Json
     return result
 
 ## Whether `j` is `null` (or a missing member, through `field`).
-export function isNull(j: Json): Boolean
+export function isNull(j: JValue): Boolean
     case j of
         JNull(_):
             return true
@@ -60,7 +60,7 @@ export function isNull(j: Json): Boolean
             return false
 
 ## The string, or `None` if `j` isn't one.
-export function asString(j: Json): Option[String]
+export function asString(j: JValue): Option[String]
     case j of
         JString(s):
             return Some(s.value)
@@ -68,7 +68,7 @@ export function asString(j: Json): Option[String]
             return None
 
 ## The Boolean, or `None` if `j` isn't one.
-export function asBoolean(j: Json): Option[Boolean]
+export function asBoolean(j: JValue): Option[Boolean]
     case j of
         JBool(b):
             return Some(b.value)
@@ -76,7 +76,7 @@ export function asBoolean(j: Json): Option[Boolean]
             return None
 
 ## The integer, or `None` if `j` isn't a number without fraction or exponent that fits.
-export function asInteger(j: Json): Option[Integer]
+export function asInteger(j: JValue): Option[Integer]
     case j of
         JNumber(n):
             case parseInt(n.text) of
@@ -88,7 +88,7 @@ export function asInteger(j: Json): Option[Integer]
             return None
 
 ## The items of an array; empty if `j` isn't one.
-export function items(j: Json): List[Json]
+export function items(j: JValue): List[JValue]
     case j of
         JArray(a):
             return a.items
@@ -125,7 +125,7 @@ export function quote(s: String): String
     return join(parts)
 
 ## `j` as JSON text on one line, without spaces.
-export function toText(j: Json): String
+export function toText(j: JValue): String
     case j of
         JNull(_):
             return "null"
@@ -198,7 +198,7 @@ function digits(var r: Reader): Result[Integer, String]
         r.pos := r.pos + 1
     return Ok(0)
 
-function number(var r: Reader): Result[Json, String]
+function number(var r: Reader): Result[JValue, String]
     let start := r.pos
     if peek(r) = '-' then
         r.pos := r.pos + 1
@@ -284,9 +284,9 @@ function text(var r: Reader): Result[String, String]
             return Err(failure(r, "invalid escape"))
     return Ok(join(parts))
 
-function array(var r: Reader): Result[Json, String]
+function array(var r: Reader): Result[JValue, String]
     r.pos := r.pos + 1
-    var result: List[Json] := []
+    var result: List[JValue] := []
     skipSpace(var r)
     if peek(r) = ']' then
         r.pos := r.pos + 1
@@ -302,7 +302,7 @@ function array(var r: Reader): Result[Json, String]
         r.pos := r.pos + 1
     return Ok(JNull())
 
-function object(var r: Reader): Result[Json, String]
+function object(var r: Reader): Result[JValue, String]
     r.pos := r.pos + 1
     var members: List[Member] := []
     skipSpace(var r)
@@ -328,7 +328,7 @@ function object(var r: Reader): Result[Json, String]
         r.pos := r.pos + 1
     return Ok(JNull())
 
-function value(var r: Reader): Result[Json, String]
+function value(var r: Reader): Result[JValue, String]
     skipSpace(var r)
     let c := peek(r)
     if c = '\{' then
@@ -352,7 +352,7 @@ function value(var r: Reader): Result[Json, String]
 
 ## The value in `s`, which must hold one JSON value and nothing else but white space. The
 ## error says what was wrong and at which character offset.
-export function parse(s: String): Result[Json, String]
+export function parse(s: String): Result[JValue, String]
     var cs: List[Char] := []
     for c in s do
         add(var cs, c)

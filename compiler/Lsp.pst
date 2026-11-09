@@ -1,0 +1,210 @@
+unit Lsp
+
+## The language server (SPEC §15.4): JSON-RPC over standard input and output, LSP 3.17.
+## Documents are synchronized whole. After every change, each open document is checked
+## with the open documents' texts in place of their files, and its diagnostics pushed.
+
+uses IO, OS, Strings, Source, Diagnostics, Typecheck, Fmt, Json
+
+type
+    Server = record
+        stdDir: String
+        ## The open documents' texts and URIs, by path.
+        texts: Map[String, String]
+        uris: Map[String, String]
+        ## Whether `shutdown` came; `exit` then ends with status 0.
+        down: Boolean
+
+# ------------------------------------------------------------------------- messages
+
+## The next message's body, or `None` at the end of the input. Headers other than
+## Content-Length are ignored.
+function receive(): Option[String]
+    var length := -1
+    while true do
+        case readln() of
+            Some(l):
+                let line := trim(l.value)
+                if line = "" then
+                    if length >= 0 then
+                        return read(length)
+                else if startsWith(line, prefix: "Content-Length:") then
+                    let n := slice(line, byteLen("Content-Length:"), byteLen(line))
+                    length := parseInt(trim(n)).getOr(-1)
+            None:
+                return None
+    return None
+
+procedure send(body: String)
+    write("Content-Length: {byteLen(body)}\r\n\r\n{body}")
+
+procedure respond(id: JValue, result: String)
+    send("\{\"jsonrpc\":\"2.0\",\"id\":{toText(id)},\"result\":{result}}")
+
+procedure respondError(id: JValue, code: Integer, message: String)
+    send(
+        "\{\"jsonrpc\":\"2.0\",\"id\":{toText(id)},\"error\":\{\"code\":{code},\"message\":{quote(message)}}}",
+    )
+
+procedure notify(method: String, params: String)
+    send("\{\"jsonrpc\":\"2.0\",\"method\":{quote(method)},\"params\":{params}}")
+
+# ------------------------------------------------------------------------- URIs and positions
+
+function hexValue(c: Char): Integer
+    if c >= '0' and c <= '9' then
+        return ord(c) - ord('0')
+    if c >= 'a' and c <= 'f' then
+        return ord(c) - ord('a') + 10
+    if c >= 'A' and c <= 'F' then
+        return ord(c) - ord('A') + 10
+    return -1
+
+## The path of a `file:` URI, with `%XX` escapes decoded.
+function pathOf(uri: String): String
+    var s := uri
+    if startsWith(s, prefix: "file://") then
+        s := slice(s, byteLen("file://"), byteLen(s))
+    let b := bytes(s)
+    var out: List[Byte] := []
+    var i := 0
+    while i < len(b) do
+        if b[i] = 37 and i + 2 < len(b) then  # '%'
+            let high := hexValue(Char(Integer(b[i + 1])))
+            let low := hexValue(Char(Integer(b[i + 2])))
+            if high >= 0 and low >= 0 then
+                add(var out, Byte(high * 16 + low))
+                i := i + 3
+                continue
+        add(var out, b[i])
+        i := i + 1
+    return fromBytes(out)
+
+## The 0-based UTF-16 offset of the 1-based column `col` (in code points) on the 1-based
+## line `line`.
+function utf16(t: Text, line: Integer, col: Integer): Integer
+    if line - 1 >= len(t.lineStarts) then
+        return 0
+    let start := t.lineStarts[line - 1]
+    var n := 0
+    var i := start
+    while i < start + col - 1 and i < len(t.chars) do
+        if ord(t.chars[i]) > 0xFFFF then
+            n := n + 2
+        else
+            n := n + 1
+        i := i + 1
+    return n
+
+function position(t: Text, line: Integer, col: Integer): String
+    return "\{\"line\":{line - 1},\"character\":{utf16(t, line, col: col)}}"
+
+function range(t: Text, s: Span): String
+    return "\{\"start\":{position(t, s.line, col: s.col)},\"end\":{position(t, s.endLine, col: s.endCol)}}"
+
+## The range of the whole text.
+function wholeRange(t: Text): String
+    let last := len(t.lineStarts)
+    let col := len(t.chars) - t.lineStarts[last - 1] + 1
+    return "\{\"start\":\{\"line\":0,\"character\":0},\"end\":{position(t, last, col: col)}}"
+
+# ------------------------------------------------------------------------- diagnostics
+
+function diagnostic(t: Text, d: Diagnostic): String
+    var severity := 1
+    if d.severity = Severity.Warning then
+        severity := 2
+    return "\{\"range\":{range(t, d.span)},\"severity\":{severity},\"code\":{quote(d.code)},\"source\":\"pst\",\"message\":{quote(d.message)}}"
+
+## Checks every open document and pushes its diagnostics.
+procedure checkAll(s: Server)
+    for path, text in s.texts do
+        let checked := typecheck(path, stdDir: s.stdDir, overlay: s.texts)
+        let t := textOf(text)
+        var parts: List[String] := []
+        for d in checked.resolved.checker.diagnostics do
+            if d.file = path then
+                add(var parts, diagnostic(t, d))
+        let uri := quote(s.uris[path])
+        notify(
+            "textDocument/publishDiagnostics",
+            params: "\{\"uri\":{uri},\"diagnostics\":[{join(parts, sep: ",")}]}",
+        )
+
+# ------------------------------------------------------------------------- requests
+
+function capabilities(): String
+    return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true},\"serverInfo\":\{\"name\":\"pst\"}}"
+
+## The edits that format the document at `uri`: none if it is formatted, or can't be.
+function formatting(s: Server, uri: String): String
+    let path := pathOf(uri)
+    case get(s.texts, path) of
+        Some(text):
+            case format(text.value, file: path) of
+                Ok(f):
+                    if f.value = text.value then
+                        return "[]"
+                    let edit := "\{\"range\":{wholeRange(textOf(text.value))},\"newText\":{quote(f.value)}}"
+                    return "[{edit}]"
+                Err(_):
+                    return "[]"
+        None:
+            return "[]"
+
+## Handles one message.
+procedure handle(var s: Server, m: JValue)
+    let method := asString(field(m, key: "method")).getOr("")
+    let id := field(m, key: "id")
+    let params := field(m, key: "params")
+    let doc := field(params, key: "textDocument")
+    let uri := asString(field(doc, key: "uri")).getOr("")
+    if method = "initialize" then
+        respond(id, result: capabilities())
+    else if method = "shutdown" then
+        s.down := true
+        respond(id, result: "null")
+    else if method = "exit" then
+        if s.down then
+            exit(0)
+        exit(1)
+    else if method = "textDocument/didOpen" then
+        let path := pathOf(uri)
+        s.texts[path] := asString(field(doc, key: "text")).getOr("")
+        s.uris[path] := uri
+        checkAll(s)
+    else if method = "textDocument/didChange" then
+        let path := pathOf(uri)
+        for change in items(field(params, key: "contentChanges")) do
+            s.texts[path] := asString(field(change, key: "text")).getOr("")
+        checkAll(s)
+    else if method = "textDocument/didClose" then
+        let path := pathOf(uri)
+        remove(var s.texts, path)
+        remove(var s.uris, path)
+        notify(
+            "textDocument/publishDiagnostics",
+            params: "\{\"uri\":{quote(uri)},\"diagnostics\":[]}",
+        )
+        checkAll(s)
+    else if method = "textDocument/formatting" then
+        respond(id, result: formatting(s, uri: uri))
+    else if not isNull(id) then
+        respondError(id, code: -32601, message: "unsupported method '{method}'")
+
+## Serves one client on standard input and output, until `exit` or the end of the input.
+export procedure serve(stdDir: String)
+    var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)
+    while true do
+        case receive() of
+            Some(body):
+                case parse(body.value) of
+                    Ok(m):
+                        handle(var s, m: m.value)
+                    Err(e):
+                        respondError(JNull(), code: -32700, message: e.error)
+            None:
+                break
+    if s.down then
+        exit(0)
+    exit(1)

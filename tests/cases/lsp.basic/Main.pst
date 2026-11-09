@@ -1,0 +1,5 @@
+program Main
+
+uses IO, Shop
+
+writeln(price(3))

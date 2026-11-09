@@ -1,0 +1,6 @@
+# The language server (SPEC §15.4): diagnostics of open documents, read from the editor's
+# texts before the files (Main uses the unsaved Shop), formatting, shutdown and exit.
+$PST build Frames.pst -o frames
+sed "s|DIR|$PWD|g" session.jsonl | ./frames | $PST lsp > out; echo "status $?"; ./frames unframe < out
+printf 'Content-Length: 5\r\n\r\n{bad}' | $PST lsp | ./frames unframe
+$PST lsp extra

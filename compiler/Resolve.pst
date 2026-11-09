@@ -32,6 +32,8 @@ type
 
     export Checker = record
         export stdDir: String
+        ## Texts by absolute path, read instead of the files (an editor's unsaved buffers).
+        overlay: Map[String, String]
         ## By unit name; programs are not entered.
         export units: Map[String, ref Unit]
         missing: Map[String, Boolean]
@@ -249,8 +251,8 @@ function readSource(path: String): Result[String, String]
 # ------------------------------------------------------------------------- loading
 
 ## Parses the file at `path` and every unit it uses, and resolves every name.
-export function resolve(path: String, stdDir: String): Resolved
-    let r := resolveUnits(path, stdDir: stdDir)
+export function resolve(path: String, stdDir: String, overlay: Map[String, String] := {}): Resolved
+    let r := resolveUnits(path, stdDir: stdDir, overlay: overlay)
     r.checker.diagnostics := sortedDiagnostics(r.checker.diagnostics, mainFile: mainFile(r))
     return r
 
@@ -264,9 +266,14 @@ export function mainFile(r: Resolved): String
 
 ## Like `resolve`, but leaves the diagnostics in the order they were found, for the type
 ## checker to add to.
-export function resolveUnits(path: String, stdDir: String): Resolved
+export function resolveUnits(
+    path: String,
+    stdDir: String,
+    overlay: Map[String, String] := {},
+): Resolved
     let c := new(Checker(
         stdDir: stdDir,
+        overlay: overlay,
         units: {},
         missing: {},
         programs: {},
@@ -322,7 +329,13 @@ function isPlainName(stem: String): Boolean
 
 function load(c: ref Checker, path: String, std: Boolean, expected: String := ""): Option[ref Unit]
     var text := ""
-    case readSource(path) of
+    var read: Result[String, String] := Err("")
+    case get(c.overlay, absolute(path)) of
+        Some(t):
+            read := Ok(t.value)
+        None:
+            read := readSource(path)
+    case read of
         Ok(t):
             text := t.value
         Err(e):
@@ -441,7 +454,7 @@ function findUnit(
         add(var candidates, join(dirname(user.path), b: "{name}.pst"))
     for i := 0 to len(candidates) - 1 do
         let path := candidates[i]
-        if isFile(path) then
+        if absolute(path) in c.overlay or isFile(path) then
             case load(c, path, std: i = 0, expected: name) of
                 Some(u):
                     if u.value.parsed.file.kind <> "unit" then
