@@ -112,6 +112,8 @@ use Main.pst 13:14-13:18
   field 'side' @ Main.pst:10:9
 use Main.pst 13:23-13:27
   field 'side' @ Main.pst:10:9
+use Main.pst 18:24-18:28
+  function 'area' @ Main.pst:7:18
 use Main.pst 21:23-21:27
   field 'side' @ Main.pst:10:9
 --- stderr

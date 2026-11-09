@@ -4927,6 +4927,8 @@ use std/Strings.pst 62:31-62:34
   parameter 'sub' @ std/Strings.pst:46:40
 use std/Strings.pst 62:44-62:49
   parameter 'start' @ std/Strings.pst:46:53
+use std/Strings.pst 62:54-62:60
+  function 'isSome' @ std/System.pst:470:17
 use std/Strings.pst 70:22-70:25
   parameter 'sub' @ std/Strings.pst:46:40
 use std/Strings.pst 70:32-70:37
@@ -4949,6 +4951,8 @@ use std/Strings.pst 157:36-157:41
   parameter 'start' @ std/Strings.pst:46:53
 use std/Strings.pst 158:26-158:29
   parameter 'sub' @ std/Strings.pst:46:40
+use std/Strings.pst 158:36-158:42
+  function 'isNone' @ std/System.pst:475:17
 use std/Strings.pst 159:21-159:24
   parameter 'sub' @ std/Strings.pst:46:40
 use std/Strings.pst 164:30-164:36
@@ -4973,6 +4977,14 @@ use std/Strings.pst 180:27-180:33
   parameter 'target' @ std/Strings.pst:125:36
 use std/Strings.pst 180:40-180:51
   parameter 'replacement' @ std/Strings.pst:125:52
+use std/Strings.pst 187:44-187:49
+  function 'isErr' @ std/System.pst:483:17
+use std/Strings.pst 188:25-188:30
+  function 'isErr' @ std/System.pst:483:17
+use std/Strings.pst 189:26-189:31
+  function 'isErr' @ std/System.pst:483:17
+use std/Strings.pst 190:27-190:32
+  function 'isErr' @ std/System.pst:483:17
 use std/System.pst 296:14-296:19
   field 'count' @ std/System.pst:66:9
 use std/System.pst 303:19-303:25
@@ -5307,6 +5319,8 @@ use std/System.pst 717:23-717:24
   parameter 'b' @ std/System.pst:277:30
 use std/System.pst 725:18-725:22
   parameter 'less' @ std/System.pst:245:43
+use std/System.pst 737:24-737:30
+  function 'isNone' @ std/System.pst:475:17
 use std/System.pst 738:26-738:33
   parameter 'default' @ std/System.pst:306:61
 use std/System.pst 750:21-750:22
@@ -5315,6 +5329,22 @@ use std/System.pst 751:28-751:29
   parameter 'b' @ std/System.pst:433:36
 use std/System.pst 752:26-752:27
   parameter 'b' @ std/System.pst:440:34
+use std/System.pst 757:17-757:23
+  function 'isSome' @ std/System.pst:470:17
+use std/System.pst 757:35-757:41
+  function 'isNone' @ std/System.pst:475:17
+use std/System.pst 758:17-758:20
+  function 'get' @ std/System.pst:487:17
+use std/System.pst 758:36-758:41
+  function 'getOr' @ std/System.pst:499:17
+use std/System.pst 761:15-761:19
+  function 'isOk' @ std/System.pst:478:17
+use std/System.pst 761:30-761:35
+  function 'isErr' @ std/System.pst:483:17
+use std/System.pst 762:15-762:18
+  function 'get' @ std/System.pst:493:17
+use std/System.pst 762:33-762:38
+  function 'getOr' @ std/System.pst:505:17
 use std/System.pst 766:34-766:35
   parameter 'f' @ std/System.pst:582:50
 use std/System.pst 767:37-767:41

@@ -234,16 +234,50 @@ use Main.pst 14:19-14:20
   field 'n' @ Main.pst:8:9
 use Main.pst 29:20-29:21
   field 'n' @ Main.pst:8:9
+use Main.pst 34:13-34:17
+  function 'iter' @ std/System.pst:512:17
+use Main.pst 34:20-34:26
+  function 'filter' @ std/System.pst:591:17
+use Main.pst 34:34-34:37
+  function 'map' @ std/System.pst:582:17
+use Main.pst 34:46-34:50
+  function 'skip' @ std/System.pst:614:17
+use Main.pst 34:54-34:58
+  function 'take' @ std/System.pst:604:17
+use Main.pst 36:16-36:20
+  function 'iter' @ std/System.pst:512:17
+use Main.pst 36:23-36:26
+  function 'map' @ std/System.pst:582:17
+use Main.pst 38:20-38:24
+  function 'iter' @ std/System.pst:512:17
+use Main.pst 38:34-38:38
+  function 'iter' @ std/System.pst:512:17
 use Main.pst 38:28-38:29
   parameter 'b' @ std/System.pst:625:65
 use Main.pst 39:16-39:21
   field 'first' @ std/System.pst:43:16
 use Main.pst 39:25-39:31
   field 'second' @ std/System.pst:44:16
+use Main.pst 40:26-40:30
+  function 'iter' @ std/System.pst:512:17
 use Main.pst 41:16-41:21
   field 'index' @ std/System.pst:48:16
 use Main.pst 41:26-41:31
   field 'value' @ std/System.pst:49:16
+use Main.pst 43:14-43:18
+  function 'iter' @ std/System.pst:512:17
 use Main.pst 46:39-46:40
   field 'n' @ Main.pst:8:9
+use Main.pst 46:55-46:59
+  function 'iter' @ std/System.pst:512:17
+use Main.pst 47:22-47:26
+  function 'iter' @ std/System.pst:512:17
+use Main.pst 47:29-47:32
+  function 'map' @ std/System.pst:582:17
+use Main.pst 47:70-47:74
+  function 'iter' @ std/System.pst:512:17
+use Main.pst 47:94-47:98
+  function 'iter' @ std/System.pst:512:17
+use Main.pst 49:23-49:27
+  function 'iter' @ std/System.pst:512:17
 --- stderr

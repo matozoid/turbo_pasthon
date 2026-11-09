@@ -2861,10 +2861,15 @@ function tparamNames(ts: List[ref Symbol]): String
         add(var names, t.name)
     return join(names, sep: ", ")
 
+## Records that the name at `span` means `sym`: the routine picked for an overloaded name,
+## or for the name after the dot in `x.f()`, which the resolver can't know.
 procedure narrowTo(tc: ref TC, span: Span, sym: Option[ref Symbol])
     case sym of
         Some(s):
-            narrow(tc.env.index, tc.file, span, [s.value])
+            if lookup(tc.env.index, tc.file, span).isSome() then
+                narrow(tc.env.index, tc.file, span, [s.value])
+            else
+                add(tc.env.index, tc.file, span, [s.value])
         None:
             pass
 
@@ -3419,7 +3424,7 @@ function callExpr(tc: ref TC, e: Call, expected: Type): Type
                         "{show(rt)} has no field '{name}', and no function '{name}' is visible",
                     )
                     return errorT()
-                var req := request(e, name, cands, explicit, expected, None)
+                var req := request(e, name, cands, explicit, expected, Some(f.name.span))
                 req.receiver := Some(recv)
                 return call(tc, req)
         else:

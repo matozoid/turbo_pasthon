@@ -630,4 +630,8 @@ use Main.pst 81:39-81:43
   field 'side' @ Main.pst:9:9
 use Main.pst 82:25-82:29
   field 'side' @ Main.pst:9:9
+use Geo.pst 10:25-10:29
+  function 'area' @ Geo.pst:7:18
+use Geo.pst 16:21-16:25
+  function 'area' @ Geo.pst:7:18
 --- stderr

@@ -290,6 +290,8 @@ use Inventory.pst 46:44-46:50
   field 'status' @ Inventory.pst:11:9
 use Inventory.pst 47:28-47:34
   parameter 'amount' @ Inventory.pst:19:34
+use Inventory.pst 47:39-47:44
+  function 'isErr' @ std/System.pst:483:17
 use Inventory.pst 48:15-48:18
   field 'qty' @ Inventory.pst:10:9
 use Inventory.pst 51:10-51:14
@@ -310,4 +312,6 @@ use Inventory.pst 55:37-55:42
   field 'value' @ std/System.pst:27:16
 use Inventory.pst 56:32-56:37
   field 'error' @ std/System.pst:30:16
+use Inventory.pst 58:18-58:26
+  function 'describe' @ Inventory.pst:27:10
 --- stderr

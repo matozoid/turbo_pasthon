@@ -44,4 +44,10 @@ use Main.pst 8:11-8:21
   function 'startsWith' @ std/Strings.pst:15:21
 use Main.pst 8:47-8:57
   function 'startsWith' @ std/Strings.pst:15:21
+use Main.pst 6:13-6:20
+  function 'byteLen' @ std/Strings.pst:11:21
+use Main.pst 6:27-6:36
+  function 'charCount' @ std/Strings.pst:9:21
+use Main.pst 7:26-7:35
+  function 'charCount' @ std/Strings.pst:9:21
 --- stderr

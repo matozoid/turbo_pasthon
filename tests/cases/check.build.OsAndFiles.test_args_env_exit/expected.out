@@ -41,4 +41,6 @@ use Main.pst 9:19-9:24
   field 'value' @ std/System.pst:20:16
 use Main.pst 10:5-10:9
   type 'None' @ std/System.pst:22:12
+use Main.pst 12:37-12:43
+  function 'isNone' @ std/System.pst:475:17
 --- stderr

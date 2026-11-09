@@ -172,4 +172,12 @@ use Main.pst 28:28-28:34
   const 'Banner' @ Main.pst:7:5
 use Main.pst 28:42-28:46
   const 'Name' @ Main.pst:6:5
+use Main.pst 10:21-10:28
+  function 'byteLen' @ std/Strings.pst:11:21
+use Main.pst 11:35-11:42
+  function 'byteLen' @ std/Strings.pst:11:21
+use Main.pst 23:15-23:22
+  function 'byteLen' @ std/Strings.pst:11:21
+use Main.pst 23:34-23:41
+  function 'byteLen' @ std/Strings.pst:11:21
 --- stderr
