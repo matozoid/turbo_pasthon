@@ -1,0 +1,61 @@
+$ $PST query complete Main.pst:10:14
+exit 0
+--- stdout
+{"schema":"pst-query/1","items":[{"label":"side","kind":"field","detail":"field side: Integer"}]}
+--- stderr
+$ $PST query complete Main.pst:9:11
+exit 0
+--- stdout
+{"schema":"pst-query/1","items":[{"label":"twice","kind":"function","detail":"function twice(n: Integer): Integer"}]}
+--- stderr
+$ $PST query impls Shapes.pst:4:12
+exit 0
+--- stdout
+{"schema":"pst-query/1","symbols":[{"name":"Square","kind":"type","location":{"file":"Shapes.pst","line":7,"col":12,"endLine":7,"endCol":18}}]}
+--- stderr
+$ $PST query impls Shapes.pst:5:18
+exit 0
+--- stdout
+{"schema":"pst-query/1","symbols":[{"name":"area","kind":"function","location":{"file":"Shapes.pst","line":10,"col":17,"endLine":10,"endCol":21}}]}
+--- stderr
+$ $PST query impls Main.pst:5:10
+exit 0
+--- stdout
+{"schema":"pst-query/1","symbols":[]}
+--- stderr
+$ $PST query callers Shapes.pst:10:17
+exit 0
+--- stdout
+{"schema":"pst-query/1","callers":[{"file":"Main.pst","calls":[{"file":"Main.pst","line":9,"col":36,"endLine":9,"endCol":40}]},{"caller":{"name":"total","kind":"function","location":{"file":"Shapes.pst","line":13,"col":17,"endLine":13,"endCol":22}},"calls":[{"file":"Shapes.pst","line":16,"col":22,"endLine":16,"endCol":26}]}]}
+--- stderr
+$ $PST query callers Main.pst:5:10
+exit 0
+--- stdout
+{"schema":"pst-query/1","callers":[{"file":"Main.pst","calls":[{"file":"Main.pst","line":9,"col":9,"endLine":9,"endCol":14},{"file":"Main.pst","line":9,"col":30,"endLine":9,"endCol":35}]}]}
+--- stderr
+$ $PST query callees Shapes.pst:13:17
+exit 0
+--- stdout
+{"schema":"pst-query/1","callees":[{"callee":{"name":"area","kind":"function","location":{"file":"Shapes.pst","line":10,"col":17,"endLine":10,"endCol":21}},"calls":[{"file":"Shapes.pst","line":16,"col":22,"endLine":16,"endCol":26}]}]}
+--- stderr
+$ $PST query callees Main.pst:8:5
+exit 0
+--- stdout
+{"schema":"pst-query/1","callees":[]}
+--- stderr
+$ $PST query callers
+exit 2
+--- stdout
+--- stderr
+usage: pst check FILE [--json]
+       pst build FILE [-o OUT] [--unchecked] [--json]
+       pst run [--unchecked] FILE [-- ARGS]
+       pst test PATH [--filter TEXT] [--unchecked] [--json]
+       pst fmt PATH [--check]
+       pst lsp
+       pst query def|refs|type|hover|complete FILE:LINE:COL
+       pst query impls|callers|callees FILE:LINE:COL
+       pst query symbols [PATH]
+       pst tokens FILE
+       pst ast FILE
+pst: error: missing FILE:LINE:COL

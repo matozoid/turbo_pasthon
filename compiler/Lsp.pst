@@ -31,11 +31,34 @@ type
         ## The errors in the open documents.
         export errors: Integer
 
+    ## A completion item: a name, or a keyword (`kind` "keyword", no `detail`).
+    export Candidate = record
+        export label: String
+        ## The symbol kind's name, or "keyword".
+        export kind: String
+        lspKind: Integer
+        ## The hover's first line.
+        export detail: String
+        sortText: String
+
     ## The completion items found so far, for names starting with `prefix`.
     Completions = record
         prefix: String
         seen: Map[String, Boolean]
-        items: List[String]
+        items: List[Candidate]
+
+    ## Symbols found across checks, with the decoded texts of their files.
+    export Places = record
+        export syms: List[ref Symbol]
+        export texts: Map[String, Text]
+
+    ## Calls between routines: the calls in (or of) `sym`, or in the unit level of `file`
+    ## when `sym` is None, at `spans`, found by the check `analysis`.
+    export Calls = record
+        export sym: Option[ref Symbol]
+        export file: String
+        export spans: List[Span]
+        export analysis: Analysis
 
     ## A token to color (semantic tokens).
     Semantic = record
@@ -726,11 +749,13 @@ procedure offer(var c: Completions, a: Analysis, sym: ref Symbol, rank: String)
     if not startsWith(sym.name, prefix: c.prefix) or sym.name in c.seen or startsWith(sym.name, prefix: "_") then
         return
     c.seen[sym.name] := true
-    let detail := quote(headOf(a, sym))
-    add(
-        var c.items,
-        "\{\"label\":{quote(sym.name)},\"kind\":{itemKind(sym)},\"detail\":{detail},\"sortText\":{quote("{rank}{sym.name}")}}",
-    )
+    add(var c.items, Candidate(
+        label: sym.name,
+        kind: name(sym.kind),
+        lspKind: itemKind(sym),
+        detail: headOf(a, sym),
+        sortText: "{rank}{sym.name}",
+    ))
 
 ## The units whose exported names the document sees: those it uses, and System.
 function usedUnits(a: Analysis, path: String): List[ref Unit]
@@ -844,10 +869,13 @@ procedure names(var c: Completions, a: Analysis, path: String, offset: Integer)
     for word, _ in keywords() do
         if startsWith(word, prefix: c.prefix) and not (word in c.seen) then
             c.seen[word] := true
-            add(
-                var c.items,
-                "\{\"label\":{quote(word)},\"kind\":14,\"sortText\":{quote("3{word}")}}",
-            )
+            add(var c.items, Candidate(
+                label: word,
+                kind: "keyword",
+                lspKind: 14,
+                detail: "",
+                sortText: "3{word}",
+            ))
 
 function completion(s: Server, path: String, params: JValue): String
     let text := get(s.texts, path)
@@ -859,7 +887,24 @@ function completion(s: Server, path: String, params: JValue): String
     if line > len(t.lineStarts) then
         return "[]"
     let col := column(t, line, character: asInteger(field(pos, key: "character")).getOr(0))
+    var items: List[String] := []
+    for c in completionsAt(s, path, line, col: col) do
+        var detail := ""
+        if c.detail <> "" then
+            detail := ",\"detail\":{quote(c.detail)}"
+        let rest := "\"kind\":{c.lspKind}{detail},\"sortText\":{quote(c.sortText)}"
+        add(var items, "\{\"label\":{quote(c.label)},{rest}}")
+    return "\{\"isIncomplete\":false,\"items\":[{join(items, sep: ",")}]}"
+
+## The completion items at `line` and `col` (in code points) of the open document `path`.
+export function completionsAt(s: Server, path: String, line, col: Integer): List[Candidate]
+    let text := get(s.texts, path)
+    if text.isNone() or line > len(textOf(text.get()).lineStarts) then
+        return []
+    let t := textOf(text.get())
     let offset := t.lineStarts[line - 1] + col - 1
+    if offset > len(t.chars) then
+        return []
     # The word being typed, and the `.` before it.
     var start := offset
     while start > 0 and isWordChar(t.chars[start - 1]) do
@@ -876,7 +921,7 @@ function completion(s: Server, path: String, params: JValue): String
         while begin > 0 and isWordChar(t.chars[begin - 1]) do
             begin := begin - 1
         if begin = end then
-            return "[]"
+            return []
         # Check the text without the `.` and the word, which the parser may not take.
         var stop := offset
         while stop < len(t.chars) and isWordChar(t.chars[stop]) do
@@ -918,7 +963,7 @@ function completion(s: Server, path: String, params: JValue): String
                 pass
     else
         names(var c, analyze(s, path), path: path, offset: offset)
-    return "\{\"isIncomplete\":false,\"items\":[{join(c.items, sep: ",")}]}"
+    return c.items
 
 ## Whether `c` can be part of a name.
 function isWordChar(c: Char): Boolean
@@ -1155,28 +1200,43 @@ function semanticTokens(s: Server, path: String): String
 ## that provide it; in the open documents and the units they use, apart from standard units.
 function implementations(s: Server, path: String, params: JValue): String
     let first := analyze(s, path)
-    var target: Option[ref Symbol] := None
-    var member: Option[ref Symbol] := None
+    var parts: List[String] := []
     case refAt(first, path, params: params) of
         Some(r):
-            if len(r.value.targets) > 0 and r.value.targets[0].span.isSome() then
-                let sym := r.value.targets[0]
-                if sym.kind = Kind.TraitSym then
-                    target := Some(sym)
-                else if isRoutine(sym.kind) and first.checked.env.isSome() then
-                    case get(first.checked.env.get().owner, sym.id) of
-                        Some(o):
-                            if o.value.kind = Kind.TraitSym then
-                                target := Some(o.value)
-                                member := Some(sym)
-                        None:
-                            pass
+            if len(r.value.targets) > 0 then
+                let found := implementationsOf(s, first, sym: r.value.targets[0])
+                for at in found.syms do
+                    add(var parts, location(
+                        s,
+                        found.texts[at.file],
+                        file: at.file,
+                        span: at.span.get(),
+                    ))
         None:
             pass
+    return "[{join(parts, sep: ",")}]"
+
+## The types that satisfy the trait `sym`, or the routines that provide the trait routine
+## `sym` for them, in the open documents and the units they use, apart from standard
+## units. `first` is the check that found `sym`.
+export function implementationsOf(s: Server, first: Analysis, sym: ref Symbol): Places
+    var out := Places(syms: [], texts: {})
+    var target: Option[ref Symbol] := None
+    var member: Option[ref Symbol] := None
+    if sym.span.isSome() then
+        if sym.kind = Kind.TraitSym then
+            target := Some(sym)
+        else if isRoutine(sym.kind) and first.checked.env.isSome() then
+            case get(first.checked.env.get().owner, sym.id) of
+                Some(o):
+                    if o.value.kind = Kind.TraitSym then
+                        target := Some(o.value)
+                        member := Some(sym)
+                None:
+                    pass
     if target.isNone() then
-        return "[]"
+        return out
     let tr := target.get()
-    var parts: List[String] := []
     var seen: Map[String, Boolean] := {}
     for open, _ in s.texts do
         let a := analyze(s, open)
@@ -1218,15 +1278,13 @@ function implementations(s: Server, path: String, params: JValue): String
                     let key := "{at.file}:{at.span.get().start}"
                     if at.span.isSome() and at.file in a.texts and not (key in seen) then
                         seen[key] := true
-                        add(var parts, location(
-                            s,
-                            a.texts[at.file],
-                            file: at.file,
-                            span: at.span.get(),
-                        ))
+                        add(var out.syms, at)
+                        out.texts[at.file] := a.texts[at.file]
                 None:
                     pass
-    return "[{join(parts, sep: ",")}]"
+        # The checker refers to the environment, which keeps it: drop it, as the check does.
+        env.checkers := {}
+    return out
 
 # ------------------------------------------------------------------------- call hierarchy
 
@@ -1247,7 +1305,7 @@ function fileItem(s: Server, a: Analysis, file: String): String
     return "\{\"name\":{quote(name)},\"kind\":2,\"uri\":{quote(uriFor(s, file))},\"range\":{whole},\"selectionRange\":{whole}}"
 
 ## Whether the symbol is a routine declared in source.
-function isCallable(a: Analysis, sym: ref Symbol): Boolean
+export function isCallable(a: Analysis, sym: ref Symbol): Boolean
     return isRoutine(sym.kind) and sym.span.isSome() and sym.file in a.texts
 
 function prepareCallHierarchy(s: Server, path: String, params: JValue): String
@@ -1299,79 +1357,87 @@ function callerAt(a: Analysis, file: String, offset: Integer): Option[ref Symbol
 ## The calls of the item's routine in the open documents and the units they use, grouped by
 ## the routine (or main body) they are in.
 function incomingCalls(s: Server, params: JValue): String
+    var parts: List[String] := []
     case itemSym(s, params) of
         Some(found):
-            let target := found.value.second
-            var order: List[String] := []
-            var items: Map[String, String] := {}
-            var ranges: Map[String, List[String]] := {}
-            var seen: Map[String, Boolean] := {}
-            for open, _ in s.texts do
-                let a := analyze(s, open)
-                if a.checked.env.isNone() then
-                    continue
-                case defSym(a.checked.env.get(), target.file, target.span.get()) of
-                    Some(sym):
-                        for r in references(a.checked.resolved.checker.index, sym.value) do
-                            let key := "{r.file}:{r.span.start}"
-                            if r.isDef or key in seen or not (r.file in a.texts) then
-                                continue
-                            seen[key] := true
-                            var caller := r.file
-                            var item := ""
-                            case callerAt(a, r.file, offset: r.span.start) of
-                                Some(c):
-                                    caller := "{c.value.file}:{c.value.span.get().start}"
-                                    item := callItem(s, a, sym: c.value)
-                                None:
-                                    item := fileItem(s, a, file: r.file)
-                            if not (caller in items) then
-                                add(var order, caller)
-                                items[caller] := item
-                                ranges[caller] := []
-                            add(var ranges[caller], range(a.texts[r.file], r.span))
+            for c in callersOf(s, target: found.value.second) do
+                let a := c.analysis
+                var item := ""
+                case c.sym of
+                    Some(caller):
+                        item := callItem(s, a, sym: caller.value)
                     None:
-                        pass
-            var parts: List[String] := []
-            for caller in order do
-                add(
-                    var parts,
-                    "\{\"from\":{items[caller]},\"fromRanges\":[{join(ranges[caller], sep: ",")}]}",
-                )
-            return "[{join(parts, sep: ",")}]"
+                        item := fileItem(s, a, file: c.file)
+                var ranges: List[String] := []
+                for sp in c.spans do
+                    add(var ranges, range(a.texts[c.file], sp))
+                add(var parts, "\{\"from\":{item},\"fromRanges\":[{join(ranges, sep: ",")}]}")
         None:
-            return "[]"
+            pass
+    return "[{join(parts, sep: ",")}]"
+
+## The uses of the routine `target` in the open documents and the units they use, grouped
+## by the routine (or unit level) they are in.
+export function callersOf(s: Server, target: ref Symbol): List[Calls]
+    var out: List[Calls] := []
+    var slot: Map[String, Integer] := {}
+    var seen: Map[String, Boolean] := {}
+    for open, _ in s.texts do
+        let a := analyze(s, open)
+        if a.checked.env.isNone() then
+            continue
+        case defSym(a.checked.env.get(), target.file, target.span.get()) of
+            Some(sym):
+                for r in references(a.checked.resolved.checker.index, sym.value) do
+                    let key := "{r.file}:{r.span.start}"
+                    if r.isDef or key in seen or not (r.file in a.texts) then
+                        continue
+                    seen[key] := true
+                    let caller := callerAt(a, r.file, offset: r.span.start)
+                    var group := r.file
+                    if caller.isSome() then
+                        group := "{caller.get().file}:{caller.get().span.get().start}"
+                    if not (group in slot) then
+                        slot[group] := len(out)
+                        add(var out, Calls(sym: caller, file: r.file, spans: [], analysis: a))
+                    add(var out[slot[group]].spans, r.span)
+            None:
+                pass
+    return out
 
 ## The routines the item's routine calls, each with the places it calls them.
 function outgoingCalls(s: Server, params: JValue): String
+    var parts: List[String] := []
     case itemSym(s, params) of
         Some(found):
             let a := found.value.first
-            let caller := found.value.second
-            let body := declSpan(caller)
-            var order: List[Integer] := []
-            var items: Map[Integer, String] := {}
-            var ranges: Map[Integer, List[String]] := {}
-            for r in a.checked.resolved.checker.index.refs do
-                if r.isDef or r.file <> caller.file or r.span.start < body.start or r.span.end > body.end then
-                    continue
-                if len(r.targets) = 0 or not isCallable(a, r.targets[0]) then
-                    continue
-                let callee := r.targets[0]
-                if not (callee.id in items) then
-                    add(var order, callee.id)
-                    items[callee.id] := callItem(s, a, sym: callee)
-                    ranges[callee.id] := []
-                add(var ranges[callee.id], range(a.texts[r.file], r.span))
-            var parts: List[String] := []
-            for id in order do
-                add(
-                    var parts,
-                    "\{\"to\":{items[id]},\"fromRanges\":[{join(ranges[id], sep: ",")}]}",
-                )
-            return "[{join(parts, sep: ",")}]"
+            for c in calleesOf(a, caller: found.value.second) do
+                var ranges: List[String] := []
+                for sp in c.spans do
+                    add(var ranges, range(a.texts[c.file], sp))
+                let item := callItem(s, a, sym: c.sym.get())
+                add(var parts, "\{\"to\":{item},\"fromRanges\":[{join(ranges, sep: ",")}]}")
         None:
-            return "[]"
+            pass
+    return "[{join(parts, sep: ",")}]"
+
+## The routines declared in source that `caller` names in its declaration, each with the
+## places, in the check `a`.
+export function calleesOf(a: Analysis, caller: ref Symbol): List[Calls]
+    let body := declSpan(caller)
+    var out: List[Calls] := []
+    var slot: Map[Integer, Integer] := {}
+    for r in a.checked.resolved.checker.index.refs do
+        if r.isDef or r.file <> caller.file or r.span.start < body.start or r.span.end > body.end then
+            continue
+        if len(r.targets) = 0 or not isCallable(a, r.targets[0]) then
+            continue
+        let callee := r.targets[0]
+        if not (callee.id in slot) then
+            slot[callee.id] := len(out)
+            add(var out, Calls(sym: Some(callee), file: r.file, spans: [], analysis: a))
+        add(var out[slot[callee.id]].spans, r.span)
+    return out
 
 ## `c` in lower case, for ASCII letters.
 function lowerChar(c: Char): Char

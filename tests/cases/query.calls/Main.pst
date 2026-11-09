@@ -1,0 +1,10 @@
+program Main
+
+uses IO, Shapes
+
+function twice(n: Integer): Integer
+    return n + n
+
+let sq := Square(side: 3)
+writeln(twice(total([sq])) + twice(area(sq)))
+writeln(sq.si)

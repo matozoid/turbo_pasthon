@@ -1,0 +1,17 @@
+unit Shapes
+
+type
+    export Shape = trait
+        function area(this): Integer
+
+    export Square = record
+        export side: Integer
+
+export function area(sq: Square): Integer
+    return sq.side * sq.side
+
+export function total(shapes: List[Square]): Integer
+    var sum := 0
+    for s in shapes do
+        sum := sum + area(s)
+    return sum

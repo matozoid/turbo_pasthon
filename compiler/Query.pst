@@ -112,7 +112,29 @@ function symbolInfo(a: Analysis, sym: ref Symbol): String
 function answer(key: String, items: List[String]): String
     return "\{\"schema\":{quote(Schema)},{quote(key)}:[{join(items, sep: ",")}]}"
 
-## The answer to `def`, `refs`, `type` or `hover` at a position, or an error.
+## A symbol in short, where it is defined: its name, kind and location.
+function brief(sym: ref Symbol): String
+    var out := "\{\"name\":{quote(sym.name)},\"kind\":{quote(name(sym.kind))}"
+    if sym.span.isSome() and sym.file <> "" then
+        out := "{out},\"location\":{location(sym.file, sym.span.get())}"
+    return "{out}}"
+
+## Calls grouped by routine: `key` names the routine (`caller` or `callee`), or the unit
+## level by its file.
+function callsOf(key: String, groups: List[Calls]): List[String]
+    var items: List[String] := []
+    for c in groups do
+        var who := "\"file\":{quote(shown(c.file))}"
+        if c.sym.isSome() then
+            who := "{quote(key)}:{brief(c.sym.get())}"
+        var at: List[String] := []
+        for sp in c.spans do
+            add(var at, location(c.file, sp))
+        add(var items, "\{{who},\"calls\":[{join(at, sep: ",")}]}")
+    return items
+
+## The answer to `def`, `refs`, `type`, `hover`, `complete`, `impls`, `callers` or
+## `callees` at a position, or an error.
 export function queryAt(request: String, position: String, stdDir: String): Result[String, String]
     var file := ""
     var line := 0
@@ -124,9 +146,10 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
             col := p.value.second[1]
         Err(e):
             return Err(e.error)
-    ## References are searched in every file of the directory, and the units they use.
+    ## References, implementations and callers are searched in every file of the directory,
+    ## and the units they use.
     var files := [file]
-    if request = "refs" then
+    if request in ["refs", "impls", "callers"] then
         case pstFiles(dirname(file)) of
             Ok(f):
                 files := []
@@ -142,6 +165,14 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
             s := made.value
         Err(e):
             return Err(e.error)
+    if request = "complete" then
+        var items: List[String] := []
+        for c in completionsAt(s, file, line, col: col) do
+            var item := "\{\"label\":{quote(c.label)},\"kind\":{quote(c.kind)}"
+            if c.detail <> "" then
+                item := "{item},\"detail\":{quote(c.detail)}"
+            add(var items, "{item}}")
+        return Ok(answer("items", items))
     let a := analyze(s, file)
     let found := refAtLine(a, file, line, col: col)
     var targets: List[ref Symbol] := []
@@ -162,6 +193,22 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
             let where := location(r.file, r.span)
             add(var items, "{slice(where, 0, byteLen(where) - 1)},\"isDef\":{r.isDef}}")
         return Ok(answer("locations", items))
+    if request = "impls" then
+        if len(targets) > 0 then
+            let places := implementationsOf(s, a, sym: targets[0])
+            for sym in places.syms do
+                add(var items, brief(sym))
+        return Ok(answer("symbols", items))
+    if request = "callers" or request = "callees" then
+        for sym in targets do
+            if isCallable(a, sym) then
+                if request = "callers" then
+                    return Ok(answer("callers", callsOf(
+                        "caller",
+                        groups: callersOf(s, target: sym),
+                    )))
+                return Ok(answer("callees", callsOf("callee", groups: calleesOf(a, caller: sym))))
+        return Ok(answer(request, items))
     if request = "hover" then
         for sym in targets do
             add(var items, symbolInfo(a, sym))

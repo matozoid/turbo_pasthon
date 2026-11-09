@@ -1506,8 +1506,8 @@ one-shot commands with JSON output. Each command takes a position as `File.pst:l
 | `pst query hover File.pst:12:5` | everything hover shows, structured |
 | `pst query complete File.pst:12:9` | completion items with kinds and signatures |
 | `pst query symbols [File.pst]` | symbols of one file, or the project |
-| `pst query impls Measurable` | types and functions satisfying a trait |
-| `pst query callers restock` / `callees restock` | call graph edges |
+| `pst query impls File.pst:12:5` | types and functions satisfying a trait |
+| `pst query callers File.pst:12:5` / `callees` | call graph edges |
 | `pst query instances largest` | every generic instance and where each is created |
 | `pst query explain E0502` | error code documentation |
 
@@ -1516,7 +1516,8 @@ can load the whole project's structure in one call instead of opening files.
 
 All query output has a stable, versioned schema (`"schema": "pst-query/1"`).
 
-So far `pst query` has `def`, `refs`, `type`, `hover` and `symbols`. Each prints one JSON
+So far `pst query` has `def`, `refs`, `type`, `hover`, `complete`, `impls`, `callers`,
+`callees` and `symbols`. Each prints one JSON
 object with `"schema"` and one list:
 
 - `def` gives `"locations"`: the defining names, one per overload the name may mean.
@@ -1527,6 +1528,18 @@ object with `"schema"` and one list:
 - `hover` gives `"symbols"`, each with `"name"`, `"kind"`, the type or routine it belongs
   to as `"container"`, the `"type"` of a value, the `"declaration"` in short (a routine's
   signature, a declaration's first line), the `"doc"` comment and the `"location"`.
+- `complete` gives `"items"`: what the editor's completion offers at the position, each
+  with `"label"`, `"kind"` (a symbol kind, or `"keyword"`) and, for a symbol, its
+  `"detail"` (hover's declaration).
+- `impls` on a trait gives `"symbols"`, each with `"name"`, `"kind"` and `"location"`: the
+  types that satisfy it. On a trait routine, it gives the routines that provide it. Both
+  search the `.pst` files of the file's directory and the units they use, apart from the
+  standard units.
+- `callers` on a routine gives `"callers"`: one entry per routine that calls it, as
+  `"caller"` (name, kind, location), or per unit level as `"file"`, each with the
+  `"calls"` locations. It searches like `refs`.
+- `callees` on a routine gives `"callees"`: one entry per routine declared in source that
+  it calls, as `"callee"`, with the `"calls"` locations in its declaration.
 - `symbols [PATH]` gives `"symbols"` like hover's: the types, constants, routines, fields
   and enum members declared in a file, or in the `.pst` files of a directory (by default
   the current one).
