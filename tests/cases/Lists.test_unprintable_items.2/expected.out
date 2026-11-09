@@ -1,0 +1,5 @@
+$ $PST build Main.pst -o main
+exit 1
+--- stdout
+--- stderr
+Main.pst:13:1: error E0700: List[P] doesn't satisfy Printable, required by 'writeln': no visible function 'toString' takes List[P] as required

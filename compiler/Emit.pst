@@ -321,8 +321,9 @@ function isInt(t: Type): Boolean
 function isPointer(t: Type): Boolean
     return t = prim("Pointer") or t = prim("CString") or isBuiltin(t, "Ptr")
 
+## A `List`, or an `Array`: a list block whose length never changes.
 function isList(t: Type): Boolean
-    return isBuiltin(t, "List")
+    return isBuiltin(t, "List") or isBuiltin(t, "Array")
 
 function isWeak(t: Type): Boolean
     return isBuiltin(t, "Weak")

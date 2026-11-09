@@ -4222,7 +4222,7 @@ function listFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Int
         let w := subst(want, s)
         if not mentions(w, vars) and assignable(tc, a.ty, w) then
             return 1
-    if not isBuiltin(want, "List") then
+    if not isBuiltin(want, "List") and not isBuiltin(want, "Array") then
         return -1
     let elem := argsOf(want)[0]
     var s2 := s
@@ -4253,7 +4253,9 @@ procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Sp
         let p := m.params[i]
         let want := subst(p.ty, m.s)
         if a.flex = listLitT() then
-            if not known(a.ty) or not assignable(tc, a.ty, want) then
+            if isBuiltin(want, "Array") then
+                _ := check(tc, a.expr, want)
+            else if not known(a.ty) or not assignable(tc, a.ty, want) then
                 tc.types[exprId(a.expr)] := want
         else if known(a.flex) then
             _ := check(tc, a.expr, want)

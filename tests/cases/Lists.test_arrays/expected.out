@@ -1,0 +1,19 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 70
+--- stdout
+2
+20 2 3
+24
+101
+false
+ac
+1
+2
+3
+--- stderr
+panic P0001: index out of bounds
+    at Main.pst:33:9
