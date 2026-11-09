@@ -517,7 +517,8 @@ by their own `toString`, so strings appear without quotes.
 A `Real` prints with the fewest significant digits that read back as the same value,
 always as a real literal would be written: `2.0`, `0.1`, `1500.0`, in full below 10^16
 and with an exponent from there or below 0.0001 (`1.0e+16`, `1.5e-07`); and `inf`, `-inf`
-or `nan`.
+or `nan`. A `Real32` prints the same way with up to 9 digits, in full below 10^7
+(`0.1`, `9999999.0`, `1.0e+07`).
 
 ### 4.11 Function types
 
@@ -1010,6 +1011,10 @@ function largest[T: Ordered](xs: List[T]): Option[T]
   except `<>`, which is true; `0.0 = -0.0`. Structural `=` compares reals the same way,
   so a record holding a NaN is unequal to itself. A literal is the double nearest its
   decimal value (ties to even); one too large is infinity.
+- `Real32` arithmetic is IEEE-754 single precision: each operation is exact in double
+  and then rounded to the nearest single, so it gives the single-precision result. A
+  `Real32` literal is the single nearest its decimal value. `Real(x)` widens a `Real32`
+  exactly and `Real32(x)` rounds a `Real` to the nearest single.
 - `toInt(r)` truncates toward zero and `round(r)` rounds half away from zero
   (`round(2.5) = 3`, `round(-2.5) = -3`). A result outside `Integer`, or a NaN, panics
   (`P0002`) in checked builds.
@@ -1165,8 +1170,9 @@ unsafe procedure fill(s: Ptr[SdlSurface])
 - Only C records can be passed to C by value or through `Ptr[T]`.
 - v0.1 code generator limits (`E0990`): C records are passed and returned by value only up
   to 16 bytes; a C call takes at most 6 integer register arguments; callbacks can't take C
-  records by value, or take or return `Real`; `Real` arguments go in up to 8 xmm registers, but `Real` can't be
-  in C memory (C record fields, `Ptr[Real]`), and `Real32`/`CFloat` isn't supported.
+  records by value, or take or return `Real` or `Real32`; real arguments go in up to 8
+  xmm registers (a `Real32` passed to `...` is promoted to `double`, as in C), but reals
+  can't be in C memory (C record fields, `Ptr[Real]`).
 
 ---
 

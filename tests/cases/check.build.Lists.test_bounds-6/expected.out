@@ -13,7 +13,7 @@ def Main.pst 5:5-5:7
   var 'xs' @ Main.pst:5:5
     : List[Integer]
 use Main.pst 6:1-6:11
-  procedure 'removeLast' @ std/System.pst:200:18
+  procedure 'removeLast' @ std/System.pst:201:18
 use Main.pst 6:16-6:18
   var 'xs' @ Main.pst:5:5
 --- stderr

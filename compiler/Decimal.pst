@@ -1,8 +1,8 @@
 unit Decimal
 
-## The bits of the IEEE-754 double nearest a real literal (SPEC §2.4), rounding half to
-## even. The conversion is exact, on natural numbers of any size, since the compiler
-## itself can't use `Real`.
+## The bits of the IEEE-754 double or single nearest a real literal (SPEC §2.4), rounding
+## half to even. The conversion is exact, on natural numbers of any size, since the
+## compiler itself can't use `Real`.
 ##
 ## A natural number is a `List[Integer]` of base 2^32 limbs, least significant first,
 ## with no zero limb on top; zero is the empty list.
@@ -10,6 +10,12 @@ unit Decimal
 uses Bits, Strings
 
 type
+    ## An IEEE-754 binary format: the significand's bits, with the implicit one, and the
+    ## exponent's.
+    Format = record
+        precision: Integer
+        exponentBits: Integer
+
     ## A quotient and its remainder.
     Division = record
         q: Integer
@@ -17,7 +23,6 @@ type
 
 const
     Limb = 0xFFFFFFFF
-    Infinity = 0x7FF0000000000000
 
 procedure trim(var x: List[Integer])
     while len(x) > 0 and x[len(x) - 1] = 0 do
@@ -110,6 +115,18 @@ function scaled(n, d: List[Integer], e: Integer): Division
 
 ## The bits of the double nearest the literal `digits` (`12.5`, `1.0e-9`; no sign).
 export function realBits(digits: String): Integer
+    return nearest(digits, Format(precision: 53, exponentBits: 11))
+
+## The bits of the single nearest the literal `digits`.
+export function real32Bits(digits: String): Integer
+    return nearest(digits, Format(precision: 24, exponentBits: 8))
+
+## The bits of the number nearest `digits` in format `f`.
+function nearest(digits: String, f: Format): Integer
+    let p := f.precision
+    let bias := shl(1, f.exponentBits - 1) - 1
+    let infinity := shl(shl(1, f.exponentBits) - 1, p - 1)
+    let lowest := 2 - bias - p  # the exponent of the smallest subnormal
     let bs := bytes(digits)
     var m: List[Integer] := []
     var exp := 0
@@ -141,9 +158,9 @@ export function realBits(digits: String): Integer
     if len(m) = 0 then
         return 0
     let magnitude := bitLen(m) * 301 div 1000 + exp  # about log10 of the value
-    if magnitude > 310 then
-        return Infinity
-    if magnitude < -330 then
+    if magnitude > bias * 301 div 1000 + 2 then
+        return infinity
+    if magnitude < lowest * 302 div 1000 - 3 then
         return 0
     var n := m
     var d: List[Integer] := [1]
@@ -152,12 +169,12 @@ export function realBits(digits: String): Integer
     for k := 1 to -exp do
         d := mulAdd(d, 10, c: 0)
     # n / d is in [2^(k-1), 2^(k+1)) for k = bitLen(n) - bitLen(d), so scaled by 2^-e it
-    # has 53 or 54 bits; at the bottom of the subnormals fewer.
-    var e := bitLen(n) - bitLen(d) - 53
-    if e < -1074 then
-        e := -1074
+    # has p or p + 1 bits; at the bottom of the subnormals fewer.
+    var e := bitLen(n) - bitLen(d) - p
+    if e < lowest then
+        e := lowest
     var quot := scaled(n, d, e: e)
-    if quot.q >= shl(1, 53) then
+    if quot.q >= shl(1, p) then
         e := e + 1
         quot := scaled(n, d, e: e)
     var den := d
@@ -167,14 +184,15 @@ export function realBits(digits: String): Integer
     let half := compare(shifted(quot.r, 1), den)
     if half > 0 or (half = 0 and q mod 2 = 1) then
         q := q + 1
-    if q = shl(1, 53) then
-        q := shl(1, 52)
+    if q = shl(1, p) then
+        q := shl(1, p - 1)
         e := e + 1
-    if q < shl(1, 52) then
-        return q  # a subnormal: e is -1074
-    if e + 1075 >= 2047 then
-        return Infinity
-    return shl(e + 1075, 52) + q - shl(1, 52)
+    if q < shl(1, p - 1) then
+        return q  # a subnormal: e is the lowest
+    let field := e - lowest + 1
+    if field >= shl(1, f.exponentBits) - 1 then
+        return infinity
+    return shl(field, p - 1) + q - shl(1, p - 1)
 
 test "exact and rounded literals"
     assert realBits("0.0") = 0 and realBits("1.0") = 0x3FF0000000000000
@@ -191,3 +209,9 @@ test "the edges of the range"
     assert realBits("1.0e400") = 0x7FF0000000000000 and realBits("1.0e-400") = 0
     assert realBits("2.2250738585072014e-308") = 0x10000000000000
     assert realBits("4.9e-324") = 1 and realBits("2.5e-324") = 1 and realBits("2.4e-324") = 0
+
+test "singles"
+    assert real32Bits("1.0") = 0x3F800000 and real32Bits("0.1") = 0x3DCCCCCD
+    assert real32Bits("3.4028235e38") = 0x7F7FFFFF and real32Bits("3.5e38") = 0x7F800000
+    assert real32Bits("1.0e-45") = 1 and real32Bits("0.71e-45") = 1 and real32Bits("0.7e-45") = 0
+    assert real32Bits("1.17549435e-38") = 0x800000 and real32Bits("16777217.0") = 0x4B800000

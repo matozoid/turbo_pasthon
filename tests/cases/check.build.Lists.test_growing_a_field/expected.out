@@ -22,7 +22,7 @@ def Main.pst 13:5-13:6
   loop variable 'i' @ Main.pst:13:5
     : Integer
 use Main.pst 14:5-14:8
-  procedure 'add' @ std/System.pst:186:18
+  procedure 'add' @ std/System.pst:187:18
 use Main.pst 14:13-14:14
   var 'b' @ Main.pst:12:5
 use Main.pst 14:22-14:25
@@ -45,7 +45,7 @@ def Main.pst 17:5-17:6
   loop variable 'i' @ Main.pst:17:5
     : Integer
 use Main.pst 18:5-18:11
-  procedure 'remove' @ std/System.pst:192:18
+  procedure 'remove' @ std/System.pst:193:18
 use Main.pst 18:16-18:17
   var 'b' @ Main.pst:12:5
 use Main.pst 18:25-18:28
@@ -56,7 +56,7 @@ def Main.pst 19:5-19:6
   loop variable 'i' @ Main.pst:19:5
     : Integer
 use Main.pst 20:5-20:15
-  procedure 'removeLast' @ std/System.pst:200:18
+  procedure 'removeLast' @ std/System.pst:201:18
 use Main.pst 20:20-20:21
   var 'b' @ Main.pst:12:5
 use Main.pst 21:1-21:8
@@ -76,7 +76,7 @@ def Main.pst 23:5-23:6
   loop variable 'i' @ Main.pst:23:5
     : Integer
 use Main.pst 24:5-24:8
-  procedure 'add' @ std/System.pst:186:18
+  procedure 'add' @ std/System.pst:187:18
 use Main.pst 24:13-24:14
   let 'r' @ Main.pst:22:5
 use Main.pst 24:22-24:23
@@ -112,7 +112,7 @@ def Main.pst 8:41-8:42
   parameter 'b' @ Main.pst:8:41
     : Bag
 use Main.pst 9:5-9:8
-  procedure 'add' @ std/System.pst:186:18
+  procedure 'add' @ std/System.pst:187:18
 use Main.pst 9:13-9:15
   parameter 'xs' @ Main.pst:8:22
 use Main.pst 9:17-9:20
@@ -132,7 +132,7 @@ def Main.pst 10:42-10:43
   parameter 'r' @ Main.pst:10:42
     : ref Bag
 use Main.pst 11:5-11:8
-  procedure 'add' @ std/System.pst:186:18
+  procedure 'add' @ std/System.pst:187:18
 use Main.pst 11:13-11:15
   parameter 'xs' @ Main.pst:10:23
 use Main.pst 11:17-11:20

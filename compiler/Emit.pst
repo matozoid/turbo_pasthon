@@ -562,7 +562,7 @@ function supportedIn(
     var done: List[String],
 ): Boolean
     let k := key(t)
-    if t = integerT() or t = realT() or t = booleanT() or t = charT() or t = stringT() or hasError(t) then
+    if t = integerT() or isRealT(t) or t = booleanT() or t = charT() or t = stringT() or hasError(t) then
         return true
     if k in seen or k in done or isInt(t) or isPointer(t) then
         return true
@@ -663,14 +663,29 @@ function descriptor(
             codeRef(g.a, lbl, offset: DDrop, label: drop)
     return g.descs[k]
 
-## A descriptor's kind word for a slot of type `t`: 1 for a reference, 2 for a real
-## (compared as a number by `=`), 0 for anything else.
+## A descriptor's kind word for a slot of type `t`: 1 for a reference, 2 for a `Real`
+## and 3 for a `Real32` (compared as numbers by `=`), 0 for anything else.
 function slotKind(g: ref Em, t: Type): Integer
     if managed(g, t) then
         return Managed
     if t = realT() then
         return 2
+    if t = real32T() then
+        return 3
     return 0
+
+function isRealT(t: Type): Boolean
+    return t = realT() or t = real32T()
+
+## Turns the single in the low half of `r` into a double in xmm register `x`.
+procedure singleToXmm(a: ref Assembler, x, r: Integer)
+    movdToXmm(a, x, r: r)
+    cvtss2sd(a, x, src: x)
+
+## Rounds the double in xmm register `x` to a single, into the low half of `r`.
+procedure singleFromXmm(a: ref Assembler, r, x: Integer)
+    cvtsd2ss(a, x, src: x)
+    movdFromXmm(a, r, x: x)
 
 ## The descriptor of union `t`'s blocks holding variant `i`.
 function variantDesc(g: ref Em, t: Type, i: Integer, v: Type): String
@@ -2477,7 +2492,10 @@ procedure exprHere(g: ref Em, e: Expr)
             else
                 movImm64(a, Rax, value: wrap(x.value))
         RealLit(x):
-            movImm64(a, Rax, value: realBits(x.digits))
+            if typeOfExpr(g, e) = real32T() then
+                movImm(a, Rax, value: real32Bits(x.digits))
+            else
+                movImm64(a, Rax, value: realBits(x.digits))
         BoolLit(x):
             if x.value then
                 movImm(a, Rax, value: 1)
@@ -2821,6 +2839,10 @@ procedure eUnary(g: ref Em, x: Unary, e: Expr)
             shlImm(a, Rcx, n: 63)
             xor(a, Rax, Rcx)  # flips the sign bit
             return
+        if t = real32T() then
+            movImm(a, Rcx, value: 0x80000000)
+            xor(a, Rax, Rcx)
+            return
         neg(a, Rax)  # sets CF unless the operand is 0
         if t = uint64T() then
             fit(g, t, x.span, cc: "b")
@@ -2964,8 +2986,8 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
         return
     mov(a, Rcx, Rax)
     pop(a, Rax)
-    if t = realT() then
-        realBinary(g, op, x.span)
+    if isRealT(t) then
+        realBinary(g, op, x.span, single: t = real32T())
     else if isCompare(op) then
         cmp(a, Rax, Rcx)
         if typeOfExpr(g, x.left) = uint64T() or typeOfExpr(g, x.right) = uint64T() then
@@ -2980,10 +3002,16 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
 
 ## rax := rax op rcx for reals, as IEEE-754 doubles: a comparison with a NaN is false
 ## except `<>`, and dividing by zero gives an infinity or a NaN.
-procedure realBinary(g: ref Em, op: String, span: Span)
+## Applies `op` to the reals in rax and rcx, singles if `single`: they are computed as
+## doubles, which hold the exact result of an operation on singles to round.
+procedure realBinary(g: ref Em, op: String, span: Span, single: Boolean)
     let a := g.a
-    movqToXmm(a, Xmm0, r: Rax)
-    movqToXmm(a, Xmm1, r: Rcx)
+    if single then
+        singleToXmm(a, Xmm0, r: Rax)
+        singleToXmm(a, Xmm1, r: Rcx)
+    else
+        movqToXmm(a, Xmm0, r: Rax)
+        movqToXmm(a, Xmm1, r: Rcx)
     if op = "<" or op = "<=" then
         ucomisd(a, Xmm1, y: Xmm0)
     else if isCompare(op) then
@@ -3002,7 +3030,10 @@ procedure realBinary(g: ref Em, op: String, span: Span)
         orR(a, Rax, Rcx)
     else if op = "+" or op = "-" or op = "*" or op = "/" then
         realOp(a, op, Xmm0, src: Xmm1)
-        movqFromXmm(a, Rax, x: Xmm0)
+        if single then
+            singleFromXmm(a, Rax, x: Xmm0)
+        else
+            movqFromXmm(a, Rax, x: Xmm0)
         return
     else
         unsupported(g, span, "'{op}'")
@@ -3132,7 +3163,7 @@ procedure stringOf(g: ref Em, parts: List[InterpPart])
 procedure toString(g: ref Em, e: Expr)
     let t := base(g.env, typeOfExpr(g, e))
     let isEnum := kind(g, t) = "enum"
-    if t <> stringT() and t <> booleanT() and t <> charT() and t <> realT() and not isEnum and not isInt(t) then
+    if t <> stringT() and t <> booleanT() and t <> charT() and not isRealT(t) and not isEnum and not isInt(t) then
         declaredToString(g, e, t)
         return
     expr(g, e)
@@ -3146,6 +3177,8 @@ procedure toString(g: ref Em, e: Expr)
             callRuntime(g, "rt_uint_to_str")
     else if t = realT() then
         callRuntime(g, "rt_real_to_str")
+    else if t = real32T() then
+        callRuntime(g, "rt_real32_to_str")
     else if t = booleanT() then
         callRuntime(g, "rt_bool_to_str")
     else if t = charT() then
@@ -3502,6 +3535,17 @@ procedure convert(g: ref Em, c: Call)
         if target <> dst then
             inRange(g, target, c.span)
         return
+    if isRealT(src) and isRealT(dst) then  # `Real(x)` widens exactly, `Real32(x)` rounds
+        expr(g, c.args[0].value)
+        if g.bad then
+            return
+        if dst = realT() then
+            singleToXmm(a, Xmm0, r: Rax)
+            movqFromXmm(a, Rax, x: Xmm0)
+        else
+            movqToXmm(a, Xmm0, r: Rax)
+            singleFromXmm(a, Rax, x: Xmm0)
+        return
     if not (isInt(src) and isInt(dst)) then
         unsupported(g, c.span, "converting {show(src)} to {show(dst)}")
         return
@@ -3550,18 +3594,23 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
         expr(g, x.expr)
         if g.bad then
             return
+        var t := typeOfExpr(g, x.expr)
+        if t = real32T() then  # C promotes a variadic float to a double
+            singleToXmm(a, Xmm0, r: Rax)
+            movqFromXmm(a, Rax, x: Xmm0)
+            t := realT()
         push(a, Rax)
-        add(var args, CArgT(ty: typeOfExpr(g, x.expr), byValue: false))
+        add(var args, CArgT(ty: t, byValue: false))
     var regs := 0
     var reals := 0
     let n := len(args)
     for i := 0 to n - 1 do
-        if args[i].ty = realT() then  # in the next xmm register
+        if isRealT(args[i].ty) then  # in the next xmm register
             if reals = 8 then
-                unsupported(g, c.span, "a C call needing more than 8 Real registers")
+                unsupported(g, c.span, "a C call needing more than 8 real registers")
                 return
             load(a, Rax, Rsp, disp: 8 * (n - 1 - i))
-            movqToXmm(a, reals, r: Rax)
+            movqToXmm(a, reals, r: Rax)  # a single's upper half is 0
             reals := reals + 1
             continue
         var words := 1
@@ -3610,6 +3659,8 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
         addImm(a, Rsp, value: 16)
     else if result = realT() then
         movqFromXmm(a, Rax, x: Xmm0)
+    else if result = real32T() then
+        movdFromXmm(a, Rax, x: Xmm0)
     else if m.sig.isFunction then
         widen(g, result)  # C leaves the upper bits of small results undefined
 
@@ -3636,13 +3687,13 @@ procedure callback(g: ref Em, e: Expr, t: Type)
     let k := "thunk|{sym.get().id}"
     if not (k in g.labels) then
         for p in params do
-            if managed(g, p) or p = realT() then
+            if managed(g, p) or isRealT(p) then
                 unsupported(g, exprSpan(e), "a callback taking {show(p)}")
                 return
         case t of
             FuncT(ft):
-                if ft.result = realT() then
-                    unsupported(g, exprSpan(e), "a callback returning Real")
+                if isRealT(ft.result) then
+                    unsupported(g, exprSpan(e), "a callback returning {show(ft.result)}")
                     return
             else:
                 pass
@@ -4283,7 +4334,8 @@ procedure runtimeRoutine(g: ref Em, name: String)
         "rt_concat": rtConcat(g)
         "rt_int_to_str": rtIntToStr(g, "%ld")
         "rt_uint_to_str": rtIntToStr(g, "%lu")
-        "rt_real_to_str": rtRealToStr(g)
+        "rt_real_to_str": rtRealToStr(g, single: false)
+        "rt_real32_to_str": rtRealToStr(g, single: true)
         "rt_bool_to_str": rtBoolToStr(g)
         "rt_char_to_str": rtCharToStr(g)
         "rt_str_cmp": rtStrCmp(g)
@@ -4666,6 +4718,8 @@ procedure rtEq(g: ref Em)
     let no := l[7]
     let done := l[8]
     let real := l[9]
+    let single := newLabel(a, "eq")
+    let compare := newLabel(a, "eq")
     let saved := [Rbx, R12, R13, R14, R15]
     pushAll(a, saved)
     load(a, Rax, Rdi, disp: Desc)
@@ -4710,15 +4764,22 @@ procedure rtEq(g: ref Em)
     load(a, Rax, R13)
     cmpImm(a, Rax, value: 2)
     jcc(a, "e", label: real)
+    cmpImm(a, Rax, value: 3)
+    jcc(a, "e", label: single)
     testR(a, Rax, Rax)
     jcc(a, "e", label: plain)
     callRuntime(g, "rt_eq")
     testR(a, Rax, Rax)
     jcc(a, "e", label: no)
     jmp(a, nxt)
+    label(a, single)
+    singleToXmm(a, Xmm0, r: Rdi)
+    singleToXmm(a, Xmm1, r: Rsi)
+    jmp(a, compare)
     label(a, real)  # a NaN is unequal to itself; 0.0 = -0.0
     movqToXmm(a, Xmm0, r: Rdi)
     movqToXmm(a, Xmm1, r: Rsi)
+    label(a, compare)
     ucomisd(a, Xmm0, y: Xmm1)
     jcc(a, "p", label: no)
     jcc(a, "ne", label: no)
@@ -5382,11 +5443,12 @@ procedure rtIntToStr(g: ref Em, fmt: String)
     addImm(a, Rsp, value: 32)
     ret(a)
 
-## rax := the real rax as text: the fewest significant digits (`%.Ng`, N up to 17) that
-## read back as the same bits; written out in full below 10^16 (`%.1f`), and with `.0`
-## added when that shows no `.` (`2.0`, `1.0e+20`), so it reads as a real literal. `inf`,
-## `-inf` and `nan` stay as they are.
-procedure rtRealToStr(g: ref Em)
+## rax := the real rax (a single if `single`) as text: the fewest significant digits
+## (`%.Ng`, N up to 17, or 9 for a single) that read back as the same number; written out
+## in full below 10^16 (10^7 for a single) (`%.1f`), and with `.0` added when that shows
+## no `.` (`2.0`, `1.0e+20`), so it reads as a real literal. `inf`, `-inf` and `nan` stay
+## as they are.
+procedure rtRealToStr(g: ref Em, single: Boolean)
     let a := g.a
     let l := labels(a, "f", 7)
     let loop := l[0]
@@ -5400,7 +5462,18 @@ procedure rtRealToStr(g: ref Em)
     add(var fmt, Byte(0))
     var full := utf8("%.1f")
     add(var full, Byte(0))
-    movqToXmm(a, Xmm0, r: Rax)
+    # Enough digits to tell any two numbers apart, and below 10^exact every number with no
+    # more digits than its exponent is a whole one.
+    var digits := 17
+    var exact := 16
+    if single then
+        digits := 9
+        exact := 7
+    if single then  # printed as a double, read back as a single
+        singleToXmm(a, Xmm0, r: Rax)
+        movqFromXmm(a, Rax, x: Xmm0)
+    else
+        movqToXmm(a, Xmm0, r: Rax)
     ucomisd(a, Xmm0, y: Xmm0)
     let number := newLabel(a, "f")
     jcc(a, "np", label: number)
@@ -5422,12 +5495,16 @@ procedure rtRealToStr(g: ref Em)
     mov(a, R13, Rax)  # the length
     mov(a, Rdi, Rsp)
     xor32(a, Rsi, Rsi)
-    ccall(g, "strtod")
+    if single then
+        ccall(g, "strtof")
+        cvtss2sd(a, Xmm0, src: Xmm0)
+    else
+        ccall(g, "strtod")
     movqFromXmm(a, Rax, x: Xmm0)
     cmp(a, Rax, Rbx)
     jcc(a, "e", label: scan)
     incR(a, R12)
-    cmpImm(a, R12, value: 17)
+    cmpImm(a, R12, value: digits)
     jcc(a, "le", label: loop)
     label(a, scan)  # rcx: the position; r8: where `.0` goes; r9: 1 once a `.` is seen
     mov(a, R8, R13)
@@ -5461,7 +5538,7 @@ procedure rtRealToStr(g: ref Em)
     pop(a, R8)
     cmp(a, Rax, R12)
     jcc(a, "l", label: insert)
-    cmpImm(a, Rax, value: 16)
+    cmpImm(a, Rax, value: exact)
     jcc(a, "l", label: fixed)
     label(a, insert)
     testR(a, R9, R9)

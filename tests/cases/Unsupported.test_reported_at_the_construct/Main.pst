@@ -1,7 +1,18 @@
 program Main
 
-uses IO
+uses IO, C
 
-let r: Real32 := 1.5
-writeln(r)
-_ := 2.5
+extern "libc.so.6"
+    procedure take(f: function(CDouble): CInt)
+    procedure give(f: function(): CFloat)
+
+function half(x: CDouble): CInt
+    return 0
+
+function one(): CFloat
+    return 1.0
+
+unsafe procedure demo()
+    take(half)
+    give(one)
+demo()

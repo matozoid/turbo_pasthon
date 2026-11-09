@@ -465,6 +465,23 @@ export procedure movqToXmm(a: ref Assembler, x, r: Integer)
 export procedure movqFromXmm(a: ref Assembler, r, x: Integer)
     sse(a, 0x66, 0x7E, x, rm: r, w: true)
 
+## `movd xmm, r32`: the low 32 bits of a general register into an xmm register.
+export procedure movdToXmm(a: ref Assembler, x, r: Integer)
+    sse(a, 0x66, 0x6E, x, rm: r)
+
+## `movd r32, xmm`: the low 32 bits of an xmm register into a general register, zeroing
+## the upper ones.
+export procedure movdFromXmm(a: ref Assembler, r, x: Integer)
+    sse(a, 0x66, 0x7E, x, rm: r)
+
+## `cvtss2sd dst, src`: a single to a double, exactly.
+export procedure cvtss2sd(a: ref Assembler, dst, src: Integer)
+    sse(a, 0xF3, 0x5A, dst, rm: src)
+
+## `cvtsd2ss dst, src`: a double to the nearest single.
+export procedure cvtsd2ss(a: ref Assembler, dst, src: Integer)
+    sse(a, 0xF2, 0x5A, dst, rm: src)
+
 ## `addsd`, `subsd`, `mulsd` or `divsd dst, src` for the operator `op`.
 export procedure realOp(a: ref Assembler, op: String, dst, src: Integer)
     var code := 0x58

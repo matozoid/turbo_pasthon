@@ -139,6 +139,7 @@ extern "pst"
 
     export function toString(x: Integer): String
     export function toString(x: Real): String
+    export function toString(x: Real32): String
     export function toString(x: Boolean): String
     export function toString(x: Char): String
     export function toString(x: String): String

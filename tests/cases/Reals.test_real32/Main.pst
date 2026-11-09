@@ -1,0 +1,37 @@
+program Main
+
+uses IO, C
+
+type
+    P = record
+        x: Real32
+        y: Real32
+
+extern "libm.so.6"
+    function sqrtf(x: CFloat): CFloat
+    function powf(x: CFloat, y: CFloat): CFloat
+
+extern "libc.so.6"
+    function printf(fmt: CString, ...): CInt
+
+let a: Real32 := 0.1
+let b: Real32 := 0.2
+writeln(a + b)
+writeln(Real(a))
+writeln(Real32(0.1) = a)
+let big: Real32 := 16777216.0
+writeln(big + 1.0)
+writeln("{Real32(9999999.0)} {Real32(10000000.0)} {Real32(1.0e-45)} {-a}")
+writeln("{a < b} {a * b} {b / a} {b - a}")
+let z: Real32 := 0.0
+let n := z / z
+writeln("{n = n} {n} {Real32(1.0) / z} {-Real32(1.0) / z}")
+writeln(P(x: 1.5, y: 2.0) = P(x: 1.5, y: 2.0))
+writeln([Real32(1.5), 2.0])
+writeln(sqrtf(2.0))
+writeln(powf(2.0, y: 10.0))
+unsafe procedure show(a: Real32)
+    _ := printf(toCString("%.3f %d\n"), a, CInt(3))
+show(a)
+writeln(Real32(3.4028235e38))
+writeln(Real32(Real(a) * 3.0))

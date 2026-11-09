@@ -1,0 +1,22 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+0.3
+0.10000000149011612
+true
+16777216.0
+9999999.0 1.0e+07 1.0e-45 -0.1
+true 0.020000001 2.0 0.1
+false nan inf -inf
+true
+[1.5, 2.0]
+1.4142135
+1024.0
+3.4028235e+38
+0.3
+0.100 3
+--- stderr

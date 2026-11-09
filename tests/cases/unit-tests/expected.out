@@ -18,23 +18,24 @@ ok   std/Strings.pst:209: trim and replace
 ok   std/Strings.pst:215: parseInt
 ok   std/Strings.pst:225: parseReal
 ok   std/Strings.pst:233: bytes and fromBytes
-ok   std/System.pst:736: list editing
-ok   std/System.pst:749: sort is stable
-ok   std/System.pst:760: maps
-ok   std/System.pst:772: sets
-ok   std/System.pst:783: options and results
-ok   std/System.pst:793: iterators
+ok   std/System.pst:737: list editing
+ok   std/System.pst:750: sort is stable
+ok   std/System.pst:761: maps
+ok   std/System.pst:773: sets
+ok   std/System.pst:784: options and results
+ok   std/System.pst:794: iterators
 23 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/compiler
 exit 0
 --- stdout
-ok   compiler/Decimal.pst:179: exact and rounded literals
-ok   compiler/Decimal.pst:188: the edges of the range
+ok   compiler/Decimal.pst:197: exact and rounded literals
+ok   compiler/Decimal.pst:206: the edges of the range
+ok   compiler/Decimal.pst:213: singles
 ok   compiler/Difflib.pst:90: close matches, best first
 ok   compiler/Paths.pst:120: dirname and basename
 ok   compiler/Paths.pst:126: stripExt
 ok   compiler/Paths.pst:132: join and normalize
 ok   compiler/Paths.pst:139: relative
-7 passed, 0 failed
+8 passed, 0 failed
 --- stderr

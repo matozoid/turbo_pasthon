@@ -112,6 +112,9 @@ export function integerT(): Type
 export function realT(): Type
     return prim("Real64")
 
+export function real32T(): Type
+    return prim("Real32")
+
 export function booleanT(): Type
     return prim("Boolean")
 

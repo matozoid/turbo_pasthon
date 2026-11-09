@@ -60,9 +60,9 @@ use Main.pst 22:1-22:8
 use Main.pst 22:11-22:19
   function 'toString' @ std/System.pst:140:21
 use Main.pst 22:27-22:35
-  function 'toString' @ std/System.pst:142:21
-use Main.pst 22:44-22:52
   function 'toString' @ std/System.pst:143:21
+use Main.pst 22:44-22:52
+  function 'toString' @ std/System.pst:144:21
 use Main.pst 22:66-22:69
   function 'ord' @ std/System.pst:133:21
 use Main.pst 23:1-23:8
