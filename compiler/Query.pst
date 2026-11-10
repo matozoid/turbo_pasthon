@@ -48,7 +48,7 @@ export function pstFiles(path: String): Result[List[String], String]
 
 ## A server with the files as its open documents, read from disk.
 export function serverFor(stdDir: String, files: List[String]): Result[Server, String]
-    var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)
+    var s := Server(stdDir: stdDir, texts: [:], uris: [:], down: false)
     for file in files do
         case readFile(file) of
             Ok(text):
@@ -169,7 +169,7 @@ function findNames(name: String, stdDir: String, overloads: Boolean): Result[Lis
                 add(var paths, absolute(x))
         Err(e):
             return Err(e.error)
-    var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)
+    var s := Server(stdDir: stdDir, texts: [:], uris: [:], down: false)
     case serverFor(stdDir, paths) of
         Ok(made):
             s := made.value
@@ -177,15 +177,15 @@ function findNames(name: String, stdDir: String, overloads: Boolean): Result[Lis
             return Err(e.error)
     var found: List[String] := []
     var shownAs: List[String] := []
-    var seen: Map[String, Boolean] := {}
-    var covered: Map[String, Boolean] := {}
-    var owners: Map[String, Boolean] := {}
+    var seen: Map[String, Boolean] := [:]
+    var covered: Map[String, Boolean] := [:]
+    var owners: Map[String, Boolean] := [:]
     var routines := true
     for path in paths do
         if path in covered then
             continue
         let a := analyze(s, path)
-        var unitOf: Map[String, String] := {}
+        var unitOf: Map[String, String] := [:]
         for u in a.checked.resolved.units do
             unitOf[u.path] := u.name
             covered[u.path] := true
@@ -252,7 +252,7 @@ export function queryAt(request: String, position: String, stdDir: String): Resu
                 return Err(e.error)
     var key := ""
     var items: List[String] := []
-    var seen: Map[String, Boolean] := {}
+    var seen: Map[String, Boolean] := [:]
     for at in positions do
         case queryItems(request, position: at, stdDir: stdDir) of
             Ok(r):
@@ -293,7 +293,7 @@ function queryItems(
                 files := f.value
             Err(e):
                 return Err(e.error)
-    var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)
+    var s := Server(stdDir: stdDir, texts: [:], uris: [:], down: false)
     case serverFor(stdDir, files) of
         Ok(made):
             s := made.value
@@ -345,7 +345,7 @@ function queryItems(
         return Ok(Pair(first: request, second: items))
     if request = "instances" then
         if length(targets) > 0 then
-            var slot: Map[String, Integer] := {}
+            var slot: Map[String, Integer] := [:]
             var names: List[String] := []
             var args: List[List[String]] := []
             var places: List[List[String]] := []
@@ -375,7 +375,7 @@ function queryItems(
         return Ok(Pair(first: if request = "accepts" then "symbols" else "types", second: items))
     let env := a.checked.env.get()
     if request = "accepts" then
-        var seen: Map[Integer, Boolean] := {}
+        var seen: Map[Integer, Boolean] := [:]
         for sym in targets do
             case valueTypeOf(env, sym) of
                 Some(t):
@@ -394,7 +394,7 @@ function queryItems(
                 var syms: List[ref Symbol] := []
                 typeSyms(t.value, var syms)
                 var decls: List[String] := []
-                var seen: Map[Integer, Boolean] := {}
+                var seen: Map[Integer, Boolean] := [:]
                 for d in syms do
                     if d.span.isSome() and d.file <> "" and not (d.id in seen) then
                         seen[d.id] := true
@@ -423,18 +423,18 @@ export function querySymbols(
     query: String := "",
 ): Result[String, String]
     var paths: List[String] := []
-    var wantFile: Map[String, Boolean] := {}
+    var wantFile: Map[String, Boolean] := [:]
     for f in files do
         add(var paths, absolute(f))
         wantFile[absolute(f)] := true
-    var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)
+    var s := Server(stdDir: stdDir, texts: [:], uris: [:], down: false)
     case serverFor(stdDir, paths) of
         Ok(made):
             s := made.value
         Err(e):
             return Err(e.error)
     var items: List[String] := []
-    var seen: Map[String, Boolean] := {}
+    var seen: Map[String, Boolean] := [:]
     for path in paths do
         let a := analyze(s, path)
         for r in a.checked.resolved.checker.index.refs do
@@ -466,27 +466,27 @@ function symbolKey(sym: ref Symbol): String
 ## `"id"`, and every name in them, with the `"symbol"` it means.
 export function queryIndex(files: List[String], stdDir: String): Result[String, String]
     var paths: List[String] := []
-    var wantFile: Map[String, Boolean] := {}
+    var wantFile: Map[String, Boolean] := [:]
     for f in files do
         add(var paths, absolute(f))
         wantFile[absolute(f)] := true
-    var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)
+    var s := Server(stdDir: stdDir, texts: [:], uris: [:], down: false)
     case serverFor(stdDir, paths) of
         Ok(made):
             s := made.value
         Err(e):
             return Err(e.error)
     var symbols: List[String] := []
-    var ids: Map[String, Integer] := {}
+    var ids: Map[String, Integer] := [:]
     var refs: List[String] := []
-    var seen: Map[String, Boolean] := {}
+    var seen: Map[String, Boolean] := [:]
     ## A file's names are taken from the first check that covers it.
-    var covered: Map[String, Boolean] := {}
+    var covered: Map[String, Boolean] := [:]
     for path in paths do
         if path in covered then
             continue
         let a := analyze(s, path)
-        var here: Map[String, Boolean] := {}
+        var here: Map[String, Boolean] := [:]
         for r in a.checked.resolved.checker.index.refs do
             if r.file in covered or not (r.file in wantFile) then
                 continue

@@ -78,7 +78,6 @@ function isOperand(k: TokenKind): Boolean
         TokenKind.StringLit,
         TokenKind.Rparen,
         TokenKind.Rbracket,
-        TokenKind.Rbrace,
         TokenKind.KwTrue,
         TokenKind.KwFalse,
         TokenKind.KwThis,
@@ -87,10 +86,10 @@ function isOperand(k: TokenKind): Boolean
     ]
 
 function isOpener(k: TokenKind): Boolean
-    return k = TokenKind.Lparen or k = TokenKind.Lbracket or k = TokenKind.Lbrace
+    return k = TokenKind.Lparen or k = TokenKind.Lbracket
 
 function isCloser(k: TokenKind): Boolean
-    return k = TokenKind.Rparen or k = TokenKind.Rbracket or k = TokenKind.Rbrace
+    return k = TokenKind.Rparen or k = TokenKind.Rbracket
 
 ## The atoms of the tokens `ts` of a logical line, with their brackets matched.
 function atomsOf(ts: List[Token]): List[Atom]
@@ -164,12 +163,15 @@ function atomsOf(ts: List[Token]): List[Atom]
         i := i + 1
     return atoms
 
-## Attaches comment `c`, inside the logical line of `atoms` or after it, to an atom.
+## Attaches comment `c`, inside the logical line of `atoms` or after it, to an atom. A
+## `{ }` comment with an atom after it on the line it ends on stays in front of that atom.
 procedure attach(var atoms: List[Atom], c: Comment)
     var k := 0
     while k < length(atoms) and atoms[k].start < c.span.start do
         k := k + 1
-    if atoms[k - 1].endLine = c.span.line then
+    if k < length(atoms) and atoms[k].line = c.span.endLine then
+        atoms[k].text := "{c.text} {atoms[k].text}"
+    else if atoms[k - 1].endLine = c.span.line then
         atoms[k - 1].after := c.text
     else
         add(var atoms[k].before, c.text)
@@ -181,7 +183,7 @@ function commentItem(c: Comment): Item
         depth: 0,
         col: c.span.col,
         first: c.span.line,
-        last: c.span.line,
+        last: c.span.endLine,
     )
 
 ## The logical lines and the comments on lines of their own, in order.
@@ -288,7 +290,6 @@ function spaced(a: TokenKind, unary: Boolean, b: TokenKind): Boolean
         TokenKind.Dotdot,
         TokenKind.Rparen,
         TokenKind.Rbracket,
-        TokenKind.Rbrace,
     ]
     if b in tightBefore then
         return false
@@ -297,7 +298,6 @@ function spaced(a: TokenKind, unary: Boolean, b: TokenKind): Boolean
         TokenKind.Dotdot,
         TokenKind.Lparen,
         TokenKind.Lbracket,
-        TokenKind.Lbrace,
     ]
     if a in tightAfter then
         return false

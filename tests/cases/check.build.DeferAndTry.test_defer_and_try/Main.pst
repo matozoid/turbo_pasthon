@@ -22,7 +22,7 @@ function both(a: String, b: String): Result[String, String]
 
 function pick(xs: List[String], n: Integer): Option[String]
     defer writeln("  pick done")
-    let m := {"x": xs[0], "y": "{try half(n)}"}
+    let m := ["x": xs[0], "y": "{try half(n)}"]
     return Some("{m["x"]}{m["y"]}")
 
 function sum(xs: List[String]): Result[Integer, String]

@@ -242,7 +242,7 @@ export function analyze(s: Server, path: String): Analysis
 ## A check of `path` with `texts` in place of the files.
 function analyzeWith(s: Server, path: String, texts: Map[String, String]): Analysis
     let checked := typecheck(path, stdDir: s.stdDir, overlay: texts)
-    var srcs: Map[String, Text] := {}
+    var srcs: Map[String, Text] := [:]
     for u in checked.resolved.units do
         srcs[u.path] := u.src
     return Analysis(checked: checked, texts: srcs)
@@ -424,7 +424,7 @@ function typeDefinition(s: Server, path: String, params: JValue): String
                         typeSyms(t.value, var syms)
                     None:
                         pass
-            var seen: Map[Integer, Boolean] := {}
+            var seen: Map[Integer, Boolean] := [:]
             for sym in syms do
                 if sym.span.isSome() and sym.file in a.texts and not (sym.id in seen) then
                     seen[sym.id] := true
@@ -454,7 +454,7 @@ function occurrences(s: Server, path: String, params: JValue): Occurrences
 ## Every definition and use of the symbol `found` refers to, `first` being the analysis
 ## it was found in.
 export function occurrencesOf(s: Server, first: Analysis, found: Option[Ref]): Occurrences
-    var o := Occurrences(sym: None, std: false, refs: [], texts: {}, errors: 0)
+    var o := Occurrences(sym: None, std: false, refs: [], texts: [:], errors: 0)
     case found of
         Some(r):
             if length(r.value.targets) > 0 and r.value.targets[0].span.isSome() then
@@ -467,7 +467,7 @@ export function occurrencesOf(s: Server, first: Analysis, found: Option[Ref]): O
     for u in first.checked.resolved.units do
         if u.path = target.file then
             o.std := u.std
-    var seen: Map[String, Boolean] := {}
+    var seen: Map[String, Boolean] := [:]
     for open, _ in s.texts do
         let a := analyze(s, open)
         o.errors := o.errors + errorCount(a)
@@ -511,7 +511,7 @@ function validName(n: String, k: Kind): Boolean
 
 ## The text of `t` with the names at `refs` replaced by `name`.
 function renamed(t: Text, refs: List[Ref], name: String): String
-    var ends: Map[Integer, Integer] := {}
+    var ends: Map[Integer, Integer] := [:]
     var starts: List[Integer] := []
     for r in refs do
         ends[r.span.start] := r.span.end
@@ -537,13 +537,13 @@ export function renamingOf(s: Server, o: Occurrences, newName: String): Result[R
         return Err("units are renamed by renaming their files")
     if not validName(newName, k: sym.kind) then
         return Err("'{newName}' is not a valid name for a {name(sym.kind)}")
-    var byFile: Map[String, List[Ref]] := {}
+    var byFile: Map[String, List[Ref]] := [:]
     for r in o.refs do
         var rs := get(byFile, r.file).getOr([])
         add(var rs, r)
         byFile[r.file] := rs
     var texts := s.texts
-    var changed: Map[String, String] := {}
+    var changed: Map[String, String] := [:]
     for file, refs in byFile do
         let text := renamed(o.texts[file], refs: refs, name: newName)
         texts[file] := text
@@ -585,11 +585,11 @@ function callAt(tokens: List[Token], offset: Integer): Option[CallSite]
     var k := 0
     while k < length(tokens) and tokens[k].span.start < offset do
         let kind := tokens[k].kind
-        if kind in [TokenKind.Lparen, TokenKind.Lbracket, TokenKind.Lbrace] then
+        if kind in [TokenKind.Lparen, TokenKind.Lbracket] then
             add(var opens, k)
             add(var commas, 0)
             add(var starts, k + 1)
-        else if kind in [TokenKind.Rparen, TokenKind.Rbracket, TokenKind.Rbrace] then
+        else if kind in [TokenKind.Rparen, TokenKind.Rbracket] then
             if length(opens) > 0 then
                 removeLast(var opens)
                 removeLast(var commas)
@@ -818,10 +818,10 @@ export function acceptorsOf(a: Analysis, path: String, ty: Type): List[ref Symbo
     for sym in visibleRoutines(a, path) do
         let g := sig(env, sym)
         if length(g.params) > 0 then
-            var vars: Vars := {}
+            var vars: Vars := [:]
             for tp in g.tparams do
                 vars[tp.id] := true
-            var sub: Subst := {}
+            var sub: Subst := [:]
             if unify(g.params[0].ty, ty, var sub, vars) and boundsHold(env, path, g.tparams, var sub, vars) then
                 add(var out, sym)
     return out
@@ -962,7 +962,7 @@ export function completionsAt(s: Server, path: String, line, col: Integer): List
     var start := offset
     while start > 0 and isWordChar(t.chars[start - 1]) do
         start := start - 1
-    var c := Completions(prefix: sub(t, start, end: offset), seen: {}, items: [])
+    var c := Completions(prefix: sub(t, start, end: offset), seen: [:], items: [])
     var dot := start
     while dot > 0 and t.chars[dot - 1] = ' ' do
         dot := dot - 1
@@ -1139,7 +1139,7 @@ function inlayHints(s: Server, path: String, params: JValue): String
             None:
                 pass
     # Inferred type arguments follow the routine's name: `largest[Integer](xs)`.
-    var seen: Map[Integer, Boolean] := {}
+    var seen: Map[Integer, Boolean] := [:]
     for c in instancesIn(env) do
         let sp := c.span
         if length(c.args) = 0 or c.file <> path or sp.line < first or sp.line > last or sp.start in seen then
@@ -1211,11 +1211,11 @@ function semanticTokens(s: Server, path: String): String
         return "\{\"data\":[]}"
     let t := text.get()
     let env := a.checked.env.get()
-    var std: Map[String, Boolean] := {}
+    var std: Map[String, Boolean] := [:]
     for u in a.checked.resolved.units do
         if u.std then
             std[u.path] := true
-    var refs: Map[Integer, Ref] := {}
+    var refs: Map[Integer, Ref] := [:]
     for r in a.checked.resolved.checker.index.refs do
         if r.file = path and length(r.targets) > 0 then
             refs[r.span.start] := r
@@ -1297,7 +1297,7 @@ function implementations(s: Server, path: String, params: JValue): String
 ## `sym` for them, in the open documents and the units they use, apart from standard
 ## units. `first` is the check that found `sym`.
 export function implementationsOf(s: Server, first: Analysis, sym: ref Symbol): Places
-    var out := Places(syms: [], texts: {})
+    var out := Places(syms: [], texts: [:])
     var target: Option[ref Symbol] := None
     var member: Option[ref Symbol] := None
     if sym.span.isSome() then
@@ -1314,7 +1314,7 @@ export function implementationsOf(s: Server, first: Analysis, sym: ref Symbol): 
     if target.isNone() then
         return out
     let tr := target.get()
-    var seen: Map[String, Boolean] := {}
+    var seen: Map[String, Boolean] := [:]
     for open, _ in s.texts do
         let a := analyze(s, open)
         if a.checked.env.isNone() then
@@ -1324,7 +1324,7 @@ export function implementationsOf(s: Server, first: Analysis, sym: ref Symbol): 
         if here.isNone() then
             continue
         let traitSym := here.get()
-        var std: Map[String, Boolean] := {}
+        var std: Map[String, Boolean] := [:]
         var home: Option[ref Unit] := None
         for u in a.checked.resolved.units do
             if u.std then
@@ -1360,7 +1360,7 @@ export function implementationsOf(s: Server, first: Analysis, sym: ref Symbol): 
                 None:
                     pass
         # The checker refers to the environment, which keeps it: drop it, as the check does.
-        env.checkers := {}
+        env.checkers := [:]
     return out
 
 # ------------------------------------------------------------------------- call hierarchy
@@ -1457,7 +1457,7 @@ function incomingCalls(s: Server, params: JValue): String
 ## create (SPEC §8.1), each once.
 export function instancesOf(s: Server, target: ref Symbol): List[Instance]
     var out: List[Instance] := []
-    var seen: Map[String, Boolean] := {}
+    var seen: Map[String, Boolean] := [:]
     if target.span.isNone() then
         return out
     for open, _ in s.texts do
@@ -1486,8 +1486,8 @@ function earlier(a, b: Instance): Boolean
 ## by the routine (or unit level) they are in.
 export function callersOf(s: Server, target: ref Symbol): List[Calls]
     var out: List[Calls] := []
-    var slot: Map[String, Integer] := {}
-    var seen: Map[String, Boolean] := {}
+    var slot: Map[String, Integer] := [:]
+    var seen: Map[String, Boolean] := [:]
     for open, _ in s.texts do
         let a := analyze(s, open)
         if a.checked.env.isNone() then
@@ -1532,7 +1532,7 @@ function outgoingCalls(s: Server, params: JValue): String
 export function calleesOf(a: Analysis, caller: ref Symbol): List[Calls]
     let body := declSpan(caller)
     var out: List[Calls] := []
-    var slot: Map[Integer, Integer] := {}
+    var slot: Map[Integer, Integer] := [:]
     for r in a.checked.resolved.checker.index.refs do
         if r.isDef or r.file <> caller.file or r.span.start < body.start or r.span.end > body.end then
             continue
@@ -1566,10 +1566,10 @@ export function matches(name, query: String): Boolean
 ## and the units they use, apart from the standard units, whose names match `query`.
 function workspaceSymbols(s: Server, query: String): String
     var parts: List[String] := []
-    var seen: Map[String, Boolean] := {}
+    var seen: Map[String, Boolean] := [:]
     for path, _ in s.texts do
         let a := analyze(s, path)
-        var std: Map[String, Boolean] := {}
+        var std: Map[String, Boolean] := [:]
         for u in a.checked.resolved.units do
             if u.std then
                 std[u.path] := true
@@ -1770,7 +1770,7 @@ procedure handle(var s: Server, m: JValue)
 
 ## Serves one client on standard input and output, until `exit` or the end of the input.
 export procedure serve(stdDir: String)
-    var s := Server(stdDir: stdDir, texts: {}, uris: {}, down: false)
+    var s := Server(stdDir: stdDir, texts: [:], uris: [:], down: false)
     while true do
         case receive() of
             Some(body):

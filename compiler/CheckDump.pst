@@ -33,7 +33,7 @@ if length(a) <> 2 then
     exit(2)
 let checked := typecheck(a[1], stdDir: a[0])
 let r := checked.resolved
-var symTypes: Map[Integer, Type] := {}
+var symTypes: Map[Integer, Type] := [:]
 if checked.env.isSome() then
     symTypes := checked.env.get().symTypes
 let std := "{a[0]}/"

@@ -4,4 +4,4 @@ x := (1 +
 y := ]
 z := (
 var w := 3
-let q := {a: (b}
+let q := [a: (b]

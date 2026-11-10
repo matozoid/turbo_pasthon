@@ -1,0 +1,123 @@
+$ $PST tokens Main.pst
+exit 0
+--- stdout
+KwProgram 1:1-1:8 "program" -
+Ident 1:9-1:13 "Main" -
+Newline 1:13-2:1 "\n" -
+KwUses 3:1-3:5 "uses" -
+Ident 3:6-3:8 "IO" -
+Newline 3:8-4:1 "\n" -
+KwFunction 7:1-7:9 "function" -
+Ident 7:10-7:13 "inc" -
+Lparen 7:13-7:14 "(" -
+Ident 7:14-7:15 "x" -
+Colon 7:15-7:16 ":" -
+Ident 7:17-7:24 "Integer" -
+Rparen 7:24-7:25 ")" -
+Colon 7:25-7:26 ":" -
+Ident 7:27-7:34 "Integer" -
+Newline 7:34-8:1 "\n" -
+Indent 8:5-8:5 "" -
+KwReturn 8:5-8:11 "return" -
+Ident 8:12-8:13 "x" -
+Plus 8:14-8:15 "+" -
+IntLit 8:16-8:17 "1" int 1
+Newline 8:31-9:1 "\n" -
+Dedent 9:1-9:1 "" -
+EndMarker 9:1-9:21 "{ end function inc }" marker function inc
+Newline 9:21-10:1 "\n" -
+KwVar 13:1-13:4 "var" -
+Ident 13:5-13:6 "s" -
+Colon 13:6-13:7 ":" -
+Ident 13:8-13:11 "Set" -
+Lbracket 13:11-13:12 "[" -
+Ident 13:12-13:16 "Byte" -
+Rbracket 13:16-13:17 "]" -
+Assign 13:18-13:20 ":=" -
+Lbracket 13:21-13:22 "[" -
+IntLit 13:22-13:23 "1" int 1
+Comma 13:23-13:24 "," -
+IntLit 13:25-13:26 "2" int 2
+Rbracket 13:26-13:27 "]" -
+Newline 13:27-14:1 "\n" -
+KwVar 14:1-14:4 "var" -
+Ident 14:5-14:6 "m" -
+Colon 14:6-14:7 ":" -
+Ident 14:8-14:11 "Map" -
+Lbracket 14:11-14:12 "[" -
+Ident 14:12-14:18 "String" -
+Comma 14:18-14:19 "," -
+Ident 14:20-14:27 "Integer" -
+Rbracket 14:27-14:28 "]" -
+Assign 14:29-14:31 ":=" -
+Lbracket 14:32-14:33 "[" -
+Colon 14:33-14:34 ":" -
+Rbracket 14:34-14:35 "]" -
+Newline 14:35-15:1 "\n" -
+Ident 15:1-15:2 "m" -
+Lbracket 15:2-15:3 "[" -
+StringLit 15:3-15:6 "\"a\"" text "a"
+Rbracket 15:6-15:7 "]" -
+Assign 15:8-15:10 ":=" -
+Ident 15:22-15:25 "inc" -
+Lparen 15:25-15:26 "(" -
+IntLit 15:26-15:27 "1" int 1
+Rparen 15:27-15:28 ")" -
+Newline 15:28-16:1 "\n" -
+Ident 16:1-16:8 "writeln" -
+Lparen 16:8-16:9 "(" -
+StringBegin 16:9-16:11 "\"{" text ""
+Ident 16:11-16:12 "m" -
+StringMid 16:12-16:15 "} {" text " "
+Ident 16:15-16:16 "s" -
+StringEnd 16:16-16:23 "} \\{x}\"" text " {x}"
+Rparen 16:23-16:24 ")" -
+Newline 16:24-17:1 "\n" -
+KwIf 17:1-17:3 "if" -
+Ident 17:4-17:10 "length" -
+Lparen 17:10-17:11 "(" -
+Ident 17:11-17:12 "m" -
+Rparen 17:12-17:13 ")" -
+Eq 17:14-17:15 "=" -
+IntLit 17:16-17:17 "1" int 1
+KwThen 17:18-17:22 "then" -
+Newline 17:22-18:1 "\n" -
+Indent 18:5-18:5 "" -
+Ident 18:5-18:12 "writeln" -
+Lparen 18:12-18:13 "(" -
+StringLit 18:13-18:18 "\"one\"" text "one"
+Rparen 18:18-18:19 ")" -
+Newline 18:19-19:1 "\n" -
+Dedent 19:1-19:1 "" -
+EndMarker 19:1-19:11 "{ end if }" marker if -
+Newline 19:11-20:1 "\n" -
+Eof 20:1-20:1 "" -
+comment 5:1-6:12 "{ Adds one.\n  Really. }" true
+comment 8:19-8:31 "{ trailing }" true
+comment 11:1-12:26 "{ a comment\n  over { nested } lines }" true
+comment 15:11-15:21 "{ inline }" true
+--- stderr
+$ $PST run Main.pst
+exit 0
+--- stdout
+[a: 2] [1, 2] {x}
+one
+--- stderr
+$ $PST query hover Main.pst:7:10
+exit 0
+--- stdout
+{"schema":"pst-query/1","symbols":[{"name":"inc","kind":"function","declaration":"function inc(x: Integer): Integer","doc":"Adds one.\nReally.","location":{"file":"Main.pst","line":7,"col":10,"endLine":7,"endCol":13}}]}
+--- stderr
+$ mkdir o && cp Main.pst o/Main.pst && $PST fmt --check o/Main.pst
+exit 0
+--- stdout
+--- stderr
+$ $PST check Bad.pst
+exit 1
+--- stdout
+--- stderr
+Bad.pst:5:1: error E0010: end marker '{ end while }' does not match the 'if' block it closes; expected '{ end if }'
+Bad.pst:6:5: error E0206: var 'x' is never used
+Bad.pst:6:12: error E0009: unmatched '}'
+Bad.pst:7:27: error E0040: expected an expression, found end of line
+Bad.pst:8:1: error E0011: unclosed comment '{'

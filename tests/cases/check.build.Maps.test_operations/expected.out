@@ -395,7 +395,7 @@ use Main.pst 77:63-77:64
   let 'e' @ Main.pst:76:5
 use Main.pst 77:68-77:69
   let 'e' @ Main.pst:76:5
-use Main.pst 77:83-77:84
+use Main.pst 77:84-77:85
   let 'e' @ Main.pst:76:5
 use Main.pst 8:12-8:19
   type 'Integer' @ std/System.pst:13:12

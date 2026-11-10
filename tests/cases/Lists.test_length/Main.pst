@@ -7,8 +7,8 @@ type
 
 let xs := [1, 2, 3]
 var a: Array[Integer, 4] := [1, 2, 3, 4]
-var m: Map[String, Integer] := {"a": 1, "b": 2}
-var s: Set[Color] := {Color.Red, Color.Blue}
+var m: Map[String, Integer] := ["a": 1, "b": 2]
+var s: Set[Color] := [Color.Red, Color.Blue]
 writeln("{length(xs)} {length(a)} {length(m)} {length(s)}")
 writeln("{xs.length()} {a.length()} {m.length()} {s.length()}")
 let empty: List[String] := []

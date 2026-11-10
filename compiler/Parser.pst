@@ -80,7 +80,7 @@ type
 ## Parses `text`, the contents of `file`.
 export function parse(text: String, file: String := "<input>"): ParseResult
     let lexed := lex(text, file: file)
-    var lines: Map[Integer, Boolean] := {}
+    var lines: Map[Integer, Boolean] := [:]
     for d in lexed.diagnostics do
         lines[d.span.line] := true
     var ends: List[Integer] := []
@@ -95,20 +95,20 @@ export function parse(text: String, file: String := "<input>"): ParseResult
                 stop := e
                 break
         add(var ranges, Pair(first: d.span.start, second: stop))
-    var codeLines: Map[Integer, Boolean] := {}
+    var codeLines: Map[Integer, Boolean] := [:]
     for t in lexed.tokens do
         if not isLayout(t.kind) then
             codeLines[t.span.line] := true
-    var docs: Map[Integer, String] := {}
+    var docs: Map[Integer, String] := [:]
     for c in lexed.comments do
-        if c.isDoc and not (c.span.line in codeLines) then
-            docs[c.span.line] := c.text
+        if c.isDoc and not (c.span.line in codeLines) and not (c.span.endLine in codeLines) then
+            docs[c.span.endLine] := c.text
     let p := new(State(
         toks: lexed.tokens,
         i: 0,
         file: file,
         diags: [],
-        reported: {},
+        reported: [:],
         last: lexed.tokens[0],
         kind: "program",
         units: [],
@@ -491,9 +491,10 @@ function endMarker(p: ref State, prev: Target): Option[Span]
         )
     else if prev.kind = TargetKind.Closes then
         if m.keyword <> prev.keyword or (isSome(m.name) and get(m.name) <> prev.name) then
-            var correct := "# end {prev.keyword}"
+            var correct := "end {prev.keyword}"
             if prev.name <> "" and isSome(m.name) then
                 correct := "{correct} {prev.name}"
+            correct := if startsWith(text, prefix: "\{") then "\{ {correct} }" else "# {correct}"
             let what := if prev.name <> "" then "{prev.keyword} '{prev.name}'" else "'{prev.keyword}' block"
             reportWith(
                 p,
@@ -692,10 +693,13 @@ function caseExprArmLine(p: ref State): Parsed[Option[CaseExprArm]]
 function caseExprArmLines(): Lines[CaseExprArm]
     return Lines(one: caseExprArmLine, onError: None, marks: None)
 
-## The `##` comment directly above `start`, without the `## ` prefixes.
+## The doc comment directly above `start`: a `{ }` comment without its braces, or `##`
+## lines without their `## ` prefixes.
 function doc(p: ref State, start: Span): Option[String]
     var lines: List[String] := []
     var line := start.line - 1
+    if line in p.docs and startsWith(p.docs[line], prefix: "\{") then
+        return Some(braceDoc(p.docs[line]))
     while line in p.docs do
         let full := p.docs[line]
         let text := slice(full, 2, byteLen(full))
@@ -712,6 +716,25 @@ function doc(p: ref State, start: Span): Option[String]
         add(var ordered, lines[i])
         i := i - 1
     return Some(join(ordered, sep: "\n"))
+
+## The text of `{ }` comment `c`: without the braces, the blank lines next to them and
+## trailing spaces, and with each line after the first losing up to two leading spaces,
+## the width of `{ `.
+function braceDoc(c: String): String
+    var lines: List[String] := []
+    for l in split(slice(c, 1, byteLen(c) - 1), sep: "\n") do
+        let drop := if length(lines) = 0 then byteLen(l) else 2
+        var s := trimEnd(l)
+        var k := 0
+        while k < drop and startsWith(s, prefix: " ") do
+            s := slice(s, 1, byteLen(s))
+            k := k + 1
+        add(var lines, s)
+    while length(lines) > 1 and lines[length(lines) - 1] = "" do
+        removeLast(var lines)
+    if length(lines) > 1 and lines[0] = "" then
+        remove(var lines, 0)
+    return join(lines, sep: "\n")
 
 # --------------------------------------------------------------------------- names
 
@@ -2095,8 +2118,6 @@ function primary(p: ref State): Parsed[Expr]
         return Ok(Paren(span: finish(p, tok.span), id: newId(p), inner: inner))
     if k = TokenKind.Lbracket then
         return brackets(p)
-    if k = TokenKind.Lbrace then
-        return braces(p)
     if k = TokenKind.KwDeref then
         step(p)
         try expect(p, TokenKind.Lparen, what: "'(' after 'deref'")
@@ -2201,20 +2222,3 @@ function mapEntries(p: ref State, first: Expr, close: TokenKind): Parsed[List[Ma
         let v := try expr(p)
         add(var entries, MapEntry(span: join(exprSpan(key), b: exprSpan(v)), key: key, value: v))
     return Ok(entries)
-
-function braces(p: ref State): Parsed[Expr]
-    let start := advance(p).span
-    if accept(p, TokenKind.Rbrace) then
-        return Ok(EmptyBraces(span: finish(p, start), id: newId(p)))
-    let first := try expr(p)
-    if accept(p, TokenKind.Colon) then
-        let entries := try mapEntries(p, first, close: TokenKind.Rbrace)
-        try expect(p, TokenKind.Rbrace, what: "'}' to close the map")
-        return Ok(MapLit(span: finish(p, start), id: newId(p), entries: entries))
-    var items: List[Expr] := [first]
-    while accept(p, TokenKind.Comma) do
-        if at(p, TokenKind.Rbrace) then
-            break
-        add(var items, try expr(p))
-    try expect(p, TokenKind.Rbrace, what: "'}' to close the set")
-    return Ok(SetLit(span: finish(p, start), id: newId(p), items: items))

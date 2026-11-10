@@ -7,11 +7,10 @@ type
     Small = -5..5
     Big = 0..300
 
-let a: Set[Digit] := {}
-let b: Set[Small] := {}
-let c: Set[Real] := {}
-let d: Set[Char] := {}
-let e: Set[Big] := {}
-let f := {1, 2}
+let a: Set[Digit] := []
+let b: Set[Small] := []
+let c: Set[Real] := []
+let d: Set[Char] := []
+let e: Set[Big] := []
 let g: Set[Boolean] := Set(words: [])
-writeln("{length(a)} {length(b)} {length(c)} {length(d)} {length(e)} {length(f)} {length(g)}")
+writeln("{length(a)} {length(b)} {length(c)} {length(d)} {length(e)} {length(g)}")

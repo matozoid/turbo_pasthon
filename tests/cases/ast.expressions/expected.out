@@ -110,24 +110,24 @@ File 1:1-28:10 kind="program"
         right: ListLit 11:18-11:20
       right: ListLit 11:23-11:27
         items[0]: Name 11:24-11:25 name="x"
-  items[10]: Assign 12:1-12:44
+  items[10]: Assign 12:1-12:45
     target: Name 12:1-12:2 name="x"
-    value: Binary 12:6-12:44 op="+" op_span=12:38-12:39
-      left: Binary 12:6-12:37 op="+" op_span=12:18-12:19
-        left: Binary 12:6-12:17 op="+" op_span=12:9-12:10
-          left: EmptyBraces 12:6-12:8
-          right: SetLit 12:11-12:17
-            items[0]: IntLit 12:12-12:13 value=1
-            items[1]: IntLit 12:15-12:16 value=2
-        right: MapLit 12:20-12:37
-          entries[0]: MapEntry 12:21-12:27
-            key: StringLit 12:21-12:24 value="a"
-            value: IntLit 12:26-12:27 value=1
-          entries[1]: MapEntry 12:29-12:35
-            key: StringLit 12:29-12:32 value="b"
-            value: IntLit 12:34-12:35 value=2
-      right: SetLit 12:40-12:44
-        items[0]: IntLit 12:41-12:42 value=1
+    value: Binary 12:6-12:45 op="+" op_span=12:39-12:40
+      left: Binary 12:6-12:38 op="+" op_span=12:19-12:20
+        left: Binary 12:6-12:18 op="+" op_span=12:10-12:11
+          left: MapLit 12:6-12:9
+          right: ListLit 12:12-12:18
+            items[0]: IntLit 12:13-12:14 value=1
+            items[1]: IntLit 12:16-12:17 value=2
+        right: MapLit 12:21-12:38
+          entries[0]: MapEntry 12:22-12:28
+            key: StringLit 12:22-12:25 value="a"
+            value: IntLit 12:27-12:28 value=1
+          entries[1]: MapEntry 12:30-12:36
+            key: StringLit 12:30-12:33 value="b"
+            value: IntLit 12:35-12:36 value=2
+      right: ListLit 12:41-12:45
+        items[0]: IntLit 12:42-12:43 value=1
   items[11]: ErrorStmt 13:1-13:15
   items[12]: ErrorStmt 14:1-14:26
   items[13]: Assign 15:1-15:28
@@ -208,7 +208,7 @@ File 1:1-28:10 kind="program"
 error E0043 6:13-6:15 "comparisons can't be chained; write 'a < b and b < c'"
 error E0040 7:21-7:24 "positional arguments must come before named arguments"
 error E0040 8:14-8:15 "positional arguments must come before named arguments"
-error E0040 13:14-13:15 "expected ':' between key and value, found '}'"
+error E0040 13:14-13:15 "expected ':' between key and value, found ']'"
 error E0040 14:25-14:26 "expected '(' after 'deref', found identifier 'p'"
 error E0803 15:10-15:28 "an 'if' expression used as an operand must be in parentheses"
   fix "add parentheses"

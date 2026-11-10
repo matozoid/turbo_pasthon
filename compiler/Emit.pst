@@ -326,19 +326,19 @@ function newFrame(file: String, sym: Option[ref Symbol], exit: String): ref Fram
         file: file,
         sym: sym,
         exit: exit,
-        slots: {},
+        slots: [:],
         size: 0,
         scopes: [first],
         loops: [],
         fors: [],
         resultSlot: None,
         posts: [],
-        old: {},
-        s: {},
-        sites: {},
+        old: [:],
+        s: [:],
+        sites: [:],
         depth: 0,
-        keep: {},
-        copied: {},
+        keep: [:],
+        copied: [:],
     ))
 
 function alloc(g: ref Em): Integer
@@ -580,7 +580,7 @@ function managed(g: ref Em, t: Type): Boolean
 function supported(g: ref Em, t: Type): Boolean
     let k := key(t)
     if not (k in g.supportedCache) then
-        var seen: Map[String, Boolean] := {}
+        var seen: Map[String, Boolean] := [:]
         var done: List[String] := []
         let ok := supportedIn(g, t, var seen, var done)
         # Without a failure, everything visited is supported; after one, only `t` is
@@ -659,7 +659,7 @@ procedure valueType(g: ref Em, t: Type, span: Span, what: String := "a value")
 ## The fields of record type `t`.
 function fields(g: ref Em, t: Type): List[FieldT]
     let d := decl(g.env, namedSym(t).get())
-    var s: Subst := {}
+    var s: Subst := [:]
     let targs := argsOf(t)
     for i := 0 to length(d.params) - 1 do
         if i < length(targs) then
@@ -780,7 +780,7 @@ function boxDesc(g: ref Em, t: Type, span: Span): String
             Some(s):
                 case get(hooks(g.env), s.value.id) of
                     Some(h):
-                        hook := labelOf(g, span, h.value, [], sites: {})
+                        hook := labelOf(g, span, h.value, [], sites: [:])
                     None:
                         pass
             None:
@@ -963,7 +963,7 @@ procedure save(g: ref Em, t: Type)
 ## Leaves the blocks above `depth`, innermost first: releases their variables and runs
 ## their `defer` statements, in reverse order. Keeps rax.
 procedure releaseScopes(g: ref Em, depth: Integer)
-    var keep: Map[Integer, Boolean] := {}
+    var keep: Map[Integer, Boolean] := [:]
     for _, slot in g.f.keep do
         keep[slot] := true
     for i := length(g.f.scopes) - 1 downto depth do
@@ -1035,16 +1035,16 @@ export function build(result: Checked, checked: Boolean := true, tests: Boolean 
     let r := result.resolved
     let env := result.env.get()
     let main := r.main.get()
-    var units: Map[String, ref Unit] := {}
+    var units: Map[String, ref Unit] := [:]
     for u in r.units do
         units[u.path] := u
-    var types: Map[String, Map[Integer, Type]] := {}
-    var calls: Map[String, Map[Integer, Match]] := {}
+    var types: Map[String, Map[Integer, Type]] := [:]
+    var calls: Map[String, Map[Integer, Match]] := [:]
     for path, tc in env.checkers do
         mergeChecker(var types, var calls, path, tc)
     for path, tc in env.constCheckers do
         mergeChecker(var types, var calls, path, tc)
-    var library: Map[String, String] := {}
+    var library: Map[String, String] := [:]
     for u in r.units do
         for item in u.parsed.file.items do
             case item of
@@ -1069,15 +1069,15 @@ export function build(result: Checked, checked: Boolean := true, tests: Boolean 
         main: main,
         a: newAssembler(),
         diagnostics: [],
-        reported: {},
+        reported: [:],
         runtime: [],
-        used: {},
+        used: [:],
         panics: [],
-        labels: {},
+        labels: [:],
         queue: [],
         lams: [],
-        descs: {},
-        supportedCache: {},
+        descs: [:],
+        supportedCache: [:],
         thunks: [],
         taken: [],
         lookups: [],
@@ -1100,8 +1100,8 @@ procedure mergeChecker(
     tc: ref TC,
 )
     if not (path in types) then
-        types[path] := {}
-        calls[path] := {}
+        types[path] := [:]
+        calls[path] := [:]
     for k, t in tc.types do
         types[path][k] := t
     for k, m in tc.calls do
@@ -1266,7 +1266,7 @@ procedure routineOf(g: ref Em, inst: Inst, node: Routine)
     let a := g.a
     let sym := inst.sym
     let sg := sig(g.env, sym)
-    var s: Subst := {}
+    var s: Subst := [:]
     for i := 0 to length(sg.tparams) - 1 do
         if i < length(inst.targs) then
             s[sg.tparams[i].id] := inst.targs[i]
@@ -1892,7 +1892,7 @@ procedure forEnum(g: ref Em, s: ForIn, t: Type)
 ## The file whose visibility resolves the bound members of `t`: where the first of its
 ## type parameters that has a site became concrete, else this file.
 function siteOf(g: ref Em, t: Type): String
-    var ps: Vars := {}
+    var ps: Vars := [:]
     paramsIn(t, var ps)
     for id, _ in ps do
         if id in g.f.sites then
@@ -1921,8 +1921,8 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
         for f in visibleRoutines(chk, name) do
             if not chosen then
                 let fs := sig(g.env, f)
-                var sf: Subst := {}
-                var vars: Vars := {}
+                var sf: Subst := [:]
+                var vars: Vars := [:]
                 for tp in fs.tparams do
                     vars[tp.id] := true
                 if length(fs.params) = 1 and isRoutineNode(f) and unify(
@@ -1936,7 +1936,7 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
                     if item.isSome() then
                         itT := made
                         var targs: List[Type] := []
-                        var sites: Map[Integer, String] := {}
+                        var sites: Map[Integer, String] := [:]
                         for tp in fs.tparams do
                             add(var targs, getOr(sf, tp.id, default: noneT()))
                             sites[tp.id] := site
@@ -1951,18 +1951,18 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
             member := tr.routines[i]
     var found: Option[Found] := None
     if item.isSome() then
-        var sub: Subst := {}
+        var sub: Subst := [:]
         sub[tr.params[0].id] := item.get()
         sub[ThisId] := itT
-        var s2: Subst := {}
-        found := provider(chk, itT, m: member, sub: sub, s: var s2, vars: {})
+        var s2: Subst := [:]
+        found := provider(chk, itT, m: member, sub: sub, s: var s2, vars: [:])
     if found.isNone() then
         unsupported(g, exprSpan(s.iterable), "a loop over {show(t)}")
         return
     let fd := found.get()
     let fsig := sig(g.env, fd.f)
     var targs: List[Type] := []
-    var sites: Map[Integer, String] := {}
+    var sites: Map[Integer, String] := [:]
     for tp in fsig.tparams do
         add(var targs, getOr(fd.sf, tp.id, default: noneT()))
         sites[tp.id] := site
@@ -2617,16 +2617,6 @@ procedure exprHere(g: ref Em, e: Expr)
             eListLit(g, x, e)
         MapLit(x):
             eMapLit(g, x, e)
-        SetLit(x):
-            eSetLit(g, x, e)
-        EmptyBraces(x):
-            if not (isMap(g.env, t) or isSet(g.env, t)) then
-                unsupported(g, x.span, "'\{}' as {show(t)}")
-                return
-            if isMap(g.env, t) then
-                sysCall(g, x.span, "emptyMap", [], targs: argsOf(t))
-            else
-                sysCall(g, x.span, "emptySet", [], targs: argsOf(t))
         Index(x):
             eIndex(g, x, e)
         Deref(x):
@@ -2770,10 +2760,6 @@ procedure eMapLit(g: ref Em, x: MapLit, e: Expr)
         call(a, put)
     pop(a, Rax)
 
-## `{a, b, ...}`: an empty set, then `include` for each element.
-procedure eSetLit(g: ref Em, x: SetLit, e: Expr)
-    setItems(g, x.span, x.items, typeOfExpr(g, e))
-
 ## A set `t` of `items`: an empty set, then `include` for each element.
 procedure setItems(g: ref Em, span: Span, items: List[Expr], t: Type)
     let a := g.a
@@ -2900,7 +2886,7 @@ procedure loadSym(g: ref Em, sym: ref Symbol, e: Expr)
         if not isRoutineNode(sym) or length(sig(g.env, sym).tparams) > 0 then
             unsupported(g, span, "{describe(sym)} as a value")
             return
-        routineValue(g, labelOf(g, span, sym, [], sites: {}), t)
+        routineValue(g, labelOf(g, span, sym, [], sites: [:]), t)
         return
     if sym.kind = Kind.ResultSym and g.f.resultSlot.isSome() then
         load(a, Rax, Rbp, disp: g.f.resultSlot.get())
@@ -3069,7 +3055,7 @@ procedure lambdaRoutine(g: ref Em, lm: Lam)
 
 ## rax := the address of the instance of generic routine `sym` that `x`, `f[T]`, names.
 procedure instanceValue(g: ref Em, sym: ref Symbol, x: Index, e: Expr)
-    var s: Subst := {}
+    var s: Subst := [:]
     case get(g.calls, g.f.file) of
         Some(m):
             case get(m.value, x.id) of
@@ -3550,23 +3536,23 @@ procedure declaredToString(g: ref Em, e: Expr, t: Type)
     let a := g.a
     let site := siteOf(g, rawType(g, exprId(e)))
     let tr := decl(g.env, sys(g.env, "Printable").get())
-    var sub: Subst := {}
+    var sub: Subst := [:]
     sub[ThisId] := t
-    var s2: Subst := {}
+    var s2: Subst := [:]
     let found := provider(
         g.env.checkers[site],
         t,
         m: tr.routines[0],
         sub: sub,
         s: var s2,
-        vars: {},
+        vars: [:],
     )
     if found.isNone() or not isRoutineNode(found.get().f) then
         unsupported(g, exprSpan(e), "converting {show(t)} to a string")
         return
     let fd := found.get()
     var targs: List[Type] := []
-    var sites: Map[Integer, String] := {}
+    var sites: Map[Integer, String] := [:]
     for tp in sig(g.env, fd.f).tparams do
         add(var targs, getOr(fd.sf, tp.id, default: noneT()))
         sites[tp.id] := site
@@ -3617,7 +3603,7 @@ procedure callExpr(g: ref Em, c: Call)
         return
     let m := mo.get()
     let sym := m.sig.sym.get()
-    var callee := Callee(sym: sym, targs: [], sites: {})
+    var callee := Callee(sym: sym, targs: [], sites: [:])
     case sym.node of
         ExternDecl(xd):
             if getOr(g.library, "{sym.file}:{xd.id}", default: "") = "pst" then
@@ -3773,7 +3759,7 @@ function countUses(g: ref Em, e: Expr, id: Integer): Integer
 
 ## The keys of the types of the boxes that reaching the place `e` goes through.
 function boxesOf(g: ref Em, e: Expr): Map[String, Boolean]
-    var boxes: Map[String, Boolean] := {}
+    var boxes: Map[String, Boolean] := [:]
     var r := unparen(e)
     var going := true
     while going do
@@ -3851,7 +3837,7 @@ function movable(g: ref Em, place: Expr, others: List[Expr], types: List[Type]):
         return false
     let boxes := boxesOf(g, place)
     if length(boxes) > 0 then
-        var seen: Map[String, Boolean] := {}
+        var seen: Map[String, Boolean] := [:]
         for t in types do
             if reaches(g, t, boxes, seen: var seen) then
                 return false
@@ -4063,7 +4049,7 @@ procedure callback(g: ref Em, e: Expr, t: Type)
         else:
             pass
     if sym.isSome() and isRoutineNode(sym.get()) and length(sig(g.env, sym.get()).tparams) = 0 then
-        let target := labelOf(g, exprSpan(e), sym.get(), [], sites: {})
+        let target := labelOf(g, exprSpan(e), sym.get(), [], sites: [:])
         if g.bad then
             return
         leaCode(g.a, Rax, label: thunkOf(g, target, t, exprSpan(e)))
@@ -4242,7 +4228,7 @@ function siteOfArg(g: ref Em, t: Type): String
 ## visibility resolves its bound members: where it became concrete (SPEC §8.2).
 function instance(g: ref Em, sym: ref Symbol, tparams: List[ref Symbol], s: Subst): Callee
     var targs: List[Type] := []
-    var sites: Map[Integer, String] := {}
+    var sites: Map[Integer, String] := [:]
     for tp in tparams do
         let t := getOr(s, tp.id, default: noneT())
         sites[tp.id] := siteOfArg(g, t)
@@ -4253,7 +4239,7 @@ function instance(g: ref Em, sym: ref Symbol, tparams: List[ref Symbol], s: Subs
 ## found where `T` became concrete (SPEC §8.2), with its own type arguments and sites.
 function boundMember(g: ref Em, c: Call, m: Match): Callee
     let member := m.sig.sym.get()
-    var sub: Subst := {}
+    var sub: Subst := [:]
     for p, t in m.pre do
         sub[p] := subT(g, t)
     var site := g.f.file
@@ -4272,21 +4258,21 @@ function boundMember(g: ref Em, c: Call, m: Match): Callee
             site := getOr(g.f.sites, id, default: g.f.file)
         None:
             pass
-    var s2: Subst := {}
+    var s2: Subst := [:]
     let found := provider(
         g.env.checkers[site],
         getOr(sub, ThisId, default: noneT()),
         m: member,
         sub: sub,
         s: var s2,
-        vars: {},
+        vars: [:],
     )
     if found.isNone() then
         unsupported(g, c.span, "calling '{member.name}' here")
-        return Callee(sym: member, targs: [], sites: {})
+        return Callee(sym: member, targs: [], sites: [:])
     let fd := found.get()
     var targs: List[Type] := []
-    var sites: Map[Integer, String] := {}
+    var sites: Map[Integer, String] := [:]
     for tp in sig(g.env, fd.f).tparams do
         add(var targs, getOr(fd.sf, tp.id, default: noneT()))
         sites[tp.id] := site
@@ -4325,7 +4311,7 @@ procedure sysCall(g: ref Em, span: Span, name: String, args: List[SysArg], targs
 ## The label of System routine `name` (not overloaded) for `targs`.
 function sysLabel(g: ref Em, span: Span, name: String, targs: List[Type]): String
     let sym := sys(g.env, name).get()
-    var sites: Map[Integer, String] := {}
+    var sites: Map[Integer, String] := [:]
     for tp in sig(g.env, sym).tparams do
         sites[tp.id] := g.f.file
     return labelOf(g, span, sym, targs, sites: sites)
@@ -4799,7 +4785,7 @@ function runtime(g: ref Em, name: String): String
     return name
 
 procedure emitRuntime(g: ref Em)
-    var done: Map[String, Boolean] := {}
+    var done: Map[String, Boolean] := [:]
     var n := 0
     while n < length(g.runtime) do  # a routine may use another
         let names := g.runtime

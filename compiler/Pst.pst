@@ -218,8 +218,8 @@ procedure fatal(message: String)
 procedure forget(result: Checked)
     case result.env of
         Some(env):
-            env.value.checkers := {}
-            env.value.constCheckers := {}
+            env.value.checkers := [:]
+            env.value.constCheckers := [:]
         None:
             return
 

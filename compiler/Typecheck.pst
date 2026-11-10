@@ -439,7 +439,7 @@ function paramTypes(syms: List[ref Symbol]): List[Type]
 
 ## Pairs `params` with `args`, as far as both go.
 function zipSubst(params: List[ref Symbol], args: List[Type]): Subst
-    var s: Subst := {}
+    var s: Subst := [:]
     var i := 0
     while i < length(params) and i < length(args) do
         s[params[i].id] := args[i]
@@ -447,7 +447,7 @@ function zipSubst(params: List[ref Symbol], args: List[Type]): Subst
     return s
 
 function setOf(syms: List[ref Symbol]): Vars
-    var v: Vars := {}
+    var v: Vars := [:]
     for s in syms do
         v[s.id] := true
     return v
@@ -561,12 +561,12 @@ function exprToType(x: TypeOrExpr): Option[TypeExpr]
 # -------------------------------------------------------------------- environment
 
 function newEnv(c: ref Checker, units: List[ref Unit]): ref Env
-    var byName: Map[String, ref Unit] := {}
+    var byName: Map[String, ref Unit] := [:]
     var i := length(units) - 1
     while i >= 0 do
         byName[units[i].name] := units[i]
         i := i - 1
-    var byFile: Map[String, ref Unit] := {}
+    var byFile: Map[String, ref Unit] := [:]
     for u in units do
         byFile[u.path] := u
     let env := new(Env(
@@ -574,20 +574,20 @@ function newEnv(c: ref Checker, units: List[ref Unit]): ref Env
         index: c.index,
         units: byName,
         byFile: byFile,
-        sigCache: {},
-        declCache: {},
-        constCache: {},
-        boundCache: {},
-        checkers: {},
-        constCheckers: {},
-        busy: {},
-        satCache: {},
-        owner: {},
-        written: {},
+        sigCache: [:],
+        declCache: [:],
+        constCache: [:],
+        boundCache: [:],
+        checkers: [:],
+        constCheckers: [:],
+        busy: [:],
+        satCache: [:],
+        owner: [:],
+        written: [:],
         hooksDone: false,
-        hookMap: {},
+        hookMap: [:],
         elemVar: newSymbol(c, Kind.TypeParamSym, "T", span: None, file: "", unitName: "System"),
-        symTypes: {},
+        symTypes: [:],
         calls: [],
     ))
     for u in units do
@@ -617,10 +617,10 @@ function newTC(env: ref Env, u: ref Unit): ref TC
         file: u.path,
         src: u.src,
         resolver: None,
-        types: {},
-        calls: {},
+        types: [:],
+        calls: [:],
         why: "",
-        inBuiltin: {},
+        inBuiltin: [:],
         result: voidT(),
         isFunction: false,
         inRoutine: false,
@@ -630,10 +630,10 @@ function newTC(env: ref Env, u: ref Unit): ref TC
         fors: [],
         lambdas: 0,
         open: [],
-        capturing: {},
+        capturing: [:],
         inDefer: false,
         inEnsures: false,
-        newArgs: {},
+        newArgs: [:],
         depth: 0,
     ))
 
@@ -1591,7 +1591,7 @@ function signature(tc: ref TC, sym: ref Symbol): Sig
     let g := sig(tc.env, sym)
     for tp in g.tparams do
         _ := bounds(tc.env, tp)
-    var done: Map[Integer, Boolean] := {}
+    var done: Map[Integer, Boolean] := [:]
     for p in g.params do
         case p.default of
             Some(x):
@@ -1968,9 +1968,6 @@ procedure walkChildren(tc: ref TC, e: Expr)
         ListLit(x):
             for i in x.items do
                 walkExpr(tc, i, none)
-        SetLit(x):
-            for i in x.items do
-                walkExpr(tc, i, none)
         MapLit(x):
             for en in x.entries do
                 walkExpr(tc, en.key, none)
@@ -2337,7 +2334,7 @@ function elements(tc: ref TC, t0: Type, n: Integer, e: Expr): List[Type]
         let fs := sig(tc.env, f)
         if length(fs.params) <> 1 or isSignatureNode(f) then
             continue
-        var sf: Subst := {}
+        var sf: Subst := [:]
         if unify(fs.params[0].ty, t, var sf, setOf(fs.tparams)) then
             case iteratorItem(tc, subst(fs.result, sf)) of
                 Some(x):
@@ -2357,8 +2354,8 @@ export function iteratorItem(tc: ref TC, t: Type): Option[Type]
     if it.isNone() then
         return None
     let x := tc.env.elemVar
-    var s: Subst := {}
-    var vars: Vars := {}
+    var s: Subst := [:]
+    var vars: Vars := [:]
     vars[x.id] := true
     if satisfies(tc, t, TraitT(sym: it.get(), args: [param(x)]), var s, vars, 0) then
         return Some(getOr(s, x.id, default: errorT()))
@@ -2378,7 +2375,7 @@ function caseStmt(tc: ref TC, s: Case): Boolean
     return ends and complete
 
 function caseInfo(t: Type, kind: String): CaseInfo
-    return CaseInfo(ty: t, kind: kind, variants: [], members: [], covered: {}, ranges: [])
+    return CaseInfo(ty: t, kind: kind, variants: [], members: [], covered: [:], ranges: [])
 
 function caseBegin(tc: ref TC, t: Type): CaseInfo
     if hasError(t) then
@@ -2743,20 +2740,8 @@ function expr(tc: ref TC, e: Expr, expected: Type): Type
             t := expr(tc, x.inner, expected)
         ListLit(x):
             t := listLit(tc, x, expected)
-        SetLit(x):
-            t := setLit(tc, x, expected)
         MapLit(x):
             t := mapLit(tc, x, expected)
-        EmptyBraces(x):
-            if isMap(tc.env, expected) or isSet(tc.env, expected) then
-                t := expected
-            else
-                fail(
-                    tc,
-                    x.span,
-                    "E0301",
-                    "the type of '\{}' isn't known here; declare it: 'var m: Map[K, V] := \{}'",
-                )
         Name(x):
             case refAt(tc, x.span) of
                 Some(r):
@@ -2903,8 +2888,8 @@ function printable(tc: ref TC, e: Expr): Type
     let t := value(tc, e, noType())
     let printable := sys(tc.env, "Printable")
     if printable.isSome() then
-        var s: Subst := {}
-        if not satisfies(tc, t, TraitT(sym: printable.get(), args: []), var s, {}, 0) then
+        var s: Subst := [:]
+        if not satisfies(tc, t, TraitT(sym: printable.get(), args: []), var s, [:], 0) then
             fail(
                 tc,
                 exprSpan(e),
@@ -2947,17 +2932,6 @@ function listLit(tc: ref TC, x: ListLit, expected: Type): Type
     for i := 1 to length(x.items) - 1 do
         _ := check(tc, x.items[i], first)
     return builtin("List", [first])
-
-function setLit(tc: ref TC, x: SetLit, expected: Type): Type
-    if isSet(tc.env, expected) then
-        for item in x.items do
-            _ := check(tc, item, argsOf(expected)[0])
-        return expected
-    let first := value(tc, x.items[0], noType())
-    for i := 1 to length(x.items) - 1 do
-        _ := check(tc, x.items[i], first)
-    checkElement(tc.env, tc.file, x.span, first)
-    return named(sys(tc.env, "Set").get(), [first])
 
 function mapLit(tc: ref TC, x: MapLit, expected: Type): Type
     if isMap(tc.env, expected) then
@@ -3544,7 +3518,7 @@ procedure instanceValue(tc: ref TC, ix: Index, span: Span, targs: List[Type], t:
         tier: 0,
         slots: [],
         extra: [],
-        pre: {},
+        pre: [:],
     )
     add(var tc.env.calls, Instance(sym: sym, args: targs, file: tc.file, span: span))
 
@@ -3793,7 +3767,7 @@ function candidates(tc: ref TC, syms: List[ref Symbol]): List[Cand]
             for c in boundCandidates(tc, Some(s), "") do
                 add(var out, c)
         else
-            add(var out, Cand(sig: sig(tc.env, s), pre: {}))
+            add(var out, Cand(sig: sig(tc.env, s), pre: [:]))
     return out
 
 function ufcsCandidates(tc: ref TC, name: String): List[Cand]
@@ -3803,7 +3777,7 @@ function ufcsCandidates(tc: ref TC, name: String): List[Cand]
     var out: List[Cand] := []
     for s in visibleRoutines(tc, name) do
         if not isSignatureNode(s) then
-            add(var out, Cand(sig: sig(tc.env, s), pre: {}))
+            add(var out, Cand(sig: sig(tc.env, s), pre: [:]))
     return out
 
 ## `Point(x: 1.0)`, `Some(5)`, or a conversion like `Int32(x)`.
@@ -3826,7 +3800,7 @@ function construct(
             return errorT()
         return convert(tc, e, prim(sym.name))
     var d := decl(tc.env, sym)
-    var pre: Subst := {}
+    var pre: Subst := [:]
     var target := sym
     if d.kind = "alias" then
         let a := d.alias
@@ -3940,7 +3914,7 @@ function callValue(tc: ref TC, e: Call, t: Type, name: String): Type
                 kind: "value",
                 positional: true,
             )
-            return call(tc, request(e, name, [Cand(sig: g, pre: {})], None, noType(), None))
+            return call(tc, request(e, name, [Cand(sig: g, pre: [:])], None, noType(), None))
         else:
             _ := prepare(tc, e.args)
             fail(tc, exprSpan(e.callee), "E0307", "'{name}' is {show(t)}, not a function")
@@ -3955,11 +3929,9 @@ function flex(tc: ref TC, v: Expr): Type
         ListLit(l):
             if length(l.items) = 0 then
                 return emptyListT()
-        EmptyBraces(_):
-            return emptyBracesT()
         MapLit(m):
             if length(m.entries) = 0 then
-                return emptyBracesT()
+                return emptyMapT()
         Lambda(_):
             return lambdaT()
         else:
@@ -4048,8 +4020,8 @@ function argDesc(a: CArg): String
         return "real literal"
     if a.flex = emptyListT() then
         return "[]"
-    if a.flex = emptyBracesT() then
-        return "\{}"
+    if a.flex = emptyMapT() then
+        return "[:]"
     if a.flex = lambdaT() then
         case a.expr of
             Lambda(l):
@@ -4206,7 +4178,7 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
         if not (t.id in pre) then
             add(var tparams, t)
     var vars := setOf(tparams)
-    var s: Subst := {}
+    var s: Subst := [:]
     case r.explicit of
         Some(ex):
             if length(ex.value) <> length(tparams) then
@@ -4221,7 +4193,7 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
                     false,
                 )
             s := zipSubst(tparams, ex.value)
-            vars := {}
+            vars := [:]
         None:
             pass
     # Bind arguments to parameters.
@@ -4435,8 +4407,8 @@ function flexFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Int
         if isBuiltin(want, "List") or isSet(tc.env, want) then
             return 0
         return -1
-    if k = emptyBracesT() then
-        if isMap(tc.env, want) or isSet(tc.env, want) then
+    if k = emptyMapT() then
+        if isMap(tc.env, want) then
             return 0
         return -1
     case k of
@@ -4481,7 +4453,7 @@ function lambdaFit(tc: ref TC, l: Lambda, f: FuncT, var s: Subst, vars: Vars): I
     if not known(t) then
         return 0
     if hasError(t) then  # the body's errors are reported when it is checked again
-        var found: Vars := {}
+        var found: Vars := [:]
         paramsIn(f.result, var found)
         for id, _ in found do
             if id in vars and not (id in s) then
@@ -4854,13 +4826,13 @@ export function implementation(tc: ref TC, typeSym, tr: ref Symbol): Option[List
     for p in decl(tc.env, typeSym).params do
         add(var targs, ParamT(sym: p))
     let t := named(typeSym, targs)
-    var vars: Vars := {}
+    var vars: Vars := [:]
     var wargs: List[Type] := []
     for p in decl(tc.env, tr).params do
         add(var wargs, ParamT(sym: p))
         vars[p.id] := true
     let wanted := TraitT(sym: tr, args: wargs)
-    var s: Subst := {}
+    var s: Subst := [:]
     if not satisfies(tc, t, wanted, var s, vars, 0) then
         return None
     let bound := TraitT(sym: tr, args: substAll(wargs, s))
@@ -4901,8 +4873,8 @@ export function boundsHold(
 function satisfiesPlain(tc: ref TC, t, wanted: Type): Boolean
     case wanted of
         TraitT(tr):
-            var s: Subst := {}
-            return satisfies(tc, t, tr, var s, {}, 0)
+            var s: Subst := [:]
+            return satisfies(tc, t, tr, var s, [:], 0)
         else:
             return true
 
@@ -4980,7 +4952,7 @@ export function provider(
         if fs.params[0].isVar <> varThis or fs.isFunction <> msig.isFunction then
             continue
         let fv := setOf(fs.tparams)
-        var sf: Subst := {}
+        var sf: Subst := [:]
         if not unify(fs.params[0].ty, t, var sf, fv) then
             continue
         var ok := true
@@ -5122,7 +5094,7 @@ export function typecheck(
     path,
     stdDir: String,
     keep: Boolean := false,
-    overlay: Map[String, String] := {},
+    overlay: Map[String, String] := [:],
 ): Checked
     let r := resolveUnits(path, stdDir: stdDir, overlay: overlay)
     var env: Option[ref Env] := None
@@ -5132,8 +5104,8 @@ export function typecheck(
             run(checker(e, u))
         checkBounds(e)
         if not keep then
-            e.checkers := {}
-            e.constCheckers := {}
+            e.checkers := [:]
+            e.constCheckers := [:]
         env := Some(e)
     r.checker.diagnostics := sortedDiagnostics(r.checker.diagnostics, mainFile: mainFile(r))
     return Checked(resolved: r, env: env)

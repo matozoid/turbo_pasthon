@@ -34,8 +34,8 @@ else
     writeln(3)
 let w := if z > 1 then 1 else 2
 writeln("{w} {undefinedHere}")
-let m := {1: [2], 3: [4]}
-let st := {1, 2}
+let m := [1: [2], 3: [4]]
+let st := [1, 2]
 writeln(m[1], st, -z, not true, IO.writeln, IO.nope, Strings.x)
 _ := deref(new(1))
 let xs: List[Integer] := []

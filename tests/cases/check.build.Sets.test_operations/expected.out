@@ -94,13 +94,17 @@ use Main.pst 16:15-16:20
   type 'Color' @ Main.pst:6:5
 use Main.pst 16:21-16:26
   enum member 'Green' @ Main.pst:6:19
-use Main.pst 17:11-17:16
+use Main.pst 17:12-17:17
   type 'Color' @ Main.pst:6:5
-use Main.pst 17:17-17:22
+use Main.pst 17:8-17:11
+  type 'Set' @ std/System.pst:70:12
+use Main.pst 17:23-17:28
+  type 'Color' @ Main.pst:6:5
+use Main.pst 17:29-17:34
   enum member 'Green' @ Main.pst:6:19
-use Main.pst 17:24-17:29
+use Main.pst 17:36-17:41
   type 'Color' @ Main.pst:6:5
-use Main.pst 17:30-17:34
+use Main.pst 17:42-17:46
   enum member 'Blue' @ Main.pst:6:26
 def Main.pst 17:5-17:6
   let 't' @ Main.pst:17:5

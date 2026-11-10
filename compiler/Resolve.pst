@@ -170,7 +170,7 @@ export function newSymbol(
         unitName: unitName,
         exported: false,
         node: NoNode(),
-        members: {},
+        members: [:],
         isExtern: false,
         reads: 0,
         unusedFix: None,
@@ -251,7 +251,7 @@ function readSource(path: String): Result[String, String]
 # ------------------------------------------------------------------------- loading
 
 ## Parses the file at `path` and every unit it uses, and resolves every name.
-export function resolve(path: String, stdDir: String, overlay: Map[String, String] := {}): Resolved
+export function resolve(path: String, stdDir: String, overlay: Map[String, String] := [:]): Resolved
     let r := resolveUnits(path, stdDir: stdDir, overlay: overlay)
     r.checker.diagnostics := sortedDiagnostics(r.checker.diagnostics, mainFile: mainFile(r))
     return r
@@ -269,14 +269,14 @@ export function mainFile(r: Resolved): String
 export function resolveUnits(
     path: String,
     stdDir: String,
-    overlay: Map[String, String] := {},
+    overlay: Map[String, String] := [:],
 ): Resolved
     let c := new(Checker(
         stdDir: stdDir,
         overlay: overlay,
-        units: {},
-        missing: {},
-        programs: {},
+        units: [:],
+        missing: [:],
+        programs: [:],
         index: newIndex(),
         diagnostics: [],
         nextSymbol: 0,
@@ -371,7 +371,7 @@ function load(c: ref Checker, path: String, std: Boolean, expected: String := ""
         std: std,
         parsed: parsed,
         symbol: symbol,
-        top: {},
+        top: [:],
         used: [],
         text: parsed.src.str,
         src: parsed.src,
@@ -400,7 +400,7 @@ function load(c: ref Checker, path: String, std: Boolean, expected: String := ""
             c.units[expected] := un
     collect(c, un)
 
-    var seen: Map[String, Boolean] := {}
+    var seen: Map[String, Boolean] := [:]
     for ident in tree.units do
         if ident.name in seen then
             continue
@@ -485,7 +485,7 @@ function findUnit(
 
 procedure checkCycles(c: ref Checker, main: ref Unit)
     ## Unit id -> 1 while visiting, 2 when done.
-    var state: Map[Integer, Integer] := {}
+    var state: Map[Integer, Integer] := [:]
     var stack: List[ref Unit] := []
     visit(c, main, state: var state, stack: var stack)
 
@@ -732,7 +732,7 @@ procedure runResolver(c: ref Checker, u: ref Unit)
 
 ## A resolver for `u`, outside any routine: what `unitLookup` uses.
 export function newResolver(c: ref Checker, u: ref Unit): ref Resolver
-    var names: Map[String, ref Unit] := {}
+    var names: Map[String, ref Unit] := [:]
     for v in usedUnits(u) do
         names[v.name] := v
     return new(Resolver(
@@ -746,7 +746,7 @@ export function newResolver(c: ref Checker, u: ref Unit): ref Resolver
         inEnsures: false,
         typeScopes: [],
         inTrait: false,
-        mainLocals: {},
+        mainLocals: [:],
         unitNames: names,
     ))
 
@@ -759,7 +759,7 @@ procedure note(r: ref Resolver, span: Span, targets: List[ref Symbol], isDef: Bo
 procedure startCtx(r: ref Resolver, isMain: Boolean)
     r.hasCtx := true
     r.isMain := isMain
-    r.scopes := [{}]
+    r.scopes := [[:]]
     r.locals := []
     r.inEnsures := false
 
@@ -780,7 +780,7 @@ procedure run(r: ref Resolver)
             Decl(_):
                 continue
     finishCtx(r)
-    var mainLocals: Map[String, ref Symbol] := {}
+    var mainLocals: Map[String, ref Symbol] := [:]
     for s in r.locals do
         mainLocals[s.name] := s
     r.mainLocals := mainLocals
@@ -872,7 +872,7 @@ export function unitLookup(r: ref Resolver, name: String): List[ref Symbol]
 
 ## Every name visible here, in order.
 function visibleNames(r: ref Resolver): List[String]
-    var names: Map[String, Boolean] := {}
+    var names: Map[String, Boolean] := [:]
     for n, _ in r.cur.top do
         names[n] := true
     for n, _ in r.unitNames do
@@ -1047,7 +1047,7 @@ function staticTarget(r: ref Resolver, e: Expr): Option[ref Symbol]
 # ------------------------------------------------------------------------- scopes
 
 procedure push(r: ref Resolver)
-    add(var r.scopes, {})
+    add(var r.scopes, [:])
 
 procedure pop(r: ref Resolver)
     removeLast(var r.scopes)
@@ -1113,7 +1113,7 @@ procedure finishCtx(r: ref Resolver)
                 continue
 
 procedure pushTypeParams(r: ref Resolver, params: List[TypeParam])
-    var scope: Map[String, ref Symbol] := {}
+    var scope: Map[String, ref Symbol] := [:]
     for p in params do
         let sym := newSymbol(
             r.c,
@@ -1136,7 +1136,7 @@ procedure pushTypeParams(r: ref Resolver, params: List[TypeParam])
         note(r, p.name.span, targets: [sym], isDef: true)
     add(var r.typeScopes, scope)
     # Bound members (SPEC §8.2): routines required by a bound resolve to the trait.
-    var members: Map[String, ref Symbol] := {}
+    var members: Map[String, ref Symbol] := [:]
     for p in params do
         for b in p.bounds do
             for sym in typeExpr(r, b) do
@@ -1447,9 +1447,6 @@ procedure expr(r: ref Resolver, e: Expr)
                     TextPart(_):
                         continue
         ListLit(l):
-            for x in l.items do
-                expr(r, x)
-        SetLit(l):
             for x in l.items do
                 expr(r, x)
         MapLit(m):

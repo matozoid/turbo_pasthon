@@ -1,0 +1,9 @@
+program Bad
+
+if true then
+    pass
+{ end while }
+var x := 1 }
+var s: Set[Byte] := {1, 2}
+{ never closed
+var y := 2

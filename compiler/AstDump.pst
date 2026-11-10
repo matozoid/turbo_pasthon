@@ -184,10 +184,6 @@ procedure expr(e: Expr, d: Integer, label: String)
                 line(c, item("entries", i), kind: "MapEntry", span: m.span, scalars: "")
                 expr(m.key, c + 1, label: one("key"))
                 expr(m.value, c + 1, label: one("value"))
-        SetLit(x):
-            line(d, label, kind: "SetLit", span: x.span, scalars: "")
-            exprs(x.items, c, field: "items")
-        EmptyBraces(x): line(d, label, kind: "EmptyBraces", span: x.span, scalars: "")
         Paren(x):
             line(d, label, kind: "Paren", span: x.span, scalars: "")
             expr(x.inner, c, label: one("inner"))

@@ -18,22 +18,23 @@ writeln([1, 2, 3])
 writeln([["a", "b"], ["c"]])
 let ds: List[Digit] := [4, 2]
 writeln("digits {ds}")
-let m: Map[String, List[Integer]] := {"x": [1], "y": []}
+let m: Map[String, List[Integer]] := ["x": [1], "y": []]
 writeln(m)
-let none: Map[String, Integer] := {}
+let none: Map[String, Integer] := [:]
 writeln(none)
-writeln({Color.Blue, Color.Red})
-let cs: Set[Letter] := {'b', 'a'}
+let shown: Set[Color] := [Color.Blue, Color.Red]
+writeln(shown)
+let cs: Set[Letter] := ['b', 'a']
 writeln(cs)
-let no: Set[Color] := {}
+let no: Set[Color] := []
 writeln(no)
 let q := P(x: 3)
 writeln("{q} {q}")
 let ps := [q, P(x: 4)]
 writeln(ps)
-writeln({"k": ps})
+writeln(["k": ps])
 let chars: List[Char] := ['a', 'b']
 writeln(chars)
 writeln(["plain", "two words"])
-writeln({"k": "v"})
+writeln(["k": "v"])
 writeln("{["x"]} {"top"}")

@@ -140,7 +140,7 @@ export function location(s: ref Symbol): String
     return "{s.file}:{sp.line}:{sp.col}"
 
 export function newIndex(): ref SymbolIndex
-    return new(SymbolIndex(refs: [], bySpan: {}))
+    return new(SymbolIndex(refs: [], bySpan: [:]))
 
 export procedure add(
     ix: ref SymbolIndex,

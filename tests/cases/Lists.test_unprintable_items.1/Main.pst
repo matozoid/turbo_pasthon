@@ -7,6 +7,6 @@ type
         x: Integer
 
 var ps := [P(x: 1), P(x: 2)]
-var m: Map[String, P] := {}
+var m: Map[String, P] := [:]
 m["a"] := P(x: 3)
 writeln(length(ps) + length(m) + ps[1].x)

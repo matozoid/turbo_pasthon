@@ -104,7 +104,7 @@ let ys := [
     # twenty next
     20,
 ]
-let m: Map[String, Integer] := {"a": 1, "b": 2}
+let m: Map[String, Integer] := ["a": 1, "b": 2]
 show([p.x, p.y, combine(1000000, second: 2000000, third: 3000000, fourth: 4000000, fifth: 500000)])
 writeln("{f(1, b: 2)} {check(1, b: 2)} {isBig(3)} {length(xs)} {length(ys)} {length(m)} {Color.Blue} {Shades.Dark}")
 if xs[0] = 1 and not (xs[1] = 3) then

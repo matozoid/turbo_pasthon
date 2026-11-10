@@ -5,7 +5,7 @@ uses IO
 type
     Color = (Red, Green, Blue)
 
-var s: Set[Color] := {Color.Red}
+var s: Set[Color] := [Color.Red]
 add(var s, Color.Blue)
 add(var s, Color.Blue)
 writeln("{length(s)} {Color.Red in s} {Color.Green in s} {Color.Blue in s}")
@@ -14,14 +14,14 @@ for c in s do
 let before := s
 remove(var s, Color.Red)
 remove(var s, Color.Green)
-let t := {Color.Green, Color.Blue}
+let t: Set[Color] := [Color.Green, Color.Blue]
 write("{length(before)} {length(union(s, t))} {length(intersection(s, t))} ")
-writeln("{length(difference(t, s))} {s = {Color.Blue}} {s = t}")
-var bs: Set[Byte] := {255, 0, 64, 63}
+writeln("{length(difference(t, s))} {s = [Color.Blue]} {s = t}")
+var bs: Set[Byte] := [255, 0, 64, 63]
 for b in bs do
     write("{b} ")
-var ns: Set[Int8] := {127, -128, 0}
+var ns: Set[Int8] := [127, -128, 0]
 for n in ns do
     write("{n} ")
-var none: Set[Boolean] := {}
-writeln("{length(bs)} {length(none)} {true in none} {true in {true}}")
+var none: Set[Boolean] := []
+writeln("{length(bs)} {length(none)} {true in none} {true in [true]}")

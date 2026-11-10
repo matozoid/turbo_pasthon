@@ -120,16 +120,6 @@ type
         export id: Integer
         export entries: List[MapEntry]
 
-    export SetLit = record
-        export span: Span
-        export id: Integer
-        export items: List[Expr]
-
-    ## `{}`: an empty map or set, decided by the expected type.
-    export EmptyBraces = record
-        export span: Span
-        export id: Integer
-
     export Paren = record
         export span: Span
         export id: Integer
@@ -250,7 +240,7 @@ type
         export subject: Expr
         export arms: List[CaseExprArm]
 
-    export Expr = Name | IntLit | RealLit | CharLit | BoolLit | StringLit | InterpString | ListLit | MapLit | SetLit | EmptyBraces | Paren | Unary | Binary | Call | Index | FieldAccess | Deref | IfExpr | CaseExpr | ForExpr | Lambda | ErrorExpr
+    export Expr = Name | IntLit | RealLit | CharLit | BoolLit | StringLit | InterpString | ListLit | MapLit | Paren | Unary | Binary | Call | Index | FieldAccess | Deref | IfExpr | CaseExpr | ForExpr | Lambda | ErrorExpr
 
     # ------------------------------------------------------------------ statements
 
@@ -516,8 +506,6 @@ export function exprSpan(e: Expr): Span
         InterpString(x): return x.span
         ListLit(x): return x.span
         MapLit(x): return x.span
-        SetLit(x): return x.span
-        EmptyBraces(x): return x.span
         Paren(x): return x.span
         Unary(x): return x.span
         Binary(x): return x.span
@@ -570,8 +558,6 @@ export function exprId(e: Expr): Integer
         InterpString(x): return x.id
         ListLit(x): return x.id
         MapLit(x): return x.id
-        SetLit(x): return x.id
-        EmptyBraces(x): return x.id
         Paren(x): return x.id
         Unary(x): return x.id
         Binary(x): return x.id
@@ -605,8 +591,6 @@ export function exprKids(e: Expr): List[Expr]
                     else:
                         pass
         ListLit(x):
-            out := x.items
-        SetLit(x):
             out := x.items
         MapLit(x):
             for en in x.entries do

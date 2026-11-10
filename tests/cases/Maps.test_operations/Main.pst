@@ -20,7 +20,7 @@ function total(m: Map[String, Integer]): Integer
 procedure bump(var n: Integer)
     inc(var n, 10)
 
-var m := {"one": 1, "two": 2, "three": 3}
+var m := ["one": 1, "two": 2, "three": 3]
 m["two"] := 22
 m["four"] := 4
 remove(var m, "one")
@@ -36,14 +36,14 @@ writeln("{length(copy)} {length(m)} {copy["two"]} {m["two"]} {m["three"]}")
 for k in m do
     write("{k},")
 writeln()
-var colors: Map[Color, String] := {}
+var colors: Map[Color, String] := [:]
 colors[Color.Blue] := "sky"
 colors[Color.Red] := "rose"
-var points: Map[Point, Char] := {Point(x: 1, y: 2): 'a'}
+var points: Map[Point, Char] := [Point(x: 1, y: 2): 'a']
 points[Point(x: 3, y: 4)] := 'b'
 write("{colors[Color.Red]} {colors[Color.Blue]} {Color.Green in colors} ")
 writeln("{points[Point(x: 1, y: 2)]} {points[Point(x: 3, y: 4)]} {Point(x: 2, y: 1) in points}")
-var big: Map[Integer, Integer] := {}
+var big: Map[Integer, Integer] := [:]
 for i := 0 to 9999 do
     big[i * 1024] := i
 for i := 0 to 9999 do
@@ -53,25 +53,25 @@ var sum := 0
 for _, v in big do
     sum := sum + v
 writeln("{length(big)} {sum} {big[9999 * 1024]}")
-let a := {"x": 1, "y": 2}
-let b := {"y": 2, "x": 1}
-let c := {"x": 1, "y": 3}
-var nested := {"p": a, "q": c}
-let nested2 := {"q": c, "p": b}
+let a := ["x": 1, "y": 2]
+let b := ["y": 2, "x": 1]
+let c := ["x": 1, "y": 3]
+var nested := ["p": a, "q": c]
+let nested2 := ["q": c, "p": b]
 writeln("{a = b} {a = c} {a <> c} {nested = nested2}")
 nested["p"]["x"] := 100
 writeln("{nested["p"]["x"]} {a["x"]} {nested = nested2}")
-var box := Box(name: "b", tags: {"k": 1})
+var box := Box(name: "b", tags: ["k": 1])
 box.tags["j"] := 2
-writeln("{box = Box(name: "b", tags: {"j": 2, "k": 1})} {length(box.tags)}")
-var lists: Map[String, List[Integer]] := {"a": [1]}
+writeln("{box = Box(name: "b", tags: ["j": 2, "k": 1])} {length(box.tags)}")
+var lists: Map[String, List[Integer]] := ["a": [1]]
 add(var lists["a"], 2)
 lists["a"][0] := 7
 writeln("{lists["a"][0]} {lists["a"][1]} {length(lists["a"])}")
-var words: Map[String, Integer] := {}
+var words: Map[String, Integer] := [:]
 for w in ["a", "b", "a", "c", "a", "b"] do
     words[w] := getOr(words, w, 0) + 1
 for w, n in words do
     write("{w}:{n} ")
-let e: Map[String, String] := {}
-writeln("{get(get(m, "two"))} {isNone(get(m, "zzz"))} {length(e)} {e = {}} {"" in e}")
+let e: Map[String, String] := [:]
+writeln("{get(get(m, "two"))} {isNone(get(m, "zzz"))} {length(e)} {e = [:]} {"" in e}")

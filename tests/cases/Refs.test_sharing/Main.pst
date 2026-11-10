@@ -38,7 +38,7 @@ writeln("{a.value} {a2 = a} {a = b} {deref(a2) = deref(a)}")
 write("{Pair(a: a, n: 1) = Pair(a: a2, n: 1)} {Pair(a: a, n: 1) = Pair(a: b, n: 1)} ")
 var xs := [a, b]
 xs[1].value := 7
-let m := {"k": a}
+let m := ["k": a]
 m["k"].value := 8
 write("{b.value} {a.value} ")
 let n := new(41)

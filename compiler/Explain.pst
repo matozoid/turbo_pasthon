@@ -75,6 +75,12 @@ export function explanations(): List[Explanation]
             meaning: "unmatched or unclosed bracket",
         ),
         Explanation(
+            code: "E0011",
+            section: "2.9",
+            title: "Lexical errors",
+            meaning: "unclosed `\{` comment",
+        ),
+        Explanation(
             code: "E0030",
             section: "2.9",
             title: "Lexical errors",

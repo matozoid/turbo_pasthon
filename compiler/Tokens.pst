@@ -87,8 +87,6 @@ type
         Rparen,
         Lbracket,
         Rbracket,
-        Lbrace,
-        Rbrace,
         Comma,
         Colon,
         Dot,
@@ -136,7 +134,7 @@ type
 
 ## The keywords, by their text.
 export function keywords(): Map[String, TokenKind]
-    return {
+    return [
         "and": TokenKind.KwAnd,
         "assert": TokenKind.KwAssert,
         "break": TokenKind.KwBreak,
@@ -188,7 +186,7 @@ export function keywords(): Map[String, TokenKind]
         "var": TokenKind.KwVar,
         "while": TokenKind.KwWhile,
         "xor": TokenKind.KwXor,
-    }
+    ]
 
 ## The operators, longest first, so that `...` wins over `..` over `.`.
 export function operators(): List[Operator]
@@ -211,8 +209,6 @@ export function operators(): List[Operator]
         Operator(text: ")", kind: TokenKind.Rparen),
         Operator(text: "[", kind: TokenKind.Lbracket),
         Operator(text: "]", kind: TokenKind.Rbracket),
-        Operator(text: "\{", kind: TokenKind.Lbrace),
-        Operator(text: "}", kind: TokenKind.Rbrace),
         Operator(text: ",", kind: TokenKind.Comma),
         Operator(text: ":", kind: TokenKind.Colon),
         Operator(text: ".", kind: TokenKind.Dot),

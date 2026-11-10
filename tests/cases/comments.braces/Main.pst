@@ -1,0 +1,19 @@
+program Main
+
+uses IO
+
+{ Adds one.
+  Really. }
+function inc(x: Integer): Integer
+    return x + 1  { trailing }
+{ end function inc }
+
+{ a comment
+  over { nested } lines }
+var s: Set[Byte] := [1, 2]
+var m: Map[String, Integer] := [:]
+m["a"] := { inline } inc(1)
+writeln("{m} {s} \{x}")
+if length(m) = 1 then
+    writeln("one")
+{ end if }

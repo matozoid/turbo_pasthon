@@ -1,0 +1,8 @@
+# `{ }` comments (SPEC §2.3, §2.4): they span lines and nest, one directly above a
+# declaration is its doc comment, `{ end if }` is an end marker, and braces are no
+# longer sets or maps.
+$PST tokens Main.pst
+$PST run Main.pst
+$PST query hover Main.pst:7:10
+mkdir o && cp Main.pst o/Main.pst && $PST fmt --check o/Main.pst
+$PST check Bad.pst

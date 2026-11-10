@@ -785,7 +785,7 @@ test "sort is stable"
     assert length(empty) = 0
 
 test "maps"
-    var m: Map[String, Integer] := {"a": 1}
+    var m: Map[String, Integer] := ["a": 1]
     m["b"] := 2
     m["a"] := 3
     assert length(m) = 2
@@ -797,15 +797,15 @@ test "maps"
     assert length(m) = 1 and not ("a" in m)
 
 test "sets"
-    var s: Set[Byte] := {1, 2}
+    var s: Set[Byte] := [1, 2]
     add(var s, 3)
     add(var s, 3)
     remove(var s, 1)
     assert length(s) = 2 and 3 in s and not (1 in s)
-    let t: Set[Byte] := {3, 4}
-    assert union(s, b: t) = {2, 3, 4}
-    assert intersection(s, b: t) = {3}
-    assert difference(s, b: t) = {2}
+    let t: Set[Byte] := [3, 4]
+    assert union(s, b: t) = [2, 3, 4]
+    assert intersection(s, b: t) = [3]
+    assert difference(s, b: t) = [2]
 
 test "options and results"
     let some: Option[Integer] := Some(1)

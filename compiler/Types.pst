@@ -94,8 +94,8 @@ export function emptyListT(): Type
 export function listLitT(): Type
     return SpecialT(name: "<list literal>")
 
-export function emptyBracesT(): Type
-    return SpecialT(name: "\{}")
+export function emptyMapT(): Type
+    return SpecialT(name: "[:]")
 
 export function lambdaT(): Type
     return SpecialT(name: "<lambda>")
@@ -392,7 +392,7 @@ export procedure paramsIn(t: Type, var out: Vars)
 
 ## Whether a parameter in `vars` appears in `t`.
 export function mentions(t: Type, vars: Vars): Boolean
-    var found: Vars := {}
+    var found: Vars := [:]
     paramsIn(t, var found)
     for id, _ in found do
         if id in vars then
@@ -401,7 +401,7 @@ export function mentions(t: Type, vars: Vars): Boolean
 
 ## Whether a parameter in `vars` that `s` doesn't bind appears in `t`.
 export function mentionsUnbound(t: Type, vars: Vars, s: Subst): Boolean
-    var found: Vars := {}
+    var found: Vars := [:]
     paramsIn(t, var found)
     for id, _ in found do
         if id in vars and not (id in s) then

@@ -231,8 +231,10 @@ procedure run(var lx: State)
             number(var lx)
         else if c = '_' or isLetter(c) then
             word(var lx)
-        else if c = '(' or c = '[' or c = '{' then
-            let closer := if c = '(' then ')' else if c = '[' then ']' else '}'
+        else if c = '{' then
+            braceComment(var lx)
+        else if c = '(' or c = '[' then
+            let closer := if c = '(' then ')' else ']'
             add(var lx.brackets, Bracket(closer: closer, offset: lx.pos))
             emitSingle(var lx, c)
         else if c = ')' or c = ']' or c = '}' then
@@ -260,7 +262,7 @@ procedure finish(var lx: State)
     emitPlain(var lx, TokenKind.Eof, lx.n, end: lx.n)
 
 function openerOf(closer: Char): Char
-    return if closer = ')' then '(' else if closer = ']' then '[' else '{'
+    return if closer = ')' then '(' else '['
 
 ## Reports every open bracket, offering to close them all after the last token.
 procedure closeUnclosed(var lx: State)
@@ -330,7 +332,7 @@ function startsStatement(lx: State, i: Integer): Boolean
     for w in words do
         if hasWord(lx, w, i) then
             return true
-    if hasAt(lx, "# end ", i) then
+    if hasAt(lx, "# end ", i) or hasAt(lx, "\{ end ", i) then
         return true
     if i >= lx.n or not (isLetter(at(lx, i)) or at(lx, i) = '_') then
         return false
@@ -355,6 +357,15 @@ function nextLineStartsStatement(lx: State, pos: Integer): Boolean
             p := p + 1
         if p >= lx.n then
             return false
+        if at(lx, p) = '\{' and not hasAt(lx, "\{ end ", p) then
+            let after := commentEnd(lx, p)
+            if after < 0 then
+                return false
+            let nl := findNewline(lx, after)
+            if nl < 0 then
+                return false
+            p := nl + 1
+            continue
         if at(lx, p) = '\n' or (at(lx, p) = '#' and not hasAt(lx, "# end ", p)) then
             let nl := findNewline(lx, p)
             if nl < 0 then
@@ -383,22 +394,26 @@ function lineStart(var lx: State): Boolean
             lx.pos := lx.pos + 1
         if lx.pos >= lx.n then
             return false
-        let c := at(lx, lx.pos)
+        var c := at(lx, lx.pos)
+        while (c = '#' or c = '{') and not isSome(matchMarker(lx)) do
+            if c = '#' then
+                comment(var lx)
+            else
+                braceComment(var lx)
+            while lx.pos < lx.n and at(lx, lx.pos) = ' ' do
+                lx.pos := lx.pos + 1
+            if lx.pos >= lx.n then
+                return false
+            c := at(lx, lx.pos)
         if c = '\n' then
             lx.pos := lx.pos + 1
             continue
-        if c = '#' then
-            case matchMarker(lx) of
-                Some(m):
-                    indent(var lx, width, lineBegin: lineBegin)
-                    marker(var lx, m.value)
-                    return true
-                None:
-                    comment(var lx)
-                    if lx.pos < lx.n then
-                        lx.pos := lx.pos + 1  # the newline
-                    continue
         indent(var lx, width, lineBegin: lineBegin)
+        case matchMarker(lx) of
+            Some(m):
+                marker(var lx, m.value)
+            None:
+                pass
         return true
     return false
 
@@ -442,34 +457,72 @@ procedure comment(var lx: State)
         isDoc: startsWith(t, prefix: "##"),
     ))
 
-## The value and end of an end marker at `lx.pos`: `# end <keyword> [<name>]` (SPEC §2.4).
-## Names only follow keywords that declare one.
+## A `{ ... }` comment at `lx.pos`, which may span lines and nest.
+procedure braceComment(var lx: State)
+    let start := lx.pos
+    let after := commentEnd(lx, start)
+    if after < 0 then
+        error(var lx, "E0011", start, end: start + 1, message: "unclosed comment '\{'")
+        lx.pos := lx.n
+    else
+        lx.pos := after
+    add(var lx.comments, Comment(
+        text: text(lx, start, end: lx.pos),
+        span: span(lx.src, start, end: lx.pos),
+        isDoc: true,
+    ))
+
+## The offset just after the `}` closing the comment that opens at `start`, or -1 if it
+## isn't closed.
+function commentEnd(lx: State, start: Integer): Integer
+    var depth := 0
+    var i := start
+    while i < lx.n do
+        let c := at(lx, i)
+        if c = '{' then
+            depth := depth + 1
+        else if c = '}' then
+            depth := depth - 1
+            if depth = 0 then
+                return i + 1
+        i := i + 1
+    return -1
+
+## The value and end of an end marker at `lx.pos`: `{ end <keyword> [<name>] }` or
+## `# end <keyword> [<name>]` (SPEC §2.4). Names only follow keywords that declare one.
 function matchMarker(lx: State): Option[Indexed[MarkerValue]]
     let stop := lineEnd(lx)
-    if not hasAt(lx, "# end ", lx.pos) then
+    var close := stop
+    if hasAt(lx, "\{ end ", lx.pos) then
+        close := lx.pos
+        while close < stop and at(lx, close) <> '}' do
+            close := close + 1
+        if close >= stop or not onlySpaces(lx, close + 1, stop: stop) then
+            return None
+    else if not hasAt(lx, "# end ", lx.pos) then
         return None
     let start := lx.pos + 6
     let plain := ["if", "while", "for", "case", "test", "defer", "external"]
     let named := ["function", "procedure", "record", "trait"]
     for k in plain do
-        if hasAt(lx, k, start) and onlySpaces(lx, start + byteLen(k), stop: stop) then
+        if hasAt(lx, k, start) and onlySpaces(lx, start + byteLen(k), stop: close) then
             return Some(Indexed(index: stop, value: MarkerValue(keyword: k, name: None)))
     for k in named do
         if hasAt(lx, k, start) then
             var i := start + byteLen(k)
-            if i + 1 < stop and at(lx, i) = ' ' and isLetter(at(lx, i + 1)) then
+            if i + 1 < close and at(lx, i) = ' ' and isLetter(at(lx, i + 1)) then
                 let nameStart := i + 1
                 i := i + 2
-                while i < stop and isWordChar(at(lx, i)) do
+                while i < close and isWordChar(at(lx, i)) do
                     i := i + 1
-                if onlySpaces(lx, i, stop: stop) then
+                if onlySpaces(lx, i, stop: close) then
                     return Some(Indexed(index: stop, value: MarkerValue(keyword: k, name: Some(text(
                         lx,
                         nameStart,
                         end: i,
                     )))))
                 return None
-            if onlySpaces(lx, i, stop: stop) then
+            if onlySpaces(lx, i, stop: close) then
                 return Some(Indexed(index: stop, value: MarkerValue(keyword: k, name: None)))
     return None
 
@@ -799,17 +852,19 @@ function escape(var lx: State): String
 # ------------------------------------------------------------ operators, brackets
 
 function bracketKind(c: Char): TokenKind
-    return if c = '(' then TokenKind.Lparen else if c = ')' then TokenKind.Rparen else if c = '[' then TokenKind.Lbracket else if c = ']' then TokenKind.Rbracket else if c = '{' then TokenKind.Lbrace else TokenKind.Rbrace
+    return if c = '(' then TokenKind.Lparen else if c = ')' then TokenKind.Rparen else if c = '[' then TokenKind.Lbracket else TokenKind.Rbracket
 
 procedure emitSingle(var lx: State, c: Char)
     let start := lx.pos
     lx.pos := lx.pos + 1
     emitPlain(var lx, bracketKind(c), start, end: lx.pos)
 
+## A closing bracket, or a `}` that closes no placeholder, which is always unmatched.
 procedure closeBracket(var lx: State, c: Char)
     let start := lx.pos
     lx.pos := lx.pos + 1
-    emitPlain(var lx, bracketKind(c), start, end: lx.pos)
+    if c <> '}' then
+        emitPlain(var lx, bracketKind(c), start, end: lx.pos)
     let depth := length(lx.placeholders)
     let floor := if depth > 0 then lx.placeholders[depth - 1] else 0
     let count := length(lx.brackets)

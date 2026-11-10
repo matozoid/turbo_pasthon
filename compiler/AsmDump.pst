@@ -224,7 +224,7 @@ procedure run(a: ref Assembler, var names: Map[String, String], w: List[String])
 
 procedure main(text: String)
     let a := newAssembler()
-    var names: Map[String, String] := {}
+    var names: Map[String, String] := [:]
     for line in split(text, sep: "\n") do
         if line <> "" then
             run(a, var names, w: split(line, sep: " "))

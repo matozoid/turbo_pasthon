@@ -49,18 +49,30 @@ Non-goals:
 - Blank lines and comment-only lines do not affect indentation. End markers (§2.4) are the
   exception: a marker line counts as a line at its own indentation, so it closes the block
   it follows.
-- **Line continuation:** only inside open `(`, `[`, `{`. Inside brackets, newlines and indentation are ignored. There is no backslash continuation.
+- **Line continuation:** only inside open `(` and `[`. Inside brackets, newlines and indentation are ignored. There is no backslash continuation.
 
 ### 2.3 Comments
-- `#` to end of line. No block comments.
-- Doc comments: `##` directly above a declaration; attached to it by tooling.
+- `{ ... }`, which may span lines and nest: `{ a { b } c }` is one comment. An unclosed
+  `{` is error `E0011`.
+- `#` to end of line, until the next release, when `{ }` becomes the only comment style.
+- Doc comments: a `{ }` comment or `##` lines directly above a declaration; attached to it
+  by tooling. The text of a `{ }` doc comment drops the braces, and each line after the
+  first drops up to two leading spaces, so lines can be aligned under the first:
+
+```pascal
+{ Adds one.
+  Never fails. }
+function inc(x: Integer): Integer
+```
 
 ### 2.4 Block end markers (optional, verified)
 A comment of the exact form
 
 ```
-# end <keyword> [<name>]
+{ end <keyword> [<name>] }
 ```
+
+(or `# end <keyword> [<name>]`, until the next release)
 
 placed on its own line, at the indentation of a block header, immediately after
 that block's last line, is an **end marker**. The compiler verifies that it
@@ -128,8 +140,7 @@ while     xor       deref     _
 
 `[a, b]` is a list, an array or a set, by the expected type; with no expected type it is a
 `List`. Empty `[]` and `[:]` require the expected type to be known from context (error
-`E0301` otherwise). The old brace forms `{"a": 1}`, `{a, b}` and `{}` are still read until
-the seed release knows the bracket forms.
+`E0301` otherwise). Braces are comments (§2.3), not sets or maps.
 
 ### 2.8 String interpolation
 Every string literal is a template. There is no separate interpolated-string syntax and no
@@ -169,6 +180,7 @@ let json := "\{\"name\": \"{name}\"}"     # \{ is a literal brace
 | `E0007` | malformed number literal, or integer above 2^64 - 1 |
 | `E0008` | invalid char literal |
 | `E0009` | unmatched or unclosed bracket |
+| `E0011` | unclosed `{` comment |
 | `E0030` | unclosed or empty string placeholder (fix: `\{`) |
 
 The lexer reports every error and continues; it always produces a complete token stream.
@@ -1532,7 +1544,8 @@ except for adding a trailing comma to a broken group and rewriting `else` + `if`
   the end of the file.
 - An `else` whose block is a single `if` chain (and nothing else, not even an end marker)
   becomes `else if`.
-- Comments stay on their line. A trailing comment gets two spaces before `#`. A comment on
+- Comments stay on their line. A trailing comment gets two spaces before it. A `{ }`
+  comment followed by code on its line stays in front of that code. A comment on
   its own line is indented like the next line of code, or deeper (up to the previous line's
   depth) if it was written deeper, so a comment closing a block stays in it.
 - Existing end markers are preserved. The formatter never adds or removes them.
@@ -1578,7 +1591,7 @@ its document again and looks up the name at the position, or the name just befor
   with the receiver alone on its line.
 - Hover shows a routine's signature, the first line of a type, constant or field
   declaration, a local's type (`let count: Integer`), or the kind and name of anything
-  else, followed by the `##` doc comment.
+  else, followed by the doc comment.
 - Signature help finds the innermost unclosed `(` before the position whose callee is a
   name, from the document's tokens, so it works while the call is unfinished. It shows each
   routine (or record, for construction) the name may mean, with parameter types, `var`
@@ -1627,7 +1640,7 @@ as does the end of the input. The table below is the full plan.
 |---|---|
 | Diagnostics (push) | Same codes, messages, and fixes as `pst check` |
 | Code actions | Every diagnostic `fix` becomes a quick fix |
-| Hover | Declared or inferred type, `##` doc comment, contracts (`requires`/`ensures`); for generics, the instance at that position |
+| Hover | Declared or inferred type, doc comment, contracts (`requires`/`ensures`); for generics, the instance at that position |
 | Go to definition | Variables, functions, types, fields, enum members, units; trait-bound calls in a generic jump to the trait member |
 | Go to type definition | From any expression to its type declaration |
 | Go to implementation | From a trait (or trait member) to every type and function that satisfies it in the workspace |
@@ -2063,9 +2076,10 @@ knew them, std and the compiler moved over, and `0x`/`0b` are gone.
    above a declaration is its doc comment; end markers read `{ end if }`. Sets and maps
    are written with brackets, by the expected type: `[Color.Red, Color.Blue]`,
    `["a": 1, "b": 2]`, and `[:]` for an empty map. Two releases: first the bracket forms,
-   then `{ }` comments. The bracket forms are done (§2.7); the brace forms stay
-   until the seed release, then std and the compiler move over and `{ }` turns into a
-   comment.
+   then `{ }` comments. Done (§2.3, §2.4, §2.7): the bracket forms, which std and the
+   compiler use, and `{ }` comments and `{ end if }` markers. The brace literals are gone.
+   Left for after the next seed release: std and the compiler move to `{ }` comments and
+   markers, and `#` goes.
 
 ---
 

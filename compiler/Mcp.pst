@@ -367,7 +367,7 @@ function positionOf(arguments: JValue, key: String): Result[String, String]
 ## The diagnostics of `files`, each reported once.
 function check(files: List[String], stdDir: String): String
     var items: List[String] := []
-    var seen: Map[String, Boolean] := {}
+    var seen: Map[String, Boolean] := [:]
     var errors := 0
     for file in files do
         for d in typecheck(file, stdDir: stdDir).resolved.checker.diagnostics do
