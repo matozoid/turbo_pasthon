@@ -5,11 +5,11 @@ exit 0
 $ ./main
 exit 0
 --- stdout
-{Red, Blue} {} {a: 1, b: 2} {} false
-{Green}
-{}
-{x: 9}
-{}
-{k: v}
+[Red, Blue] [] [a: 1, b: 2] [:] false
+[Green]
+[]
+[x: 9]
+[:]
+[k: v]
 3 3
 --- stderr

@@ -130,7 +130,7 @@ use Main.pst 42:16-42:19
   function 'len' @ std/System.pst:118:21
   function 'len' @ std/System.pst:119:21
   function 'len' @ std/System.pst:353:17
-  function 'len' @ std/System.pst:486:17
+  function 'len' @ std/System.pst:488:17
 use Main.pst 42:20-42:27
   type 'Integer' @ std/System.pst:13:12
 use Main.pst 42:29-42:31

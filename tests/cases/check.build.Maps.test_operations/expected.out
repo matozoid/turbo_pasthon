@@ -37,11 +37,11 @@ use Main.pst 24:1-24:2
 use Main.pst 25:1-25:2
   var 'm' @ Main.pst:23:5
 use Main.pst 26:1-26:7
-  procedure 'remove' @ std/System.pst:382:18
+  procedure 'remove' @ std/System.pst:384:18
 use Main.pst 26:12-26:13
   var 'm' @ Main.pst:23:5
 use Main.pst 27:1-27:7
-  procedure 'remove' @ std/System.pst:382:18
+  procedure 'remove' @ std/System.pst:384:18
 use Main.pst 27:12-27:13
   var 'm' @ Main.pst:23:5
 use Main.pst 28:13-28:14
@@ -204,7 +204,7 @@ def Main.pst 49:5-49:6
 use Main.pst 50:8-50:9
   loop variable 'i' @ Main.pst:49:5
 use Main.pst 51:9-51:15
-  procedure 'remove' @ std/System.pst:382:18
+  procedure 'remove' @ std/System.pst:384:18
 use Main.pst 51:20-51:23
   var 'big' @ Main.pst:46:5
 use Main.pst 51:25-51:26
@@ -378,13 +378,13 @@ def Main.pst 76:5-76:6
 use Main.pst 77:1-77:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 77:11-77:14
-  function 'get' @ std/System.pst:569:17
+  function 'get' @ std/System.pst:571:17
 use Main.pst 77:15-77:18
   function 'get' @ std/System.pst:357:17
 use Main.pst 77:19-77:20
   var 'm' @ Main.pst:23:5
 use Main.pst 77:32-77:38
-  function 'isNone' @ std/System.pst:557:17
+  function 'isNone' @ std/System.pst:559:17
 use Main.pst 77:39-77:42
   function 'get' @ std/System.pst:357:17
 use Main.pst 77:43-77:44

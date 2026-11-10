@@ -367,16 +367,18 @@ export function getOr[K: Hashable, V](m: Map[K, V], key: K, default: V): V
         return default
     return m.values[e]
 
-## The entries as `{k: v}`, in insertion order, each by its `toString`.
+## The entries as `[k: v]`, in insertion order, each by its `toString`; `[:]` when empty.
 export function toString[K: Hashable + Printable, V: Printable](m: Map[K, V]): String
-    var out := "\{"
+    if m.count = 0 then
+        return "[:]"
+    var out := "["
     var first := true
     for k, v in m do
         if not first then
             out := "{out}, "
         out := "{out}{k}: {v}"
         first := false
-    return "{out}}"
+    return "{out}]"
 
 ## Removes `key` from the map, if present.
 export procedure remove[K: Hashable, V](var m: Map[K, V], key: K)
@@ -516,14 +518,14 @@ export function difference[T](a, b: Set[T]): Set[T]
         s.words[i] := band(a.words[i], bnot(b.words[i]))
     return s
 
-## The elements as `{a, b}`, in `ord` order, each by its `toString`.
+## The elements as `[a, b]`, in `ord` order, each by its `toString`.
 export function toString[T: Printable](s: Set[T]): String
-    var out := "\{"
+    var out := "["
     for x in s do
-        if out <> "\{" then
+        if out <> "[" then
             out := "{out}, "
         out := "{out}{x}"
-    return "{out}}"
+    return "{out}]"
 
 ## `{}`.
 function emptySet[T](): Set[T]
