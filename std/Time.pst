@@ -1,0 +1,787 @@
+unit Time
+
+## Dates, times and durations, modeled on Joda-Time: immutable values with nanosecond
+## precision, read from and written as ISO-8601 text. Dates use the proleptic Gregorian
+## calendar, with years from -999_999 to 999_999. The clock comes from libc.
+
+uses C, Strings
+
+extern "libc.so.6"
+    function clockGettime(clock: CInt, ts: Ptr[Timespec]): CInt as "clock_gettime"
+    type
+        ## glibc's `struct timespec` on x86-64.
+        Timespec = record
+            sec: Int64
+            nsec: Int64
+
+const
+    NanosPerSecond = 1_000_000_000
+    SecondsPerDay = 86_400
+    ## Days from 0000-03-01 to 1970-01-01.
+    DaysTo1970 = 719_468
+    MaxYear = 999_999
+
+type
+    ## A point on the time line: seconds since 1970-01-01T00:00:00Z, plus nanoseconds.
+    export Instant = record
+        secs: Integer
+        ns: Integer
+
+    ## An amount of time in seconds and nanoseconds. The nanoseconds are always 0 to
+    ## 999_999_999, so -0.5 seconds is -1 second plus 500_000_000 nanoseconds.
+    export Duration = record
+        secs: Integer
+        ns: Integer
+
+    ## A date without a time or a time zone, such as 2026-11-10.
+    export LocalDate = record
+        yr: Integer
+        mon: Integer
+        dom: Integer
+
+    ## A time of day without a date or a time zone, such as 09:30:00.
+    export LocalTime = record
+        hr: Integer
+        mins: Integer
+        sec: Integer
+        ns: Integer
+
+    ## A date and a time of day without a time zone, such as 2026-11-10T09:30:00.
+    export LocalDateTime = record
+        ld: LocalDate
+        lt: LocalTime
+
+    export Weekday = (Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
+
+    ## The parser's state: the text's characters and the position in them.
+    Reader = record
+        cs: List[Char]
+        pos: Integer
+
+# ----------------------------------------------------------------------- arithmetic
+
+## `a div b` rounded down rather than toward zero. `b` must be positive.
+function floorDiv(a, b: Integer): Integer
+    let q := a div b
+    return if a mod b < 0 then q - 1 else q
+
+## `a mod b` in `0 ..< b`. `b` must be positive.
+function floorMod(a, b: Integer): Integer
+    let r := a mod b
+    return if r < 0 then r + b else r
+
+## -1, 0 or 1 as `a` is below, equal to or above `b`.
+function sign(a, b: Integer): Integer
+    return if a < b then -1 else if a > b then 1 else 0
+
+# ------------------------------------------------------------------------- durations
+
+## A duration of `seconds` plus `nanos` (which may be any value; it is carried into the
+## seconds).
+export function ofSeconds(seconds: Integer, nanos: Integer := 0): Duration
+    return Duration(
+        secs: seconds + floorDiv(nanos, NanosPerSecond),
+        ns: floorMod(nanos, NanosPerSecond),
+    )
+
+export function ofDays(days: Integer): Duration
+    return ofSeconds(days * SecondsPerDay)
+
+export function ofHours(hours: Integer): Duration
+    return ofSeconds(hours * 3600)
+
+export function ofMinutes(minutes: Integer): Duration
+    return ofSeconds(minutes * 60)
+
+export function ofMillis(millis: Integer): Duration
+    return ofSeconds(0, nanos: millis * 1_000_000)
+
+export function ofNanos(nanos: Integer): Duration
+    return ofSeconds(0, nanos: nanos)
+
+## The whole seconds of `d`, rounded down: -0.5 seconds gives -1.
+export function seconds(d: Duration): Integer
+    return d.secs
+
+## The nanoseconds of `d` within its second, 0 to 999_999_999.
+export function nanos(d: Duration): Integer
+    return d.ns
+
+## `d` in whole milliseconds, rounded down.
+export function toMillis(d: Duration): Integer
+    return d.secs * 1000 + d.ns div 1_000_000
+
+## `d` in nanoseconds. Overflows beyond about 292 years.
+export function toNanos(d: Duration): Integer
+    return d.secs * NanosPerSecond + d.ns
+
+export function isZero(d: Duration): Boolean
+    return d.secs = 0 and d.ns = 0
+
+export function isNegative(d: Duration): Boolean
+    return d.secs < 0
+
+export function plus(a, b: Duration): Duration
+    return ofSeconds(a.secs + b.secs, nanos: a.ns + b.ns)
+
+export function minus(a, b: Duration): Duration
+    return ofSeconds(a.secs - b.secs, nanos: a.ns - b.ns)
+
+export function negated(d: Duration): Duration
+    return ofSeconds(-d.secs, nanos: -d.ns)
+
+export function abs(d: Duration): Duration
+    return if isNegative(d) then negated(d) else d
+
+## `d` multiplied by `n`.
+export function times(d: Duration, n: Integer): Duration
+    return ofSeconds(d.secs * n, nanos: d.ns * n)
+
+export function compare(a, b: Duration): Integer
+    let s := sign(a.secs, b.secs)
+    return if s <> 0 then s else sign(a.ns, b.ns)
+
+export function isLonger(a, b: Duration): Boolean
+    return compare(a, b) > 0
+
+export function isShorter(a, b: Duration): Boolean
+    return compare(a, b) < 0
+
+## ISO-8601 text in hours, minutes and seconds, such as `PT8H6M12.345S`, `PT0S`, or
+## `-PT1.5S` for a negative duration.
+export function toString(d: Duration): String
+    if isZero(d) then
+        return "PT0S"
+    let a := abs(d)
+    let h := a.secs div 3600
+    let m := a.secs mod 3600 div 60
+    let s := a.secs mod 60
+    var parts := [if isNegative(d) then "-PT" else "PT"]
+    if h > 0 then
+        add(var parts, "{h}H")
+    if m > 0 then
+        add(var parts, "{m}M")
+    if s > 0 or a.ns > 0 then
+        add(var parts, "{s}{fraction(a.ns)}S")
+    return join(parts)
+
+# -------------------------------------------------------------------------- instants
+
+## The current time from the system's real-time clock.
+export unsafe function now(): Instant
+    var ts := Timespec(sec: 0, nsec: 0)
+    _ := clockGettime(0, ts: addr(var ts))
+    return Instant(secs: Integer(ts.sec), ns: Integer(ts.nsec))
+
+## The instant `seconds` after 1970-01-01T00:00:00Z, plus `nanos` (which may be any
+## value; it is carried into the seconds).
+export function ofEpochSecond(seconds: Integer, nanos: Integer := 0): Instant
+    let d := ofSeconds(seconds, nanos: nanos)
+    return Instant(secs: d.secs, ns: d.ns)
+
+export function ofEpochMilli(millis: Integer): Instant
+    return ofEpochSecond(0, nanos: millis * 1_000_000)
+
+## Whole seconds since 1970-01-01T00:00:00Z, rounded down.
+export function epochSecond(i: Instant): Integer
+    return i.secs
+
+## The nanoseconds of `i` within its second, 0 to 999_999_999.
+export function nano(i: Instant): Integer
+    return i.ns
+
+## Milliseconds since 1970-01-01T00:00:00Z, rounded down.
+export function toEpochMilli(i: Instant): Integer
+    return i.secs * 1000 + i.ns div 1_000_000
+
+export function plus(i: Instant, d: Duration): Instant
+    return ofEpochSecond(i.secs + d.secs, nanos: i.ns + d.ns)
+
+export function minus(i: Instant, d: Duration): Instant
+    return ofEpochSecond(i.secs - d.secs, nanos: i.ns - d.ns)
+
+## The duration from `a` to `b`, negative if `b` is before `a`.
+export function between(a, b: Instant): Duration
+    return ofSeconds(b.secs - a.secs, nanos: b.ns - a.ns)
+
+export function compare(a, b: Instant): Integer
+    let s := sign(a.secs, b.secs)
+    return if s <> 0 then s else sign(a.ns, b.ns)
+
+export function isBefore(a, b: Instant): Boolean
+    return compare(a, b) < 0
+
+export function isAfter(a, b: Instant): Boolean
+    return compare(a, b) > 0
+
+## The date and time at `i` in the time zone `offsetSeconds` east of UTC.
+export function toLocalDateTime(i: Instant, offsetSeconds: Integer := 0): LocalDateTime
+    let s := i.secs + offsetSeconds
+    let date := ofEpochDay(floorDiv(s, SecondsPerDay))
+    let time := ofNanoOfDay(floorMod(s, SecondsPerDay) * NanosPerSecond + i.ns)
+    return LocalDateTime(ld: date, lt: time)
+
+## ISO-8601 text in UTC, such as `2026-11-10T09:30:00Z` or `2026-11-10T09:30:00.250Z`.
+export function toString(i: Instant): String
+    return "{toLocalDateTime(i)}Z"
+
+# ----------------------------------------------------------------------------- dates
+
+## Whether `year` has a February 29.
+export function isLeapYear(year: Integer): Boolean
+    return year mod 4 = 0 and (year mod 100 <> 0 or year mod 400 = 0)
+
+## The number of days in `month` (1 to 12) of `year`.
+export function monthLength(year, month: Integer): Integer
+    if month = 2 then
+        return if isLeapYear(year) then 29 else 28
+    if month = 4 or month = 6 or month = 9 or month = 11 then
+        return 30
+    return 31
+
+## Whether `year`, `month` and `day` name a date.
+export function isValidDate(year, month, day: Integer): Boolean
+    if year < -MaxYear or year > MaxYear or month < 1 or month > 12 then
+        return false
+    return day >= 1 and day <= monthLength(year, month: month)
+
+## The date `day` of `month` (1 to 12) of `year`.
+export function date(year, month, day: Integer): LocalDate
+    requires isValidDate(year, month, day)
+    return LocalDate(yr: year, mon: month, dom: day)
+
+export function year(d: LocalDate): Integer
+    return d.yr
+
+## The month, 1 to 12.
+export function month(d: LocalDate): Integer
+    return d.mon
+
+## The day of the month, from 1.
+export function day(d: LocalDate): Integer
+    return d.dom
+
+## The day of the year, 1 to 366.
+export function dayOfYear(d: LocalDate): Integer
+    return toEpochDay(d) - toEpochDay(date(d.yr, 1, 1)) + 1
+
+export function weekday(d: LocalDate): Weekday
+    let days := [
+        Weekday.Monday,
+        Weekday.Tuesday,
+        Weekday.Wednesday,
+        Weekday.Thursday,
+        Weekday.Friday,
+        Weekday.Saturday,
+        Weekday.Sunday,
+    ]
+    # 1970-01-01 was a Thursday.
+    return days[floorMod(toEpochDay(d) + 3, 7)]
+
+## Days since 1970-01-01, negative before it. After Howard Hinnant's `days_from_civil`.
+export function toEpochDay(d: LocalDate): Integer
+    let y := if d.mon <= 2 then d.yr - 1 else d.yr
+    let era := floorDiv(y, 400)
+    let yoe := y - era * 400
+    let mp := if d.mon > 2 then d.mon - 3 else d.mon + 9
+    let doy := (153 * mp + 2) div 5 + d.dom - 1
+    let doe := yoe * 365 + yoe div 4 - yoe div 100 + doy
+    return era * 146_097 + doe - DaysTo1970
+
+## The date `days` after 1970-01-01. After Howard Hinnant's `civil_from_days`.
+export function ofEpochDay(days: Integer): LocalDate
+    let z := days + DaysTo1970
+    let era := floorDiv(z, 146_097)
+    let doe := z - era * 146_097
+    let yoe := (doe - doe div 1460 + doe div 36_524 - doe div 146_096) div 365
+    let doy := doe - (365 * yoe + yoe div 4 - yoe div 100)
+    let mp := (5 * doy + 2) div 153
+    let day := doy - (153 * mp + 2) div 5 + 1
+    let month := if mp < 10 then mp + 3 else mp - 9
+    let year := yoe + era * 400 + (if month <= 2 then 1 else 0)
+    return date(year, month, day)
+
+export function plusDays(d: LocalDate, days: Integer): LocalDate
+    return ofEpochDay(toEpochDay(d) + days)
+
+## `d` moved by `months`. A day past the end of the new month becomes its last day, so
+## 2024-01-31 plus one month is 2024-02-29.
+export function plusMonths(d: LocalDate, months: Integer): LocalDate
+    let m := d.yr * 12 + d.mon - 1 + months
+    let year := floorDiv(m, 12)
+    let month := floorMod(m, 12) + 1
+    let last := monthLength(year, month: month)
+    return date(year, month, if d.dom > last then last else d.dom)
+
+export function plusYears(d: LocalDate, years: Integer): LocalDate
+    return plusMonths(d, months: years * 12)
+
+## The days from `a` to `b`, negative if `b` is before `a`.
+export function daysBetween(a, b: LocalDate): Integer
+    return toEpochDay(b) - toEpochDay(a)
+
+export function compare(a, b: LocalDate): Integer
+    return sign(toEpochDay(a), toEpochDay(b))
+
+export function isBefore(a, b: LocalDate): Boolean
+    return compare(a, b) < 0
+
+export function isAfter(a, b: LocalDate): Boolean
+    return compare(a, b) > 0
+
+## The date at midnight.
+export function atStartOfDay(d: LocalDate): LocalDateTime
+    return LocalDateTime(ld: d, lt: midnight())
+
+## ISO-8601 text such as `2026-11-10`. Years beyond 9999 get a `+`, years before 0 a `-`.
+export function toString(d: LocalDate): String
+    var y := pad(d.yr, 4)
+    if d.yr < 0 then
+        y := "-{pad(-d.yr, 4)}"
+    else if d.yr > 9999 then
+        y := "+{d.yr}"
+    return "{y}-{pad(d.mon, 2)}-{pad(d.dom, 2)}"
+
+# ----------------------------------------------------------------------------- times
+
+## Whether the parts name a time of day.
+export function isValidTime(hour, minute, second, nano: Integer): Boolean
+    let hm := hour >= 0 and hour < 24 and minute >= 0 and minute < 60
+    return hm and second >= 0 and second < 60 and nano >= 0 and nano < NanosPerSecond
+
+## The time of day `hour:minute:second` plus `nano` nanoseconds.
+export function time(hour, minute: Integer, second: Integer := 0, nano: Integer := 0): LocalTime
+    requires isValidTime(hour, minute, second, nano)
+    return LocalTime(hr: hour, mins: minute, sec: second, ns: nano)
+
+export function midnight(): LocalTime
+    return time(0, 0)
+
+export function noon(): LocalTime
+    return time(12, 0)
+
+export function hour(t: LocalTime): Integer
+    return t.hr
+
+export function minute(t: LocalTime): Integer
+    return t.mins
+
+export function second(t: LocalTime): Integer
+    return t.sec
+
+## The nanoseconds within the second, 0 to 999_999_999.
+export function nano(t: LocalTime): Integer
+    return t.ns
+
+## Nanoseconds since midnight.
+export function toNanoOfDay(t: LocalTime): Integer
+    return ((t.hr * 60 + t.mins) * 60 + t.sec) * NanosPerSecond + t.ns
+
+## The time `nanos` after midnight, wrapping around at 24 hours.
+export function ofNanoOfDay(nanos: Integer): LocalTime
+    let n := floorMod(nanos, SecondsPerDay * NanosPerSecond)
+    let s := n div NanosPerSecond
+    return time(s div 3600, s mod 3600 div 60, second: s mod 60, nano: n mod NanosPerSecond)
+
+## `t` moved by `d`, wrapping around midnight.
+export function plus(t: LocalTime, d: Duration): LocalTime
+    return ofNanoOfDay(
+        toNanoOfDay(t) + floorMod(d.secs, SecondsPerDay) * NanosPerSecond + d.ns,
+    )
+
+export function minus(t: LocalTime, d: Duration): LocalTime
+    return plus(t, negated(d))
+
+export function compare(a, b: LocalTime): Integer
+    return sign(toNanoOfDay(a), toNanoOfDay(b))
+
+export function isBefore(a, b: LocalTime): Boolean
+    return compare(a, b) < 0
+
+export function isAfter(a, b: LocalTime): Boolean
+    return compare(a, b) > 0
+
+## ISO-8601 text such as `09:30:00`, with a fraction of 3, 6 or 9 digits when there are
+## nanoseconds: `09:30:00.250`.
+export function toString(t: LocalTime): String
+    return "{pad(t.hr, 2)}:{pad(t.mins, 2)}:{pad(t.sec, 2)}{fraction(t.ns)}"
+
+# ------------------------------------------------------------------------ date-times
+
+export function dateTime(date: LocalDate, time: LocalTime): LocalDateTime
+    return LocalDateTime(ld: date, lt: time)
+
+export function date(dt: LocalDateTime): LocalDate
+    return dt.ld
+
+export function time(dt: LocalDateTime): LocalTime
+    return dt.lt
+
+## The instant at `dt` in the time zone `offsetSeconds` east of UTC.
+export function toInstant(dt: LocalDateTime, offsetSeconds: Integer := 0): Instant
+    let s := toEpochDay(dt.ld) * SecondsPerDay + toNanoOfDay(dt.lt) div NanosPerSecond
+    return Instant(secs: s - offsetSeconds, ns: dt.lt.ns)
+
+export function plus(dt: LocalDateTime, d: Duration): LocalDateTime
+    return toLocalDateTime(plus(toInstant(dt), d: d))
+
+export function minus(dt: LocalDateTime, d: Duration): LocalDateTime
+    return toLocalDateTime(minus(toInstant(dt), d: d))
+
+export function plusDays(dt: LocalDateTime, days: Integer): LocalDateTime
+    return LocalDateTime(ld: plusDays(dt.ld, days: days), lt: dt.lt)
+
+export function plusMonths(dt: LocalDateTime, months: Integer): LocalDateTime
+    return LocalDateTime(ld: plusMonths(dt.ld, months: months), lt: dt.lt)
+
+export function plusYears(dt: LocalDateTime, years: Integer): LocalDateTime
+    return LocalDateTime(ld: plusYears(dt.ld, years: years), lt: dt.lt)
+
+export function compare(a, b: LocalDateTime): Integer
+    let c := compare(a.ld, b: b.ld)
+    return if c <> 0 then c else compare(a.lt, b: b.lt)
+
+export function isBefore(a, b: LocalDateTime): Boolean
+    return compare(a, b) < 0
+
+export function isAfter(a, b: LocalDateTime): Boolean
+    return compare(a, b) > 0
+
+## ISO-8601 text such as `2026-11-10T09:30:00`.
+export function toString(dt: LocalDateTime): String
+    return "{dt.ld}T{dt.lt}"
+
+# --------------------------------------------------------------------------- writing
+
+## `n` (not negative) in decimal, with zeros in front up to `width` digits.
+function pad(n, width: Integer): String
+    var s := toString(n)
+    while byteLen(s) < width do
+        s := "0{s}"
+    return s
+
+## `.` and the nanoseconds in 3, 6 or 9 digits, or nothing for 0.
+function fraction(nanos: Integer): String
+    if nanos = 0 then
+        return ""
+    if nanos mod 1_000_000 = 0 then
+        return ".{pad(nanos div 1_000_000, 3)}"
+    if nanos mod 1000 = 0 then
+        return ".{pad(nanos div 1000, 6)}"
+    return ".{pad(nanos, 9)}"
+
+# --------------------------------------------------------------------------- reading
+
+function reader(s: String): Reader
+    var cs: List[Char] := []
+    for c in s do
+        add(var cs, c)
+    return Reader(cs: cs, pos: 0)
+
+function peek(r: Reader): Char
+    if r.pos < len(r.cs) then
+        return r.cs[r.pos]
+    return Char(0)
+
+function atEnd(r: Reader): Boolean
+    return r.pos >= len(r.cs)
+
+function failure(r: Reader, what: String): String
+    if atEnd(r) then
+        return "{what} at the end of the text"
+    return "{what} at offset {r.pos}"
+
+function isDigit(c: Char): Boolean
+    return c >= '0' and c <= '9'
+
+## Reads `c`.
+function expect(var r: Reader, c: Char): Result[Integer, String]
+    if peek(r) <> c then
+        return Err(failure(r, "expected '{c}'"))
+    r.pos := r.pos + 1
+    return Ok(0)
+
+## Reads exactly `count` digits.
+function digits(var r: Reader, count: Integer): Result[Integer, String]
+    var n := 0
+    for k := 1 to count do
+        if not isDigit(peek(r)) then
+            return Err(failure(r, "expected a digit"))
+        n := n * 10 + ord(peek(r)) - ord('0')
+        r.pos := r.pos + 1
+    return Ok(n)
+
+## Reads one or more digits, at most 18.
+function number(var r: Reader): Result[Integer, String]
+    let start := r.pos
+    var n := 0
+    while isDigit(peek(r)) do
+        if r.pos - start = 18 then
+            return Err(failure(r, "number too large"))
+        n := n * 10 + ord(peek(r)) - ord('0')
+        r.pos := r.pos + 1
+    if r.pos = start then
+        return Err(failure(r, "expected a digit"))
+    return Ok(n)
+
+## `n`, read from `start`, or an error there if it is above `high`.
+function check(
+    var r: Reader,
+    start: Integer,
+    n: Integer,
+    high: Integer,
+    what: String,
+): Result[Integer, String]
+    if n > high then
+        r.pos := start
+        return Err(failure(r, "{what} out of range"))
+    return Ok(n)
+
+## Reads a `.` and 1 to 9 digits, if there, as nanoseconds.
+function nanosPart(var r: Reader): Result[Integer, String]
+    if peek(r) <> '.' and peek(r) <> ',' then
+        return Ok(0)
+    r.pos := r.pos + 1
+    var n := 0
+    var count := 0
+    while isDigit(peek(r)) and count < 9 do
+        n := n * 10 + ord(peek(r)) - ord('0')
+        r.pos := r.pos + 1
+        count := count + 1
+    if count = 0 then
+        return Err(failure(r, "expected a digit"))
+    for k := count + 1 to 9 do
+        n := n * 10
+    return Ok(n)
+
+function readDate(var r: Reader): Result[LocalDate, String]
+    let start := r.pos
+    var year := 0
+    if peek(r) = '+' or peek(r) = '-' then
+        let negative := peek(r) = '-'
+        r.pos := r.pos + 1
+        let digitsAt := r.pos
+        year := try number(var r)
+        if r.pos - digitsAt < 4 then
+            return Err(failure(r, "expected a digit"))
+        if negative then
+            year := -year
+    else
+        year := try digits(var r, count: 4)
+    if year < -MaxYear or year > MaxYear then
+        r.pos := start
+        return Err(failure(r, "year out of range"))
+    _ := try expect(var r, c: '-')
+    let monthAt := r.pos
+    let month := try digits(var r, count: 2)
+    if month < 1 or month > 12 then
+        r.pos := monthAt
+        return Err(failure(r, "month out of range"))
+    _ := try expect(var r, c: '-')
+    let dayAt := r.pos
+    let day := try digits(var r, count: 2)
+    if day < 1 or day > monthLength(year, month: month) then
+        r.pos := dayAt
+        return Err(failure(r, "day out of range"))
+    return Ok(date(year, month, day))
+
+## Reads `hh:mm`, then `:ss` and a fraction if there.
+function readTime(var r: Reader): Result[LocalTime, String]
+    let hourAt := r.pos
+    let hour := try digits(var r, count: 2)
+    _ := try check(var r, start: hourAt, n: hour, high: 23, what: "hour")
+    _ := try expect(var r, c: ':')
+    let minuteAt := r.pos
+    let minute := try digits(var r, count: 2)
+    _ := try check(var r, start: minuteAt, n: minute, high: 59, what: "minute")
+    if peek(r) <> ':' then
+        return Ok(time(hour, minute))
+    r.pos := r.pos + 1
+    let secondAt := r.pos
+    let second := try digits(var r, count: 2)
+    _ := try check(var r, start: secondAt, n: second, high: 59, what: "second")
+    let nano := try nanosPart(var r)
+    return Ok(time(hour, minute, second: second, nano: nano))
+
+function readDateTime(var r: Reader): Result[LocalDateTime, String]
+    let d := try readDate(var r)
+    _ := try expect(var r, c: 'T')
+    let t := try readTime(var r)
+    return Ok(dateTime(d, time: t))
+
+## Reads `Z` or an offset `+hh:mm` / `-hh:mm`, as seconds east of UTC.
+function readOffset(var r: Reader): Result[Integer, String]
+    if peek(r) = 'Z' then
+        r.pos := r.pos + 1
+        return Ok(0)
+    if peek(r) <> '+' and peek(r) <> '-' then
+        return Err(failure(r, "expected 'Z' or an offset"))
+    let negative := peek(r) = '-'
+    r.pos := r.pos + 1
+    let hourAt := r.pos
+    let hours := try digits(var r, count: 2)
+    _ := try check(var r, start: hourAt, n: hours, high: 18, what: "offset")
+    _ := try expect(var r, c: ':')
+    let minuteAt := r.pos
+    let minutes := try digits(var r, count: 2)
+    _ := try check(var r, start: minuteAt, n: minutes, high: 59, what: "offset")
+    let s := (hours * 60 + minutes) * 60
+    return Ok(if negative then -s else s)
+
+function finish(r: Reader): Result[Integer, String]
+    if not atEnd(r) then
+        return Err(failure(r, "unexpected text"))
+    return Ok(0)
+
+## Reads ISO-8601 text such as `2026-11-10`.
+export function parseDate(s: String): Result[LocalDate, String]
+    var r := reader(s)
+    let d := try readDate(var r)
+    _ := try finish(r)
+    return Ok(d)
+
+## Reads ISO-8601 text such as `09:30`, `09:30:15` or `09:30:15.250`.
+export function parseTime(s: String): Result[LocalTime, String]
+    var r := reader(s)
+    let t := try readTime(var r)
+    _ := try finish(r)
+    return Ok(t)
+
+## Reads ISO-8601 text such as `2026-11-10T09:30:15`.
+export function parseDateTime(s: String): Result[LocalDateTime, String]
+    var r := reader(s)
+    let dt := try readDateTime(var r)
+    _ := try finish(r)
+    return Ok(dt)
+
+## Reads ISO-8601 text with a `Z` or an offset, such as `2026-11-10T09:30:15Z` or
+## `2026-11-10T10:30:15+01:00`.
+export function parseInstant(s: String): Result[Instant, String]
+    var r := reader(s)
+    let dt := try readDateTime(var r)
+    let offset := try readOffset(var r)
+    _ := try finish(r)
+    return Ok(toInstant(dt, offsetSeconds: offset))
+
+## Reads an ISO-8601 duration of days, hours, minutes and seconds, such as `PT8H6M12.5S`,
+## `P2DT3H` or `-PT1S`. A day is 24 hours.
+export function parseDuration(s: String): Result[Duration, String]
+    var r := reader(s)
+    let negative := peek(r) = '-'
+    if negative or peek(r) = '+' then
+        r.pos := r.pos + 1
+    _ := try expect(var r, c: 'P')
+    var total := ofSeconds(0)
+    var seen := false
+    if peek(r) <> 'T' then
+        let days := try number(var r)
+        _ := try expect(var r, c: 'D')
+        total := ofDays(days)
+        seen := true
+    if peek(r) = 'T' then
+        r.pos := r.pos + 1
+        var units := "HMS"
+        while not atEnd(r) do
+            let n := try number(var r)
+            let nanos := try nanosPart(var r)
+            let u := peek(r)
+            if u = 'H' and units = "HMS" and nanos = 0 then
+                total := plus(total, b: ofHours(n))
+                units := "MS"
+            else if u = 'M' and (units = "HMS" or units = "MS") and nanos = 0 then
+                total := plus(total, b: ofMinutes(n))
+                units := "S"
+            else if u = 'S' and units <> "" then
+                total := plus(total, b: ofSeconds(n, nanos: nanos))
+                units := ""
+            else
+                return Err(failure(r, "expected a unit"))
+            r.pos := r.pos + 1
+            seen := true
+        if units = "HMS" then
+            return Err(failure(r, "expected a digit"))
+    if not seen then
+        return Err(failure(r, "expected a digit"))
+    _ := try finish(r)
+    return Ok(if negative then negated(total) else total)
+
+# ----------------------------------------------------------------------------- tests
+
+test "durations"
+    assert toString(ofSeconds(29_166, nanos: 345_000_000)) = "PT8H6M6.345S"
+    assert toString(ofSeconds(0)) = "PT0S" and toString(ofMillis(-1500)) = "-PT1.500S"
+    assert toString(ofDays(2)) = "PT48H" and toString(ofNanos(5)) = "PT0.000000005S"
+    let d := ofMillis(-1500)
+    assert seconds(d) = -2 and nanos(d) = 500_000_000 and toMillis(d) = -1500
+    assert plus(ofSeconds(1, nanos: 600_000_000), b: ofMillis(500)) = ofMillis(2100)
+    assert isLonger(ofMinutes(1), b: ofSeconds(59)) and isShorter(ofMillis(-1), b: ofSeconds(0))
+    assert times(ofMillis(250), n: 6) = ofMillis(1500) and toNanos(ofMillis(3)) = 3_000_000
+
+test "dates"
+    assert toEpochDay(date(1970, 1, 1)) = 0 and ofEpochDay(0) = date(1970, 1, 1)
+    assert toEpochDay(date(2000, 3, 1)) = 11_017 and ofEpochDay(-1) = date(1969, 12, 31)
+    assert ofEpochDay(toEpochDay(date(-4713, 11, 24))) = date(-4713, 11, 24)
+    assert weekday(date(2026, 11, 10)) = Weekday.Tuesday
+    assert weekday(date(1969, 12, 28)) = Weekday.Sunday
+    assert dayOfYear(date(2024, 12, 31)) = 366 and dayOfYear(date(2023, 3, 1)) = 60
+    assert plusMonths(date(2024, 1, 31), months: 1) = date(2024, 2, 29)
+    assert plusMonths(date(2024, 1, 15), months: -13) = date(2022, 12, 15)
+    assert plusYears(date(2024, 2, 29), years: 1) = date(2025, 2, 28)
+    assert plusDays(date(2026, 12, 31), days: 1) = date(2027, 1, 1)
+    assert daysBetween(date(2026, 1, 1), b: date(2027, 1, 1)) = 365
+    assert isBefore(date(1999, 12, 31), b: date(2000, 1, 1))
+    assert toString(date(987, 6, 5)) = "0987-06-05"
+    assert toString(date(-44, 3, 15)) = "-0044-03-15"
+    assert toString(date(12_345, 1, 1)) = "+12345-01-01"
+    assert not isValidDate(2023, 2, 29) and not isValidDate(1900, 2, 29)
+    assert isValidDate(2000, 2, 29)
+
+test "times"
+    assert toString(time(9, 5)) = "09:05:00"
+    assert toString(time(23, 59, second: 59, nano: 1)) = "23:59:59.000000001"
+    assert toString(time(0, 0, second: 1, nano: 250_000_000)) = "00:00:01.250"
+    assert toString(time(0, 0, nano: 120_000)) = "00:00:00.000120"
+    assert plus(time(23, 0), d: ofHours(2)) = time(1, 0)
+    assert minus(time(1, 0), d: ofHours(2)) = time(23, 0)
+    assert plus(time(12, 0), d: ofDays(-3)) = noon() and isBefore(midnight(), b: noon())
+    let t := time(13, 14, second: 15, nano: 16)
+    assert ofNanoOfDay(toNanoOfDay(t)) = t
+
+test "instants"
+    let i := ofEpochSecond(1_700_000_000, nanos: 5_000_000)
+    assert toString(i) = "2023-11-14T22:13:20.005Z" and toEpochMilli(i) = 1_700_000_000_005
+    assert toString(ofEpochMilli(-1)) = "1969-12-31T23:59:59.999Z"
+    assert between(i, b: plus(i, d: ofMinutes(90))) = ofMinutes(90)
+    let later := time(23, 13, second: 20, nano: 5_000_000)
+    assert toLocalDateTime(i, offsetSeconds: 3600) = dateTime(date(2023, 11, 14), time: later)
+    assert toInstant(toLocalDateTime(i, offsetSeconds: -18_000), offsetSeconds: -18_000) = i
+    assert isAfter(now(), b: i)
+    let dt := dateTime(date(2024, 2, 28), time: time(23, 30))
+    assert plus(dt, d: ofHours(1)) = dateTime(date(2024, 2, 29), time: time(0, 30))
+    assert toString(plusMonths(dt, months: 12)) = "2025-02-28T23:30:00"
+
+test "parsing"
+    assert parseDate("2026-11-10") = Ok(date(2026, 11, 10))
+    assert parseDate("+12345-01-01") = Ok(date(12_345, 1, 1))
+    assert parseDate("-0044-03-15") = Ok(date(-44, 3, 15))
+    assert parseDate("2023-02-29") = Err("day out of range at offset 8")
+    assert parseDate("2026-1-10") = Err("expected a digit at offset 6")
+    assert parseDate("2026-11-10x") = Err("unexpected text at offset 10")
+    assert parseTime("09:30") = Ok(time(9, 30))
+    assert parseTime("09:30:15,5") = Ok(time(9, 30, second: 15, nano: 500_000_000))
+    assert parseTime("24:00") = Err("hour out of range at offset 0")
+    assert parseTime("09:30:") = Err("expected a digit at the end of the text")
+    assert parseDateTime("2026-11-10T09:30") = Ok(dateTime(date(2026, 11, 10), time: time(9, 30)))
+    let i := ofEpochSecond(1_700_000_000, nanos: 5_000_000)
+    assert parseInstant("2023-11-14T22:13:20.005Z") = Ok(i)
+    assert parseInstant("2023-11-14T23:13:20+01:00") = Ok(ofEpochSecond(1_700_000_000))
+    assert parseInstant("2023-11-14T22:13:20") = Err(
+        "expected 'Z' or an offset at the end of the text",
+    )
+    assert parseDuration("PT8H6M6.345S") = Ok(ofSeconds(29_166, nanos: 345_000_000))
+    assert parseDuration("P2DT3H") = Ok(ofHours(51))
+    assert parseDuration("-PT1.5S") = Ok(ofMillis(-1500))
+    assert parseDuration("PT") = Err("expected a digit at the end of the text")
+    assert parseDuration("PT1S2M") = Err("expected a unit at offset 5")
+    for s in ["PT0S", "PT48H", "-PT0.000000005S", "PT1H0.5S"] do
+        assert toString(parseDuration(s).get()) = (if s = "PT1H0.5S" then "PT1H0.500S" else s)
