@@ -1,0 +1,16 @@
+$ cd $ROOT/examples && $PST run Lambdas.pst
+exit 0
+--- stdout
+double(21) = 42
+addBonus(1) = 101  (bonus was 100 when captured)
+counter(5)(10) = 15
+twice(x => x * 3, 2) = 18
+twice(s => "{s}!", "hey") = hey!!
+by age:  [Bob, Cy, Ann]
+by name: [Ann, Bob, Cy]
+anyone over 35? true
+first under 30: Bob
+adders applied to 10: [11, 12, 13]
+mul(6)(7) = 42
+areas: 12, 16
+--- stderr

@@ -1,0 +1,69 @@
+program Lambdas
+
+uses IO
+
+type
+    Person = record
+        name: String
+        age: Integer
+    Circle = record
+        r: Integer
+    Square = record
+        side: Integer
+    Shape = Circle | Square
+
+## A function that returns a lambda: it captures `step`.
+function counter(step: Integer): function(Integer): Integer
+    return n => n + step
+
+## Generic: applies `f` twice.
+function twice[T](f: function(T): T, x: T): T
+    return f(f(x))
+
+## Parameter types come from the expected function type.
+let double: function(Integer): Integer := x => x * 2
+writeln("double(21) = {double(21)}")
+
+# Closures capture by value, when created
+var bonus := 100
+let addBonus: function(Integer): Integer := x => x + bonus
+bonus := 0
+writeln("addBonus(1) = {addBonus(1)}  (bonus was 100 when captured)")
+
+# Returned closures
+let by5 := counter(5)
+writeln("counter(5)(10) = {by5(10)}")
+
+# Generics: T inferred from the argument
+writeln("twice(x => x * 3, 2) = {twice(x => x * 3, x: 2)}")
+writeln("twice(s => \"\{s}!\", \"hey\") = {twice(s => "{s}!", x: "hey")}")
+
+# Sorting by key, with result type K inferred from the lambda body
+var crew := [
+    Person(name: "Cy", age: 30),
+    Person(name: "Ann", age: 40),
+    Person(name: "Bob", age: 25),
+]
+sort(var crew, key: p => p.age)
+writeln("by age:  {for p in crew do p.name}")
+sort(var crew, key: p => p.name)
+writeln("by name: {for p in crew do p.name}")
+
+# Iterator consumers
+let limit := 35
+writeln("anyone over {limit}? {any(iter(crew), p => p.age > limit)}")
+writeln("first under 30: {find(iter(crew), p => p.age < 30).get().name}")
+
+# Loop variables: each lambda keeps its own copy
+let adders: List[function(Integer): Integer] := for i := 1 to 3 do x => x + i
+writeln("adders applied to 10: {for f in adders do f(10)}")
+
+# Curried
+let mul: function(Integer): function(Integer): Integer := a => b => a * b
+writeln("mul(6)(7) = {mul(6)(7)}")
+
+# A case expression as body, when the lambda is a whole right side
+let area: function(Shape): Integer := s => case s of
+    Circle(c): 3 * c.r * c.r
+    Square(q): q.side * q.side
+writeln("areas: {area(Circle(r: 2))}, {area(Square(side: 4))}")
