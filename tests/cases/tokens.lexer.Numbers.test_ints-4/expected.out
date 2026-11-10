@@ -1,7 +1,8 @@
 $ $PST tokens lexer.Numbers.test_ints-4.pst
-exit 0
+exit 1
 --- stdout
-IntLit 1:1-1:5 "0o17" int 15
+IntLit 1:1-1:5 "0o17" int 0
 Newline 1:5-1:5 "" -
 Eof 1:5-1:5 "" -
+error E0007 1:1-1:5 "malformed number literal '0o17'; there are no octal literals, write it in hexadecimal ($1ED) or decimal"
 --- stderr

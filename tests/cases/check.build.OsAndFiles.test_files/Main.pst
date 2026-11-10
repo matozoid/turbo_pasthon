@@ -22,7 +22,7 @@ case open("{dir}/text") of
                 writeln(e.error)
     Err(e):
         writeln(e.error)
-case create("{dir}/bin", 0o755) of
+case create("{dir}/bin", $1ED) of
     Ok(f):
         _ := writeBytes(f.value, [Byte(0), Byte(1), Byte(255)])
     Err(e):

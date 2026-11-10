@@ -1,7 +1,7 @@
 $ $PST tokens lexer.Numbers.test_ints-3.pst
 exit 0
 --- stdout
-IntLit 1:1-1:7 "0b1010" int 10
-Newline 1:7-1:7 "" -
-Eof 1:7-1:7 "" -
+IntLit 1:1-1:6 "%1010" int 10
+Newline 1:6-1:6 "" -
+Eof 1:6-1:6 "" -
 --- stderr

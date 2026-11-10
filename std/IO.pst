@@ -34,10 +34,10 @@ extern "libc.so.6"
 
 const
     ReadOnly = 0
-    WriteOnly = 0o1
-    Create = 0o100
-    Truncate = 0o1000
-    CloseOnExec = 0o2000000
+    WriteOnly = 1
+    Create = 0x40
+    Truncate = 0x200
+    CloseOnExec = 0x80000
 
 procedure destroy(var f: File)
     if f.fd >= 0 then
@@ -58,8 +58,8 @@ export function open(path: String): Result[ref File, String]
     return openWith(path, ReadOnly, mode: 0)
 
 ## Creates the file at `path` for writing, or empties it if it exists. A new file gets the
-## permissions `mode` (less the process's umask): `0o755` for an executable.
-export function create(path: String, mode: Integer := 0o644): Result[ref File, String]
+## permissions `mode` (less the process's umask): `$1ED` (octal 755) for an executable.
+export function create(path: String, mode: Integer := 0x1A4): Result[ref File, String]
     return openWith(path, WriteOnly + Create + Truncate, mode: mode)
 
 ## Closes the file now, instead of when the last reference goes away.

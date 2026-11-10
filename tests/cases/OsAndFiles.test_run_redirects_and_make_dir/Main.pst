@@ -11,7 +11,7 @@ procedure show(r: Result[Integer, String])
 
 show(makeDir("d"))
 show(makeDir("d"))
-show(makeDir("e", 0o700))
+show(makeDir("e", $1C0))
 show(makeDir("missing/d"))
 writeln(isDir("d"))
 show(run("/bin/sh", ["-c", "cat; echo out; echo err >&2; pwd; exit 4"], output: "out",
