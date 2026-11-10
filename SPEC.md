@@ -2024,7 +2024,24 @@ None at the moment.
 
 ## 18a. Planned
 
-Nothing at the moment.
+Pascal, not C, is the model. These changes come in steps; each new form is accepted next to
+the old one until a seed release knows it, then std and the compiler move over and the old
+form goes.
+
+1. `and`, `or`, `xor` and `not` work bitwise on integers, and `shl` and `shr` are operators
+   (level 6); `xor` also works on Booleans. `Bits` keeps only `popCount`.
+2. Format specifiers in placeholders, as Pascal's `write(x:width:decimals)`: `"{n:5}"`
+   right-aligns in 5 characters, `"{s:-8}"` left-aligns, `"{x:0:2}"` writes 2 decimals.
+   They replace `padLeft`, `padRight` and `toFixed`.
+3. Pascal names in `Strings`: `upperCase`, `lowerCase`, `hexStr(n, digits)`, `binStr`, and
+   `pos` for `find` (still an `Option`).
+4. `external "lib"` and `name "symbol"` instead of `extern` and `as`.
+5. `length` instead of `len`.
+6. Comments are `{ ... }`, the only comment style: `#` goes, and a `{ }` comment directly
+   above a declaration is its doc comment; end markers read `{ end if }`. Sets and maps
+   are written with brackets, by the expected type: `[Color.Red, Color.Blue]`,
+   `["a": 1, "b": 2]`, and `[:]` for an empty map. Two releases: first the bracket forms,
+   then `{ }` comments.
 
 ---
 
