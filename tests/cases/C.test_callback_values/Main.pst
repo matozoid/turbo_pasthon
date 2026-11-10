@@ -7,7 +7,7 @@ type
     Hooks = record
         last: Hook
 
-extern "libc.so.6"
+external "libc.so.6"
     function on_exit(f: Hook, arg: Pointer): CInt
 
 procedure first(status: CInt, arg: Pointer)

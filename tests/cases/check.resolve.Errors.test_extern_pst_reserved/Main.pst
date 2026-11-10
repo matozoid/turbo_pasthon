@@ -2,5 +2,5 @@ program Main
 
 uses IO
 
-extern "pst"
+external "pst"
     function magic(): Integer

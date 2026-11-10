@@ -6,7 +6,7 @@ type
     Person = record
         name: String
 
-extern "libc.so.6"
+external "libc.so.6"
     function on_exit(f: procedure(CInt, Pointer), arg: Pointer): CInt
 
 var n := 0

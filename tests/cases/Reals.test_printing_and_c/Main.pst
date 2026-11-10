@@ -2,11 +2,11 @@ program Main
 
 uses IO, C
 
-extern "libm.so.6"
+external "libm.so.6"
     function pow(x: CDouble, y: CDouble): CDouble
     function ldexp(x: CDouble, e: CInt): CDouble
 
-extern "libc.so.6"
+external "libc.so.6"
     function printf(fmt: CString, ...): CInt
 
 let nan := 0.0 / 0.0

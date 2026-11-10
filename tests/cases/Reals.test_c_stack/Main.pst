@@ -2,11 +2,11 @@ program Main
 
 uses IO, C
 
-extern "libc.so.6"
+external "libc.so.6"
     function printf(format: CString, ...): CInt
     function fflush(stream: Pointer): CInt
 
-extern "./libbig.so"
+external "./libbig.so"
     type
         export Big = record
             a: CLong

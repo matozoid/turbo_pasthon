@@ -7,11 +7,11 @@ type
         x: Real32
         y: Real32
 
-extern "libm.so.6"
+external "libm.so.6"
     function sqrtf(x: CFloat): CFloat
     function powf(x: CFloat, y: CFloat): CFloat
 
-extern "libc.so.6"
+external "libc.so.6"
     function printf(fmt: CString, ...): CInt
 
 let a: Real32 := 0.1

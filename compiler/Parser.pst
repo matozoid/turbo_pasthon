@@ -320,6 +320,13 @@ function accept(p: ref State, k: TokenKind): Boolean
         return true
     return false
 
+## Steps over the identifier `word`, a keyword only where it is accepted.
+function acceptWord(p: ref State, word: String): Boolean
+    if isWordOp(peek(p), word: word) then
+        step(p)
+        return true
+    return false
+
 procedure skipOver(p: ref State, k: TokenKind)
     _ := accept(p, k)
 
@@ -585,7 +592,7 @@ function declTarget(d: Decl): Target
             endMarker: r.endMarker,
         )
         TestBlock(t): return closes("test", name: "", endMarker: t.endMarker)
-        ExternBlock(e): return closes("extern", name: "", endMarker: e.endMarker)
+        ExternBlock(e): return closes("external", name: "", endMarker: e.endMarker)
         else: return target(TargetKind.NoTarget)
 
 function topTarget(t: TopItem): Target
@@ -1288,7 +1295,8 @@ function externDecl(p: ref State): Parsed[ExternItem]
         )
     let sig := try signature(p)
     var symbol: Option[String] := None
-    if accept(p, TokenKind.KwAs) then
+    # `as` is the old spelling of `name`, until the next seed release.
+    if accept(p, TokenKind.KwAs) or acceptWord(p, "name") then
         symbol := Some(try stringConst(p, "C symbol name"))
     try endLine(p)
     return Ok(ExternDecl(
@@ -1330,7 +1338,7 @@ function cRecords(p: ref State): Parsed[TypeSection]
                     p,
                     "E0903",
                     d.name.span,
-                    message: "only records can be declared in an extern block",
+                    message: "only records can be declared in an external block",
                 )
                 add(var decls, d)
     return Ok(TypeSection(span: section.span, decls: decls))

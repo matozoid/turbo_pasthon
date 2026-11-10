@@ -2,7 +2,7 @@ program Main
 
 uses IO, C
 
-extern "libc.so.6"
+external "libc.so.6"
     function malloc(n: CSize): Pointer
     procedure free(p: Pointer)
     procedure qsort(base: Pointer, n: CSize, size: CSize, cmp: function(Pointer, Pointer): CInt)

@@ -7,7 +7,7 @@ type
     Pick = function(String, String): String
     Cmp = function(Pointer, Pointer): CInt
 
-extern "libc.so.6"
+external "libc.so.6"
     procedure qsort(base: Pointer, n: CSize, size: CSize, cmp: Cmp)
     function malloc(n: CSize): Pointer
     procedure free(p: Pointer)

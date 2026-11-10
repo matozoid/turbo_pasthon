@@ -2,7 +2,7 @@ program Main
 
 uses IO, C
 
-extern "libm.so.6"
+external "libm.so.6"
     type
         export Complex = record
             re: CDouble

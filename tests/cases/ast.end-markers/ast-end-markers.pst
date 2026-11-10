@@ -43,9 +43,9 @@ for v in xs do
 test "t"
     b()
 # end test
-extern "c"
+external "c"
     function f(): Integer
-# end extern
+# end external
 if a then
     b(
 # end if

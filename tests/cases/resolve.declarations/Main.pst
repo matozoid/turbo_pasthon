@@ -20,7 +20,7 @@ function g(): Integer
     return 1
 function g(x: Integer): Integer
     return x
-extern "pst"
+external "pst"
     function h(): Integer
 let e := E.C
 let e2 := E.B

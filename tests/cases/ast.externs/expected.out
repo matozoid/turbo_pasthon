@@ -1,10 +1,10 @@
 $ $PST ast ast-externs.pst
 exit 1
 --- stdout
-File 1:1-19:11 kind="program"
+File 1:1-19:13 kind="program"
   name: Ident 1:9-1:10 name="P"
-  items[0]: ExternBlock 2:1-14:36 library="libc.so.6"
-    decls[0]: ExternDecl 4:5-4:85 exported=true symbol="write" doc="Writes."
+  items[0]: ExternBlock 2:1-14:38 library="libc.so.6"
+    decls[0]: ExternDecl 4:5-4:87 exported=true symbol="write" doc="Writes."
       sig: Signature 4:12-4:74 is_function=true
         name: Ident 4:21-4:26 name="write"
         params[0]: Param 4:27-4:38 is_var=false is_this=false is_varargs=false
@@ -47,7 +47,7 @@ File 1:1-19:11 kind="program"
         body: EnumType 13:13-13:19
           members[0]: Ident 13:14-13:15 name="A"
           members[1]: Ident 13:17-13:18 name="B"
-    decls[3]: ExternDecl 14:5-14:36 exported=false symbol=""
+    decls[3]: ExternDecl 14:5-14:38 exported=false symbol=""
       sig: Signature 14:5-14:26 is_function=true
         name: Ident 14:14-14:15 name="f"
         result: TypeName 14:19-14:26 parts=["Integer"] part_spans=[14:19-14:26]
@@ -56,13 +56,13 @@ File 1:1-19:11 kind="program"
       sig: Signature 16:5-16:18 is_function=false
         name: Ident 16:15-16:16 name="g"
   items[2]: ErrorStmt 17:1-18:18
-  items[3]: ExternBlock 19:1-19:11 library="c"
+  items[3]: ExternBlock 19:1-19:13 library="c"
 error E0040 6:5-6:6 "expected 'function' or 'procedure', found identifier 'x'"
 error E0903 10:29-10:30 "a C record field can't have a default"
 error E0903 11:11-11:12 "a C record can't be generic"
-error E0903 13:9-13:10 "only records can be declared in an extern block"
-error E0040 14:30-14:36 "C symbol name may not contain placeholders; write '\\{'"
-error E0040 15:8-15:13 "library name may not contain placeholders; write '\\{'"
+error E0903 13:9-13:10 "only records can be declared in an external block"
+error E0040 14:32-14:38 "C symbol name may not contain placeholders; write '\\{'"
+error E0040 15:10-15:15 "library name may not contain placeholders; write '\\{'"
 error E0040 17:7-18:1 "expected library name (a string), found end of line"
 error E0042 20:1-20:1 "expected an indented list of extern declarations"
 --- stderr

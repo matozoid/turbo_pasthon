@@ -608,7 +608,7 @@ procedure declaration(c: ref Checker, u: ref Unit, d: Decl)
                     u.path,
                     "E0106",
                     b.span,
-                    message: "'extern \"pst\"' is reserved for the standard units",
+                    message: "'external \"pst\"' is reserved for the standard units",
                 )
             for item in b.decls do
                 case item of

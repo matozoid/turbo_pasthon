@@ -2,7 +2,7 @@ program Main
 
 uses IO, C
 
-extern "libc.so.6"
+external "libc.so.6"
     type
         export Good = record
             p: Ptr[Good]

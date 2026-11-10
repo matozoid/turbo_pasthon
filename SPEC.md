@@ -24,7 +24,7 @@ The main users are AI coding models; the language should be readable for humans.
 6. **Good error messages.** A diagnostic says what is wrong and how to fix it, and offers a fix where it can.
 7. **Familiar syntax.** Pascal's vocabulary with Python's significant indentation.
 8. **Memory safety.** No null, no manual free: automatic reference counting and value semantics (§11). Raw pointers only inside `unsafe`.
-9. **Good C interop.** Pasthon calls C libraries and C calls back into Pasthon. C records have exact C layout and are declared in extern blocks. Strings go to C without copying, but explicitly (`toCString`). Bindings are written by hand; headers aren't imported (§10).
+9. **Good C interop.** Pasthon calls C libraries and C calls back into Pasthon. C records have exact C layout and are declared in external blocks. Strings go to C without copying, but explicitly (`toCString`). Bindings are written by hand; headers aren't imported (§10).
 10. **Turbo.** The compiler is fast and simple, inspired by Turbo Pascal: few passes, no forward declarations, parse, check, emit machine code. It is written in Turbo Pasthon itself.
 11. **Platforms.** Linux x86-64 first, other modern hosted platforms later. Relying on libc is fine.
 
@@ -77,7 +77,7 @@ matches the block just closed:
 | `record` / `trait` type `T` | `# end record T` / `# end trait T` (name optional) |
 | `test "..."` | `# end test` |
 | `defer` block | `# end defer` |
-| `extern` block | `# end extern` |
+| `external` block | `# end external` |
 
 A mismatch is error `E0010`. Markers are never required.
 
@@ -87,7 +87,7 @@ A mismatch is error `E0010`. Markers are never required.
 Underscores inside names are allowed but not recommended: idiomatic Pasthon uses camelCase,
 and examples, the standard units and generated code never use `_` in names. They exist so
 that names from other systems can be kept unchanged. A C symbol that is not a valid
-Pasthon name (`_exit`, `SDL_Init`) is imported under a new name with `as` (§10.1).
+Pasthon name (`_exit`, `SDL_Init`) is imported under a new name with `name` (§10.1).
 
 A word starting with `_` is never an identifier. It is a **discard** (§7.9): `_` alone, or
 `_name` to document what is being dropped. Discards can't be read.
@@ -103,9 +103,9 @@ Casing is enforced (error `E0020`), decided by the first letter:
 ### 2.6 Keywords
 
 ```
-and       as        assert    break     case      const     continue
-defer     div       do        downto    else      ensures   export
-extern    false     for       function  if        in        let
+and       assert    break     case      const     continue  defer
+div       do        downto    else      ensures   export    external
+false     for       function  if        in        let
 mod       not       of        or        pass      procedure program
 record    ref       repeat    requires  return    test      then
 this      This      to        trait     true      try       type
@@ -150,7 +150,7 @@ let json := "\{\"name\": \"{name}\"}"     # \{ is a literal brace
 - An unterminated `{`, or an empty `{}`, is an error (`E0030`).
 - A string with no placeholders is a plain constant, with no runtime cost.
 - A string literal, including its placeholders, must fit on one line. Use `\n` for newlines.
-- Strings in `extern` library names, `as` symbol names and `test` names may not contain placeholders.
+- Strings in `external` library names, `name` symbol names and `test` names may not contain placeholders.
 
 ### 2.9 Lexical errors
 
@@ -197,7 +197,7 @@ After the header, in any order (and, in programs, interleaved with statements, �
 - `type` sections
 - `const` sections
 - `function` / `procedure` declarations
-- `extern` blocks
+- `external` blocks
 - `test` blocks
 
 ### 3.3 Program body
@@ -260,16 +260,16 @@ The standard units (§14) are ordinary `.pst` files shipped with the compiler (`
 Primitive types, the built-in generic types (`List`, `Map`, `Set`, `Array`, `Weak`), the
 traits `Equatable`, `Ordered`, `Hashable`, `Sendable`, and the C types `CString`, `Ptr`,
 `Pointer` are provided by the compiler as names in `System` (`C` for the C types). Routines
-the compiler implements are declared like C functions, in `extern "pst"` blocks, which are
+the compiler implements are declared like C functions, in `external "pst"` blocks, which are
 allowed only in standard units (`E0106`):
 
 ```pascal
-extern "pst"
+external "pst"
     ## Number of elements.
     export function len[T](xs: List[T]): Integer
 ```
 
-`export` on a declaration inside an `extern` block exports it, as for routines.
+`export` on a declaration inside an `external` block exports it, as for routines.
 
 ---
 
@@ -330,7 +330,7 @@ type
 - A record with exactly one field may be constructed positionally: `Some(5)`.
 - A record with zero fields is used as a value by its bare name: `None`.
 - Records are stored like strings (§11), so C can't use them. Records declared in an
-  `extern` block are C structs instead (§10.5).
+  `external` block are C structs instead (§10.5).
 - Records cannot contain functions. Behavior is provided by free functions (§6.6).
 
 **Field visibility.** Fields are private to the declaring unit unless marked `export`:
@@ -1172,31 +1172,34 @@ let total := sum(iter(for item in items do item.qty * item.price))
 
 ## 10. C interoperability
 
-### 10.1 extern blocks
+### 10.1 external blocks
 ```pascal
-extern "libc.so.6"
+external "libc.so.6"
     function strlen(s: CString): CSize
     function printf(fmt: CString, ...): CInt
     procedure free(p: Pointer)
 
-extern "libm.so.6"
+external "libm.so.6"
     function cos(x: CDouble): CDouble
 ```
 - Every library becomes a `DT_NEEDED` entry in the output ELF. Symbols are bound at load time through the GOT (no PLT, no lazy binding).
-- `as "symbol"` binds a declaration to a C symbol with a different name. Without `as`, the
+- `name "symbol"` binds a declaration to a C symbol with a different name. Without `name`, the
   Pasthon name is the symbol name. Use it for symbols that aren't valid Pasthon names
   (leading `_`, or casing that breaks `E0020`):
 
   ```pascal
-  extern "libc.so.6"
-      procedure exitNow(code: CInt) as "_exit"
-      function errnoLocation(): Ptr[CInt] as "__errno_location"
+  external "libc.so.6"
+      procedure exitNow(code: CInt) name "_exit"
+      function errnoLocation(): Ptr[CInt] name "__errno_location"
 
-  extern "libSDL2-2.0.so.0"
-      function sdlInit(flags: CUInt): CInt as "SDL_Init"
+  external "libSDL2-2.0.so.0"
+      function sdlInit(flags: CUInt): CInt name "SDL_Init"
   ```
   The symbol string may not contain placeholders.
-- `...` (C varargs) is allowed only in extern declarations.
+- `name` is a keyword only there; elsewhere it's an ordinary identifier.
+- Until the next seed release the compiler also reads the old spellings `extern` and
+  `as "symbol"` (and `# end extern`), which the standard units still use.
+- `...` (C varargs) is allowed only in external declarations.
 - Calls use the System V AMD64 ABI.
 - Parameter and return types must be C-compatible: primitive numerics, `Boolean`, C types,
   `Ptr[T]`, `Pointer`, C records (§10.5), `Array[T, N]` (inside C records), and non-generic
@@ -1235,7 +1238,7 @@ A top-level, non-generic Pasthon function whose signature is C-compatible can be
 where C expects a function pointer, by name or as any value of its function type (§4.11).
 C may call it any number of times while the program runs. So can a lambda that captures no
 variables. A lambda that captures some can't be: C calls it without them. Passed directly
-to an extern routine it is an error (`E0808`); passed as a value it panics (`P0012`).
+to an external routine it is an error (`E0808`); passed as a value it panics (`P0012`).
 
 ### 10.4 unsafe
 Dereferencing `Ptr[T]`/`Pointer`, pointer arithmetic (`p + n`, in units of `T`), `cast[T](x)`
@@ -1245,20 +1248,20 @@ function requires no marker. Unsafe code is greppable, not contagious.
 
 
 ### 10.5 C records
-A record declared in a `type` section inside an `extern` block is a **C record**: it has
+A record declared in a `type` section inside an `external` block is a **C record**: it has
 exactly the layout of the C struct (fields in declaration order, C alignment rules). A
 C record value holds those bytes; like other records, it is a value: assignment copies it
 (copy-on-write, §4.6).
 
 ```pascal
-extern "libSDL2-2.0.so.0"
+external "libSDL2-2.0.so.0"
     type
         export SdlRect = record
             x: CInt
             y: CInt
             w: CInt
             h: CInt
-    function sdlFillRect(s: Ptr[SdlSurface], r: Ptr[SdlRect], color: CUInt): CInt as "SDL_FillRect"
+    function sdlFillRect(s: Ptr[SdlSurface], r: Ptr[SdlRect], color: CUInt): CInt name "SDL_FillRect"
 
 unsafe procedure fill(s: Ptr[SdlSurface])
     var r := SdlRect(x: 0, y: 0, w: 8, h: 8)
@@ -1506,7 +1509,7 @@ encoding the client negotiates (§15.4).
 4. **Emit pass**: walk the typed AST and emit x86-64 machine code directly with a simple
    stack-based expression scheme. No IR, no optimizer.
 5. **Link**: the compiler writes the ELF itself (`PT_INTERP` = `/lib64/ld-linux-x86-64.so.2`,
-   dynamic section, a GOT for extern symbols, writable words for the runtime after it, the
+   dynamic section, a GOT for external symbols, writable words for the runtime after it, the
    runtime emitted along with the program).
 
 Checked build (default): bounds, overflow, subrange, contracts. `--unchecked` drops all of
@@ -1874,8 +1877,8 @@ param       = ["var"] ( "this" | IDENT { "," IDENT } ":" typeExpr [":=" expr] ) 
 routineBody = NEWLINE INDENT { "requires" expr NEWLINE } { "ensures" expr NEWLINE }
               stmt { stmt } DEDENT ;
 
-externBlk   = "extern" STRING NEWLINE INDENT { externDecl NEWLINE | typeSect } DEDENT ;
-externDecl  = ["export"] signature ["as" STRING] ;
+externBlk   = "external" STRING NEWLINE INDENT { externDecl NEWLINE | typeSect } DEDENT ;
+externDecl  = ["export"] signature ["name" STRING] ;
 testBlk     = "test" STRING block ;
 
 stmt        = varDecl | assign | callStmt | ifStmt | whileStmt | repeatStmt
@@ -1945,7 +1948,7 @@ already has a lexical error are not reported.
 | `E0103` | top-level variable of the program used inside a routine or `const` |
 | `E0104` | a discard `_` read as a value |
 | `E0105` | `program` / `unit` name doesn't match the file name (fix: rename) |
-| `E0106` | `extern "pst"` outside the standard units |
+| `E0106` | `external "pst"` outside the standard units |
 | `E0107` | cyclic `uses` |
 | `E0108` | duplicate declaration in one unit, record, trait, enum, or type parameter list |
 | `E0109` | name not exported by its unit |
@@ -2008,9 +2011,9 @@ already has a lexical error are not reported.
 | `E0806` | lambda where no function type is expected |
 | `E0807` | lambda with a different number of parameters than the function type expected |
 | `E0808` | lambda that captures variables passed to C (§10.3) |
-| `E0901` | type isn't C-compatible (extern signature, C record field, C varargs argument; §10.1) |
+| `E0901` | type isn't C-compatible (external signature, C record field, C varargs argument; §10.1) |
 | `E0902` | unsafe operation outside an `unsafe` routine (§10.4) |
-| `E0903` | invalid declaration in an extern block's `type` section (§10.5) |
+| `E0903` | invalid declaration in an external block's `type` section (§10.5) |
 | `E0904` | `cast` between types other than pointers and integers (§10.4) |
 | `E0905` | `addr` of something other than a variable or a C record field in one (§4.13) |
 | `E1101` | calling a destroy hook, or using it as a value (§11.1) |
@@ -2052,7 +2055,8 @@ form goes.
    decimals. They replaced `padLeft`, `padRight` and `toFixed`.
 3. Done (§14): Pascal names in `Strings`: `upperCase`, `lowerCase`, `hexStr(n, digits)`
    (now upper case), `binStr`, and `pos` for `find` (still an `Option`).
-4. `external "lib"` and `name "symbol"` instead of `extern` and `as`.
+4. Done (§10.1): `external "lib"` and `name "symbol"` instead of `extern` and `as`. Left
+   for after the seed release: std moves over, and `extern` and `as` go.
 5. `length` instead of `len`.
 6. Comments are `{ ... }`, the only comment style: `#` goes, and a `{ }` comment directly
    above a declaration is its doc comment; end markers read `{ end if }`. Sets and maps

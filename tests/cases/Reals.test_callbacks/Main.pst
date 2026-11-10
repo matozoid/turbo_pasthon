@@ -3,28 +3,28 @@ program Main
 uses IO, C
 
 # libffi calls the callbacks the way C code would.
-extern "libffi.so.8"
+external "libffi.so.8"
     function prepCif(
         cif: Pointer,
         abi: CInt,
         n: CUInt,
         result: Pointer,
         args: Pointer,
-    ): CInt as "ffi_prep_cif"
+    ): CInt name "ffi_prep_cif"
     procedure callMixed(
         cif: Pointer,
         f: function(CDouble, CInt, CFloat): CDouble,
         result: Pointer,
         args: Pointer,
-    ) as "ffi_call"
+    ) name "ffi_call"
     procedure callSingle(
         cif: Pointer,
         f: function(CInt, CFloat): CFloat,
         result: Pointer,
         args: Pointer,
-    ) as "ffi_call"
+    ) name "ffi_call"
 
-extern "libc.so.6"
+external "libc.so.6"
     function dlsym(handle: Pointer, name: CString): Pointer
     function malloc(n: CSize): Pointer
     procedure free(p: Pointer)

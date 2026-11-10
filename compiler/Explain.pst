@@ -270,7 +270,7 @@ export function explanations(): List[Explanation]
             code: "E0106",
             section: "16.2",
             title: "Name errors",
-            meaning: "`extern \"pst\"` outside the standard units",
+            meaning: "`external \"pst\"` outside the standard units",
         ),
         Explanation(code: "E0107", section: "16.2", title: "Name errors", meaning: "cyclic `uses`"),
         Explanation(
@@ -603,7 +603,7 @@ export function explanations(): List[Explanation]
             code: "E0901",
             section: "16.3",
             title: "Type errors",
-            meaning: "type isn't C-compatible (extern signature, C record field, C varargs argument; §10.1)",
+            meaning: "type isn't C-compatible (external signature, C record field, C varargs argument; §10.1)",
         ),
         Explanation(
             code: "E0902",
@@ -615,7 +615,7 @@ export function explanations(): List[Explanation]
             code: "E0903",
             section: "16.3",
             title: "Type errors",
-            meaning: "invalid declaration in an extern block's `type` section (§10.5)",
+            meaning: "invalid declaration in an external block's `type` section (§10.5)",
         ),
         Explanation(
             code: "E0904",

@@ -121,7 +121,7 @@ Main.pst error E0108 17:10-17:11 "'C' is already declared (const 'C', Main.pst:1
 Main.pst error E0020 17:10-17:11 "function names are lowerCamel: 'c', not 'C'"
   fix "rename to 'c'"
     edit 17:10-17:11 "c"
-Main.pst error E0106 23:1-24:26 "'extern \"pst\"' is reserved for the standard units"
+Main.pst error E0106 23:1-24:26 "'external \"pst\"' is reserved for the standard units"
 Main.pst error E0100 25:12-25:13 "enum 'E' has no member 'C'"
 Main.pst error E0100 27:13-27:15 "enum 'E' has no member 'Aa'"
   fix "replace with 'A'"

@@ -2,7 +2,7 @@ program Main
 
 uses IO, C
 
-extern "libc.so.6"
+external "libc.so.6"
     type
         export Div = record
             quot: CInt
@@ -17,11 +17,11 @@ extern "libc.so.6"
     function malloc(n: CSize): Pointer
     procedure free(p: Pointer)
     procedure qsort(base: Pointer, n: CSize, size: CSize, cmp: function(Pointer, Pointer): CInt)
-    function cdiv(a: CInt, b: CInt): Div as "div"
+    function cdiv(a: CInt, b: CInt): Div name "div"
     function getenv(name: CString): CString
     function setenv(name: CString, value: CString, overwrite: CInt): CInt
 
-extern "libm.so.6"
+external "libm.so.6"
     function labs(x: CLong): CLong
 
 procedure demo()

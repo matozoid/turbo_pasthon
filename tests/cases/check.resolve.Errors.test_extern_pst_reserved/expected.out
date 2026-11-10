@@ -9,5 +9,5 @@ use Main.pst 3:6-3:8
   unit 'IO' @ std/IO.pst:1:6
 use Main.pst 6:23-6:30
   type 'Integer' @ std/System.pst:13:12
-Main.pst error E0106 5:1-6:30 "'extern \"pst\"' is reserved for the standard units"
+Main.pst error E0106 5:1-6:30 "'external \"pst\"' is reserved for the standard units"
 --- stderr

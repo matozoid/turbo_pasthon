@@ -92,7 +92,7 @@ File 1:1-51:9 kind="program"
       stmts[0]: ExprStmt 44:5-44:8
         expr: Call 44:5-44:8
           callee: Name 44:5-44:6 name="b"
-  items[13]: ExternBlock 46:1-47:26 library="c" end_marker=48:1-48:13
+  items[13]: ExternBlock 46:1-47:26 library="c" end_marker=48:1-48:15
     decls[0]: ExternDecl 47:5-47:26 exported=false
       sig: Signature 47:5-47:26 is_function=true
         name: Ident 47:14-47:15 name="f"

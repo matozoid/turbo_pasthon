@@ -151,6 +151,7 @@ export function keywords(): Map[String, TokenKind]
         "ensures": TokenKind.KwEnsures,
         "export": TokenKind.KwExport,
         "extern": TokenKind.KwExtern,
+        "external": TokenKind.KwExtern,
         "false": TokenKind.KwFalse,
         "for": TokenKind.KwFor,
         "function": TokenKind.KwFunction,
