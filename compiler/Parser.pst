@@ -217,17 +217,33 @@ function isComparison(k: TokenKind): Boolean
         or k = TokenKind.KwIn
     )
 
-function isOr(k: TokenKind): Boolean
-    return k = TokenKind.KwOr
+function isOr(t: Token): Boolean
+    return t.kind = TokenKind.KwOr
 
-function isAnd(k: TokenKind): Boolean
-    return k = TokenKind.KwAnd
+## `xor`, `shl` and `shr` are words that act as operators after an operand, so that the
+## `Bits` functions of those names can still be called until they go (SPEC §18a).
+function isWordOp(t: Token, word: String): Boolean
+    return t.kind = TokenKind.Ident and t.text = word
 
-function isAdditive(k: TokenKind): Boolean
-    return k = TokenKind.Plus or k = TokenKind.Minus
+function isXor(t: Token): Boolean
+    return isWordOp(t, word: "xor")
 
-function isMultiplicative(k: TokenKind): Boolean
-    return k = TokenKind.Star or k = TokenKind.Slash or k = TokenKind.KwDiv or k = TokenKind.KwMod
+function isAnd(t: Token): Boolean
+    return t.kind = TokenKind.KwAnd
+
+function isAdditive(t: Token): Boolean
+    return t.kind = TokenKind.Plus or t.kind = TokenKind.Minus
+
+function isMultiplicative(t: Token): Boolean
+    let k := t.kind
+    return (
+        k = TokenKind.Star
+        or k = TokenKind.Slash
+        or k = TokenKind.KwDiv
+        or k = TokenKind.KwMod
+        or isWordOp(t, word: "shl")
+        or isWordOp(t, word: "shr")
+    )
 
 # -------------------------------------------------------------------- token values
 
@@ -1894,10 +1910,10 @@ function ifExpr(p: ref State): Parsed[IfExpr]
 function binary(
     p: ref State,
     operand: function(ref State): Parsed[Expr],
-    isOp: function(TokenKind): Boolean,
+    isOp: function(Token): Boolean,
 ): Parsed[Expr]
     var left := try operand(p)
-    while isOp(peek(p).kind) do
+    while isOp(peek(p)) do
         let op := advance(p)
         let right := try operand(p)
         left := Binary(
@@ -1911,7 +1927,10 @@ function binary(
     return Ok(left)
 
 function orExpr(p: ref State): Parsed[Expr]
-    return binary(p, operand: andExpr, isOp: isOr)
+    return binary(p, operand: xorExpr, isOp: isOr)
+
+function xorExpr(p: ref State): Parsed[Expr]
+    return binary(p, operand: andExpr, isOp: isXor)
 
 function andExpr(p: ref State): Parsed[Expr]
     return binary(p, operand: notExpr, isOp: isAnd)

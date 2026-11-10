@@ -1,0 +1,10 @@
+program Main
+
+uses IO
+
+let x := 3
+writeln(x and $FF = 0)
+writeln(1.0 shl 2)
+writeln(not "a")
+writeln(x xor true)
+writeln(x and Int8(1))

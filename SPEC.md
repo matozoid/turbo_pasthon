@@ -1027,12 +1027,13 @@ function largest[T: Ordered](xs: List[T]): Option[T]
 
 | Level | Operators | Operand types |
 |---|---|---|
-| 1 | `or` | Boolean |
-| 2 | `and` | Boolean |
-| 3 | `not` | Boolean |
+| 1 | `or` | Boolean, or integers (bitwise) |
+| 1a | `xor` | Boolean, or integers (bitwise) |
+| 2 | `and` | Boolean, or integers (bitwise) |
+| 3 | `not` | Boolean, or an integer (bitwise) |
 | 4 | `=` `<>` `<` `<=` `>` `>=` `in` | non-associative: `a < b < c` is an error |
 | 5 | `+` `-` | numeric only (strings: §2.8; lists: `add`, `concat`) |
-| 6 | `*` `/` `div` `mod` | |
+| 6 | `*` `/` `div` `mod` `shl` `shr` | |
 | 7 | unary `-`, `try` | |
 | 8 | postfix: call `()`, index `[]`, field `.` | |
 
@@ -1052,7 +1053,13 @@ function largest[T: Ordered](xs: List[T]): Option[T]
 - `toInt(r)` truncates toward zero and `round(r)` rounds half away from zero
   (`round(2.5) = 3`, `round(-2.5) = -3`). A result outside `Integer`, or a NaN, panics
   (`P0002`) in checked builds.
-- `and`, `or`, `not` work on Boolean only (short-circuit). Bitwise ops are library functions in the `Bits` unit (§14).
+- `and`, `or`, `xor` and `not` are logical on Booleans (`and` and `or` short-circuit) and
+  bitwise on integers, as in Pascal: both operands of one integer type, and the result
+  wraps to its width (`not b` of a `Byte` is `255 - b`). A comparison binds tighter, so
+  write `(x and $FF) = 0`. `x shl n` and `x shr n` shift an integer by an `Integer` count:
+  `shr` shifts in zeros, and a count outside 0 to width - 1 gives 0. `xor`, `shl` and `shr`
+  are operators only after an operand, so the `Bits` functions of those names can still be
+  called until std moves over (§18a).
 - Mixed numeric types are an error. Convert explicitly: `toReal(i)`, `toInt(r)` (truncates), `round(r)`, `Int32(x)` (checked narrowing). `ord(c)` is a `Char`'s code point and
   `Char(i)` the `Char` of code point `i`; it panics (`P0009`) if `i` is negative, above
   U+10FFFF or a surrogate, in `--unchecked` builds too.
@@ -1413,7 +1420,7 @@ test "largest of empty list is None"
 | `IO` | `write`, `writeln` (standard output), `writeErr`, `writelnErr` (standard error), `readln(): Option[String]`, `read(count): Option[String]` (exactly `count` bytes, `None` if the input ends first); files: `open` (reading), `create(path, mode := $1A4)` (octal 644) (writing; creates or empties), `close`, `readAll`, `readBytes`, `writeAll`, `writeBytes` returning `Result[_, String]` with C's error message. A `File` closes when its last reference goes away. Written in Pasthon on libc's `open`, `read`, `write`, `close` |
 | `Strings` | `bytes`, `fromBytes` (invalid UTF-8 becomes U+FFFD), `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `endsWith`, `parseInt`, `parseReal` (`[+-]digits[.digits][(e|E)[+-]digits]`), `repeated(s, count)`, `padLeft`/`padRight(s, width, fill := ' ')` (counting characters), `toUpper`/`toLower` (ASCII letters only), `lines` (split at `\n` or `\r\n`; a break at the end starts no line), `toHex(n, digits := 1)` (lower case, zero-padded, `-` for negatives), `toFixed(x, decimals)` (as C's `%.*f`), `globMatch(text, pattern)` (the whole text; `*`, `?`, `[a-z]`, `[!...]`). `split` and `replace` require a non-empty separator. Written in Pasthon on libc's `memmem`, `memcpy`, `strtod` and `snprintf`, except `charCount`, `byteLen`, `slice` and `startsWith` (compiler intrinsics) |
 | `Math` | `Pi`, `sqrt`, `sin`, `cos`, `abs`, `min`, `max`, `floor`, `ceil`. Written in Pasthon on libm |
-| `Bits` | `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, `popCount` on all integer types (compiler intrinsics); results wrap to the type's width, `shr` shifts in zeros, a shift count outside 0 to width - 1 gives 0 |
+| `Bits` | `popCount`, and until std moves to the operators (§9.1, §18a) `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, on all integer types (compiler intrinsics); results wrap to the type's width, `shr` shifts in zeros, a shift count outside 0 to width - 1 gives 0 |
 | `OS` | `args(): List[String]` (without the program name), `env(name): Option[String]`, `exit(code)`, `currentDir(): String`, `realPath(path): Result[String, String]` (absolute, with symbolic links, `.` and `..` resolved), `isFile(path): Boolean` (a regular file, following symbolic links), `isDir(path): Boolean`, `listDir(path): Result[List[String], String]` (the entry names, without `.` and `..`, in no particular order), `programPath(): String` (the running executable, from `/proc/self/exe`), `tempDir(): Result[String, String]` (a new private directory under `TMPDIR`, or `/tmp`), `makeDir(path, mode := $1ED)` (octal 755), `removeFile(path)` and `removeDir(path)` (an empty directory; all three `Result[Integer, String]`), `run(path, args, output := "", errors := "", input := "", dir := ""): Result[Integer, String]` (runs an executable and waits: its exit status, or minus the signal that ended it; 127 if it can't be started; with `output`, its standard output goes to that file, and its standard error too unless `errors` names another file; with `input`, it reads that file; with `dir`, it runs in that directory, while the file paths stay relative to the caller's). Written in Pasthon on libc (`getcwd`, `realpath`, `stat`, `readlink`, `mkdtemp`, `mkdir`, `unlink`, `rmdir`, `opendir`, `readdir`, `fork`, `dup2`, `chdir`, `execv`, `waitpid`); `args` reads `argv`, which the program's entry point keeps in a writable word after the GOT (§15.2) |
 | `Paths` | file paths as text, POSIX style and lexical only (the file system is never consulted; `OS.realPath` follows links): `isAbsolute`, `joinPath(base, rest)` (`rest` if it's absolute), `baseName` and `dirName` (trailing slashes ignored; `c` and `a/b` for `a/b/c`, `.` as the directory of a bare name), `extension` (with its dot; leading dots don't start one, so `.profile` has none), `stem`, `withExtension(path, ext)`, `components` (`/` first for an absolute path; `.` and empty parts left out), `normalize` (repeated slashes, `.`, and each `..` with the part before it removed; `.` if nothing is left), `relativeTo(path, base): Option[String]` (both absolute or both relative; `None` when the way out of `base` passes a `..`). Written in Pasthon on `Strings` |
 | `Json` | `JValue = JNull \| JBool \| JNumber \| JString \| JArray \| JObject` (an object keeps its `Member`s in order; a number keeps its text), `parse(s): Result[JValue, String]` (RFC 8259; the error gives the character offset), `toText(j)` (one line, no spaces), `quote(s)` (a JSON string literal), and readers that never fail: `field(j, key)` (`JNull` if missing), `isNull`, `asString`, `asBoolean`, `asInteger` (`Option`s), `items` (empty if not an array). Written in Pasthon |
@@ -2028,8 +2035,9 @@ Pascal, not C, is the model. These changes come in steps; each new form is accep
 the old one until a seed release knows it, then std and the compiler move over and the old
 form goes.
 
-1. `and`, `or`, `xor` and `not` work bitwise on integers, and `shl` and `shr` are operators
-   (level 6); `xor` also works on Booleans. `Bits` keeps only `popCount`.
+1. Done (§9.1): `and`, `or`, `xor`, `not` bitwise on integers, `shl`/`shr` operators. Left
+   for after the seed release: std and the compiler use them, `Bits` keeps only
+   `popCount`, and `xor`, `shl`, `shr` become keywords.
 2. Format specifiers in placeholders, as Pascal's `write(x:width:decimals)`: `"{n:5}"`
    right-aligns in 5 characters, `"{s:-8}"` left-aligns, `"{x:0:2}"` writes 2 decimals.
    They replace `padLeft`, `padRight` and `toFixed`.

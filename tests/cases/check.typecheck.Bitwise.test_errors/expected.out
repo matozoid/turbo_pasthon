@@ -1,0 +1,9 @@
+$ $PST check Main.pst
+exit 1
+--- stdout
+--- stderr
+Main.pst:6:11: error E0305: 'and' needs two Booleans or two integers of one type, not Integer and Boolean; a comparison binds tighter: write '(x and $FF) = 0'
+Main.pst:7:13: error E0305: 'shl' shifts an integer, not Real
+Main.pst:8:9: error E0305: 'not' needs a Boolean or an integer, not String
+Main.pst:9:11: error E0305: 'xor' needs two Booleans or two integers of one type, not Integer and Boolean
+Main.pst:10:11: error E0305: 'and' needs two Booleans or two integers of one type, not Integer and Int8

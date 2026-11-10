@@ -3095,7 +3095,11 @@ procedure eUnary(g: ref Em, x: Unary, e: Expr)
         expr(g, x.operand)
         if g.bad then
             return
-        xorImm32(a, Rax, value: 1)
+        let t := typeOfExpr(g, e)
+        if t = booleanT() then
+            xorImm32(a, Rax, value: 1)
+        else
+            bitsCore(g, x.span, "bnot", t)
     else if x.op = "-" then
         case x.operand of
             IntLit(lit):
@@ -3178,6 +3182,37 @@ procedure overflow(g: ref Em, span: Span)
 procedure eBinary(g: ref Em, x: Binary, e: Expr)
     let a := g.a
     let op := x.op
+    if op = "shl" or op = "shr" or (
+        (op = "and" or op = "or" or op = "xor")
+        and typeOfExpr(g, e) <> booleanT()
+    ) then
+        let t := typeOfExpr(g, e)
+        coerce(g, x.left, t)
+        if g.bad then
+            return
+        push(a, Rax)
+        if op = "shl" or op = "shr" then
+            coerce(g, x.right, integerT())
+        else
+            coerce(g, x.right, t)
+        if g.bad then
+            return
+        mov(a, Rcx, Rax)
+        pop(a, Rax)
+        let bitsName := if op = "and" then "band" else if op = "or" then "bor" else if op = "xor" then "bxor" else op
+        bitsCore(g, x.span, bitsName, t)
+        return
+    if op = "xor" then  # Booleans
+        expr(g, x.left)
+        if g.bad then
+            return
+        push(a, Rax)
+        expr(g, x.right)
+        if g.bad then
+            return
+        pop(a, Rcx)
+        xor(a, Rax, Rcx)
+        return
     if op = "and" or op = "or" then
         let fin := newLabel(a, op)
         expr(g, x.left)
@@ -4650,7 +4685,6 @@ procedure bitsOp(g: ref Em, c: Call, op: String, args: List[Expr], t: Type)
     if not isInt(t) then
         unsupported(g, c.span, "'{op}' on {show(t)}")
         return
-    let width := intBits(t)
     for x in args do
         expr(g, x)
         if g.bad then
@@ -4659,6 +4693,15 @@ procedure bitsOp(g: ref Em, c: Call, op: String, args: List[Expr], t: Type)
     if len(args) = 2 then
         pop(a, Rcx)
     pop(a, Rax)
+    bitsCore(g, c.span, op, t)
+
+## `rax := rax op rcx` (`rax := op rax` for `bnot` and `popCount`) on the bits of `t`.
+procedure bitsCore(g: ref Em, span: Span, op: String, t: Type)
+    let a := g.a
+    if not isInt(t) then
+        unsupported(g, span, "'{op}' on {show(t)}")
+        return
+    let width := intBits(t)
     if op = "band" then
         andR(a, Rax, Rcx)
     else if op = "bor" then

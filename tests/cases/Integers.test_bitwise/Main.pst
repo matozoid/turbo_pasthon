@@ -1,0 +1,14 @@
+program Main
+
+uses IO
+
+function three(): Integer
+    return 3
+
+let x := %1100
+let b: Byte := 200
+let i: Int8 := -1
+writeln("{x and %1010} {x or %1010} {x xor %1010} {not 0} {not b}")
+writeln("{1 shl 10} {$400 shr 3} {b shl 1} {b xor $FF} {x shl 2 + 1}")
+writeln("{i shr 4} {i shl 7} {1 shl 64} {1 shl -1}")
+writeln("{(x and three()) = 0} {true xor false} {true xor true} {not true}")
