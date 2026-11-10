@@ -4,7 +4,7 @@ unit Time
 ## precision, read from and written as ISO-8601 text. Dates use the proleptic Gregorian
 ## calendar, with years from -999_999 to 999_999. The clock comes from libc.
 
-uses C, Strings
+uses C, Strings, IO, OS
 
 extern "libc.so.6"
     function clockGettime(clock: CInt, ts: Ptr[Timespec]): CInt as "clock_gettime"
@@ -52,6 +52,46 @@ type
         lt: LocalTime
 
     export Weekday = (Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
+
+    ## A time zone: the UTC offsets and abbreviations a region used over time, from an IANA
+    ## tzdata (TZif) file, or a fixed offset.
+    export Zone = record
+        zid: String
+        ## The instants (seconds since 1970) where the offset changes, ascending.
+        times: List[Integer]
+        ## The index into `offsets`, `dsts` and `abbrevs` from each of `times` on.
+        kinds: List[Integer]
+        offsets: List[Integer]
+        dsts: List[Boolean]
+        abbrevs: List[String]
+        ## The POSIX TZ rule for instants after the last of `times`.
+        rule: Option[Rule]
+
+    ## A POSIX TZ rule: standard time, and daylight saving time between two days of each
+    ## year when `dstAbbr` isn't empty. Offsets are in seconds east of UTC.
+    Rule = record
+        stdAbbr: String
+        stdOffset: Integer
+        dstAbbr: String
+        dstOffset: Integer
+        begins: DayRule
+        ends: DayRule
+
+    ## A day of the year in a POSIX TZ rule and the local time on it, in seconds.
+    DayRule = record
+        ## 'J' (day `n`, 1 to 365, never counting February 29), 'n' (day `n`, 0 to 365) or
+        ## 'M' (weekday `wd`, 0 being Sunday, of week `week`, 5 being the last, of month
+        ## `n`).
+        kind: Char
+        n: Integer
+        week: Integer
+        wd: Integer
+        at: Integer
+
+    ## An instant in a time zone, such as 2026-11-10T09:30:00+01:00[Europe/Amsterdam].
+    export DateTime = record
+        inst: Instant
+        tz: Zone
 
     ## The parser's state: the text's characters and the position in them.
     Reader = record
@@ -705,6 +745,454 @@ export function parseDuration(s: String): Result[Duration, String]
     _ := try finish(r)
     return Ok(if negative then negated(total) else total)
 
+# ---------------------------------------------------------------------- time zones
+
+## The directory with the tzdata files: `TZDIR`, or `/usr/share/zoneinfo`.
+function zoneDir(): String
+    case env("TZDIR") of
+        Some(d):
+            if byteLen(d.value) > 0 then
+                return d.value
+        None:
+            pass
+    return "/usr/share/zoneinfo"
+
+## Coordinated Universal Time.
+export function utc(): Zone
+    return Zone(
+        zid: "UTC",
+        times: [],
+        kinds: [],
+        offsets: [0],
+        dsts: [false],
+        abbrevs: ["UTC"],
+        rule: None,
+    )
+
+## A zone that is always `offsetSeconds` east of UTC. Its name is empty.
+export function fixedZone(offsetSeconds: Integer): Zone
+    requires offsetSeconds > -SecondsPerDay and offsetSeconds < SecondsPerDay
+    return Zone(
+        zid: "",
+        times: [],
+        kinds: [],
+        offsets: [offsetSeconds],
+        dsts: [false],
+        abbrevs: [offsetText(offsetSeconds)],
+        rule: None,
+    )
+
+## The IANA time zone `name`, such as `Europe/Amsterdam`, read from the tzdata files.
+export unsafe function zone(name: String): Result[Zone, String]
+    if byteLen(name) = 0 or startsWith(name, prefix: "/") or find(name, sub: "..").isSome() then
+        return Err("invalid time zone name '{name}'")
+    return readZone("{zoneDir()}/{name}", name: name)
+
+## The system's time zone: the one `TZ` names (a tzdata name, a file, or a POSIX TZ rule),
+## or else the one `/etc/localtime` links to.
+export unsafe function systemZone(): Result[Zone, String]
+    var tz := getOr(env("TZ"), default: "")
+    if startsWith(tz, prefix: ":") then
+        tz := slice(tz, 1, stop: byteLen(tz))
+    if byteLen(tz) > 0 then
+        if startsWith(tz, prefix: "/") then
+            return readZone(tz, name: nameFromPath(tz))
+        case zone(tz) of
+            Ok(z):
+                return Ok(z.value)
+            Err(_):
+                pass
+        let rule := try parseRule(tz)
+        return Ok(Zone(
+            zid: tz,
+            times: [],
+            kinds: [],
+            offsets: [rule.stdOffset],
+            dsts: [false],
+            abbrevs: [rule.stdAbbr],
+            rule: Some(rule),
+        ))
+    let path := getOr(realPath("/etc/localtime"), default: "/etc/localtime")
+    return readZone(path, name: nameFromPath(path))
+
+## The zone name in a path under a `zoneinfo` directory, or the path itself.
+function nameFromPath(path: String): String
+    case find(path, sub: "/zoneinfo/") of
+        Some(at):
+            return slice(path, at.value + 10, stop: byteLen(path))
+        None:
+            return path
+
+unsafe function readZone(path: String, name: String): Result[Zone, String]
+    let f := try open(path)
+    let data := try readBytes(f)
+    case parseTzif(data, name: name) of
+        Ok(z):
+            return Ok(z.value)
+        Err(e):
+            return Err("{path}: {e.error}")
+
+## The zone's name, such as `Europe/Amsterdam`; empty for a fixed offset.
+export function name(z: Zone): String
+    return z.zid
+
+## The zone's name, or for a fixed offset the offset, such as `+05:30`.
+export function toString(z: Zone): String
+    return if byteLen(z.zid) > 0 then z.zid else offsetText(z.offsets[0])
+
+## The offset of `z` from UTC at `i`, in seconds east.
+export function offsetAt(z: Zone, i: Instant): Integer
+    let k := kindAt(z, seconds: i.secs)
+    if k >= 0 then
+        return z.offsets[k]
+    let rule := z.rule.get()
+    return if ruleIsDst(rule, seconds: i.secs) then rule.dstOffset else rule.stdOffset
+
+## Whether `z` is on daylight saving time at `i`.
+export function isDstAt(z: Zone, i: Instant): Boolean
+    let k := kindAt(z, seconds: i.secs)
+    return if k >= 0 then z.dsts[k] else ruleIsDst(z.rule.get(), seconds: i.secs)
+
+## The abbreviation `z` uses at `i`, such as `CET` or `-03`.
+export function abbreviationAt(z: Zone, i: Instant): String
+    let k := kindAt(z, seconds: i.secs)
+    if k >= 0 then
+        return z.abbrevs[k]
+    let rule := z.rule.get()
+    return if ruleIsDst(rule, seconds: i.secs) then rule.dstAbbr else rule.stdAbbr
+
+## The time type in effect at `seconds`, or -1 when the POSIX rule decides.
+function kindAt(z: Zone, seconds: Integer): Integer
+    let n := len(z.times)
+    if n = 0 or seconds >= z.times[n - 1] then
+        if z.rule.isSome() then
+            return -1
+    if n = 0 or seconds < z.times[0] then
+        return 0
+    # The last transition at or before `seconds`.
+    var lo := 0
+    var hi := n - 1
+    while lo < hi do
+        let mid := (lo + hi + 1) div 2
+        if z.times[mid] <= seconds then
+            lo := mid
+        else
+            hi := mid - 1
+    return z.kinds[lo]
+
+# ------------------------------------------------------------------------ TZif files
+
+## The signed big-endian integer in the `size` bytes at `at`.
+function bigEndian(bs: List[Byte], at, size: Integer): Integer
+    var n := Integer(bs[at])
+    if n >= 128 then
+        n := n - 256
+    for k := 1 to size - 1 do
+        n := n * 256 + Integer(bs[at + k])
+    return n
+
+## The bytes from `at` up to a NUL or `stop`, as text.
+unsafe function textAt(bs: List[Byte], at, stop: Integer): String
+    var part: List[Byte] := []
+    var k := at
+    while k < stop and bs[k] <> 0 do
+        add(var part, bs[k])
+        k := k + 1
+    return fromBytes(part)
+
+## Reads a TZif file (RFC 8536), version 1 to 4. Leap second records are ignored.
+unsafe function parseTzif(bs: List[Byte], name: String): Result[Zone, String]
+    if len(bs) < 44 or textAt(bs, 0, stop: 4) <> "TZif" then
+        return Err("not a TZif file")
+    var at := 0
+    var size := 4
+    if bs[4] >= 0x32 then
+        # Skip the version 1 data, which has 32-bit times.
+        at := 44 + blockSize(bs, at: 0, size: 4)
+        size := 8
+        if len(bs) < at + 44 or textAt(bs, at, stop: at + 4) <> "TZif" then
+            return Err("truncated TZif file")
+    let timeCount := bigEndian(bs, at + 32, size: 4)
+    let typeCount := bigEndian(bs, at + 36, size: 4)
+    let charCount := bigEndian(bs, at + 40, size: 4)
+    let base := at + 44
+    let stop := base + blockSize(bs, at: at, size: size)
+    if typeCount = 0 or len(bs) < stop then
+        return Err("truncated TZif file")
+    var z := Zone(zid: name, times: [], kinds: [], offsets: [], dsts: [], abbrevs: [], rule: None)
+    for k := 0 to timeCount - 1 do
+        add(var z.times, bigEndian(bs, base + k * size, size: size))
+        let kind := Integer(bs[base + timeCount * size + k])
+        if kind >= typeCount then
+            return Err("bad time type index")
+        add(var z.kinds, kind)
+    let types := base + timeCount * (size + 1)
+    let chars := types + typeCount * 6
+    for k := 0 to typeCount - 1 do
+        add(var z.offsets, bigEndian(bs, types + k * 6, size: 4))
+        add(var z.dsts, bs[types + k * 6 + 4] <> 0)
+        let index := Integer(bs[types + k * 6 + 5])
+        add(var z.abbrevs, textAt(bs, chars + index, stop: chars + charCount))
+    if size = 8 and stop < len(bs) and bs[stop] = 10 then
+        var k := stop + 1
+        while k < len(bs) and bs[k] <> 10 do
+            k := k + 1
+        let footer := textAt(bs, stop + 1, stop: k)
+        if byteLen(footer) > 0 then
+            let rule := try parseRule(footer)
+            z.rule := Some(rule)
+    return Ok(z)
+
+## The size of the data block after the header at `at`, with `size`-byte times.
+function blockSize(bs: List[Byte], at, size: Integer): Integer
+    let isUtCount := bigEndian(bs, at + 20, size: 4)
+    let isStdCount := bigEndian(bs, at + 24, size: 4)
+    let leapCount := bigEndian(bs, at + 28, size: 4)
+    let timeCount := bigEndian(bs, at + 32, size: 4)
+    let typeCount := bigEndian(bs, at + 36, size: 4)
+    let charCount := bigEndian(bs, at + 40, size: 4)
+    let leaps := leapCount * (size + 4)
+    return timeCount * (size + 1) + typeCount * 6 + charCount + leaps + isStdCount + isUtCount
+
+# ------------------------------------------------------------------- POSIX TZ rules
+
+## Reads a POSIX TZ rule such as `CET-1CEST,M3.5.0,M10.5.0/3` or `<-03>3`.
+function parseRule(s: String): Result[Rule, String]
+    var r := reader(s)
+    let stdAbbr := try readAbbr(var r)
+    let west := try readHms(var r, maxHours: 24)
+    let us := DayRule(kind: 'M', n: 3, week: 2, wd: 0, at: 7200)
+    var rule := Rule(
+        stdAbbr: stdAbbr,
+        stdOffset: -west,
+        dstAbbr: "",
+        dstOffset: -west,
+        begins: us,
+        ends: DayRule(kind: 'M', n: 11, week: 1, wd: 0, at: 7200),
+    )
+    if atEnd(r) then
+        return Ok(rule)
+    let dstAbbr := try readAbbr(var r)
+    rule.dstAbbr := dstAbbr
+    rule.dstOffset := rule.stdOffset + 3600
+    if not atEnd(r) and peek(r) <> ',' then
+        let dstWest := try readHms(var r, maxHours: 24)
+        rule.dstOffset := -dstWest
+    if atEnd(r) then
+        return Ok(rule)
+    _ := try expect(var r, c: ',')
+    let begins := try readDayRule(var r)
+    _ := try expect(var r, c: ',')
+    let ends := try readDayRule(var r)
+    _ := try finish(r)
+    rule.begins := begins
+    rule.ends := ends
+    return Ok(rule)
+
+## Reads an abbreviation: three or more letters, or anything between `<` and `>`.
+function readAbbr(var r: Reader): Result[String, String]
+    let start := r.pos
+    var parts: List[String] := []
+    if peek(r) = '<' then
+        r.pos := r.pos + 1
+        while not atEnd(r) and peek(r) <> '>' do
+            add(var parts, toString(peek(r)))
+            r.pos := r.pos + 1
+        _ := try expect(var r, c: '>')
+    else
+        while (peek(r) >= 'a' and peek(r) <= 'z') or (peek(r) >= 'A' and peek(r) <= 'Z') do
+            add(var parts, toString(peek(r)))
+            r.pos := r.pos + 1
+    if len(parts) < 3 then
+        r.pos := start
+        return Err(failure(r, "expected a time zone abbreviation"))
+    return Ok(join(parts))
+
+## Reads `[+-]hh[:mm[:ss]]` with at most `maxHours` hours, as seconds.
+function readHms(var r: Reader, maxHours: Integer): Result[Integer, String]
+    let negative := peek(r) = '-'
+    if negative or peek(r) = '+' then
+        r.pos := r.pos + 1
+    let hourAt := r.pos
+    let hours := try number(var r)
+    _ := try check(var r, start: hourAt, n: hours, high: maxHours, what: "hour")
+    var s := hours * 3600
+    if peek(r) = ':' then
+        r.pos := r.pos + 1
+        let minuteAt := r.pos
+        let minutes := try digits(var r, count: 2)
+        _ := try check(var r, start: minuteAt, n: minutes, high: 59, what: "minute")
+        s := s + minutes * 60
+        if peek(r) = ':' then
+            r.pos := r.pos + 1
+            let secondAt := r.pos
+            let seconds := try digits(var r, count: 2)
+            _ := try check(var r, start: secondAt, n: seconds, high: 59, what: "second")
+            s := s + seconds
+    return Ok(if negative then -s else s)
+
+## Reads `Jn`, `n` or `Mm.w.d`, then `/time` if there.
+function readDayRule(var r: Reader): Result[DayRule, String]
+    var d := DayRule(kind: 'n', n: 0, week: 0, wd: 0, at: 7200)
+    let start := r.pos
+    if peek(r) = 'J' then
+        r.pos := r.pos + 1
+        d.kind := 'J'
+    else if peek(r) = 'M' then
+        r.pos := r.pos + 1
+        d.kind := 'M'
+    let numberAt := r.pos
+    let n := try number(var r)
+    d.n := n
+    if d.kind = 'M' then
+        _ := try expect(var r, c: '.')
+        let week := try number(var r)
+        _ := try expect(var r, c: '.')
+        let wd := try number(var r)
+        if n < 1 or n > 12 or week < 1 or week > 5 or wd > 6 then
+            r.pos := start
+            return Err(failure(r, "day rule out of range"))
+        d.week := week
+        d.wd := wd
+    else if n > 365 or (d.kind = 'J' and n < 1) then
+        r.pos := numberAt
+        return Err(failure(r, "day out of range"))
+    if peek(r) = '/' then
+        r.pos := r.pos + 1
+        let at := try readHms(var r, maxHours: 167)
+        d.at := at
+    return Ok(d)
+
+## The day of `year` that `d` names, as days since 1970-01-01.
+function ruleDay(d: DayRule, year: Integer): Integer
+    let jan1 := toEpochDay(date(year, 1, 1))
+    if d.kind = 'J' then
+        return jan1 + d.n - 1 + (if isLeapYear(year) and d.n >= 60 then 1 else 0)
+    if d.kind = 'n' then
+        return jan1 + d.n
+    let firstWd := (ord(weekday(date(year, d.n, 1))) + 1) mod 7
+    var day := 1 + floorMod(d.wd - firstWd, 7) + (d.week - 1) * 7
+    if day > monthLength(year, month: d.n) then
+        day := day - 7
+    return toEpochDay(date(year, d.n, day))
+
+## Whether `rule` has daylight saving time at `seconds` since 1970.
+function ruleIsDst(rule: Rule, seconds: Integer): Boolean
+    if byteLen(rule.dstAbbr) = 0 then
+        return false
+    let year := ofEpochDay(floorDiv(seconds + rule.stdOffset, SecondsPerDay)).yr
+    let begins := ruleDay(rule.begins, year: year) * SecondsPerDay + rule.begins.at - rule.stdOffset
+    let ends := ruleDay(rule.ends, year: year) * SecondsPerDay + rule.ends.at - rule.dstOffset
+    if begins < ends then
+        return seconds >= begins and seconds < ends
+    return seconds < ends or seconds >= begins
+
+# ------------------------------------------------------------------------- date-times
+
+## `i` in zone `z`.
+export function inZone(i: Instant, z: Zone): DateTime
+    return DateTime(inst: i, tz: z)
+
+## The current time in zone `z`.
+export unsafe function now(z: Zone): DateTime
+    return DateTime(inst: now(), tz: z)
+
+## `dt` in zone `z`. In a gap (when clocks go forward) the time moves forward by the gap's
+## length; in an overlap (when clocks go back) the earlier of the two instants is taken.
+## Assumes a zone's offset changes at most once within a day of `dt`.
+export function atZone(dt: LocalDateTime, z: Zone): DateTime
+    let local := toInstant(dt)
+    let before := offsetAt(z, i: minus(local, d: ofDays(1)))
+    let after := offsetAt(z, i: plus(local, d: ofDays(1)))
+    var offset := before
+    if offsetAt(z, i: minus(local, d: ofSeconds(before))) <> before then
+        if offsetAt(z, i: minus(local, d: ofSeconds(after))) = after then
+            offset := after
+    return DateTime(inst: minus(local, d: ofSeconds(offset)), tz: z)
+
+export function toInstant(dt: DateTime): Instant
+    return dt.inst
+
+export function zone(dt: DateTime): Zone
+    return dt.tz
+
+## The offset from UTC at `dt`, in seconds east.
+export function offset(dt: DateTime): Integer
+    return offsetAt(dt.tz, i: dt.inst)
+
+export function toLocalDateTime(dt: DateTime): LocalDateTime
+    return toLocalDateTime(dt.inst, offsetSeconds: offset(dt))
+
+export function date(dt: DateTime): LocalDate
+    return toLocalDateTime(dt).ld
+
+export function time(dt: DateTime): LocalTime
+    return toLocalDateTime(dt).lt
+
+## `dt` moved by an exact `d`, so across a change to summer time 24 hours may be 25 on
+## the clock.
+export function plus(dt: DateTime, d: Duration): DateTime
+    return DateTime(inst: plus(dt.inst, d: d), tz: dt.tz)
+
+export function minus(dt: DateTime, d: Duration): DateTime
+    return DateTime(inst: minus(dt.inst, d: d), tz: dt.tz)
+
+## `dt` moved by calendar days, keeping the local time where it exists (see `atZone`).
+export function plusDays(dt: DateTime, days: Integer): DateTime
+    return atZone(plusDays(toLocalDateTime(dt), days: days), z: dt.tz)
+
+export function plusMonths(dt: DateTime, months: Integer): DateTime
+    return atZone(plusMonths(toLocalDateTime(dt), months: months), z: dt.tz)
+
+export function plusYears(dt: DateTime, years: Integer): DateTime
+    return atZone(plusYears(toLocalDateTime(dt), years: years), z: dt.tz)
+
+## Compares the instants, whatever the zones.
+export function compare(a, b: DateTime): Integer
+    return compare(a.inst, b: b.inst)
+
+export function isBefore(a, b: DateTime): Boolean
+    return compare(a, b) < 0
+
+export function isAfter(a, b: DateTime): Boolean
+    return compare(a, b) > 0
+
+## `Z` for 0, else `+hh:mm`, or `+hh:mm:ss` when there are seconds.
+function offsetText(offsetSeconds: Integer): String
+    if offsetSeconds = 0 then
+        return "Z"
+    let a := if offsetSeconds < 0 then -offsetSeconds else offsetSeconds
+    let s := a mod 60
+    let sign := if offsetSeconds < 0 then "-" else "+"
+    let hm := "{sign}{pad(a div 3600, 2)}:{pad(a mod 3600 div 60, 2)}"
+    return if s = 0 then hm else "{hm}:{pad(s, 2)}"
+
+## ISO-8601 text with the offset and, for a named zone, the name in brackets:
+## `2026-11-10T09:30:00+01:00[Europe/Amsterdam]`.
+export function toString(dt: DateTime): String
+    let text := "{toLocalDateTime(dt)}{offsetText(offset(dt))}"
+    return if byteLen(dt.tz.zid) > 0 then "{text}[{dt.tz.zid}]" else text
+
+## Reads ISO-8601 text with an offset and an optional zone name in brackets, such as
+## `2026-11-10T09:30:00+01:00[Europe/Amsterdam]`. Without a name the zone is the fixed
+## offset. With one, the instant comes from the offset, and the zone is read with `zone`.
+export unsafe function parseZoned(s: String): Result[DateTime, String]
+    var r := reader(s)
+    let dt := try readDateTime(var r)
+    let offset := try readOffset(var r)
+    let i := toInstant(dt, offsetSeconds: offset)
+    if atEnd(r) then
+        return Ok(DateTime(inst: i, tz: fixedZone(offset)))
+    _ := try expect(var r, c: '[')
+    var parts: List[String] := []
+    while not atEnd(r) and peek(r) <> ']' do
+        add(var parts, toString(peek(r)))
+        r.pos := r.pos + 1
+    _ := try expect(var r, c: ']')
+    _ := try finish(r)
+    let z := try zone(join(parts))
+    return Ok(DateTime(inst: i, tz: z))
+
 # ----------------------------------------------------------------------------- tests
 
 test "durations"
@@ -785,3 +1273,67 @@ test "parsing"
     assert parseDuration("PT1S2M") = Err("expected a unit at offset 5")
     for s in ["PT0S", "PT48H", "-PT0.000000005S", "PT1H0.5S"] do
         assert toString(parseDuration(s).get()) = (if s = "PT1H0.5S" then "PT1H0.500S" else s)
+
+test "POSIX TZ rules"
+    let us := parseRule("EST5EDT,M3.2.0,M11.1.0").get()
+    assert us.stdOffset = -18_000 and us.dstOffset = -14_400 and us.dstAbbr = "EDT"
+    # 2026-03-08 07:00Z is 02:00 EST, when summer time begins; 2026-11-01 06:00Z ends it.
+    assert not ruleIsDst(us, seconds: 1_772_953_199) and ruleIsDst(us, seconds: 1_772_953_200)
+    assert ruleIsDst(us, seconds: 1_793_512_799) and not ruleIsDst(us, seconds: 1_793_512_800)
+    let south := parseRule("<+1030>-10:30<+11>-11,M10.1.0,M4.1.0").get()
+    assert south.stdAbbr = "+1030" and south.stdOffset = 37_800 and south.dstOffset = 39_600
+    assert ruleIsDst(south, seconds: 1_768_478_400) and not ruleIsDst(south, seconds: 1_784_116_800)
+    let j := parseRule("XXX3YYY,J60/-1,300/26").get()
+    assert j.begins.kind = 'J' and j.begins.at = -3600 and j.ends.n = 300 and j.ends.at = 93_600
+    assert ruleDay(j.begins, year: 2024) = toEpochDay(date(2024, 3, 1))
+    assert ruleDay(j.ends, year: 2024) = toEpochDay(date(2024, 10, 27))
+    assert parseRule("<-03>3").get().dstAbbr = ""
+    assert parseRule("AB1") = Err("expected a time zone abbreviation at offset 0")
+    assert parseRule("EST5EDT,M13.1.0,M11.1.0") = Err("day rule out of range at offset 8")
+
+test "tzdata zones"
+    let ams := zone("Europe/Amsterdam").get()
+    let winter := parseInstant("2026-01-15T12:00:00Z").get()
+    let summer := parseInstant("2026-07-15T12:00:00Z").get()
+    assert offsetAt(ams, i: winter) = 3600 and abbreviationAt(ams, i: winter) = "CET"
+    assert offsetAt(ams, i: summer) = 7200 and isDstAt(ams, i: summer)
+    assert toString(inZone(summer, z: ams)) = "2026-07-15T14:00:00+02:00[Europe/Amsterdam]"
+    let future := parseInstant("2100-07-15T12:00:00Z").get()
+    assert offsetAt(ams, i: future) = 7200 and abbreviationAt(ams, i: future) = "CEST"
+    let syd := zone("Australia/Sydney").get()
+    assert offsetAt(syd, i: winter) = 39_600 and offsetAt(syd, i: summer) = 36_000
+    # Past the last transition the rule takes over; it must agree with the transitions.
+    let ny := zone("America/New_York").get()
+    for z in [ams, ny, syd] do
+        let rule := z.rule.get()
+        for day := 0 to 365 do
+            let i := plus(
+                parseInstant("2027-01-01T00:30:00Z").get(),
+                d: ofHours(day * 24 + day mod 24),
+            )
+            assert offsetAt(z, i: i) = (
+                if ruleIsDst(rule, seconds: i.secs) then rule.dstOffset else rule.stdOffset
+            )
+    assert zone("Nope/Where").isErr() and zone("../etc/passwd").isErr()
+    assert zone("zone.tab") = Err("{zoneDir()}/zone.tab: not a TZif file")
+
+test "zoned date-times"
+    let ams := zone("Europe/Amsterdam").get()
+    let gap := atZone(parseDateTime("2026-03-29T02:30").get(), z: ams)
+    assert toString(gap) = "2026-03-29T03:30:00+02:00[Europe/Amsterdam]"
+    let overlap := atZone(parseDateTime("2026-10-25T02:30").get(), z: ams)
+    assert offset(overlap) = 7200 and offset(plus(overlap, d: ofHours(1))) = 3600
+    let noon := atZone(parseDateTime("2026-03-28T12:00").get(), z: ams)
+    assert time(plusDays(noon, days: 1)) = time(12, 0)
+    assert time(plus(noon, d: ofDays(1))) = time(13, 0)
+    assert date(plusMonths(noon, months: 1)) = date(2026, 4, 28)
+    let parsed := parseZoned("2026-11-10T09:30:00+01:00[Europe/Amsterdam]").get()
+    assert toString(parsed) = "2026-11-10T09:30:00+01:00[Europe/Amsterdam]"
+    assert name(zone(parsed)) = "Europe/Amsterdam"
+    let fixed := parseZoned("2026-11-10T09:30:00-03:00").get()
+    assert toString(fixed) = "2026-11-10T09:30:00-03:00" and compare(fixed, b: parsed) > 0
+    assert toString(zone(fixed)) = "-03:00"
+    assert toString(inZone(ofEpochSecond(0), z: utc())) = "1970-01-01T00:00:00Z[UTC]"
+    assert offsetText(-12_345) = "-03:25:45" and toString(fixedZone(19_800)) = "+05:30"
+    let epoch := inZone(ofEpochSecond(0), z: utc())
+    assert name(zone(now(utc()))) = "UTC" and isAfter(now(utc()), b: epoch)

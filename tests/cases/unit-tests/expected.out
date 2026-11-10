@@ -24,12 +24,15 @@ ok   std/System.pst:775: maps
 ok   std/System.pst:787: sets
 ok   std/System.pst:798: options and results
 ok   std/System.pst:808: iterators
-ok   std/Time.pst:710: durations
-ok   std/Time.pst:720: dates
-ok   std/Time.pst:739: times
-ok   std/Time.pst:750: instants
-ok   std/Time.pst:763: parsing
-28 passed, 0 failed
+ok   std/Time.pst:1198: durations
+ok   std/Time.pst:1208: dates
+ok   std/Time.pst:1227: times
+ok   std/Time.pst:1238: instants
+ok   std/Time.pst:1251: parsing
+ok   std/Time.pst:1277: POSIX TZ rules
+ok   std/Time.pst:1294: tzdata zones
+ok   std/Time.pst:1320: zoned date-times
+31 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/compiler
 exit 0
