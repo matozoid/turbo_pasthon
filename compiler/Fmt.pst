@@ -104,9 +104,11 @@ function atomsOf(ts: List[Token]): List[Atom]
         var last := t
         if kind = TokenKind.StringBegin then
             # The text, with the expressions in the placeholders formatted.
+            # A format specifier's `:` is written without spaces: `\{x:8:2}`.
             var parts := [t.text]
             var expr: List[Token] := []
             var nested := 1
+            var depth := 0
             var j := i + 1
             while true do
                 let k := ts[j].kind
@@ -114,13 +116,20 @@ function atomsOf(ts: List[Token]): List[Atom]
                     nested := nested + 1
                 else if k = TokenKind.StringEnd then
                     nested := nested - 1
+                else if nested = 1 and isOpener(k) then
+                    depth := depth + 1
+                else if nested = 1 and isCloser(k) then
+                    depth := depth - 1
                 if nested = 0 or (nested = 1 and k = TokenKind.StringMid) then
-                    let e := atomsOf(expr)
-                    add(var parts, flatText(e))
+                    add(var parts, flatText(atomsOf(expr)))
                     add(var parts, ts[j].text)
                     expr := []
                     if nested = 0 then
                         break
+                else if nested = 1 and depth = 0 and k = TokenKind.Colon then
+                    add(var parts, flatText(atomsOf(expr)))
+                    add(var parts, ":")
+                    expr := []
                 else
                     add(var expr, ts[j])
                 j := j + 1

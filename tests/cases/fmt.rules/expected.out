@@ -116,6 +116,7 @@ writeln(join(
     ["a long string to fill the line", "another long string", "and a third one"],
     sep: ", ",
 ))
+writeln("[{len(xs):5}] [{-1.5:0:2}] [{f(1, b: 2):-4}]")
 --- stderr
 $ $PST fmt --check o/Messy.pst && $PST check o/Messy.pst && $PST run o/Messy.pst
 exit 0
@@ -131,6 +132,7 @@ ok
 1
 long
 a long string to fill the line, another long string, and a third one
+[    3] [-1.50] [2   ]
 --- stderr
 $ $PST fmt --check Messy.pst
 exit 1

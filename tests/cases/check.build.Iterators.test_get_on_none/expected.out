@@ -10,9 +10,9 @@ use Main.pst 3:6-3:8
 use Main.pst 7:1-7:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 7:9-7:12
-  function 'get' @ std/System.pst:544:17
+  function 'get' @ std/System.pst:558:17
 use Main.pst 7:13-7:17
-  function 'find' @ std/System.pst:727:17
+  function 'find' @ std/System.pst:741:17
 use Main.pst 7:33-7:36
   function 'big' @ Main.pst:5:10
 use Main.pst 5:17-5:24
@@ -25,5 +25,5 @@ use Main.pst 5:27-5:34
 use Main.pst 6:12-6:13
   parameter 'x' @ Main.pst:5:14
 use Main.pst 7:25-7:29
-  function 'iter' @ std/System.pst:569:17
+  function 'iter' @ std/System.pst:583:17
 --- stderr

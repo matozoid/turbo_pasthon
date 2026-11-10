@@ -1,0 +1,8 @@
+program Main
+
+uses IO
+
+let n := 42
+writeln("{n:0:2}")
+writeln("{n:"a"}")
+writeln("{1.5:2:'x'}")

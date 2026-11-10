@@ -3460,11 +3460,50 @@ procedure stringOf(g: ref Em, parts: List[InterpPart])
                 toString(g, pe)
                 if g.bad then
                     return
+            FormatPart(fp):
+                formatted(g, fp)
+                if g.bad then
+                    return
         save(g, stringT())
     mov(a, Rdi, Rsp)
     lea(a, Rsi, Rsp, disp: 8 * len(parts))
     callRuntime(g, "rt_concat")
     addImm(a, Rsp, value: 8 * len(parts))
+
+## `\{x:width}` or `\{x:width:decimals}`: the value as text, a real with `decimals` digits
+## after the point, padded by `System.justify` to `width`; into rax.
+procedure formatted(g: ref Em, fp: FormatPart)
+    let a := g.a
+    case fp.decimals of
+        Some(d):
+            expr(g, fp.value)
+            if g.bad then
+                return
+            if base(g.env, typeOfExpr(g, fp.value)) = real32T() then
+                singleToXmm(a, Xmm0, r: Rax)
+                movqFromXmm(a, Rax, x: Xmm0)
+            push(a, Rax)
+            coerce(g, d.value, integerT())
+            if g.bad then
+                return
+            mov(a, Rsi, Rax)
+            pop(a, Rax)
+            callRuntime(g, "rt_real_fixed")
+        None:
+            toString(g, fp.value)
+    if g.bad then
+        return
+    save(g, stringT())
+    coerce(g, fp.width, integerT())
+    if g.bad then
+        return
+    save(g, integerT())
+    pop(a, Rsi)
+    pop(a, Rdi)
+    let lbl := sysLabel(g, exprSpan(fp.value), "justify", [])
+    if g.bad then
+        return
+    call(a, lbl)
 
 ## Computes `e` and converts it to a String (`toString`). An enum member's string is
 ## its name.
@@ -4816,6 +4855,7 @@ procedure runtimeRoutine(g: ref Em, name: String)
         "rt_uint_to_str": rtIntToStr(g, "%lu")
         "rt_real_to_str": rtRealToStr(g, single: false)
         "rt_real32_to_str": rtRealToStr(g, single: true)
+        "rt_real_fixed": rtRealFixed(g)
         "rt_bool_to_str": rtBoolToStr(g)
         "rt_char_to_str": rtCharToStr(g)
         "rt_str_cmp": rtStrCmp(g)
@@ -5958,6 +5998,37 @@ procedure rtIntToStr(g: ref Em, fmt: String)
     mov(a, Rsi, Rax)
     callRuntime(g, "rt_str_from")
     addImm(a, Rsp, value: 32)
+    ret(a)
+
+## rax := the real rax as text with rsi digits after the point (`%.*f`), rsi clamped to 0
+## to 100.
+procedure rtRealFixed(g: ref Em)
+    let a := g.a
+    let l := labels(a, "x", 2)
+    let low := l[0]
+    let high := l[1]
+    let size := 448  # the most digits: 309 before the point, 100 after
+    subImm(a, Rsp, value: size)
+    mov(a, Rcx, Rsi)
+    cmpImm(a, Rcx, value: 0)
+    jcc(a, "ge", label: low)
+    movImm(a, Rcx, value: 0)
+    label(a, low)
+    cmpImm(a, Rcx, value: 100)
+    jcc(a, "le", label: high)
+    movImm(a, Rcx, value: 100)
+    label(a, high)
+    movqToXmm(a, Xmm0, r: Rax)
+    mov(a, Rdi, Rsp)
+    movImm(a, Rsi, value: size)
+    var fmt := utf8("%.*f")
+    add(var fmt, Byte(0))
+    leaData(a, Rdx, label: data(a, fmt))
+    ccall(g, "snprintf", vectors: 1)
+    mov(a, Rdi, Rsp)
+    mov(a, Rsi, Rax)
+    callRuntime(g, "rt_str_from")
+    addImm(a, Rsp, value: size)
     ret(a)
 
 ## rax := the real rax (a single if `single`) as text: the fewest significant digits

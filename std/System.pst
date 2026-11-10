@@ -149,6 +149,7 @@ extern "pst"
     ## Panics with `message`, which starts with the panic code.
     function fail[T](message: String): T
     function byteLen(s: String): Integer
+    function charCount(s: String): Integer
     function decodeUtf8At(s: String, pos: Integer): Char
     function utf8Width(c: Char): Integer
     ## Makes `xs` unshared and `n` long (`n >= 0`). New elements are empty, not values
@@ -325,6 +326,19 @@ export function toString[T: Printable](xs: List[T]): String
             s := "{s}, "
         s := "{s}{xs[i]}"
     return "{s}]"
+
+## `s` padded with spaces to `width` characters: in front when `width` is positive, after
+## it when negative, as `\{x:8}` and `\{x:-8}` do. A longer `s` stays as it is.
+export function justify(s: String, width: Integer): String
+    var n := width
+    if n < 0 then
+        n := -n
+    var pad := ""
+    for i := charCount(s) + 1 to n do
+        pad := "{pad} "
+    if width < 0 then
+        return "{s}{pad}"
+    return "{pad}{s}"
 
 # ------------------------------------------------------------------------- maps
 

@@ -420,6 +420,12 @@ export function explanations(): List[Explanation]
             meaning: "interpolated value isn't `Printable`",
         ),
         Explanation(
+            code: "E0422",
+            section: "16.3",
+            title: "Type errors",
+            meaning: "decimals in a placeholder (`\{x:0:2}`) on a value that isn't a real",
+        ),
+        Explanation(
             code: "E0501",
             section: "16.3",
             title: "Type errors",

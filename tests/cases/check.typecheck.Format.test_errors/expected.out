@@ -1,0 +1,7 @@
+$ $PST check Main.pst
+exit 1
+--- stdout
+--- stderr
+Main.pst:6:15: error E0422: only a real is written with decimals, not Integer
+Main.pst:7:13: error E0300: expected Integer, found String
+Main.pst:8:17: error E0300: expected Integer, found Char

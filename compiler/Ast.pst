@@ -90,7 +90,14 @@ type
     export TextPart = record
         export text: String
 
-    export InterpPart = TextPart | Expr
+    ## A placeholder with a field width, and for a real the digits after the point:
+    ## `\{x:8}`, `\{x:0:2}`.
+    export FormatPart = record
+        export value: Expr
+        export width: Expr
+        export decimals: Option[Expr]
+
+    export InterpPart = TextPart | Expr | FormatPart
 
     ## A string with placeholders: text parts and expressions, in order.
     export InterpString = record
@@ -590,6 +597,11 @@ export function exprKids(e: Expr): List[Expr]
                 case p of
                     Expr(pe):
                         add(var out, pe)
+                    FormatPart(fp):
+                        add(var out, fp.value)
+                        add(var out, fp.width)
+                        if fp.decimals.isSome() then
+                            add(var out, fp.decimals.get())
                     else:
                         pass
         ListLit(x):

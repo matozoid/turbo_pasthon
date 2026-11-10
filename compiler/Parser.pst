@@ -289,6 +289,9 @@ function textPart(s: String): InterpPart
 function exprPart(e: Expr): InterpPart
     return e
 
+function formatPart(e, width: Expr, decimals: Option[Expr]): InterpPart
+    return FormatPart(value: e, width: width, decimals: decimals)
+
 # -------------------------------------------------------------------- token access
 
 function peek(p: ref State, ahead: Integer := 0): Token
@@ -2137,7 +2140,14 @@ function interpolation(p: ref State): Parsed[InterpString]
         add(var parts, textPart(textValue(first)))
     while true do
         let e := try expr(p)
-        add(var parts, exprPart(e))
+        if accept(p, TokenKind.Colon) then
+            let width := try expr(p)
+            var decimals: Option[Expr] := None
+            if accept(p, TokenKind.Colon) then
+                decimals := Some(try expr(p))
+            add(var parts, formatPart(e, width, decimals))
+        else
+            add(var parts, exprPart(e))
         if at(p, TokenKind.StringMid) or at(p, TokenKind.StringEnd) then
             let tok := advance(p)
             if textValue(tok) <> "" then

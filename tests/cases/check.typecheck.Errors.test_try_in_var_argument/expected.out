@@ -18,7 +18,7 @@ use Main.pst 3:6-3:8
 use Main.pst 20:1-20:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 20:9-20:15
-  function 'isSome' @ std/System.pst:527:17
+  function 'isSome' @ std/System.pst:541:17
 use Main.pst 20:16-20:17
   function 'f' @ Main.pst:13:10
 use Main.pst 20:18-20:22
@@ -48,7 +48,7 @@ def Main.pst 10:41-10:43
   parameter 'ys' @ Main.pst:10:41
     : List[String]
 use Main.pst 11:5-11:8
-  procedure 'add' @ std/System.pst:179:18
+  procedure 'add' @ std/System.pst:180:18
 use Main.pst 11:13-11:15
   parameter 'xs' @ Main.pst:10:19
 use Main.pst 13:22-13:29

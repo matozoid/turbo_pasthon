@@ -168,6 +168,12 @@ procedure expr(e: Expr, d: Integer, label: String)
                     TextPart(t):
                         writeln("{indent(c)}{item("parts", i)}Text {quote(t.text)}")
                     Expr(p): expr(p, c, label: item("parts", i))
+                    FormatPart(f):
+                        writeln("{indent(c)}{item("parts", i)}Format")
+                        expr(f.value, c + 1, label: one("value"))
+                        expr(f.width, c + 1, label: one("width"))
+                        if f.decimals.isSome() then
+                            expr(f.decimals.get(), c + 1, label: one("decimals"))
         ListLit(x):
             line(d, label, kind: "ListLit", span: x.span, scalars: "")
             exprs(x.items, c, field: "items")

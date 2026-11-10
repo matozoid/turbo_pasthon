@@ -138,6 +138,14 @@ let json := "\{\"name\": \"{name}\"}"     # \{ is a literal brace
 ```
 
 - `{expr}` inserts any expression whose type satisfies `Printable` (§4.10).
+- `{expr:width}` pads the text with spaces to `width` characters, as Pascal's
+  `write(x:width)`: in front when `width` is positive, after it when negative; longer text
+  stays whole. `{expr:width:decimals}` writes a real (`Real` or `Real32`) with exactly
+  `decimals` digits after the point (rounded half to even, as C's `%.*f`; no point for 0;
+  clamped to 0..100); `{x:0:2}` is just the decimals. `width` and `decimals` are `Integer`
+  expressions; the padding is `System.justify(text, width)`. A `:` in a placeholder that
+  is not inside brackets starts the format; the formatter writes it without spaces.
+  Decimals on anything but a real are an error (`E0422`).
 - `\{` is a literal `{`. A `}` with no open placeholder is literal and needs no escape.
 - An unterminated `{`, or an empty `{}`, is an error (`E0030`).
 - A string with no placeholders is a plain constant, with no runtime cost.
@@ -1416,9 +1424,9 @@ test "largest of empty list is None"
 
 | Unit | Contents |
 |---|---|
-| `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters (including `chars`) and consumers (§4.14), `len`, `add`, `insert`, `concat`, `remove`, `removeLast`, `sort`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, conversions, `halt`, `assert` support |
+| `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters (including `chars`) and consumers (§4.14), `len`, `add`, `insert`, `concat`, `remove`, `removeLast`, `sort`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, `justify(s, width)` (pads with spaces to `width` characters, in front, or after for a negative width; §2.8), conversions, `halt`, `assert` support |
 | `IO` | `write`, `writeln` (standard output), `writeErr`, `writelnErr` (standard error), `readln(): Option[String]`, `read(count): Option[String]` (exactly `count` bytes, `None` if the input ends first); files: `open` (reading), `create(path, mode := $1A4)` (octal 644) (writing; creates or empties), `close`, `readAll`, `readBytes`, `writeAll`, `writeBytes` returning `Result[_, String]` with C's error message. A `File` closes when its last reference goes away. Written in Pasthon on libc's `open`, `read`, `write`, `close` |
-| `Strings` | `bytes`, `fromBytes` (invalid UTF-8 becomes U+FFFD), `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `endsWith`, `parseInt`, `parseReal` (`[+-]digits[.digits][(e|E)[+-]digits]`), `repeated(s, count)`, `padLeft`/`padRight(s, width, fill := ' ')` (counting characters), `toUpper`/`toLower` (ASCII letters only), `lines` (split at `\n` or `\r\n`; a break at the end starts no line), `toHex(n, digits := 1)` (lower case, zero-padded, `-` for negatives), `toFixed(x, decimals)` (as C's `%.*f`), `globMatch(text, pattern)` (the whole text; `*`, `?`, `[a-z]`, `[!...]`). `split` and `replace` require a non-empty separator. Written in Pasthon on libc's `memmem`, `memcpy`, `strtod` and `snprintf`, except `charCount`, `byteLen`, `slice` and `startsWith` (compiler intrinsics) |
+| `Strings` | `bytes`, `fromBytes` (invalid UTF-8 becomes U+FFFD), `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `endsWith`, `parseInt`, `parseReal` (`[+-]digits[.digits][(e|E)[+-]digits]`), `repeated(s, count)`, `toUpper`/`toLower` (ASCII letters only), `lines` (split at `\n` or `\r\n`; a break at the end starts no line), `toHex(n, digits := 1)` (lower case, zero-padded, `-` for negatives), `globMatch(text, pattern)` (the whole text; `*`, `?`, `[a-z]`, `[!...]`). `split` and `replace` require a non-empty separator. Written in Pasthon on libc's `memmem`, `memcpy`, `strtod` and `snprintf`, except `charCount`, `byteLen`, `slice` and `startsWith` (compiler intrinsics) |
 | `Math` | `Pi`, `sqrt`, `sin`, `cos`, `abs`, `min`, `max`, `floor`, `ceil`. Written in Pasthon on libm |
 | `Bits` | `popCount`, and until std moves to the operators (§9.1, §18a) `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, on all integer types (compiler intrinsics); results wrap to the type's width, `shr` shifts in zeros, a shift count outside 0 to width - 1 gives 0 |
 | `OS` | `args(): List[String]` (without the program name), `env(name): Option[String]`, `exit(code)`, `currentDir(): String`, `realPath(path): Result[String, String]` (absolute, with symbolic links, `.` and `..` resolved), `isFile(path): Boolean` (a regular file, following symbolic links), `isDir(path): Boolean`, `listDir(path): Result[List[String], String]` (the entry names, without `.` and `..`, in no particular order), `programPath(): String` (the running executable, from `/proc/self/exe`), `tempDir(): Result[String, String]` (a new private directory under `TMPDIR`, or `/tmp`), `makeDir(path, mode := $1ED)` (octal 755), `removeFile(path)` and `removeDir(path)` (an empty directory; all three `Result[Integer, String]`), `run(path, args, output := "", errors := "", input := "", dir := ""): Result[Integer, String]` (runs an executable and waits: its exit status, or minus the signal that ended it; 127 if it can't be started; with `output`, its standard output goes to that file, and its standard error too unless `errors` names another file; with `input`, it reads that file; with `dir`, it runs in that directory, while the file paths stay relative to the caller's). Written in Pasthon on libc (`getcwd`, `realpath`, `stat`, `readlink`, `mkdtemp`, `mkdir`, `unlink`, `rmdir`, `opendir`, `readdir`, `fork`, `dup2`, `chdir`, `execv`, `waitpid`); `args` reads `argv`, which the program's entry point keeps in a writable word after the GOT (§15.2) |
@@ -1970,6 +1978,7 @@ already has a lexical error are not reported.
 | `E0350` | `for ... in` over something not iterable |
 | `E0420` | trait used as the type of a value |
 | `E0421` | interpolated value isn't `Printable` |
+| `E0422` | decimals in a placeholder (`{x:0:2}`) on a value that isn't a real |
 | `E0501` | function doesn't return on every path |
 | `E0502` | function result ignored (fix: `_ := `) |
 | `E0503` | `return` without a value in a function, or with one elsewhere |
@@ -2038,9 +2047,9 @@ form goes.
 1. Done (§9.1): `and`, `or`, `xor`, `not` bitwise on integers, `shl`/`shr` operators. Left
    for after the seed release: std and the compiler use them, `Bits` keeps only
    `popCount`, and `xor`, `shl`, `shr` become keywords.
-2. Format specifiers in placeholders, as Pascal's `write(x:width:decimals)`: `"{n:5}"`
-   right-aligns in 5 characters, `"{s:-8}"` left-aligns, `"{x:0:2}"` writes 2 decimals.
-   They replace `padLeft`, `padRight` and `toFixed`.
+2. Done (§2.8): format specifiers in placeholders, as Pascal's `write(x:width:decimals)`:
+   `"{n:5}"` right-aligns in 5 characters, `"{s:-8}"` left-aligns, `"{x:0:2}"` writes 2
+   decimals. They replaced `padLeft`, `padRight` and `toFixed`.
 3. Pascal names in `Strings`: `upperCase`, `lowerCase`, `hexStr(n, digits)`, `binStr`, and
    `pos` for `find` (still an `Option`).
 4. `external "lib"` and `name "symbol"` instead of `extern` and `as`.

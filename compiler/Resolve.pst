@@ -1439,6 +1439,11 @@ procedure expr(r: ref Resolver, e: Expr)
                 case p of
                     Expr(x):
                         expr(r, x)
+                    FormatPart(f):
+                        expr(r, f.value)
+                        expr(r, f.width)
+                        if f.decimals.isSome() then
+                            expr(r, f.decimals.get())
                     TextPart(_):
                         continue
         ListLit(l):

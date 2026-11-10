@@ -14,23 +14,23 @@ ok   std/OS.pst:323: environment
 ok   std/Paths.pst:163: names
 ok   std/Paths.pst:174: joining and normalizing
 ok   std/Paths.pst:183: relative paths
-ok   std/Strings.pst:358: find gives byte offsets
-ok   std/Strings.pst:364: startsWith and endsWith
-ok   std/Strings.pst:371: split and join are inverses
-ok   std/Strings.pst:379: trim and replace
-ok   std/Strings.pst:385: parseInt
-ok   std/Strings.pst:395: parseReal
-ok   std/Strings.pst:403: bytes and fromBytes
-ok   std/Strings.pst:413: padding and repeating
-ok   std/Strings.pst:418: case and lines
-ok   std/Strings.pst:423: number formatting
-ok   std/Strings.pst:430: glob patterns
-ok   std/System.pst:745: list editing
-ok   std/System.pst:758: sort is stable
-ok   std/System.pst:775: maps
-ok   std/System.pst:787: sets
-ok   std/System.pst:798: options and results
-ok   std/System.pst:808: iterators
+ok   std/Strings.pst:333: find gives byte offsets
+ok   std/Strings.pst:339: startsWith and endsWith
+ok   std/Strings.pst:346: split and join are inverses
+ok   std/Strings.pst:354: trim and replace
+ok   std/Strings.pst:360: parseInt
+ok   std/Strings.pst:370: parseReal
+ok   std/Strings.pst:378: bytes and fromBytes
+ok   std/Strings.pst:388: repeating
+ok   std/Strings.pst:391: case and lines
+ok   std/Strings.pst:396: number formatting
+ok   std/Strings.pst:400: glob patterns
+ok   std/System.pst:759: list editing
+ok   std/System.pst:772: sort is stable
+ok   std/System.pst:789: maps
+ok   std/System.pst:801: sets
+ok   std/System.pst:812: options and results
+ok   std/System.pst:822: iterators
 ok   std/Time.pst:1426: durations
 ok   std/Time.pst:1436: dates
 ok   std/Time.pst:1455: times

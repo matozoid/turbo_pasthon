@@ -76,3 +76,4 @@ for i:=0 to len(xs)-1 do
     writeln("{xs[len(xs)-1-i]}")
 pick("lsp")
 writeln(join(["a long string to fill the line", "another long string", "and a third one"], sep: ", "))
+writeln("[{len(xs) : 5}] [{ -1.5 :0: 2}] [{f(1, b: 2) :-4}]")

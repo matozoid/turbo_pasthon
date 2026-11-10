@@ -1960,6 +1960,11 @@ procedure walkChildren(tc: ref TC, e: Expr)
                         pass
                     Expr(pe):
                         walkExpr(tc, pe, none)
+                    FormatPart(f):
+                        walkExpr(tc, f.value, none)
+                        walkExpr(tc, f.width, none)
+                        if f.decimals.isSome() then
+                            walkExpr(tc, f.decimals.get(), none)
         ListLit(x):
             for i in x.items do
                 walkExpr(tc, i, none)
@@ -2872,30 +2877,41 @@ function realLit(tc: ref TC, expected: Type): Type
     return realT()
 
 function interp(tc: ref TC, x: InterpString): Type
-    let printable := sys(tc.env, "Printable")
     for p in x.parts do
         case p of
             TextPart(_):
                 pass
             Expr(pe):
-                let t := value(tc, pe, noType())
-                if printable.isSome() then
-                    var s: Subst := {}
-                    if not satisfies(
-                        tc,
-                        t,
-                        TraitT(sym: printable.get(), args: []),
-                        var s,
-                        {},
-                        0,
-                    ) then
+                _ := printable(tc, pe)
+            FormatPart(f):
+                let t := printable(tc, f.value)
+                _ := check(tc, f.width, integerT())
+                if f.decimals.isSome() then
+                    _ := check(tc, f.decimals.get(), integerT())
+                    let b := base(tc.env, t)
+                    if not hasError(b) and not isReal(b) then
                         fail(
                             tc,
-                            exprSpan(pe),
-                            "E0421",
-                            "{show(t)} can't be shown in a string: it isn't Printable (declare 'function toString(x: {show(t)}): String')",
+                            exprSpan(f.decimals.get()),
+                            "E0422",
+                            "only a real is written with decimals, not {show(t)}",
                         )
     return stringT()
+
+## The type of `e`, an interpolated value, which must be Printable.
+function printable(tc: ref TC, e: Expr): Type
+    let t := value(tc, e, noType())
+    let printable := sys(tc.env, "Printable")
+    if printable.isSome() then
+        var s: Subst := {}
+        if not satisfies(tc, t, TraitT(sym: printable.get(), args: []), var s, {}, 0) then
+            fail(
+                tc,
+                exprSpan(e),
+                "E0421",
+                "{show(t)} can't be shown in a string: it isn't Printable (declare 'function toString(x: {show(t)}): String')",
+            )
+    return t
 
 function listLit(tc: ref TC, x: ListLit, expected: Type): Type
     if isBuiltin(expected, "List") or isBuiltin(expected, "Array") then

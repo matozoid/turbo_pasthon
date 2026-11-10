@@ -1,0 +1,18 @@
+$ $PST ast Main.pst
+exit 0
+--- stdout
+File 1:1-2:26 kind="program"
+  name: Ident 1:9-1:10 name="P"
+  items[0]: VarDecl 2:1-2:26 mutable=false
+    name: Ident 2:5-2:6 name="s"
+    value: InterpString 2:10-2:26
+      parts[0]: Format
+        value: Name 2:12-2:13 name="x"
+        width: IntLit 2:14-2:15 value=8
+      parts[1]: Text " "
+      parts[2]: Format
+        value: Name 2:18-2:19 name="y"
+        width: Unary 2:20-2:22 op="-"
+          operand: IntLit 2:21-2:22 value=4
+        decimals: IntLit 2:23-2:24 value=2
+--- stderr
