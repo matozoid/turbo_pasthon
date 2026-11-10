@@ -2096,14 +2096,7 @@ function primary(p: ref State): Parsed[Expr]
         try expect(p, TokenKind.Rparen, what: "')'")
         return Ok(Paren(span: finish(p, tok.span), id: newId(p), inner: inner))
     if k = TokenKind.Lbracket then
-        step(p)
-        var items: List[Expr] := []
-        while not at(p, TokenKind.Rbracket) do
-            add(var items, try expr(p))
-            if not accept(p, TokenKind.Comma) then
-                break
-        try expect(p, TokenKind.Rbracket, what: "']' to close the list")
-        return Ok(ListLit(span: finish(p, tok.span), id: newId(p), items: items))
+        return brackets(p)
     if k = TokenKind.Lbrace then
         return braces(p)
     if k = TokenKind.KwDeref then
@@ -2171,29 +2164,53 @@ function interpolation(p: ref State): Parsed[InterpString]
             )
     return Ok(InterpString(span: finish(p, first.span), id: newId(p), parts: parts))
 
+## `[a, b]`, a list, array or set by the expected type; `[k: v, ...]`, a map; `[:]`, an
+## empty map.
+function brackets(p: ref State): Parsed[Expr]
+    let start := advance(p).span
+    if accept(p, TokenKind.Colon) then
+        try expect(p, TokenKind.Rbracket, what: "']' to close the empty map '[:]'")
+        return Ok(MapLit(span: finish(p, start), id: newId(p), entries: []))
+    var items: List[Expr] := []
+    if accept(p, TokenKind.Rbracket) then
+        return Ok(ListLit(span: finish(p, start), id: newId(p), items: items))
+    let first := try expr(p)
+    if accept(p, TokenKind.Colon) then
+        let entries := try mapEntries(p, first, close: TokenKind.Rbracket)
+        try expect(p, TokenKind.Rbracket, what: "']' to close the map")
+        return Ok(MapLit(span: finish(p, start), id: newId(p), entries: entries))
+    add(var items, first)
+    while accept(p, TokenKind.Comma) do
+        if at(p, TokenKind.Rbracket) then
+            break
+        add(var items, try expr(p))
+    try expect(p, TokenKind.Rbracket, what: "']' to close the list")
+    return Ok(ListLit(span: finish(p, start), id: newId(p), items: items))
+
+## The entries of a map literal, after its first key and ':'; stops before `close`.
+function mapEntries(p: ref State, first: Expr, close: TokenKind): Parsed[List[MapEntry]]
+    let value := try expr(p)
+    var entries: List[MapEntry] := [MapEntry(
+        span: join(exprSpan(first), b: exprSpan(value)),
+        key: first,
+        value: value,
+    )]
+    while accept(p, TokenKind.Comma) do
+        if at(p, close) then
+            break
+        let key := try expr(p)
+        try expect(p, TokenKind.Colon, what: "':' between key and value")
+        let v := try expr(p)
+        add(var entries, MapEntry(span: join(exprSpan(key), b: exprSpan(v)), key: key, value: v))
+    return Ok(entries)
+
 function braces(p: ref State): Parsed[Expr]
     let start := advance(p).span
     if accept(p, TokenKind.Rbrace) then
         return Ok(EmptyBraces(span: finish(p, start), id: newId(p)))
     let first := try expr(p)
     if accept(p, TokenKind.Colon) then
-        let value := try expr(p)
-        var entries: List[MapEntry] := [MapEntry(
-            span: join(exprSpan(first), b: exprSpan(value)),
-            key: first,
-            value: value,
-        )]
-        while accept(p, TokenKind.Comma) do
-            if at(p, TokenKind.Rbrace) then
-                break
-            let key := try expr(p)
-            try expect(p, TokenKind.Colon, what: "':' between key and value")
-            let v := try expr(p)
-            add(var entries, MapEntry(
-                span: join(exprSpan(key), b: exprSpan(v)),
-                key: key,
-                value: v,
-            ))
+        let entries := try mapEntries(p, first, close: TokenKind.Rbrace)
         try expect(p, TokenKind.Rbrace, what: "'}' to close the map")
         return Ok(MapLit(span: finish(p, start), id: newId(p), entries: entries))
     var items: List[Expr] := [first]

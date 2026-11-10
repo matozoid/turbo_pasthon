@@ -1,0 +1,27 @@
+program Main
+
+uses IO
+
+type
+    Color = (Red, Green, Blue)
+
+procedure show(s: Set[Color])
+    writeln(s)
+
+procedure showMap(m: Map[String, Integer])
+    writeln(m)
+
+var s: Set[Color] := [Color.Red, Color.Blue]
+let e: Set[Color] := []
+var m: Map[String, Integer] := ["a": 1, "b": 2]
+let em: Map[String, Integer] := [:]
+writeln("{s} {e} {m} {em} {Color.Green in s}")
+show([Color.Green])
+show([])
+showMap(["x": 9])
+showMap([:])
+let inferred := ["k": 'v']
+writeln(inferred)
+add(var s, Color.Green)
+m["c"] := 3
+writeln("{length(s)} {length(m)}")

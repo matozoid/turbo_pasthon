@@ -123,10 +123,13 @@ _
 | Char | `'a'`, `'\n'`, `'\u{1F600}'` | one Unicode scalar value |
 | String | `"x = {x}, sum = {a + b}\n"` | always interpolates (§2.8); escapes: `\n \t \r \0 \\ \" \' \{ \u{...}` |
 | List | `[1, 2, 3]` | |
-| Map | `{"a": 1, "b": 2}` | |
-| Set | `{Color.Red, Color.Blue}` | |
+| Map | `["a": 1, "b": 2]`, `[:]` (empty) | |
+| Set | `[Color.Red, Color.Blue]` | a list literal where a `Set` is expected |
 
-Empty `[]` and `{}` require the expected type to be known from context (error `E0301` otherwise).
+`[a, b]` is a list, an array or a set, by the expected type; with no expected type it is a
+`List`. Empty `[]` and `[:]` require the expected type to be known from context (error
+`E0301` otherwise). The old brace forms `{"a": 1}`, `{a, b}` and `{}` are still read until
+the seed release knows the bracket forms.
 
 ### 2.8 String interpolation
 Every string literal is a template. There is no separate interpolated-string syntax and no
@@ -394,7 +397,7 @@ built on those. Growing at least doubles the capacity, so `add` is amortized O(1
 
 A `Map` is a record in System holding lists of keys, values and hashes, in insertion
 order, plus an open-addressing slot table that points into them. The compiler provides
-only the `{k: v}` and `{}` literals, `m[k]`, `k in m`, and an internal `hash`; everything
+only the `[k: v]` and `[:]` literals, `m[k]`, `k in m`, and an internal `hash`; everything
 else is Pasthon in System. `Map(...)` can't be written outside System (`E0306`).
 
 - `m[k]` reads a value and panics `P0008` if the key is missing; `m[k] := v` inserts or
@@ -410,7 +413,7 @@ else is Pasthon in System. `Map(...)` can't be written outside System (`E0306`).
 A `Set` is a record in System holding 256 bits, one per possible element: Boolean, Byte,
 Int8, an enum, or a subrange with at most 256 values (`Set[Char]` and `Set[Integer]` are
 `E0700`; use a subrange like `'a'..'z'`, or a `Map`). Element `x` is bit `ord(x)` minus
-the `ord` of the type's first value. The compiler provides the `{a, b}` and `{}` literals,
+the `ord` of the type's first value. The compiler provides the `[a, b]` and `[]` set literals,
 `x in s`, and the element-to-bit mapping; the rest is Pasthon in System, on `Bits`.
 
 - `add(var s, x)`, `remove(var s, x)` (no-op if absent), `length(s)`, `x in s`.
@@ -1964,7 +1967,7 @@ already has a lexical error are not reported.
 | Code | Meaning |
 |---|---|
 | `E0300` | type mismatch (hints: `toReal`, `round`, `Int32(...)`) |
-| `E0301` | type of an empty `[]` / `{}` unknown (declare the variable's type) |
+| `E0301` | type of an empty `[]` / `[:]` unknown (declare the variable's type) |
 | `E0302` | type argument can't be inferred, or an overloaded/generic routine used as a value |
 | `E0303` | wrong number of type arguments |
 | `E0304` | not a type |
@@ -2063,7 +2066,9 @@ form goes.
    above a declaration is its doc comment; end markers read `{ end if }`. Sets and maps
    are written with brackets, by the expected type: `[Color.Red, Color.Blue]`,
    `["a": 1, "b": 2]`, and `[:]` for an empty map. Two releases: first the bracket forms,
-   then `{ }` comments.
+   then `{ }` comments. The bracket forms are done (§2.7); the brace forms stay
+   until the seed release, then std and the compiler move over and `{ }` turns into a
+   comment.
 
 ---
 

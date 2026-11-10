@@ -2931,6 +2931,10 @@ function listLit(tc: ref TC, x: ListLit, expected: Type): Type
                 else:
                     pass
         return expected
+    if isSet(tc.env, expected) then
+        for item in x.items do
+            _ := check(tc, item, argsOf(expected)[0])
+        return expected
     if len(x.items) = 0 then
         fail(
             tc,
@@ -2962,6 +2966,18 @@ function mapLit(tc: ref TC, x: MapLit, expected: Type): Type
             _ := check(tc, en.key, kv[0])
             _ := check(tc, en.value, kv[1])
         return expected
+    if len(x.entries) = 0 and known(expected) and not hasError(expected) then
+        let hint := if isSet(tc.env, expected) or isBuiltin(expected, "List") then "; write '[]'" else ""
+        fail(tc, x.span, "E0300", "expected {show(expected)}, found the empty map '[:]'{hint}")
+        return errorT()
+    if len(x.entries) = 0 then
+        fail(
+            tc,
+            x.span,
+            "E0301",
+            "the type of '[:]' isn't known here; declare it: 'var m: Map[K, V] := [:]'",
+        )
+        return errorT()
     let k := value(tc, x.entries[0].key, noType())
     let v := value(tc, x.entries[0].value, noType())
     for i := 1 to len(x.entries) - 1 do
@@ -3934,6 +3950,9 @@ function flex(tc: ref TC, v: Expr): Type
                 return emptyListT()
         EmptyBraces(_):
             return emptyBracesT()
+        MapLit(m):
+            if len(m.entries) = 0 then
+                return emptyBracesT()
         Lambda(_):
             return lambdaT()
         else:
@@ -4406,7 +4425,7 @@ function flexFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Int
             return 0
         return 2
     if k = emptyListT() then
-        if isBuiltin(want, "List") then
+        if isBuiltin(want, "List") or isSet(tc.env, want) then
             return 0
         return -1
     if k = emptyBracesT() then
@@ -4476,7 +4495,7 @@ function listFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Int
         let w := subst(want, s)
         if not mentions(w, vars) and assignable(tc, a.ty, w) then
             return 1
-    if not isBuiltin(want, "List") and not isBuiltin(want, "Array") then
+    if not isBuiltin(want, "List") and not isBuiltin(want, "Array") and not isSet(tc.env, want) then
         return -1
     let elem := argsOf(want)[0]
     var s2 := s
@@ -4507,7 +4526,7 @@ procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Sp
         let p := m.params[i]
         let want := subst(p.ty, m.s)
         if a.flex = listLitT() then
-            if isBuiltin(want, "Array") then
+            if isBuiltin(want, "Array") or isSet(tc.env, want) then
                 _ := check(tc, a.expr, want)
             else if not known(a.ty) or not assignable(tc, a.ty, want) then
                 tc.types[exprId(a.expr)] := want

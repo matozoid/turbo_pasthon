@@ -331,7 +331,7 @@ export function explanations(): List[Explanation]
             code: "E0301",
             section: "16.3",
             title: "Type errors",
-            meaning: "type of an empty `[]` / `\{}` unknown (declare the variable's type)",
+            meaning: "type of an empty `[]` / `[:]` unknown (declare the variable's type)",
         ),
         Explanation(
             code: "E0302",

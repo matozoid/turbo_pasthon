@@ -1,0 +1,13 @@
+program Main
+
+uses IO
+
+type
+    Color = (Red, Green)
+
+let a := [:]
+let b: Set[Color] := [:]
+let c: Set[Color] := [Color.Red, 3]
+let d: Map[String, Integer] := ["a": "b"]
+let f: List[Integer] := [:]
+writeln("{a} {b} {c} {d} {f}")

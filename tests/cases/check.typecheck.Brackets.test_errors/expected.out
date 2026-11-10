@@ -1,0 +1,9 @@
+$ $PST check Main.pst
+exit 1
+--- stdout
+--- stderr
+Main.pst:8:10: error E0301: the type of '[:]' isn't known here; declare it: 'var m: Map[K, V] := [:]'
+Main.pst:9:22: error E0300: expected Set[Color], found the empty map '[:]'; write '[]'
+Main.pst:10:34: error E0300: expected Color, found Integer
+Main.pst:11:38: error E0300: expected Integer, found String
+Main.pst:12:25: error E0300: expected List[Integer], found the empty map '[:]'; write '[]'

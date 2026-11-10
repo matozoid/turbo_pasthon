@@ -2726,6 +2726,9 @@ procedure eFieldAccess(g: ref Em, x: FieldAccess, e: Expr)
 procedure eListLit(g: ref Em, x: ListLit, e: Expr)
     let a := g.a
     let t := typeOfExpr(g, e)
+    if isSet(g.env, t) then
+        setItems(g, x.span, x.items, t)
+        return
     if not isList(t) then
         unsupported(g, x.span, "a literal of {show(t)}")
         return
@@ -2769,17 +2772,20 @@ procedure eMapLit(g: ref Em, x: MapLit, e: Expr)
 
 ## `{a, b, ...}`: an empty set, then `include` for each element.
 procedure eSetLit(g: ref Em, x: SetLit, e: Expr)
+    setItems(g, x.span, x.items, typeOfExpr(g, e))
+
+## A set `t` of `items`: an empty set, then `include` for each element.
+procedure setItems(g: ref Em, span: Span, items: List[Expr], t: Type)
     let a := g.a
-    let t := typeOfExpr(g, e)
     let targs := argsOf(t)
-    sysCall(g, x.span, "emptySet", [], targs: targs)
+    sysCall(g, span, "emptySet", [], targs: targs)
     if g.bad then
         return
     save(g, t)  # the set, on the stack
-    let include := sysLabel(g, x.span, "include", targs)
+    let include := sysLabel(g, span, "include", targs)
     if g.bad then
         return
-    for it in x.items do
+    for it in items do
         coerce(g, it, targs[0])
         if g.bad then
             return
