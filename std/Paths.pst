@@ -1,0 +1,192 @@
+unit Paths
+
+## File paths as text, POSIX style: parts separated by `/`, absolute when the path starts with
+## `/`. Everything here is lexical: the file system is never looked at, so symbolic links are
+## not followed (`OS.realPath` does that).
+
+uses Strings
+
+## Whether `path` starts at the root.
+export function isAbsolute(path: String): Boolean
+    return startsWith(path, prefix: "/")
+
+## `path` without trailing slashes, except a path of slashes only becomes `/`.
+function trimSlashes(path: String): String
+    var stop := byteLen(path)
+    while stop > 1 and endsWith(slice(path, 0, stop), suffix: "/") do
+        stop := stop - 1
+    return slice(path, 0, stop)
+
+## Byte offset of the last `/` in `s`.
+function lastSlash(s: String): Option[Integer]
+    var last: Option[Integer] := None
+    var start := 0
+    while true do
+        case find(s, sub: "/", start: start) of
+            Some(at):
+                last := Some(at.value)
+                start := at.value + 1
+            None:
+                return last
+    return last
+
+## `rest` appended to `base` with one `/` between them; `rest` itself if it's absolute or
+## `base` is empty.
+export function joinPath(base, rest: String): String
+    if isAbsolute(rest) or base = "" then
+        return rest
+    if rest = "" or endsWith(base, suffix: "/") then
+        return "{base}{rest}"
+    return "{base}/{rest}"
+
+## The last part of `path`, after trailing slashes are dropped: `c` for `a/b/c` and `a/b/c/`,
+## `/` for `/`.
+export function baseName(path: String): String
+    let p := trimSlashes(path)
+    case lastSlash(p) of
+        Some(at):
+            if p = "/" then
+                return p
+            return slice(p, at.value + 1, byteLen(p))
+        None:
+            return p
+
+## `path` without its last part: `a/b` for `a/b/c`, `/` for `/c`, `.` for `c`.
+export function dirName(path: String): String
+    let p := trimSlashes(path)
+    case lastSlash(p) of
+        Some(at):
+            if at.value = 0 then
+                return "/"
+            return trimSlashes(slice(p, 0, at.value))
+        None:
+            return "."
+
+## Byte offset of the `.` that starts the extension of `name`, a path's last part. Leading
+## dots don't count, so `.profile` and `..` have no extension.
+function extensionDot(name: String): Option[Integer]
+    var dot: Option[Integer] := None
+    var start := 0
+    while start < byteLen(name) and startsWith(slice(name, start, byteLen(name)), prefix: ".") do
+        start := start + 1
+    while start < byteLen(name) do
+        case find(name, sub: ".", start: start) of
+            Some(at):
+                dot := Some(at.value)
+                start := at.value + 1
+            None:
+                return dot
+    return dot
+
+## The extension of the last part, with its dot: `.gz` for `a/b.tar.gz`, empty for `a/b` and
+## `.profile`.
+export function extension(path: String): String
+    let name := baseName(path)
+    case extensionDot(name) of
+        Some(at):
+            return slice(name, at.value, byteLen(name))
+        None:
+            return ""
+
+## The last part without its extension: `b.tar` for `a/b.tar.gz`.
+export function stem(path: String): String
+    let name := baseName(path)
+    case extensionDot(name) of
+        Some(at):
+            return slice(name, 0, at.value)
+        None:
+            return name
+
+## `path` with its extension replaced by `ext` (written with its dot, or empty to drop it).
+export function withExtension(path, ext: String): String
+    requires ext = "" or startsWith(ext, prefix: ".")
+    let dir := dirName(path)
+    let name := "{stem(path)}{ext}"
+    if dir = "." and not startsWith(path, prefix: "./") then
+        return name
+    return joinPath(dir, name)
+
+## The parts of `path` with `.` and empty parts left out; an absolute path's first part is `/`.
+export function components(path: String): List[String]
+    var parts: List[String] := []
+    if isAbsolute(path) then
+        add(var parts, "/")
+    for part in split(path, sep: "/") do
+        if part <> "" and part <> "." then
+            add(var parts, part)
+    return parts
+
+## `path` in its shortest form: repeated slashes, `.` parts and trailing slashes removed, and
+## each `..` removed together with the part before it (at the root a `..` stays at the root).
+## An empty result becomes `.`.
+export function normalize(path: String): String
+    let absolute := isAbsolute(path)
+    var parts: List[String] := []
+    for part in split(path, sep: "/") do
+        if part = "" or part = "." then
+            continue
+        if part = ".." then
+            if len(parts) > 0 and parts[len(parts) - 1] <> ".." then
+                removeLast(var parts)
+            else if not absolute then
+                add(var parts, part)
+        else
+            add(var parts, part)
+    let s := join(parts, sep: "/")
+    if absolute then
+        return "/{s}"
+    if s = "" then
+        return "."
+    return s
+
+## The path that leads from directory `base` to `path`, so that `joinPath(base, result)`
+## normalizes to `normalize(path)`. Both must be absolute, or both relative. `None` when the
+## way back out of `base` passes a `..`, whose name isn't known: `a` relative to `../b`.
+export function relativeTo(path, base: String): Option[String]
+    requires isAbsolute(path) = isAbsolute(base)
+    let dest := components(normalize(path))
+    let from := components(normalize(base))
+    var common := 0
+    while common < len(dest) and common < len(from) and dest[common] = from[common] do
+        common := common + 1
+    var parts: List[String] := []
+    for i := common to len(from) - 1 do
+        if from[i] = ".." then
+            return None
+        add(var parts, "..")
+    for i := common to len(dest) - 1 do
+        add(var parts, dest[i])
+    if len(parts) = 0 then
+        return Some(".")
+    return Some(join(parts, sep: "/"))
+
+test "names"
+    assert baseName("a/b/c") = "c" and baseName("a/b/c/") = "c" and baseName("c") = "c"
+    assert baseName("/") = "/" and baseName("//") = "/" and baseName("") = ""
+    assert dirName("a/b/c") = "a/b" and dirName("a/b//c//") = "a/b" and dirName("c") = "."
+    assert dirName("/c") = "/" and dirName("/") = "/" and dirName("") = "."
+    assert extension("a/b.tar.gz") = ".gz" and extension("a.d/b") = ""
+    assert extension(".profile") = "" and extension("..") = "" and extension("a.") = "."
+    assert stem("a/b.tar.gz") = "b.tar" and stem(".profile") = ".profile"
+    assert withExtension("a/b.pst", ".c") = "a/b.c" and withExtension("b.pst", "") = "b"
+    assert withExtension("/b", ".txt") = "/b.txt" and withExtension("./b.x", ".y") = "./b.y"
+
+test "joining and normalizing"
+    assert joinPath("a", "b") = "a/b" and joinPath("a/", "b") = "a/b"
+    assert joinPath("a", "/b") = "/b" and joinPath("", "b") = "b" and joinPath("a", "") = "a"
+    assert normalize("a//b/./c/") = "a/b/c" and normalize("a/../..") = ".."
+    assert normalize("/../a/..") = "/" and normalize("") = "." and normalize("./") = "."
+    assert normalize("../a/../../b") = "../../b"
+    assert components("/a//b/./c") = ["/", "a", "b", "c"] and components(".") = []
+    assert isAbsolute("/a") and not isAbsolute("a/b")
+
+test "relative paths"
+    assert relativeTo("/a/b/c", base: "/a/d").get() = "../b/c"
+    assert relativeTo("/a", base: "/a/").get() = "."
+    assert relativeTo("/", base: "/a/b").get() = "../.."
+    assert relativeTo("a/b", base: "c").get() = "../a/b"
+    assert relativeTo("../x", base: "..").get() = "x"
+    assert relativeTo("a", base: "../b").isNone()
+    let base := "src/lib"
+    let path := "src/tests/x.pst"
+    assert normalize(joinPath(base, relativeTo(path, base: base).get())) = normalize(path)

@@ -4,7 +4,7 @@ unit Mcp
 ## message per line. Each tool answers like the `pst` command or query it wraps, reading
 ## the files from disk on every call, so edits made by other tools are always seen.
 
-uses IO, OS, Strings, Source, Diagnostics, Symbols, Typecheck, Fmt, Json, Paths, Lsp, Query
+uses IO, OS, Strings, Source, Diagnostics, Symbols, Typecheck, Fmt, Json, PosixPaths, Lsp, Query
 
 const
     ProtocolVersion = "2025-06-18"

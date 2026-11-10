@@ -1,4 +1,4 @@
-unit Paths
+unit PosixPaths
 
 ## POSIX path operations, as Python's `posixpath` does them.
 

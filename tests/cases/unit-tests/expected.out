@@ -11,6 +11,9 @@ ok   std/Math.pst:42: real functions
 ok   std/OS.pst:298: directories
 ok   std/OS.pst:311: running a program
 ok   std/OS.pst:323: environment
+ok   std/Paths.pst:163: names
+ok   std/Paths.pst:174: joining and normalizing
+ok   std/Paths.pst:183: relative paths
 ok   std/Strings.pst:188: find gives byte offsets
 ok   std/Strings.pst:194: startsWith and endsWith
 ok   std/Strings.pst:201: split and join are inverses
@@ -34,7 +37,7 @@ ok   std/Time.pst:1522: tzdata zones
 ok   std/Time.pst:1548: zoned date-times
 ok   std/Time.pst:1569: periods
 ok   std/Time.pst:1594: intervals
-33 passed, 0 failed
+36 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/compiler
 exit 0
@@ -43,9 +46,9 @@ ok   compiler/Decimal.pst:197: exact and rounded literals
 ok   compiler/Decimal.pst:206: the edges of the range
 ok   compiler/Decimal.pst:213: singles
 ok   compiler/Difflib.pst:90: close matches, best first
-ok   compiler/Paths.pst:120: dirname and basename
-ok   compiler/Paths.pst:126: stripExt
-ok   compiler/Paths.pst:132: join and normalize
-ok   compiler/Paths.pst:139: relative
+ok   compiler/PosixPaths.pst:120: dirname and basename
+ok   compiler/PosixPaths.pst:126: stripExt
+ok   compiler/PosixPaths.pst:132: join and normalize
+ok   compiler/PosixPaths.pst:139: relative
 8 passed, 0 failed
 --- stderr

@@ -11,7 +11,7 @@ unit Resolve
 ## types are left for the type checker without an error: field access and dot calls
 ## (`p.x`, `xs.len()`), named arguments, and bare names in `case` labels.
 
-uses IO, OS, Strings, Source, Diagnostics, Ast, Parser, Symbols, Paths, Difflib
+uses IO, OS, Strings, Source, Diagnostics, Ast, Parser, Symbols, PosixPaths, Difflib
 
 type
     export Unit = record

@@ -4,7 +4,7 @@ program Pst
 ## `query`, `index`, and the `tokens` and `ast` dumps. The standard units are found in
 ## `units` next to the executable.
 
-uses IO, OS, Strings, Source, Ast, Diagnostics, Typecheck, Emit, Fmt, Lsp, Mcp, Query, Paths, LexDump, AstDump
+uses IO, OS, Strings, Source, Ast, Diagnostics, Typecheck, Emit, Fmt, Lsp, Mcp, Query, PosixPaths, LexDump, AstDump
 
 const
     Usage = "usage: pst check FILE [--json]\n       pst build FILE [-o OUT] [--unchecked] [--json]\n       pst run [--unchecked] FILE [-- ARGS]\n       pst test PATH [--filter TEXT] [--timeout SECONDS] [--unchecked] [--json]\n       pst fmt PATH [--check]\n       pst lsp\n       pst mcp [--root DIR]\n       pst query def|refs|type|hover|impls|callers|callees|accepts|instances FILE:LINE:COL|NAME\n       pst query complete FILE:LINE:COL\n       pst query explain CODE\n       pst query symbols [PATH]\n       pst index [PATH]\n       pst tokens FILE\n       pst ast FILE"

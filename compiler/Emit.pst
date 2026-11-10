@@ -38,7 +38,7 @@ unit Emit
 ## `bad`, which makes the emitting routines return at once until the statement being
 ## compiled ends.
 
-uses Strings, Bits, Source, Diagnostics, Ast, Symbols, Resolve, Types, Typecheck, Paths, X86, Elf, Decimal
+uses Strings, Bits, Source, Diagnostics, Ast, Symbols, Resolve, Types, Typecheck, PosixPaths, X86, Elf, Decimal
 
 const
     PanicStatus = 70

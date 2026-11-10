@@ -5,7 +5,7 @@ unit Query
 ## server, with positions as SPEC §15.1 gives them and paths relative to the current
 ## directory.
 
-uses IO, OS, Strings, Source, Symbols, Types, Typecheck, Paths, Json, Lsp, Explain
+uses IO, OS, Strings, Source, Symbols, Types, Typecheck, PosixPaths, Json, Lsp, Explain
 
 const
     Schema = "pst-query/1"
@@ -41,7 +41,7 @@ export function pstFiles(path: String): Result[List[String], String]
             var files: List[String] := []
             for name in sorted do
                 if endsWith(name, suffix: ".pst") then
-                    add(var files, Paths.normalize(join(path, b: name)))
+                    add(var files, PosixPaths.normalize(join(path, b: name)))
             return Ok(files)
         Err(e):
             return Err(e.error)
