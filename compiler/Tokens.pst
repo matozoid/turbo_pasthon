@@ -54,6 +54,8 @@ type
         KwRepeat,
         KwRequires,
         KwReturn,
+        KwShl,
+        KwShr,
         KwTest,
         KwThen,
         KwThis,
@@ -69,6 +71,7 @@ type
         KwUses,
         KwVar,
         KwWhile,
+        KwXor,
         Underscore,
         Assign,
         Eq,
@@ -170,6 +173,8 @@ export function keywords(): Map[String, TokenKind]
         "repeat": TokenKind.KwRepeat,
         "requires": TokenKind.KwRequires,
         "return": TokenKind.KwReturn,
+        "shl": TokenKind.KwShl,
+        "shr": TokenKind.KwShr,
         "test": TokenKind.KwTest,
         "then": TokenKind.KwThen,
         "this": TokenKind.KwThis,
@@ -185,6 +190,7 @@ export function keywords(): Map[String, TokenKind]
         "uses": TokenKind.KwUses,
         "var": TokenKind.KwVar,
         "while": TokenKind.KwWhile,
+        "xor": TokenKind.KwXor,
     }
 
 ## The operators, longest first, so that `...` wins over `..` over `.`.

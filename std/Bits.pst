@@ -1,18 +1,10 @@
 unit Bits
 
-## Bit operations on all integer types.
+## Bit counting on all integer types. The bit operations are the operators `and`, `or`,
+## `xor`, `not`, `shl` and `shr` (SPEC §9.1).
 
 extern "pst"
-    export function band[T](a, b: T): T
-    export function bor[T](a, b: T): T
-    export function bxor[T](a, b: T): T
-    export function bnot[T](a: T): T
-    export function shl[T](a: T, n: Integer): T
-    export function shr[T](a: T, n: Integer): T
     export function popCount[T](a: T): Integer
 
-test "bit operations"
-    assert band(%1100, %1010) = %1000 and bor(%1100, %1010) = %1110
-    assert bxor(%1100, %1010) = %0110 and bnot(0) = -1
-    assert shl(1, 10) = $400 and shr($400, 3) = $80
-    assert popCount($FF) = 8 and popCount(0) = 0
+test "bit counting"
+    assert popCount($FF) = 8 and popCount(0) = 0 and popCount(-1) = 64

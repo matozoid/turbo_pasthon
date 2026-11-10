@@ -220,13 +220,12 @@ function isComparison(k: TokenKind): Boolean
 function isOr(t: Token): Boolean
     return t.kind = TokenKind.KwOr
 
-## `xor`, `shl` and `shr` are words that act as operators after an operand, so that the
-## `Bits` functions of those names can still be called until they go (SPEC §18a).
+## Whether `t` is the contextual word `word`.
 function isWordOp(t: Token, word: String): Boolean
     return t.kind = TokenKind.Ident and t.text = word
 
 function isXor(t: Token): Boolean
-    return isWordOp(t, word: "xor")
+    return t.kind = TokenKind.KwXor
 
 function isAnd(t: Token): Boolean
     return t.kind = TokenKind.KwAnd
@@ -241,8 +240,8 @@ function isMultiplicative(t: Token): Boolean
         or k = TokenKind.Slash
         or k = TokenKind.KwDiv
         or k = TokenKind.KwMod
-        or isWordOp(t, word: "shl")
-        or isWordOp(t, word: "shr")
+        or k = TokenKind.KwShl
+        or k = TokenKind.KwShr
     )
 
 # -------------------------------------------------------------------- token values

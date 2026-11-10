@@ -25,7 +25,7 @@ def Main.pst 8:5-8:6
   var 's' @ Main.pst:8:5
     : Set[Color]
 use Main.pst 9:1-9:4
-  procedure 'add' @ std/System.pst:492:18
+  procedure 'add' @ std/System.pst:488:18
 use Main.pst 9:9-9:10
   var 's' @ Main.pst:8:5
 use Main.pst 9:12-9:17
@@ -33,7 +33,7 @@ use Main.pst 9:12-9:17
 use Main.pst 9:18-9:22
   enum member 'Blue' @ Main.pst:6:26
 use Main.pst 10:1-10:4
-  procedure 'add' @ std/System.pst:492:18
+  procedure 'add' @ std/System.pst:488:18
 use Main.pst 10:9-10:10
   var 's' @ Main.pst:8:5
 use Main.pst 10:12-10:17
@@ -43,7 +43,7 @@ use Main.pst 10:18-10:22
 use Main.pst 11:1-11:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 11:11-11:14
-  function 'len' @ std/System.pst:488:17
+  function 'len' @ std/System.pst:484:17
 use Main.pst 11:15-11:16
   var 's' @ Main.pst:8:5
 use Main.pst 11:20-11:25
@@ -79,7 +79,7 @@ def Main.pst 14:5-14:11
   let 'before' @ Main.pst:14:5
     : Set[Color]
 use Main.pst 15:1-15:7
-  procedure 'remove' @ std/System.pst:496:18
+  procedure 'remove' @ std/System.pst:492:18
 use Main.pst 15:12-15:13
   var 's' @ Main.pst:8:5
 use Main.pst 15:15-15:20
@@ -87,7 +87,7 @@ use Main.pst 15:15-15:20
 use Main.pst 15:21-15:24
   enum member 'Red' @ Main.pst:6:14
 use Main.pst 16:1-16:7
-  procedure 'remove' @ std/System.pst:496:18
+  procedure 'remove' @ std/System.pst:492:18
 use Main.pst 16:12-16:13
   var 's' @ Main.pst:8:5
 use Main.pst 16:15-16:20
@@ -108,21 +108,21 @@ def Main.pst 17:5-17:6
 use Main.pst 18:1-18:6
   procedure 'write' @ std/IO.pst:14:22
 use Main.pst 18:9-18:12
-  function 'len' @ std/System.pst:488:17
+  function 'len' @ std/System.pst:484:17
 use Main.pst 18:13-18:19
   let 'before' @ Main.pst:14:5
 use Main.pst 18:23-18:26
-  function 'len' @ std/System.pst:488:17
+  function 'len' @ std/System.pst:484:17
 use Main.pst 18:27-18:32
-  function 'union' @ std/System.pst:501:17
+  function 'union' @ std/System.pst:497:17
 use Main.pst 18:33-18:34
   var 's' @ Main.pst:8:5
 use Main.pst 18:36-18:37
   let 't' @ Main.pst:17:5
 use Main.pst 18:42-18:45
-  function 'len' @ std/System.pst:488:17
+  function 'len' @ std/System.pst:484:17
 use Main.pst 18:46-18:58
-  function 'intersection' @ std/System.pst:508:17
+  function 'intersection' @ std/System.pst:504:17
 use Main.pst 18:59-18:60
   var 's' @ Main.pst:8:5
 use Main.pst 18:62-18:63
@@ -130,9 +130,9 @@ use Main.pst 18:62-18:63
 use Main.pst 19:1-19:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 19:11-19:14
-  function 'len' @ std/System.pst:488:17
+  function 'len' @ std/System.pst:484:17
 use Main.pst 19:15-19:25
-  function 'difference' @ std/System.pst:515:17
+  function 'difference' @ std/System.pst:511:17
 use Main.pst 19:26-19:27
   let 't' @ Main.pst:17:5
 use Main.pst 19:29-19:30
@@ -189,11 +189,11 @@ def Main.pst 26:5-26:9
 use Main.pst 27:1-27:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 27:11-27:14
-  function 'len' @ std/System.pst:488:17
+  function 'len' @ std/System.pst:484:17
 use Main.pst 27:15-27:17
   var 'bs' @ Main.pst:20:5
 use Main.pst 27:21-27:24
-  function 'len' @ std/System.pst:488:17
+  function 'len' @ std/System.pst:484:17
 use Main.pst 27:25-27:29
   var 'none' @ Main.pst:26:5
 use Main.pst 27:41-27:45

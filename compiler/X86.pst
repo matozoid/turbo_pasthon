@@ -6,7 +6,7 @@ unit X86
 ## loads refer to labels, resolved by `finish` once the distance from the code to the
 ## read-only data is known.
 
-uses Bits, Strings
+uses Strings
 
 const
     export Rax = 0
@@ -82,7 +82,7 @@ export function newAssembler(): ref Assembler
 
 ## The low 8 bits of `v`.
 export function byte(v: Integer): Byte
-    return Byte(band(v, 255))
+    return Byte(v and 255)
 
 procedure put(var bs: List[Byte], v: Integer)
     add(var bs, byte(v))
@@ -90,12 +90,12 @@ procedure put(var bs: List[Byte], v: Integer)
 ## Appends `v` as `n` little-endian bytes (its low 8n bits).
 export procedure putLE(var bs: List[Byte], v, n: Integer)
     for i := 0 to n - 1 do
-        put(var bs, shr(v, 8 * i))
+        put(var bs, v shr (8 * i))
 
 ## Overwrites `n` bytes at `pos` with `v`, little-endian.
 export procedure setLE(var bs: List[Byte], pos, v, n: Integer)
     for i := 0 to n - 1 do
-        bs[pos + i] := byte(shr(v, 8 * i))
+        bs[pos + i] := byte(v shr (8 * i))
 
 function rex(w: Boolean, reg: Integer, rm: Integer): Integer
     var r := $40
@@ -112,7 +112,7 @@ function fits32(v: Integer): Boolean
 
 ## The low 3 bits of a register number.
 function low(r: Integer): Integer
-    return band(r, 7)
+    return r and 7
 
 ## A ModRM byte with both operands registers.
 function modrm(reg: Integer, rm: Integer): Integer
@@ -235,10 +235,10 @@ procedure mem(
     disp: Integer,
     flags: Integer := 1,
 )
-    if band(flags, 4) <> 0 then
+    if (flags and 4) <> 0 then
         emit(a, [$66])
-    let x := rex(band(flags, 1) <> 0, reg, rm: base)
-    if x <> $40 or (band(flags, 2) <> 0 and reg >= 4) then  # spl..dil need a REX prefix
+    let x := rex((flags and 1) <> 0, reg, rm: base)
+    if x <> $40 or ((flags and 2) <> 0 and reg >= 4) then  # spl..dil need a REX prefix
         emit(a, [x])
     emit(a, op)
     var md := 2
@@ -378,7 +378,7 @@ export procedure leaCode(a: ref Assembler, dst: Integer, label: String)
 export procedure add(a: ref Assembler, dst, src: Integer)
     rr(a, $01, dst, src)
 
-export procedure xor(a: ref Assembler, dst, src: Integer)
+export procedure xorR(a: ref Assembler, dst, src: Integer)
     rr(a, $31, dst, src)
 
 export procedure orR(a: ref Assembler, dst, src: Integer)

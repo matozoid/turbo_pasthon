@@ -2,7 +2,7 @@ unit OS
 
 ## The process environment, on libc.
 
-uses C, Bits
+uses C
 
 extern "libc.so.6"
     function getenv(name: CString): CString
@@ -125,7 +125,7 @@ unsafe function fileType(path: String): Integer
     )
     if cStat(toCString(path), addr(var st)) <> 0 then
         return -1
-    return Integer(band(st.w3, $F000))
+    return Integer(st.w3 and $F000)
 
 ## Whether `path` names a regular file (following symbolic links).
 export function isFile(path: String): Boolean
@@ -291,9 +291,9 @@ unsafe function launch(
     if message <> "" then
         return Err("{path}: {message}")
     let s := Integer(status)
-    if band(s, $7F) = 0 then
-        return Ok(band(shr(s, 8), $FF))
-    return Ok(-band(s, $7F))
+    if (s and $7F) = 0 then
+        return Ok((s shr 8) and $FF)
+    return Ok(-(s and $7F))
 
 test "directories"
     let dir := tempDir().get()

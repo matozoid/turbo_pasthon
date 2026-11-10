@@ -65,7 +65,7 @@ type
         slots: List[Integer]
         count: Integer  # entries not removed
 
-    ## A set of ordinal values (SPEC §4.5), written `{a, b}`: 256 bits in 4 words, one
+    ## A set of ordinal values (SPEC §4.5), written `[a, b]`: 256 bits in 4 words, one
     ## per possible element. Element `x` is bit `bitOf(x)`.
     export Set[T] = record
         words: List[Integer]
@@ -167,10 +167,6 @@ extern "pst"
     ## The set element whose bit is `i`.
     function ofBit[T](i: Integer): T
     ## As in Bits.
-    function band[T](a, b: T): T
-    function bor[T](a, b: T): T
-    function bnot[T](a: T): T
-    function shl[T](a: T, n: Integer): T
     function popCount[T](a: T): Integer
     ## Whether the box that `w` refers to still has strong references.
     function alive[T](w: Weak[T]): Boolean
@@ -495,27 +491,27 @@ export procedure add[T](var s: Set[T], x: T)
 ## Removes `x` from the set, if present.
 export procedure remove[T](var s: Set[T], x: T)
     let b := bitOf(x)
-    s.words[b div 64] := band(s.words[b div 64], bnot(shl(1, b mod 64)))
+    s.words[b div 64] := s.words[b div 64] and not (1 shl (b mod 64))
 
 ## The elements in `a`, in `b`, or in both.
 export function union[T](a, b: Set[T]): Set[T]
     var s := a
     for i := 0 to 3 do
-        s.words[i] := bor(a.words[i], b.words[i])
+        s.words[i] := a.words[i] or b.words[i]
     return s
 
 ## The elements in both `a` and `b`.
 export function intersection[T](a, b: Set[T]): Set[T]
     var s := a
     for i := 0 to 3 do
-        s.words[i] := band(a.words[i], b.words[i])
+        s.words[i] := a.words[i] and b.words[i]
     return s
 
 ## The elements in `a` but not in `b`.
 export function difference[T](a, b: Set[T]): Set[T]
     var s := a
     for i := 0 to 3 do
-        s.words[i] := band(a.words[i], bnot(b.words[i]))
+        s.words[i] := a.words[i] and not b.words[i]
     return s
 
 ## The elements as `[a, b]`, in `ord` order, each by its `toString`.
@@ -527,19 +523,19 @@ export function toString[T: Printable](s: Set[T]): String
         out := "{out}{x}"
     return "{out}]"
 
-## `{}`.
+## `[]` as a set.
 function emptySet[T](): Set[T]
     return Set(words: [0, 0, 0, 0])
 
-## `{a, b}` adds its elements with this; `add` is overloaded.
+## `[a, b]` as a set adds its elements with this; `add` is overloaded.
 procedure include[T](var s: Set[T], x: T)
     let b := bitOf(x)
-    s.words[b div 64] := bor(s.words[b div 64], shl(1, b mod 64))
+    s.words[b div 64] := s.words[b div 64] or (1 shl (b mod 64))
 
 ## `x in s`.
 function includes[T](x: T, s: Set[T]): Boolean
     let b := bitOf(x)
-    return band(s.words[b div 64], shl(1, b mod 64)) <> 0
+    return (s.words[b div 64] and (1 shl (b mod 64))) <> 0
 
 # ------------------------------------------------------------------------- refs
 
@@ -621,7 +617,7 @@ export function next[T](var it: SetIter[T]): Option[T]
     while it.pos < 256 do
         inc(var it.pos)
         let b := it.pos - 1
-        if band(it.source.words[b div 64], shl(1, b mod 64)) <> 0 then
+        if (it.source.words[b div 64] and (1 shl (b mod 64))) <> 0 then
             return Some(ofBit[T](b))
     return None
 

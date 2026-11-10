@@ -38,7 +38,7 @@ unit Emit
 ## `bad`, which makes the emitting routines return at once until the statement being
 ## compiled ends.
 
-uses Strings, Bits, Source, Diagnostics, Ast, Symbols, Resolve, Types, Typecheck, PosixPaths, X86, Elf, Decimal
+uses Strings, Source, Diagnostics, Ast, Symbols, Resolve, Types, Typecheck, PosixPaths, X86, Elf, Decimal
 
 const
     PanicStatus = 70
@@ -3105,7 +3105,7 @@ procedure eUnary(g: ref Em, x: Unary, e: Expr)
         if t = booleanT() then
             xorImm32(a, Rax, value: 1)
         else
-            bitsCore(g, x.span, "bnot", t)
+            bitsCore(g, x.span, "not", t)
     else if x.op = "-" then
         case x.operand of
             IntLit(lit):
@@ -3123,11 +3123,11 @@ procedure eUnary(g: ref Em, x: Unary, e: Expr)
         if t = realT() then
             movImm(a, Rcx, value: 1)
             shlImm(a, Rcx, n: 63)
-            xor(a, Rax, Rcx)  # flips the sign bit
+            xorR(a, Rax, Rcx)  # flips the sign bit
             return
         if t = real32T() then
             movImm(a, Rcx, value: $80000000)
-            xor(a, Rax, Rcx)
+            xorR(a, Rax, Rcx)
             return
         neg(a, Rax)  # sets CF unless the operand is 0
         if t = uint64T() then
@@ -3205,8 +3205,7 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
             return
         mov(a, Rcx, Rax)
         pop(a, Rax)
-        let bitsName := if op = "and" then "band" else if op = "or" then "bor" else if op = "xor" then "bxor" else op
-        bitsCore(g, x.span, bitsName, t)
+        bitsCore(g, x.span, op, t)
         return
     if op = "xor" then  # Booleans
         expr(g, x.left)
@@ -3217,7 +3216,7 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
         if g.bad then
             return
         pop(a, Rcx)
-        xor(a, Rax, Rcx)
+        xorR(a, Rax, Rcx)
         return
     if op = "and" or op = "or" then
         let fin := newLabel(a, op)
@@ -4449,7 +4448,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
             incR(a, Rax)
             jmp(a, fin)
             label(a, down)
-            xor(a, Rcx, Rcx)
+            xorR(a, Rcx, Rcx)
             movqToXmm(a, Xmm1, r: Rcx)
             realOp(a, "-", Xmm1, src: Xmm0)  # -fraction
             movImm64(a, Rcx, value: realBits("0.5"))
@@ -4579,16 +4578,11 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
                 subImm(a, Rax, value: lo)
             else
                 addImm(a, Rax, value: lo)
-    else if (sysU or u = "Bits") and (
-        n = "band"
-        or n = "bor"
-        or n = "bxor"
-        or n = "bnot"
-        or n = "shl"
-        or n = "shr"
-        or n = "popCount"
-    ) then
-        bitsOp(g, c, n, args, targ0(g, m))
+    else if (sysU or u = "Bits") and n = "popCount" then
+        expr(g, args[0])
+        if g.bad then
+            return
+        bitsCore(g, c.span, n, targ0(g, m))
     else if sysU and n = "new" then
         let t := targ0(g, m)
         valueType(g, t, c.span)
@@ -4725,35 +4719,20 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
 
 ## The `Bits` operations, on the bits of `t`'s width: results wrap to the type, `shr`
 ## shifts zeros in, and a shift by a count outside 0 to width - 1 gives 0.
-procedure bitsOp(g: ref Em, c: Call, op: String, args: List[Expr], t: Type)
-    let a := g.a
-    if not isInt(t) then
-        unsupported(g, c.span, "'{op}' on {show(t)}")
-        return
-    for x in args do
-        expr(g, x)
-        if g.bad then
-            return
-        push(a, Rax)
-    if len(args) = 2 then
-        pop(a, Rcx)
-    pop(a, Rax)
-    bitsCore(g, c.span, op, t)
-
-## `rax := rax op rcx` (`rax := op rax` for `bnot` and `popCount`) on the bits of `t`.
+## `rax := rax op rcx` (`rax := op rax` for `not` and `popCount`) on the bits of `t`.
 procedure bitsCore(g: ref Em, span: Span, op: String, t: Type)
     let a := g.a
     if not isInt(t) then
         unsupported(g, span, "'{op}' on {show(t)}")
         return
     let width := intBits(t)
-    if op = "band" then
+    if op = "and" then
         andR(a, Rax, Rcx)
-    else if op = "bor" then
+    else if op = "or" then
         orR(a, Rax, Rcx)
-    else if op = "bxor" then
-        xor(a, Rax, Rcx)
-    else if op = "bnot" then
+    else if op = "xor" then
+        xorR(a, Rax, Rcx)
+    else if op = "not" then
         notR(a, Rax)
         widen(g, t)
     else if op = "popCount" then
@@ -5328,7 +5307,7 @@ procedure rtEq(g: ref Em)
     jmp(a, high)
     label(a, lowBits)
     mov(a, Rax, Rdi)
-    xor(a, Rax, Rsi)
+    xorR(a, Rax, Rsi)
     shlImm(a, Rax, n: 32)
     jcc(a, "ne", label: no)
     label(a, high)
@@ -5384,7 +5363,7 @@ procedure rtHash(g: ref Em)
     pushAll(a, saved)
     mov(a, Rbx, Rax)  # the hash so far
     load(a, Rcx, Rdx, disp: DId)
-    xor(a, Rbx, Rcx)
+    xorR(a, Rbx, Rcx)
     imul(a, Rbx, R11)
     mov(a, R13, Rdx)
     walk(g, Rdi, R13, R12, R14, R15)
@@ -5397,7 +5376,7 @@ procedure rtHash(g: ref Em)
     mov(a, Rdi, Rax)
     callRuntime(g, "rt_hash")
     label(a, plain)
-    xor(a, Rbx, Rax)
+    xorR(a, Rbx, Rax)
     movImm(a, R11, value: FnvPrime)
     imul(a, Rbx, R11)
     add(a, R13, R15)
@@ -5417,7 +5396,7 @@ procedure rtHash(g: ref Em)
     testR(a, Rcx, Rcx)
     jcc(a, "e", label: fin)
     load8(a, Rdx, Rsi)
-    xor(a, Rax, Rdx)
+    xorR(a, Rax, Rdx)
     imul(a, Rax, R11)
     incR(a, Rsi)
     decR(a, Rcx)
@@ -5435,7 +5414,7 @@ procedure rtMix(g: ref Em)
     for i := 0 to 2 do
         mov(a, Rcx, Rax)
         shrImm(a, Rcx, n: shifts[i])
-        xor(a, Rax, Rcx)
+        xorR(a, Rax, Rcx)
         if i < 2 then
             movImm(a, Rcx, value: factors[i])
             imul(a, Rax, Rcx)

@@ -1,7 +1,7 @@
 $ $PST test $ROOT/std
 exit 0
 --- stdout
-ok   std/Bits.pst:14: bit operations
+ok   std/Bits.pst:9: bit counting
 ok   std/Json.pst:376: parse and write back
 ok   std/Json.pst:384: errors
 ok   std/Json.pst:393: reading parts
@@ -25,12 +25,12 @@ ok   std/Strings.pst:398: repeating
 ok   std/Strings.pst:401: case and lines
 ok   std/Strings.pst:406: number formatting
 ok   std/Strings.pst:412: glob patterns
-ok   std/System.pst:772: list editing
-ok   std/System.pst:785: sort is stable
-ok   std/System.pst:802: maps
-ok   std/System.pst:814: sets
-ok   std/System.pst:825: options and results
-ok   std/System.pst:835: iterators
+ok   std/System.pst:768: list editing
+ok   std/System.pst:781: sort is stable
+ok   std/System.pst:798: maps
+ok   std/System.pst:810: sets
+ok   std/System.pst:821: options and results
+ok   std/System.pst:831: iterators
 ok   std/Time.pst:1426: durations
 ok   std/Time.pst:1436: dates
 ok   std/Time.pst:1455: times

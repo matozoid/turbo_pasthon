@@ -55,7 +55,7 @@ use Main.pst 10:12-10:13
 use Main.pst 13:12-13:19
   type 'Integer' @ std/System.pst:13:12
 use Main.pst 13:23-13:28
-  function 'count' @ std/System.pst:720:17
+  function 'count' @ std/System.pst:716:17
 use Main.pst 14:16-14:23
   type 'Integer' @ std/System.pst:13:12
 def Main.pst 14:13-14:14

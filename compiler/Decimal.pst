@@ -7,7 +7,7 @@ unit Decimal
 ## A natural number is a `List[Integer]` of base 2^32 limbs, least significant first,
 ## with no zero limb on top; zero is the empty list.
 
-uses Bits, Strings
+uses Strings
 
 type
     ## An IEEE-754 binary format: the significand's bits, with the implicit one, and the
@@ -34,8 +34,8 @@ function mulAdd(x: List[Integer], m, c: Integer): List[Integer]
     var carry := c
     for limb in x do
         let v := limb * m + carry
-        add(var out, band(v, Limb))
-        carry := shr(v, 32)
+        add(var out, v and Limb)
+        carry := v shr 32
     if carry > 0 then
         add(var out, carry)
     return out
@@ -49,9 +49,9 @@ function shifted(x: List[Integer], n: Integer): List[Integer]
         add(var out, 0)
     var carry := 0
     for limb in x do
-        let v := shl(limb, n mod 32) + carry
-        add(var out, band(v, Limb))
-        carry := shr(v, 32)
+        let v := (limb shl (n mod 32)) + carry
+        add(var out, v and Limb)
+        carry := v shr 32
     if carry > 0 then
         add(var out, carry)
     return out
@@ -64,7 +64,7 @@ function bitLen(x: List[Integer]): Integer
     var top := x[len(x) - 1]
     while top > 0 do
         n := n + 1
-        top := shr(top, 1)
+        top := top shr 1
     return n
 
 ## -1, 0 or 1 as `x` is below, equal to or above `y`.
@@ -104,7 +104,7 @@ function divide(n, d: List[Integer]): Division
         let t := shifted(d, bit)
         if compare(t, r) <= 0 then
             r := minus(r, t)
-            q := q + shl(1, bit)
+            q := q + (1 shl bit)
     return Division(q: q, r: r)
 
 ## `n / d`, scaled by 2^-e.
@@ -124,8 +124,8 @@ export function real32Bits(digits: String): Integer
 ## The bits of the number nearest `digits` in format `f`.
 function nearest(digits: String, f: Format): Integer
     let p := f.precision
-    let bias := shl(1, f.exponentBits - 1) - 1
-    let infinity := shl(shl(1, f.exponentBits) - 1, p - 1)
+    let bias := (1 shl (f.exponentBits - 1)) - 1
+    let infinity := ((1 shl f.exponentBits) - 1) shl (p - 1)
     let lowest := 2 - bias - p  # the exponent of the smallest subnormal
     let bs := bytes(digits)
     var m: List[Integer] := []
@@ -174,7 +174,7 @@ function nearest(digits: String, f: Format): Integer
     if e < lowest then
         e := lowest
     var quot := scaled(n, d, e: e)
-    if quot.q >= shl(1, p) then
+    if quot.q >= 1 shl p then
         e := e + 1
         quot := scaled(n, d, e: e)
     var den := d
@@ -184,15 +184,15 @@ function nearest(digits: String, f: Format): Integer
     let half := compare(shifted(quot.r, 1), den)
     if half > 0 or (half = 0 and q mod 2 = 1) then
         q := q + 1
-    if q = shl(1, p) then
-        q := shl(1, p - 1)
+    if q = 1 shl p then
+        q := 1 shl (p - 1)
         e := e + 1
-    if q < shl(1, p - 1) then
+    if q < 1 shl (p - 1) then
         return q  # a subnormal: e is the lowest
     let field := e - lowest + 1
-    if field >= shl(1, f.exponentBits) - 1 then
+    if field >= (1 shl f.exponentBits) - 1 then
         return infinity
-    return shl(field, p - 1) + q - shl(1, p - 1)
+    return (field shl (p - 1)) + q - (1 shl (p - 1))
 
 test "exact and rounded literals"
     assert realBits("0.0") = 0 and realBits("1.0") = $3FF0000000000000

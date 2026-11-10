@@ -186,7 +186,7 @@ use Main.pst 48:33-48:36
 use Main.pst 48:37-48:39
   var 'xs' @ Main.pst:39:5
 use Main.pst 48:43-48:46
-  function 'len' @ std/System.pst:353:17
+  function 'len' @ std/System.pst:349:17
 use Main.pst 48:47-48:48
   let 'm' @ Main.pst:41:5
 use Main.pst 7:16-7:23

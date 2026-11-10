@@ -125,7 +125,7 @@ procedure run(a: ref Assembler, var names: Map[String, String], w: List[String])
     else if op = "add" then
         add(a, x[0], x[1])
     else if op = "xor" then
-        xor(a, x[0], x[1])
+        xorR(a, x[0], x[1])
     else if op = "or_" then
         orR(a, x[0], x[1])
     else if op = "and_" then
