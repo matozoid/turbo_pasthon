@@ -88,6 +88,18 @@ type
         wd: Integer
         at: Integer
 
+    ## An amount of calendar time in years, months and days, such as P1Y2M3D. Each part
+    ## may be negative.
+    export Period = record
+        ys: Integer
+        ms: Integer
+        ds: Integer
+
+    ## The instants from `lo` up to, not including, `hi`.
+    export Interval = record
+        lo: Instant
+        hi: Instant
+
     ## An instant in a time zone, such as 2026-11-10T09:30:00+01:00[Europe/Amsterdam].
     export DateTime = record
         inst: Instant
@@ -1193,6 +1205,222 @@ export unsafe function parseZoned(s: String): Result[DateTime, String]
     let z := try zone(join(parts))
     return Ok(DateTime(inst: i, tz: z))
 
+# --------------------------------------------------------------------------- periods
+
+export function period(years: Integer := 0, months: Integer := 0, days: Integer := 0): Period
+    return Period(ys: years, ms: months, ds: days)
+
+export function years(p: Period): Integer
+    return p.ys
+
+export function months(p: Period): Integer
+    return p.ms
+
+export function days(p: Period): Integer
+    return p.ds
+
+export function isZero(p: Period): Boolean
+    return p.ys = 0 and p.ms = 0 and p.ds = 0
+
+export function plus(a, b: Period): Period
+    return Period(ys: a.ys + b.ys, ms: a.ms + b.ms, ds: a.ds + b.ds)
+
+export function negated(p: Period): Period
+    return Period(ys: -p.ys, ms: -p.ms, ds: -p.ds)
+
+## `p` with whole years taken out of the months, so P1Y14M becomes P2Y2M. The years and
+## months keep the same sign; the days don't change.
+export function normalized(p: Period): Period
+    let total := p.ys * 12 + p.ms
+    return Period(ys: total div 12, ms: total mod 12, ds: p.ds)
+
+## `d` moved by the years and months of `p` (a day past the new month's end becomes its
+## last day), then by its days.
+export function plus(d: LocalDate, p: Period): LocalDate
+    return plusDays(plusMonths(d, months: p.ys * 12 + p.ms), days: p.ds)
+
+export function minus(d: LocalDate, p: Period): LocalDate
+    return plus(d, p: negated(p))
+
+export function plus(dt: LocalDateTime, p: Period): LocalDateTime
+    return LocalDateTime(ld: plus(dt.ld, p: p), lt: dt.lt)
+
+export function minus(dt: LocalDateTime, p: Period): LocalDateTime
+    return plus(dt, p: negated(p))
+
+## `dt` moved by `p` on the calendar, keeping the local time where it exists (see
+## `atZone`).
+export function plus(dt: DateTime, p: Period): DateTime
+    return atZone(plus(toLocalDateTime(dt), p: p), z: dt.tz)
+
+export function minus(dt: DateTime, p: Period): DateTime
+    return plus(dt, p: negated(p))
+
+## The years, months and days from `a` to `b`, all negative if `b` is before `a`. When `b`
+## isn't before `a`, adding it to `a` gives `b`; going back, a month's end can be clamped
+## (2024-03-31 minus P1M is 2024-02-29).
+export function between(a, b: LocalDate): Period
+    var total := b.yr * 12 + b.mon - (a.yr * 12 + a.mon)
+    var days := b.dom - a.dom
+    if total > 0 and days < 0 then
+        total := total - 1
+        days := toEpochDay(b) - toEpochDay(plusMonths(a, months: total))
+    else if total < 0 and days > 0 then
+        total := total + 1
+        days := days - monthLength(b.yr, month: b.mon)
+    return Period(ys: total div 12, ms: total mod 12, ds: days)
+
+## ISO-8601 text such as `P1Y2M3D`, leaving out zero parts; `P0D` when all are zero.
+export function toString(p: Period): String
+    if isZero(p) then
+        return "P0D"
+    var parts := ["P"]
+    if p.ys <> 0 then
+        add(var parts, "{p.ys}Y")
+    if p.ms <> 0 then
+        add(var parts, "{p.ms}M")
+    if p.ds <> 0 then
+        add(var parts, "{p.ds}D")
+    return join(parts)
+
+## Reads an ISO-8601 period of years, months, weeks and days, such as `P1Y2M3D`, `P2W`
+## or `-P1M` (which negates every part). A part may have its own sign: `P1Y-2M`. A week
+## is 7 days.
+export function parsePeriod(s: String): Result[Period, String]
+    var r := reader(s)
+    let negative := peek(r) = '-'
+    if negative or peek(r) = '+' then
+        r.pos := r.pos + 1
+    _ := try expect(var r, c: 'P')
+    var p := period()
+    var units := "YMWD"
+    while not atEnd(r) do
+        let partNegative := peek(r) = '-'
+        if partNegative or peek(r) = '+' then
+            r.pos := r.pos + 1
+        let raw := try number(var r)
+        let n := if partNegative then -raw else raw
+        let u := peek(r)
+        let at := find(units, sub: toString(u))
+        if u = 'P' or at.isNone() then
+            return Err(failure(r, "expected a unit"))
+        if u = 'Y' then
+            p.ys := n
+        else if u = 'M' then
+            p.ms := n
+        else if u = 'W' then
+            p.ds := p.ds + n * 7
+        else
+            p.ds := p.ds + n
+        units := slice(units, at.get() + 1, stop: byteLen(units))
+        r.pos := r.pos + 1
+    if byteLen(units) = 4 then
+        return Err(failure(r, "expected a digit"))
+    return Ok(if negative then negated(p) else p)
+
+# ------------------------------------------------------------------------- intervals
+
+## The instants from `start` up to, not including, `end`.
+export function interval(start, end: Instant): Interval
+    requires not isAfter(start, b: end)
+    return Interval(lo: start, hi: end)
+
+## The interval of length `d` from `start`.
+export function interval(start: Instant, d: Duration): Interval
+    return interval(start, end: plus(start, d: d))
+
+export function start(iv: Interval): Instant
+    return iv.lo
+
+## The first instant after the interval.
+export function end(iv: Interval): Instant
+    return iv.hi
+
+export function duration(iv: Interval): Duration
+    return between(iv.lo, b: iv.hi)
+
+## Whether `i` is in `iv`: at or after its start and before its end.
+export function contains(iv: Interval, i: Instant): Boolean
+    return not isBefore(i, b: iv.lo) and isBefore(i, b: iv.hi)
+
+## Whether `a` and `b` share an instant.
+export function overlaps(a, b: Interval): Boolean
+    return isBefore(a.lo, b: b.hi) and isBefore(b.lo, b: a.hi)
+
+## Whether one ends where the other starts.
+export function abuts(a, b: Interval): Boolean
+    return a.hi = b.lo or b.hi = a.lo
+
+## The instants in both `a` and `b`, if they overlap.
+export function overlap(a, b: Interval): Option[Interval]
+    if not overlaps(a, b) then
+        return None
+    let lo := if isAfter(a.lo, b: b.lo) then a.lo else b.lo
+    let hi := if isBefore(a.hi, b: b.hi) then a.hi else b.hi
+    return Some(Interval(lo: lo, hi: hi))
+
+## The instants between `a` and `b`, if they neither overlap nor abut.
+export function gap(a, b: Interval): Option[Interval]
+    if isBefore(a.hi, b: b.lo) then
+        return Some(Interval(lo: a.hi, hi: b.lo))
+    if isBefore(b.hi, b: a.lo) then
+        return Some(Interval(lo: b.hi, hi: a.lo))
+    return None
+
+## ISO-8601 text: the start and the end, such as
+## `2026-11-10T09:00:00Z/2026-11-10T17:00:00Z`.
+export function toString(iv: Interval): String
+    return "{iv.lo}/{iv.hi}"
+
+## Reads an ISO-8601 interval: `start/end`, `start/duration` or `duration/end`, with
+## the instants as `parseInstant` reads them and the durations as `parseDuration`.
+export function parseInterval(s: String): Result[Interval, String]
+    let parts := split(s, sep: "/")
+    if len(parts) <> 2 then
+        return Err("expected one '/'")
+    let first := parts[0]
+    let second := parts[1]
+    let a := if startsWith(first, prefix: "P") or startsWith(first, prefix: "-P") then 1 else 0
+    let b := if startsWith(second, prefix: "P") or startsWith(second, prefix: "-P") then 1 else 0
+    if a = 1 and b = 1 then
+        return Err("expected an instant before or after the '/'")
+    var lo := ofEpochSecond(0)
+    var hi := lo
+    if a = 1 then
+        let d := try located(parseDuration(first), offset: 0, partEnd: charCount(first))
+        hi := try located(parseInstant(second), offset: charCount(first) + 1)
+        lo := minus(hi, d: d)
+    else if b = 1 then
+        lo := try located(parseInstant(first), offset: 0, partEnd: charCount(first))
+        let d := try located(parseDuration(second), offset: charCount(first) + 1)
+        hi := plus(lo, d: d)
+    else
+        lo := try located(parseInstant(first), offset: 0, partEnd: charCount(first))
+        hi := try located(parseInstant(second), offset: charCount(first) + 1)
+    if isAfter(lo, b: hi) then
+        return Err("the end is before the start")
+    return Ok(Interval(lo: lo, hi: hi))
+
+## `r`, with `offset` added to the offset in its error. With `partEnd`, an error at the
+## end of the text is at that offset instead.
+function located[T](
+    r: Result[T, String],
+    offset: Integer,
+    partEnd: Integer := -1,
+): Result[T, String]
+    case r of
+        Ok(v):
+            return Ok(v.value)
+        Err(e):
+            if partEnd >= 0 and endsWith(e.error, suffix: " at the end of the text") then
+                let what := slice(e.error, 0, stop: byteLen(e.error) - 23)
+                return Err("{what} at offset {partEnd}")
+            let words := split(e.error, sep: " at offset ")
+            if len(words) = 2 then
+                let n := parseInt(words[1]).get()
+                return Err("{words[0]} at offset {n + offset}")
+            return Err(e.error)
+
 # ----------------------------------------------------------------------------- tests
 
 test "durations"
@@ -1337,3 +1565,49 @@ test "zoned date-times"
     assert offsetText(-12_345) = "-03:25:45" and toString(fixedZone(19_800)) = "+05:30"
     let epoch := inZone(ofEpochSecond(0), z: utc())
     assert name(zone(now(utc()))) = "UTC" and isAfter(now(utc()), b: epoch)
+
+test "periods"
+    let p := period(years: 1, months: 2, days: 3)
+    assert toString(p) = "P1Y2M3D" and toString(period()) = "P0D"
+    assert toString(period(months: -1)) = "P-1M"
+    assert toString(normalized(period(months: 26))) = "P2Y2M"
+    assert plus(date(2024, 1, 31), p: period(months: 1, days: 1)) = date(2024, 3, 1)
+    assert minus(date(2024, 3, 31), p: period(months: 1)) = date(2024, 2, 29)
+    assert between(date(2024, 1, 31), b: date(2024, 3, 1)) = period(months: 1, days: 1)
+    let back := period(years: -1, months: -1, days: -26)
+    assert between(date(2026, 3, 15), b: date(2025, 1, 20)) = back
+    let leap := date(2000, 2, 29)
+    assert between(leap, b: date(2026, 11, 10)) = period(years: 26, months: 8, days: 12)
+    let a := date(1999, 12, 31)
+    for k := 0 to 800 do
+        let b := plusDays(a, days: k)
+        assert plus(a, p: between(a, b: b)) = b
+    let ams := zone("Europe/Amsterdam").get()
+    let noon := atZone(parseDateTime("2026-03-28T12:00").get(), z: ams)
+    assert time(plus(noon, p: period(days: 1))) = time(12, 0)
+    assert parsePeriod("P1Y2M3D") = Ok(p) and parsePeriod("P2W1D") = Ok(period(days: 15))
+    assert parsePeriod("-P1Y-2M") = Ok(period(years: -1, months: 2))
+    assert parsePeriod("P") = Err("expected a digit at the end of the text")
+    assert parsePeriod("P1D2Y") = Err("expected a unit at offset 4")
+    assert parsePeriod("P1Y1Y") = Err("expected a unit at offset 4")
+
+test "intervals"
+    let nine := parseInstant("2026-11-10T09:00:00Z").get()
+    let day := interval(nine, d: ofHours(8))
+    assert toString(day) = "2026-11-10T09:00:00Z/2026-11-10T17:00:00Z"
+    assert duration(day) = ofHours(8) and start(day) = nine and end(day) = plus(nine, d: ofHours(8))
+    assert contains(day, i: nine) and not contains(day, i: end(day))
+    let lunch := interval(plus(nine, d: ofHours(3)), d: ofHours(1))
+    let evening := interval(end(day), d: ofHours(4))
+    assert overlaps(day, b: lunch) and not overlaps(day, b: evening) and abuts(day, b: evening)
+    assert overlap(day, b: lunch) = Some(lunch) and overlap(day, b: evening).isNone()
+    assert gap(lunch, b: evening) = Some(interval(end(lunch), end: end(day)))
+    assert parseInterval("2026-11-10T09:00:00Z/2026-11-10T17:00:00Z") = Ok(day)
+    assert parseInterval("2026-11-10T09:00:00Z/PT8H") = Ok(day)
+    assert parseInterval("PT8H/2026-11-10T17:00:00Z") = Ok(day)
+    assert parseInterval(
+        "2026-11-10T09:00:00Z/2026-11-10T08:00Z",
+    ) = Err("the end is before the start")
+    assert parseInterval("2026-11-10T09:00/PT1H") = Err("expected 'Z' or an offset at offset 16")
+    assert parseInterval("2026-11-10T09:00:00Z/PT1X") = Err("expected a unit at offset 24")
+    assert parseInterval("PT1H/PT1H") = Err("expected an instant before or after the '/'")
