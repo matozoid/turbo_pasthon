@@ -112,6 +112,9 @@ type
 
 extern "pst"
     ## Number of elements.
+    export function length[T](xs: List[T]): Integer
+    export function length[T, N: Integer](a: Array[T, N]): Integer
+    ## The old name of `length`, until the next seed release.
     export function len[T](xs: List[T]): Integer
     export function len[T, N: Integer](a: Array[T, N]): Integer
 
@@ -343,6 +346,10 @@ export function justify(s: String, width: Integer): String
 # ------------------------------------------------------------------------- maps
 
 ## Number of entries.
+export function length[K: Hashable, V](m: Map[K, V]): Integer
+    return m.count
+
+## The old name of `length`, until the next seed release.
 export function len[K: Hashable, V](m: Map[K, V]): Integer
     return m.count
 
@@ -469,11 +476,15 @@ function mapEquals[K: Hashable, V: Equatable](a, b: Map[K, V]): Boolean
 # ------------------------------------------------------------------------- sets
 
 ## Number of elements.
-export function len[T](s: Set[T]): Integer
+export function length[T](s: Set[T]): Integer
     var n := 0
     for w in s.words do
         n := n + popCount(w)
     return n
+
+## The old name of `length`, until the next seed release.
+export function len[T](s: Set[T]): Integer
+    return length(s)
 
 ## Adds `x` to the set.
 export procedure add[T](var s: Set[T], x: T)

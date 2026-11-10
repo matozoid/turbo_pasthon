@@ -4487,7 +4487,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         mov(a, Rcx, Rax)
         pop(a, Rax)
         storeAt(g, args[0], t)
-    else if sysU and n = "len" and isList(typeOfExpr(g, args[0])) then
+    else if sysU and (n = "length" or n = "len") and isList(typeOfExpr(g, args[0])) then
         expr(g, args[0])
         if g.bad then
             return

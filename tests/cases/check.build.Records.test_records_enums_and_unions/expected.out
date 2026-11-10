@@ -101,7 +101,7 @@ use Main.pst 44:1-44:8
 use Main.pst 44:11-44:12
   let 'c' @ Main.pst:43:5
 use Main.pst 44:15-44:18
-  function 'ord' @ std/System.pst:125:21
+  function 'ord' @ std/System.pst:128:21
 use Main.pst 44:19-44:20
   let 'c' @ Main.pst:43:5
 use Main.pst 44:24-44:29

@@ -10,7 +10,7 @@ use Main.pst 3:10-3:17
 use Main.pst 5:1-5:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 5:9-5:12
-  function 'len' @ std/System.pst:115:21
+  function 'len' @ std/System.pst:118:21
 use Main.pst 5:13-5:18
   function 'split' @ std/Strings.pst:66:17
 use Main.pst 5:26-5:29

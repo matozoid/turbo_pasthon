@@ -11,7 +11,7 @@ def Main.pst 5:5-5:6
   var 'u' @ Main.pst:5:5
     : Byte
 use Main.pst 6:1-6:4
-  procedure 'dec' @ std/System.pst:122:22
+  procedure 'dec' @ std/System.pst:125:22
 use Main.pst 6:9-6:10
   var 'u' @ Main.pst:5:5
 --- stderr

@@ -242,7 +242,7 @@ in the file. No `forward` declarations are needed. Mutual recursion works.
 - Enum members are exported with their enum.
 - `uses Strings` makes exported names available both qualified (`Strings.split`) and unqualified (`split`).
 - If an unqualified name is ambiguous between units, using it is an error (`E0110`); qualify it.
-- The `System` unit (core types, `Option`, `Result`, `len`, etc.) is implicitly used.
+- The `System` unit (core types, `Option`, `Result`, `length`, etc.) is implicitly used.
 - Lookup order for an unqualified name: local variables and parameters (innermost first),
   type parameters and the members their bounds require (§8.2), the file's own top-level
   declarations, then the names exported by the used units. Own declarations hide imported
@@ -266,7 +266,7 @@ allowed only in standard units (`E0106`):
 ```pascal
 external "pst"
     ## Number of elements.
-    export function len[T](xs: List[T]): Integer
+    export function length[T](xs: List[T]): Integer
 ```
 
 `export` on a declaration inside an `external` block exports it, as for routines.
@@ -368,8 +368,8 @@ exist on `String` (`E0310`, with a fix suggesting `chars`, `bytes`, or `slice`).
 
 - `for c in s do` / `chars(s)` iterate over `Char`s (§4.14).
 - `charCount(s)` is the number of `Char`s, computed once when the string is created (O(1)).
-  `byteLen(s)` is the UTF-8 size. There is no `len(s)`. `len` is only for collections
-  with O(1) indexing.
+  `byteLen(s)` is the UTF-8 size. There is no `length(s)` for strings. `length` is only
+  for collections with O(1) indexing.
 - `bytes(s)` returns a copy of the UTF-8 bytes as a `List[Byte]`, with real O(1) indexing
   for parsers.
 - **Positions are byte offsets.** `pos(s, sub, start := 0): Option[Integer]` returns one, and
@@ -381,11 +381,11 @@ passing produce logically independent copies. They are implemented as refcounted
 with **copy-on-write**, so copies are O(1) until mutated.
 
 A `List` is one block holding its length, its capacity and its elements; the compiler
-provides only that block, indexing, `len` and an internal `resize`. `add`, `insert`,
+provides only that block, indexing, `length` and an internal `resize`. `add`, `insert`,
 `remove`, `removeLast`, `concat`, `sort` and `in` are ordinary Pasthon routines in System,
 built on those. Growing at least doubles the capacity, so `add` is amortized O(1).
 
-- `insert(var xs, index, x)` puts `x` at `index` (`0 <= index <= len(xs)`, else `P0001`),
+- `insert(var xs, index, x)` puts `x` at `index` (`0 <= index <= length(xs)`, else `P0001`),
   moving the elements from there up.
 - `sort(var xs)` sorts a list of an `Ordered` type ascending; `sort(var xs, less: f)` sorts
   by a function `f(a, b): Boolean` that says whether `a` goes before `b`;
@@ -400,7 +400,7 @@ else is Pasthon in System. `Map(...)` can't be written outside System (`E0306`).
 - `m[k]` reads a value and panics `P0008` if the key is missing; `m[k] := v` inserts or
   overwrites; `m[k]` is also a `var` argument (`inc(var m[k])`), which panics `P0008`
   for a missing key.
-- `k in m`, `len(m)`, `remove(var m, k)` (no-op for a missing key), `get(m, k): Option[V]`,
+- `k in m`, `length(m)`, `remove(var m, k)` (no-op for a missing key), `get(m, k): Option[V]`,
   `getOr(m, k, default)`. All are O(1) on average.
 - Iterating gives keys (`for k in m`) or entries (`for k, v in m`) in insertion order;
   overwriting keeps a key's place, removing and re-adding moves it to the end.
@@ -413,7 +413,7 @@ Int8, an enum, or a subrange with at most 256 values (`Set[Char]` and `Set[Integ
 the `ord` of the type's first value. The compiler provides the `{a, b}` and `{}` literals,
 `x in s`, and the element-to-bit mapping; the rest is Pasthon in System, on `Bits`.
 
-- `add(var s, x)`, `remove(var s, x)` (no-op if absent), `len(s)`, `x in s`.
+- `add(var s, x)`, `remove(var s, x)` (no-op if absent), `length(s)`, `x in s`.
 - `union(a, b)`, `intersection(a, b)`, `difference(a, b)` (in `a`, not in `b`).
 - Iterating gives the elements in `ord` order. `Set(...)` can't be written outside System
   (`E0306`).
@@ -753,7 +753,7 @@ functions whose first parameter is `var` can't be called with dot syntax (§6.6)
 Every call that may mutate an argument shows `var` at that argument.
 
 - Arguments are evaluated in two rounds: first the value arguments, left to right; then the
-  `var` places, left to right. So in `add(var p.items, len(p.items))` the length is read
+  `var` places, left to right. So in `add(var p.items, length(p.items))` the length is read
   before `p.items` is bound.
 - A `var` argument that is a whole variable is passed by reference. Any other place (a
   field `p.x`, an element `xs[i]`) is copied in before the call and copied back after it.
@@ -763,7 +763,7 @@ Every call that may mutate an argument shows `var` at that argument.
   an argument: one whose type can hold a `ref` or `Weak` to that box's type, or a function
   value, since a lambda may have captured one. Without mutable globals, arguments are the
   only way in. So `add(var p.items, x)` and
-  `add(var p.items, Item(at: len(p.items)))` are O(1), not a copy of the list.
+  `add(var p.items, Item(at: length(p.items)))` are O(1), not a copy of the list.
 - A `var` argument can't contain a `try` (`E0524`): returning from inside the call would
   leave the places already bound emptied. Put the value in a variable first:
   `let k := try find(xs)` then `inc(var counts[k])`.
@@ -1018,7 +1018,7 @@ instance `totalArea[Circle]` still uses it, because it was resolved at the defin
 
 ```pascal
 function largest[T: Ordered](xs: List[T]): Option[T]
-    if len(xs) = 0 then
+    if length(xs) = 0 then
         return None
     var best := xs[0]
     for x in xs do
@@ -1427,7 +1427,7 @@ test "largest of empty list is None"
 
 | Unit | Contents |
 |---|---|
-| `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters (including `chars`) and consumers (§4.14), `len`, `add`, `insert`, `concat`, `remove`, `removeLast`, `sort`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, `justify(s, width)` (pads with spaces to `width` characters, in front, or after for a negative width; §2.8), conversions, `halt`, `assert` support |
+| `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters (including `chars`) and consumers (§4.14), `length`, `add`, `insert`, `concat`, `remove`, `removeLast`, `sort`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, `justify(s, width)` (pads with spaces to `width` characters, in front, or after for a negative width; §2.8), conversions, `halt`, `assert` support |
 | `IO` | `write`, `writeln` (standard output), `writeErr`, `writelnErr` (standard error), `readln(): Option[String]`, `read(count): Option[String]` (exactly `count` bytes, `None` if the input ends first); files: `open` (reading), `create(path, mode := $1A4)` (octal 644) (writing; creates or empties), `close`, `readAll`, `readBytes`, `writeAll`, `writeBytes` returning `Result[_, String]` with C's error message. A `File` closes when its last reference goes away. Written in Pasthon on libc's `open`, `read`, `write`, `close` |
 | `Strings` | `bytes`, `fromBytes` (invalid UTF-8 becomes U+FFFD), `charCount`, `byteLen`, `slice`, `pos` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `endsWith`, `parseInt`, `parseReal` (`[+-]digits[.digits][(e|E)[+-]digits]`), `repeated(s, count)`, `upperCase`/`lowerCase` (ASCII letters only), `lines` (split at `\n` or `\r\n`; a break at the end starts no line), `hexStr(n, digits := 1)` and `binStr(n, digits := 1)` (upper case, zero-padded, `-` for negatives), `globMatch(text, pattern)` (the whole text; `*`, `?`, `[a-z]`, `[!...]`). `split` and `replace` require a non-empty separator. Written in Pasthon on libc's `memmem`, `memcpy`, `strtod` and `snprintf`, except `charCount`, `byteLen`, `slice` and `startsWith` (compiler intrinsics) |
 | `Math` | `Pi`, `sqrt`, `sin`, `cos`, `abs`, `min`, `max`, `floor`, `ceil`. Written in Pasthon on libm |
@@ -2057,7 +2057,8 @@ form goes.
    (now upper case), `binStr`, and `pos` for `find` (still an `Option`).
 4. Done (§10.1): `external "lib"` and `name "symbol"` instead of `extern` and `as`. Left
    for after the seed release: std moves over, and `extern` and `as` go.
-5. `length` instead of `len`.
+5. Done (§14): `length` instead of `len`. Left for after the seed release: std and the
+   compiler move over, and `len` goes.
 6. Comments are `{ ... }`, the only comment style: `#` goes, and a `{ }` comment directly
    above a declaration is its doc comment; end markers read `{ end if }`. Sets and maps
    are written with brackets, by the expected type: `[Color.Red, Color.Blue]`,
@@ -2109,7 +2110,7 @@ function names[T: Named](xs: List[T]): String
 
 function restockAll(var items: List[Item], amount: Integer): Result[Integer, String]
     var total := 0
-    for i := 0 to len(items) - 1 do
+    for i := 0 to length(items) - 1 do
         total := total + try restock(var items[i], amount)
     return Ok(total)
 

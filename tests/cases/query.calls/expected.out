@@ -163,6 +163,7 @@ $ $PST query accepts Shapes.pst:13:23 | grep -o '"name":"[a-zA-Z]*"'
 exit 0
 --- stdout
 "name":"total"
+"name":"length"
 "name":"len"
 "name":"inc"
 "name":"inc"
