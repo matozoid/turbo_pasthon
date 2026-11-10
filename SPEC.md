@@ -1198,8 +1198,6 @@ external "libm.so.6"
   ```
   The symbol string may not contain placeholders.
 - `name` is a keyword only there; elsewhere it's an ordinary identifier.
-- Until the next seed release the compiler also reads the old spellings `extern` and
-  `as "symbol"` (and `# end extern`), which the standard units still use.
 - `...` (C varargs) is allowed only in external declarations.
 - Calls use the System V AMD64 ABI.
 - Parameter and return types must be C-compatible: primitive numerics, `Boolean`, C types,
@@ -2057,8 +2055,8 @@ knew them, std and the compiler moved over, and `0x`/`0b` are gone.
    decimals. They replaced `padLeft`, `padRight` and `toFixed`.
 3. Done (§14): Pascal names in `Strings`: `upperCase`, `lowerCase`, `hexStr(n, digits)`
    (now upper case), `binStr`, and `pos` for `find` (still an `Option`).
-4. Done (§10.1): `external "lib"` and `name "symbol"` instead of `extern` and `as`. Left
-   for after the seed release: std moves over, and `extern` and `as` go.
+4. Done (§10.1): `external "lib"` and `name "symbol"` instead of `extern` and `as`.
+   Finished: std uses them, and `extern` and `as` are gone.
 5. Done (§14): `length` instead of `len`. Left for after the seed release: std and the
    compiler move over, and `len` goes.
 6. Comments are `{ ... }`, the only comment style: `#` goes, and a `{ }` comment directly

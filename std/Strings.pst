@@ -4,7 +4,7 @@ unit Strings
 
 uses C
 
-extern "pst"
+external "pst"
     ## Number of characters (code points). O(1).
     export function charCount(s: String): Integer
     ## Number of bytes. O(1).
@@ -14,7 +14,7 @@ extern "pst"
     export function slice(s: String, start, stop: Integer): String
     export function startsWith(s: String, prefix: String): Boolean
 
-extern "libc.so.6"
+external "libc.so.6"
     function memmem(hay: Pointer, hayLen: CSize, needle: Pointer, needleLen: CSize): Pointer
     function memcpy(dst: Pointer, src: Pointer, n: CSize): Pointer
     function malloc(size: CSize): Pointer

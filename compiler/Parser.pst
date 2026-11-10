@@ -196,7 +196,7 @@ function isDeclStart(k: TokenKind): Boolean
         or k = TokenKind.KwConst
         or k = TokenKind.KwFunction
         or k = TokenKind.KwProcedure
-        or k = TokenKind.KwExtern
+        or k = TokenKind.KwExternal
         or k = TokenKind.KwTest
         or k = TokenKind.KwExport
         or k = TokenKind.KwUnsafe
@@ -835,7 +835,7 @@ function decl(p: ref State): Parsed[Decl]
     if at(p, TokenKind.KwConst) then
         let s := try constSection(p)
         return Ok(s)
-    if at(p, TokenKind.KwExtern) then
+    if at(p, TokenKind.KwExternal) then
         let e := try externBlock(p)
         return Ok(e)
     if at(p, TokenKind.KwTest) then
@@ -1294,8 +1294,7 @@ function externDecl(p: ref State): Parsed[ExternItem]
         )
     let sig := try signature(p)
     var symbol: Option[String] := None
-    # `as` is the old spelling of `name`, until the next seed release.
-    if accept(p, TokenKind.KwAs) or acceptWord(p, "name") then
+    if acceptWord(p, "name") then
         symbol := Some(try stringConst(p, "C symbol name"))
     try endLine(p)
     return Ok(ExternDecl(

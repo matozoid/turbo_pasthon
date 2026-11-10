@@ -3,7 +3,7 @@ unit Bits
 ## Bit counting on all integer types. The bit operations are the operators `and`, `or`,
 ## `xor`, `not`, `shl` and `shr` (SPEC §9.1).
 
-extern "pst"
+external "pst"
     export function popCount[T](a: T): Integer
 
 test "bit counting"

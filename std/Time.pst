@@ -6,8 +6,8 @@ unit Time
 
 uses C, Strings, IO, OS
 
-extern "libc.so.6"
-    function clockGettime(clock: CInt, ts: Ptr[Timespec]): CInt as "clock_gettime"
+external "libc.so.6"
+    function clockGettime(clock: CInt, ts: Ptr[Timespec]): CInt name "clock_gettime"
     type
         ## glibc's `struct timespec` on x86-64.
         Timespec = record

@@ -110,7 +110,7 @@ type
         source: I
         index: Integer
 
-extern "pst"
+external "pst"
     ## Number of elements.
     export function length[T](xs: List[T]): Integer
     export function length[T, N: Integer](a: Array[T, N]): Integer

@@ -4,12 +4,12 @@ unit OS
 
 uses C
 
-extern "libc.so.6"
+external "libc.so.6"
     function getenv(name: CString): CString
     function getcwd(buf: Pointer, size: CSize): CString
-    function cStat(path: CString, st: Ptr[Stat]): CInt as "stat"
+    function cStat(path: CString, st: Ptr[Stat]): CInt name "stat"
     procedure free(p: CString)
-    procedure freeMemory(p: Pointer) as "free"
+    procedure freeMemory(p: Pointer) name "free"
     function malloc(size: CSize): Pointer
     function strdup(s: CString): CString
     function readlink(path: CString, buf: Pointer, size: CSize): CLong
@@ -21,11 +21,11 @@ extern "libc.so.6"
     function chdir(path: CString): CInt
     function fork(): CInt
     function execv(path: CString, argv: Ptr[CString]): CInt
-    procedure cExit(code: CInt) as "_exit"
+    procedure cExit(code: CInt) name "_exit"
     function alarm(seconds: CUInt): CUInt
     function waitpid(pid: CInt, status: Ptr[CInt], options: CInt): CInt
-    function errnoLocation(): Ptr[CInt] as "__errno_location"
-    function cOpen(path: CString, flags: CInt, ...): CInt as "open"
+    function errnoLocation(): Ptr[CInt] name "__errno_location"
+    function cOpen(path: CString, flags: CInt, ...): CInt name "open"
     function dup2(fd: CInt, fd2: CInt): CInt
     function opendir(path: CString): Pointer
     function readdir(dir: Pointer): Ptr[Byte]
@@ -54,7 +54,7 @@ extern "libc.so.6"
             w16: UInt64
             w17: UInt64
 
-extern "pst"
+external "pst"
     ## The program's `argv`: a pointer to C strings, the program name first, ending with a
     ## null pointer.
     function argv(): Ptr[CString]

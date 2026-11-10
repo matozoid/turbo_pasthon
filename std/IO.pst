@@ -9,7 +9,7 @@ type
     export File = record
         fd: Integer
 
-extern "pst"
+external "pst"
     ## Writes the text form of `value` to standard output.
     export procedure write[T: Printable](value: T)
     ## Writes the text form of `value` and a newline to standard output.
@@ -21,12 +21,12 @@ extern "pst"
     ## Writes the text form of `value` and a newline to standard error.
     export procedure writelnErr[T: Printable](value: T)
 
-extern "libc.so.6"
-    function cOpen(path: CString, flags: CInt, ...): CInt as "open"
-    function cClose(fd: CInt): CInt as "close"
-    function cRead(fd: CInt, buf: Pointer, count: CSize): CLong as "read"
-    function cWrite(fd: CInt, buf: Pointer, count: CSize): CLong as "write"
-    function errnoLocation(): Ptr[CInt] as "__errno_location"
+external "libc.so.6"
+    function cOpen(path: CString, flags: CInt, ...): CInt name "open"
+    function cClose(fd: CInt): CInt name "close"
+    function cRead(fd: CInt, buf: Pointer, count: CSize): CLong name "read"
+    function cWrite(fd: CInt, buf: Pointer, count: CSize): CLong name "write"
+    function errnoLocation(): Ptr[CInt] name "__errno_location"
     function strerror(code: CInt): CString
     function malloc(size: CSize): Pointer
     function realloc(p: Pointer, size: CSize): Pointer

@@ -319,7 +319,6 @@ function startsStatement(lx: State, i: Integer): Boolean
         "procedure",
         "type",
         "const",
-        "extern",
         "external",
         "test",
         "export",
@@ -450,13 +449,11 @@ function matchMarker(lx: State): Option[Indexed[MarkerValue]]
     if not hasAt(lx, "# end ", lx.pos) then
         return None
     let start := lx.pos + 6
-    let plain := ["if", "while", "for", "case", "test", "defer", "external", "extern"]
+    let plain := ["if", "while", "for", "case", "test", "defer", "external"]
     let named := ["function", "procedure", "record", "trait"]
     for k in plain do
         if hasAt(lx, k, start) and onlySpaces(lx, start + byteLen(k), stop: stop) then
-            # `extern` is the old spelling of `external`, until the next seed release.
-            let keyword := if k = "extern" then "external" else k
-            return Some(Indexed(index: stop, value: MarkerValue(keyword: keyword, name: None)))
+            return Some(Indexed(index: stop, value: MarkerValue(keyword: k, name: None)))
     for k in named do
         if hasAt(lx, k, start) then
             var i := start + byteLen(k)

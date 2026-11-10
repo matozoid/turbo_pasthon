@@ -63,6 +63,6 @@ error E0903 11:11-11:12 "a C record can't be generic"
 error E0903 13:9-13:10 "only records can be declared in an external block"
 error E0040 14:32-14:38 "C symbol name may not contain placeholders; write '\\{'"
 error E0040 15:10-15:15 "library name may not contain placeholders; write '\\{'"
-error E0040 17:7-18:1 "expected library name (a string), found end of line"
+error E0040 17:9-18:1 "expected library name (a string), found end of line"
 error E0042 20:1-20:1 "expected an indented list of extern declarations"
 --- stderr

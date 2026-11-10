@@ -5,12 +5,12 @@ unit Math
 const
     export Pi = 3.141592653589793
 
-extern "libm.so.6"
+external "libm.so.6"
     export function sqrt(x: Real): Real
     export function sin(x: Real): Real
     export function cos(x: Real): Real
-    function cFloor(x: Real): Real as "floor"
-    function cCeil(x: Real): Real as "ceil"
+    function cFloor(x: Real): Real name "floor"
+    function cCeil(x: Real): Real name "ceil"
 
 ## Largest integer not above `x`.
 export function floor(x: Real): Integer

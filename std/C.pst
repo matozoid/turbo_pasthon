@@ -12,7 +12,7 @@ type
     export CFloat = Real32
     export CChar = Int8
 
-extern "pst"
+external "pst"
     ## A pointer to the NUL-terminated bytes of `s`, without copying. `s` is kept alive
     ## until the end of the calling scope.
     export function toCString(s: String): CString
