@@ -12,7 +12,7 @@ use Main.pst 5:1-5:8
 use Main.pst 5:9-5:12
   function 'len' @ std/System.pst:115:21
 use Main.pst 5:13-5:18
-  function 'split' @ std/Strings.pst:65:17
+  function 'split' @ std/Strings.pst:66:17
 use Main.pst 5:26-5:29
-  parameter 'sep' @ std/Strings.pst:65:34
+  parameter 'sep' @ std/Strings.pst:66:34
 --- stderr

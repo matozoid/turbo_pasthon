@@ -14,13 +14,17 @@ ok   std/OS.pst:323: environment
 ok   std/Paths.pst:163: names
 ok   std/Paths.pst:174: joining and normalizing
 ok   std/Paths.pst:183: relative paths
-ok   std/Strings.pst:188: find gives byte offsets
-ok   std/Strings.pst:194: startsWith and endsWith
-ok   std/Strings.pst:201: split and join are inverses
-ok   std/Strings.pst:209: trim and replace
-ok   std/Strings.pst:215: parseInt
-ok   std/Strings.pst:225: parseReal
-ok   std/Strings.pst:233: bytes and fromBytes
+ok   std/Strings.pst:358: find gives byte offsets
+ok   std/Strings.pst:364: startsWith and endsWith
+ok   std/Strings.pst:371: split and join are inverses
+ok   std/Strings.pst:379: trim and replace
+ok   std/Strings.pst:385: parseInt
+ok   std/Strings.pst:395: parseReal
+ok   std/Strings.pst:403: bytes and fromBytes
+ok   std/Strings.pst:413: padding and repeating
+ok   std/Strings.pst:418: case and lines
+ok   std/Strings.pst:423: number formatting
+ok   std/Strings.pst:430: glob patterns
 ok   std/System.pst:745: list editing
 ok   std/System.pst:758: sort is stable
 ok   std/System.pst:775: maps
@@ -37,7 +41,7 @@ ok   std/Time.pst:1522: tzdata zones
 ok   std/Time.pst:1548: zoned date-times
 ok   std/Time.pst:1569: periods
 ok   std/Time.pst:1594: intervals
-36 passed, 0 failed
+40 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/compiler
 exit 0

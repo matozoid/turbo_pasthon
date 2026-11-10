@@ -18,7 +18,7 @@ use Main.pst 8:1-8:8
 use Main.pst 8:9-8:16
   unit 'Strings' @ std/Strings.pst:1:6
 use Main.pst 8:17-8:21
-  function 'join' @ std/Strings.pst:80:24
+  function 'join' @ std/Strings.pst:81:24
 use Main.pst 9:1-9:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 9:9-9:14
@@ -41,7 +41,7 @@ use Main.pst 12:10-12:17
 use Main.pst 13:12-13:19
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 8:29-8:32
-  parameter 'sep' @ std/Strings.pst:80:50
+  parameter 'sep' @ std/Strings.pst:81:50
 use Main.pst 12:5-12:8
   enum member 'Red' @ Main.pst:6:14
 use Main.pst 13:5-13:10

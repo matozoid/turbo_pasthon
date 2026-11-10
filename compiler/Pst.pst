@@ -261,13 +261,6 @@ procedure writeExe(out: String, exe: List[Byte])
         Err(e):
             fatal(e.error)
 
-## The lines of `text`, without their newlines.
-function lines(text: String): List[String]
-    var ls := split(text, sep: "\n")
-    if ls[len(ls) - 1] = "" then
-        removeLast(var ls)
-    return ls
-
 ## The test blocks of a file.
 function testsOf(file: SourceFile): List[TestBlock]
     var tests: List[TestBlock] := []

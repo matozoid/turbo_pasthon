@@ -20,6 +20,7 @@ extern "libc.so.6"
     function malloc(size: CSize): Pointer
     procedure free(p: Pointer)
     function strtod(s: CString, end: Pointer): Real
+    function snprintf(buf: Pointer, size: CSize, fmt: CString, ...): CInt
 
 ## The UTF-8 bytes of a string.
 export unsafe function bytes(s: String): List[Byte]
@@ -185,6 +186,175 @@ export unsafe function parseReal(s: String): Result[Real, String]
         return Err("'{s}' doesn't fit in a Real")
     return Ok(x)
 
+## `s` written `count` times.
+export function repeated(s: String, count: Integer): String
+    requires count >= 0
+    var parts: List[String] := []
+    for i := 1 to count do
+        add(var parts, s)
+    return join(parts)
+
+## `s` with `fill` added in front until it is `width` characters long.
+export function padLeft(s: String, width: Integer, fill: Char := ' '): String
+    let n := width - charCount(s)
+    if n <= 0 then
+        return s
+    return "{repeated("{fill}", count: n)}{s}"
+
+## `s` with `fill` added after it until it is `width` characters long.
+export function padRight(s: String, width: Integer, fill: Char := ' '): String
+    let n := width - charCount(s)
+    if n <= 0 then
+        return s
+    return "{s}{repeated("{fill}", count: n)}"
+
+## `s` with the bytes in `lo` to `lo` + 25 moved by `shift`.
+unsafe function shiftLetters(s: String, lo: Byte, shift: Integer): String
+    let p := cast[Ptr[Byte]](toCString(s))
+    var out: List[Byte] := []
+    for i := 0 to byteLen(s) - 1 do
+        let b := deref(p + i)
+        if b >= lo and b <= lo + 25 then
+            add(var out, Byte(Integer(b) + shift))
+        else
+            add(var out, b)
+    return fromBytes(out)
+
+## `s` with the ASCII letters `a` to `z` made upper case; other characters stay.
+export function toUpper(s: String): String
+    return shiftLetters(s, lo: 97, shift: -32)
+
+## `s` with the ASCII letters `A` to `Z` made lower case; other characters stay.
+export function toLower(s: String): String
+    return shiftLetters(s, lo: 65, shift: 32)
+
+## The lines of `s`: the parts between line breaks (`\n` or `\r\n`). A break at the very end
+## doesn't start another line, so `"a\nb\n"` has two lines and `""` none.
+export function lines(s: String): List[String]
+    var out: List[String] := []
+    if s = "" then
+        return out
+    var stop := byteLen(s)
+    if endsWith(s, suffix: "\n") then
+        stop := stop - 1
+    for line in split(slice(s, 0, stop), sep: "\n") do
+        if endsWith(line, suffix: "\r") then
+            add(var out, slice(line, 0, byteLen(line) - 1))
+        else
+            add(var out, line)
+    return out
+
+## `n` in hexadecimal with lower-case digits, at least `digits` of them (padded with
+## zeros), and a `-` in front if it's negative.
+export function toHex(n: Integer, digits: Integer := 1): String
+    let hexDigits := "0123456789abcdef"
+    var rest := n
+    var out: List[String] := []
+    while rest <> 0 or len(out) < digits do
+        var d := rest mod 16
+        if d < 0 then
+            d := -d
+        add(var out, slice(hexDigits, d, d + 1))
+        rest := rest div 16
+    var r: List[String] := []
+    if n < 0 then
+        add(var r, "-")
+    var i := len(out) - 1
+    while i >= 0 do
+        add(var r, out[i])
+        i := i - 1
+    return join(r)
+
+## `x` written with exactly `decimals` digits after the point (none and no point for 0),
+## rounded half to even as C's `printf("%.*f")` does.
+export unsafe function toFixed(x: Real, decimals: Integer): String
+    requires decimals >= 0 and decimals <= 100
+    let size := snprintf(cast[Pointer](0), CSize(0), toCString("%.*f"), CInt(decimals), x)
+    let buf := malloc(CSize(Integer(size) + 1))
+    _ := snprintf(buf, CSize(Integer(size) + 1), toCString("%.*f"), CInt(decimals), x)
+    let r := fromCBytes(buf, Integer(size))
+    free(buf)
+    return r
+
+## Whether `text` matches the shell-style `pattern` as a whole: `*` matches any characters
+## (also none), `?` one character, `[abc]` one of the listed characters, with ranges like
+## `[a-z]` and `[!...]` for any other character. A `[` without its `]` is an ordinary
+## character.
+export function globMatch(text, pattern: String): Boolean
+    var t: List[Char] := []
+    for c in text do
+        add(var t, c)
+    var p: List[Char] := []
+    for c in pattern do
+        add(var p, c)
+    var ti := 0
+    var pi := 0
+    var starP := -1  # the pattern position after the last `*`
+    var starT := 0  # the text position that `*` matched up to
+    while ti < len(t) do
+        if pi < len(p) and p[pi] = '*' then
+            pi := pi + 1
+            starP := pi
+            starT := ti
+        else if pi < len(p) and oneMatches(p, pi, t[ti]) then
+            pi := pi + patternLength(p, pi)
+            ti := ti + 1
+        else if starP >= 0 then
+            starT := starT + 1
+            ti := starT
+            pi := starP
+        else
+            return false
+    while pi < len(p) and p[pi] = '*' do
+        pi := pi + 1
+    return pi = len(p)
+
+## Position of the `]` that closes the class starting at `p[at]`, or -1.
+function classEnd(p: List[Char], at: Integer): Integer
+    var i := at + 1
+    if i < len(p) and p[i] = '!' then
+        i := i + 1
+    if i < len(p) and p[i] = ']' then
+        i := i + 1
+    while i < len(p) do
+        if p[i] = ']' then
+            return i
+        i := i + 1
+    return -1
+
+## Number of pattern characters in the item at `p[at]`.
+function patternLength(p: List[Char], at: Integer): Integer
+    if p[at] = '[' then
+        let e := classEnd(p, at)
+        if e >= 0 then
+            return e - at + 1
+    return 1
+
+## Whether the pattern item at `p[at]` (not `*`) matches `c`.
+function oneMatches(p: List[Char], at: Integer, c: Char): Boolean
+    if p[at] = '?' then
+        return true
+    if p[at] <> '[' then
+        return p[at] = c
+    let e := classEnd(p, at)
+    if e < 0 then
+        return c = '['
+    var i := at + 1
+    let negated := p[i] = '!'
+    if negated then
+        i := i + 1
+    var found := false
+    while i < e do
+        if i + 2 < e and p[i + 1] = '-' then
+            if c >= p[i] and c <= p[i + 2] then
+                found := true
+            i := i + 3
+        else
+            if c = p[i] then
+                found := true
+            i := i + 1
+    return found <> negated
+
 test "find gives byte offsets"
     assert find("héllo", sub: "l") = Some(3)
     assert find("hello", sub: "l", start: 3) = Some(3)
@@ -239,3 +409,29 @@ test "bytes and fromBytes"
     assert charCount("héllo") = 5
     assert byteLen("héllo") = 6
     assert slice("héllo", 1, 3) = "é"
+
+test "padding and repeating"
+    assert padLeft("7", width: 3, fill: '0') = "007" and padLeft("héllo", width: 3) = "héllo"
+    assert padRight("ab", width: 4) = "ab  " and padRight("é", width: 2, fill: '·') = "é·"
+    assert repeated("ab", count: 3) = "ababab" and repeated("x", count: 0) = ""
+
+test "case and lines"
+    assert toUpper("Héllo, w0rld") = "HéLLO, W0RLD" and toLower("ÀBC-d") = "Àbc-d"
+    assert lines("a\nb\r\nc") = ["a", "b", "c"] and lines("a\n\n") = ["a", ""]
+    assert lines("") = [] and lines("\n") = [""]
+
+test "number formatting"
+    assert toHex(255) = "ff" and toHex(0) = "0" and toHex(10, digits: 4) = "000a"
+    assert toHex(-255) = "-ff" and toHex(MinInt) = "-8000000000000000"
+    assert toFixed(3.14159, decimals: 2) = "3.14" and toFixed(2.5, decimals: 0) = "2"
+    assert toFixed(-0.5, decimals: 3) = "-0.500"
+    assert toFixed(1.0e20, decimals: 1) = "100000000000000000000.0"
+
+test "glob patterns"
+    assert globMatch("main.pst", pattern: "*.pst") and not globMatch("main.c", pattern: "*.pst")
+    assert globMatch("a", pattern: "?") and not globMatch("", pattern: "?")
+    assert globMatch("", pattern: "*") and globMatch("abcabc", pattern: "*b*c")
+    assert globMatch("x7", pattern: "x[0-9]") and not globMatch("xa", pattern: "x[0-9]")
+    assert globMatch("xa", pattern: "x[!0-9]") and globMatch("]", pattern: "[]]")
+    assert globMatch("a[b", pattern: "a[b") and globMatch("é", pattern: "?")
+    assert not globMatch("abc", pattern: "ab")
