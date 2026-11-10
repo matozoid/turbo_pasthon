@@ -531,12 +531,12 @@ function reader(s: String): Reader
     return Reader(cs: cs, pos: 0)
 
 function peek(r: Reader): Char
-    if r.pos < len(r.cs) then
+    if r.pos < length(r.cs) then
         return r.cs[r.pos]
     return Char(0)
 
 function atEnd(r: Reader): Boolean
-    return r.pos >= len(r.cs)
+    return r.pos >= length(r.cs)
 
 function failure(r: Reader, what: String): String
     if atEnd(r) then
@@ -875,7 +875,7 @@ export function abbreviationAt(z: Zone, i: Instant): String
 
 ## The time type in effect at `seconds`, or -1 when the POSIX rule decides.
 function kindAt(z: Zone, seconds: Integer): Integer
-    let n := len(z.times)
+    let n := length(z.times)
     if n = 0 or seconds >= z.times[n - 1] then
         if z.rule.isSome() then
             return -1
@@ -914,7 +914,7 @@ unsafe function textAt(bs: List[Byte], at, stop: Integer): String
 
 ## Reads a TZif file (RFC 8536), version 1 to 4. Leap second records are ignored.
 unsafe function parseTzif(bs: List[Byte], name: String): Result[Zone, String]
-    if len(bs) < 44 or textAt(bs, 0, stop: 4) <> "TZif" then
+    if length(bs) < 44 or textAt(bs, 0, stop: 4) <> "TZif" then
         return Err("not a TZif file")
     var at := 0
     var size := 4
@@ -922,14 +922,14 @@ unsafe function parseTzif(bs: List[Byte], name: String): Result[Zone, String]
         # Skip the version 1 data, which has 32-bit times.
         at := 44 + blockSize(bs, at: 0, size: 4)
         size := 8
-        if len(bs) < at + 44 or textAt(bs, at, stop: at + 4) <> "TZif" then
+        if length(bs) < at + 44 or textAt(bs, at, stop: at + 4) <> "TZif" then
             return Err("truncated TZif file")
     let timeCount := bigEndian(bs, at + 32, size: 4)
     let typeCount := bigEndian(bs, at + 36, size: 4)
     let charCount := bigEndian(bs, at + 40, size: 4)
     let base := at + 44
     let stop := base + blockSize(bs, at: at, size: size)
-    if typeCount = 0 or len(bs) < stop then
+    if typeCount = 0 or length(bs) < stop then
         return Err("truncated TZif file")
     var z := Zone(zid: name, times: [], kinds: [], offsets: [], dsts: [], abbrevs: [], rule: None)
     for k := 0 to timeCount - 1 do
@@ -945,9 +945,9 @@ unsafe function parseTzif(bs: List[Byte], name: String): Result[Zone, String]
         add(var z.dsts, bs[types + k * 6 + 4] <> 0)
         let index := Integer(bs[types + k * 6 + 5])
         add(var z.abbrevs, textAt(bs, chars + index, stop: chars + charCount))
-    if size = 8 and stop < len(bs) and bs[stop] = 10 then
+    if size = 8 and stop < length(bs) and bs[stop] = 10 then
         var k := stop + 1
-        while k < len(bs) and bs[k] <> 10 do
+        while k < length(bs) and bs[k] <> 10 do
             k := k + 1
         let footer := textAt(bs, stop + 1, stop: k)
         if byteLen(footer) > 0 then
@@ -1015,7 +1015,7 @@ function readAbbr(var r: Reader): Result[String, String]
         while (peek(r) >= 'a' and peek(r) <= 'z') or (peek(r) >= 'A' and peek(r) <= 'Z') do
             add(var parts, toString(peek(r)))
             r.pos := r.pos + 1
-    if len(parts) < 3 then
+    if length(parts) < 3 then
         r.pos := start
         return Err(failure(r, "expected a time zone abbreviation"))
     return Ok(join(parts))
@@ -1376,7 +1376,7 @@ export function toString(iv: Interval): String
 ## the instants as `parseInstant` reads them and the durations as `parseDuration`.
 export function parseInterval(s: String): Result[Interval, String]
     let parts := split(s, sep: "/")
-    if len(parts) <> 2 then
+    if length(parts) <> 2 then
         return Err("expected one '/'")
     let first := parts[0]
     let second := parts[1]
@@ -1416,7 +1416,7 @@ function located[T](
                 let what := slice(e.error, 0, stop: byteLen(e.error) - 23)
                 return Err("{what} at offset {partEnd}")
             let words := split(e.error, sep: " at offset ")
-            if len(words) = 2 then
+            if length(words) = 2 then
                 let n := parseInt(words[1]).get()
                 return Err("{words[0]} at offset {n + offset}")
             return Err(e.error)

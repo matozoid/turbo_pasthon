@@ -151,9 +151,9 @@ use Main.pst 21:12-21:14
   type 'Ok' @ std/System.pst:26:12
 use Main.pst 21:17-21:22
   let 'parts' @ Main.pst:20:9
-use Main.pst 21:28-21:31
-  function 'len' @ std/System.pst:118:21
-use Main.pst 21:32-21:37
+use Main.pst 21:28-21:34
+  function 'length' @ std/System.pst:115:21
+use Main.pst 21:35-21:40
   let 'parts' @ Main.pst:20:9
 use Main.pst 23:24-23:30
   builtin type 'String' @ built into unit System

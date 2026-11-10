@@ -126,7 +126,7 @@ function bytesKey(bs: List[Byte]): String
     return join(parts, sep: ",")
 
 function indexOf(xs: List[String], x: String): Integer
-    for i := 0 to len(xs) - 1 do
+    for i := 0 to length(xs) - 1 do
         if xs[i] = x then
             return i
     return -1
@@ -139,17 +139,17 @@ export function newLabel(a: ref Assembler, hint: String := "L"): String
 
 export procedure label(a: ref Assembler, name: String)
     assert not (name in a.labels), "label defined twice"
-    a.labels[name] := len(a.code)
+    a.labels[name] := length(a.code)
 
 ## Adds read-only data; returns its label. Equal byte strings are shared.
 export function data(a: ref Assembler, value: List[Byte], align: Integer := 1): String
     let k := bytesKey(value)
     if k in a.strings then
         return a.strings[k]
-    while len(a.rodata) mod align <> 0 do
+    while length(a.rodata) mod align <> 0 do
         add(var a.rodata, Byte(0))
     let name := newLabel(a, "D")
-    a.dataLabels[name] := len(a.rodata)
+    a.dataLabels[name] := length(a.rodata)
     for b in value do
         add(var a.rodata, b)
     a.strings[k] := name
@@ -167,7 +167,7 @@ export procedure dataRef(a: ref Assembler, data: String, offset: Integer, target
     setLE(var a.rodata, a.dataLabels[data] + offset, distance, n: 8)
 
 procedure rel32(a: ref Assembler, label: String, kind: String := "code")
-    add(var a.fixups, Fixup(pos: len(a.code), label: label, kind: kind))
+    add(var a.fixups, Fixup(pos: length(a.code), label: label, kind: kind))
     putLE(var a.code, 0, n: 4)
 
 ## Resolves labels. `rodataOffset` and `gotOffset` are where the data and the GOT start,
@@ -180,7 +180,7 @@ export procedure finish(a: ref Assembler, rodataOffset: Integer, gotOffset: Inte
         else if f.kind = "got" then
             target := gotOffset + 8 * indexOf(a.imports, f.label)
         else if f.kind = "global" then
-            target := gotOffset + 8 * (len(a.imports) + indexOf(a.globals, f.label))
+            target := gotOffset + 8 * (length(a.imports) + indexOf(a.globals, f.label))
         else
             assert f.label in a.labels, "undefined label"
             target := a.labels[f.label]
@@ -571,7 +571,7 @@ export procedure shlImm(a: ref Assembler, dst: Integer, n: Integer)
 ## `sub dst, imm32` with the immediate patched later; returns its position.
 export function subImm32Fixed(a: ref Assembler, dst: Integer): Integer
     emit(a, [rex(true, 0, rm: dst), $81, $E8 + low(dst)])
-    let pos := len(a.code)
+    let pos := length(a.code)
     putLE(var a.code, 0, n: 4)
     return pos
 
@@ -598,7 +598,7 @@ export procedure addImm(a: ref Assembler, dst: Integer, value: Integer)
     aluImm(a, 0, dst: dst, value: value)
     if dst = Rsp and a.tracked then  # drops pushed words
         var n := value div 8
-        while n > 0 and len(a.stack) > 0 do
+        while n > 0 and length(a.stack) > 0 do
             removeLast(var a.stack)
             n := n - 1
 

@@ -7,7 +7,7 @@ writeln(isDir("/tmp/tmpktdi783b/tmpq0a3v7if/a"))
 writeln(isDir("/tmp/tmpktdi783b/tmpq0a3v7if/missing"))
 case listDir("/tmp/tmpktdi783b/tmpq0a3v7if") of
     Ok(names):
-        writeln(len(names.value))
+        writeln(length(names.value))
         for n in names.value do
             writeln(n)
     Err(e):

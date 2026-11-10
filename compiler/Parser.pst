@@ -183,10 +183,10 @@ function describe(tok: Token): String
 ## `s` without trailing spaces and tabs.
 function trimEnd(s: String): String
     let cs := collect(chars(s))
-    var n := len(cs)
+    var n := length(cs)
     while n > 0 and (cs[n - 1] = ' ' or cs[n - 1] = '\t') do
         n := n - 1
-    return slice(s, 0, byteLen(s) - (len(cs) - n))
+    return slice(s, 0, byteLen(s) - (length(cs) - n))
 
 # --------------------------------------------------------------------- token kinds
 
@@ -295,7 +295,7 @@ function formatPart(e, width: Expr, decimals: Option[Expr]): InterpPart
 
 function peek(p: ref State, ahead: Integer := 0): Token
     let j := p.i + ahead
-    return p.toks[if j < len(p.toks) then j else len(p.toks) - 1]
+    return p.toks[if j < length(p.toks) then j else length(p.toks) - 1]
 
 function at(p: ref State, k: TokenKind): Boolean
     return p.toks[p.i].kind = k
@@ -420,7 +420,7 @@ function lineList[T](p: ref State, how: Lines[T]): List[T]
     var out: List[T] := []
     while not at(p, TokenKind.Dedent) and not at(p, TokenKind.Eof) do
         if at(p, TokenKind.EndMarker) then
-            let n := len(out)
+            let n := length(out)
             var prev := target(TargetKind.NoTarget)
             if n > 0 and isSome(how.marks) then
                 prev := get(how.marks).target(out[n - 1])
@@ -464,7 +464,7 @@ function indented[T](
     let indent := advance(p)
     let out := lineList(p, how: how)
     skipOver(p, TokenKind.Dedent)
-    if len(out) = 0 then
+    if length(out) = 0 then
         report(p, "E0042", indent.span, message: "expected an indented {what}")
     return Ok(out)
 
@@ -704,10 +704,10 @@ function doc(p: ref State, start: Span): Option[String]
             if startsWith(text, prefix: " ") then slice(text, 1, byteLen(text)) else text,
         )
         line := line - 1
-    if len(lines) = 0 then
+    if length(lines) = 0 then
         return None
     var ordered: List[String] := []
-    var i := len(lines) - 1
+    var i := length(lines) - 1
     while i >= 0 do
         add(var ordered, lines[i])
         i := i - 1
@@ -939,7 +939,7 @@ function typeBody(p: ref State): Parsed[TypeBody]
     while accept(p, TokenKind.Pipe) do
         add(var variants, try typeExpr(p))
     try endLine(p)
-    if len(variants) > 1 then
+    if length(variants) > 1 then
         return Ok(UnionType(span: finish(p, start), variants: variants))
     return Ok(variants[0])
 
@@ -1077,7 +1077,7 @@ function exprToType(e: Expr): Option[TypeName]
         FieldAccess(f):
             case exprToType(f.target) of
                 Some(inner):
-                    if len(inner.value.args) = 0 then
+                    if length(inner.value.args) = 0 then
                         return Some(TypeName(
                             span: f.span,
                             parts: concat(inner.value.parts, [f.name.name]),
@@ -1089,7 +1089,7 @@ function exprToType(e: Expr): Option[TypeName]
         Index(x):
             case exprToType(x.target) of
                 Some(inner):
-                    if len(inner.value.args) = 0 then
+                    if length(inner.value.args) = 0 then
                         var args: List[TypeOrExpr] := []
                         for item in x.items do
                             add(var args, asType(item))
@@ -1154,7 +1154,7 @@ function routine(p: ref State, exported: Boolean, start: Span): Parsed[Routine]
                 sync(p)
         stmts := lineList(p, how: stmtLines())
         skipOver(p, TokenKind.Dedent)
-        if len(stmts) = 0 then
+        if length(stmts) = 0 then
             report(
                 p,
                 "E0042",
@@ -1176,7 +1176,7 @@ function routine(p: ref State, exported: Boolean, start: Span): Parsed[Routine]
 
 ## A `requires` or `ensures` clause, after its keyword `tok`.
 function contract(p: ref State, tok: Token, var pre, post: List[Expr]): Parsed[Boolean]
-    if tok.kind = TokenKind.KwRequires and len(post) > 0 then
+    if tok.kind = TokenKind.KwRequires and length(post) > 0 then
         report(p, "E0040", tok.span, message: "'requires' must come before 'ensures'")
     let e := try expr(p)
     if tok.kind = TokenKind.KwRequires then
@@ -1314,7 +1314,7 @@ function cRecords(p: ref State): Parsed[TypeSection]
     for d in section.decls do
         case d.body of
             RecordType(r):
-                if len(d.params) > 0 then
+                if length(d.params) > 0 then
                     report(p, "E0903", d.params[0].span, message: "a C record can't be generic")
                 var fields: List[FieldDecl] := []
                 for f in r.fields do
@@ -1350,9 +1350,9 @@ function testBlock(p: ref State): Parsed[TestBlock]
 # ---------------------------------------------------------------------- statements
 
 function blockSpan(stmts: List[Stmt], fallback: Span): Span
-    if len(stmts) = 0 then
+    if length(stmts) = 0 then
         return point(fallback, atEnd: true)
-    return join(stmtSpan(stmts[0]), b: stmtSpan(stmts[len(stmts) - 1]))
+    return join(stmtSpan(stmts[0]), b: stmtSpan(stmts[length(stmts) - 1]))
 
 function block(p: ref State): Parsed[Block]
     let start := peek(p).span
@@ -1668,7 +1668,7 @@ function forExpr(p: ref State): Parsed[ForExpr]
     let body := try forBody(p)
     let span := finish(p, start)
     var loop := body
-    for i := len(heads) - 1 downto 0 do
+    for i := length(heads) - 1 downto 0 do
         let inner := Block(span: stmtSpan(loop), stmts: [loop])
         loop := withBody(heads[i], inner, span: join(stmtSpan(heads[i]), b: span))
     return Ok(ForExpr(span: span, id: newId(p), loop: loop))
@@ -1708,22 +1708,22 @@ function forBody(p: ref State): Parsed[Stmt]
             else:
                 pass
     let span := finish(p, start)
-    if len(values) = len(items) then  # no `continue` or `break`: an `if` expression
+    if length(values) = length(items) then  # no `continue` or `break`: an `if` expression
         var branches: List[CondExpr] := []
-        for i := 0 to len(conds) - 1 do
+        for i := 0 to length(conds) - 1 do
             let bs := join(exprSpan(conds[i]), b: exprSpan(values[i]))
             add(var branches, CondExpr(span: bs, cond: conds[i], value: values[i]))
         let e: Expr := IfExpr(
             span: span,
             id: newId(p),
             branches: branches,
-            elseValue: values[len(values) - 1],
+            elseValue: values[length(values) - 1],
         )
         return Ok(ForValue(span: span, value: Some(e)))
-    if len(values) = 0 then
+    if length(values) = 0 then
         report(p, "E0805", span, message: "a 'for' expression needs a value in some branch")
     var branches: List[CondBlock] := []
-    for i := 0 to len(conds) - 1 do
+    for i := 0 to length(conds) - 1 do
         let item := items[i]
         let bs := join(exprSpan(conds[i]), b: stmtSpan(item))
         add(var branches, CondBlock(
@@ -1731,7 +1731,7 @@ function forBody(p: ref State): Parsed[Stmt]
             cond: conds[i],
             body: Block(span: stmtSpan(item), stmts: [item]),
         ))
-    let last := items[len(items) - 1]
+    let last := items[length(items) - 1]
     return Ok(If(
         span: span,
         branches: branches,

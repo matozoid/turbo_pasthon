@@ -10,7 +10,7 @@ const
 
 ## The byte offset of the last `/` in `s`, or -1.
 function lastSlash(b: List[Byte]): Integer
-    var i := len(b) - 1
+    var i := length(b) - 1
     while i >= 0 and b[i] <> Slash do
         i := i - 1
     return i
@@ -41,7 +41,7 @@ export function basename(p: String): String
 export function stripExt(p: String): String
     let b := bytes(p)
     let sep := lastSlash(b)
-    var dot := len(b) - 1
+    var dot := length(b) - 1
     while dot > sep and b[dot] <> Dot do
         dot := dot - 1
     if dot > sep then
@@ -74,7 +74,7 @@ export function normalize(p: String): String
     for comp in split(p, sep: "/") do
         if comp = "" or comp = "." then
             continue
-        let n := len(parts)
+        let n := length(parts)
         if comp <> ".." or (initial = 0 and n = 0) or (n > 0 and parts[n - 1] = "..") then
             add(var parts, comp)
         else if n > 0 then
@@ -106,14 +106,14 @@ export function relative(p, start: String): String
     let a := components(absolute(p))
     let b := components(absolute(start))
     var common := 0
-    while common < len(a) and common < len(b) and a[common] = b[common] do
+    while common < length(a) and common < length(b) and a[common] = b[common] do
         common := common + 1
     var parts: List[String] := []
-    for i := common to len(b) - 1 do
+    for i := common to length(b) - 1 do
         add(var parts, "..")
-    for i := common to len(a) - 1 do
+    for i := common to length(a) - 1 do
         add(var parts, a[i])
-    if len(parts) = 0 then
+    if length(parts) = 0 then
         return "."
     return Strings.join(parts, sep: "/")
 

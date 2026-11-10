@@ -41,7 +41,7 @@ function hex4(n: Integer): String
     let digits := ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f']
     var cs: List[String] := []
     var m := n
-    while m > 0 or len(cs) < 4 do
+    while m > 0 or length(cs) < 4 do
         insert(var cs, 0, x: toString(digits[m mod 16]))
         m := m div 16
     return join(cs)

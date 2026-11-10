@@ -152,12 +152,12 @@ export function toText(j: JValue): String
 
 ## The character at the reader's position, or NUL at the end.
 function peek(r: Reader): Char
-    if r.pos < len(r.cs) then
+    if r.pos < length(r.cs) then
         return r.cs[r.pos]
     return Char(0)
 
 function atEnd(r: Reader): Boolean
-    return r.pos >= len(r.cs)
+    return r.pos >= length(r.cs)
 
 procedure skipSpace(var r: Reader)
     while not atEnd(r) do
@@ -395,7 +395,7 @@ test "reading parts"
     assert asInteger(field(j, key: "id")) = Some(8)
     assert asString(field(j, key: "name")) = Some("x")
     assert asBoolean(field(j, key: "ok")) = Some(true)
-    assert len(items(field(j, key: "xs"))) = 2
+    assert length(items(field(j, key: "xs"))) = 2
     assert isNull(field(j, key: "missing"))
     assert asInteger(field(j, key: "name")).isNone()
     assert asInteger(JNumber(text: "1.5")).isNone()

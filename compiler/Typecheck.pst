@@ -303,12 +303,12 @@ function containsType(xs: List[Type], t: Type): Boolean
     return false
 
 function lastSpan(t: TypeName): Span
-    if len(t.partSpans) = 0 then
+    if length(t.partSpans) = 0 then
         return t.span
-    return t.partSpans[len(t.partSpans) - 1]
+    return t.partSpans[length(t.partSpans) - 1]
 
 function firstSpan(t: TypeName): Span
-    if len(t.partSpans) = 0 then
+    if length(t.partSpans) = 0 then
         return t.span
     return t.partSpans[0]
 
@@ -441,7 +441,7 @@ function paramTypes(syms: List[ref Symbol]): List[Type]
 function zipSubst(params: List[ref Symbol], args: List[Type]): Subst
     var s: Subst := {}
     var i := 0
-    while i < len(params) and i < len(args) do
+    while i < length(params) and i < length(args) do
         s[params[i].id] := args[i]
         i := i + 1
     return s
@@ -514,7 +514,7 @@ function exprToType(x: TypeOrExpr): Option[TypeExpr]
                         Some(inner):
                             case inner.value of
                                 TypeName(tn):
-                                    if len(tn.args) = 0 then
+                                    if length(tn.args) = 0 then
                                         var parts := tn.parts
                                         add(var parts, f.name.name)
                                         var spans := tn.partSpans
@@ -535,7 +535,7 @@ function exprToType(x: TypeOrExpr): Option[TypeExpr]
                         Some(inner):
                             case inner.value of
                                 TypeName(tn):
-                                    if len(tn.args) = 0 then
+                                    if length(tn.args) = 0 then
                                         var args: List[TypeOrExpr] := []
                                         for item in ix.items do
                                             case exprToType(item) of
@@ -562,7 +562,7 @@ function exprToType(x: TypeOrExpr): Option[TypeExpr]
 
 function newEnv(c: ref Checker, units: List[ref Unit]): ref Env
     var byName: Map[String, ref Unit] := {}
-    var i := len(units) - 1
+    var i := length(units) - 1
     while i >= 0 do
         byName[units[i].name] := units[i]
         i := i - 1
@@ -654,7 +654,7 @@ procedure envError(env: ref Env, span: Span, file, code, message: String)
 export function defSym(env: ref Env, file: String, span: Span): Option[ref Symbol]
     case lookup(env.index, file, span) of
         Some(r):
-            if len(r.value.targets) = 1 then
+            if length(r.value.targets) = 1 then
                 return Some(r.value.targets[0])
             return None
         None:
@@ -667,7 +667,7 @@ export function sys(env: ref Env, name: String): Option[ref Symbol]
             if not u.value.std then
                 return None
             let syms := getOr(u.value.top, name, default: [])
-            if len(syms) = 0 then
+            if length(syms) = 0 then
                 return None
             return Some(syms[0])
         None:
@@ -714,12 +714,12 @@ procedure hookOf(env: ref Env, u: ref Unit, r: Routine)
         return
     let sym := found.get()
     let g := sig(env, sym)
-    if g.isFunction or len(g.tparams) > 0 or len(g.params) <> 1 or not g.params[0].isVar then
+    if g.isFunction or length(g.tparams) > 0 or length(g.params) <> 1 or not g.params[0].isVar then
         return
     let t := g.params[0].ty
     case t of
         NamedT(n):
-            if kindOf(env, t) <> "record" or len(n.args) > 0 then
+            if kindOf(env, t) <> "record" or length(n.args) > 0 then
                 return
             if n.sym.unitName <> u.name then
                 envError(
@@ -830,7 +830,7 @@ export function ordinalRange(env: ref Env, t: Type): Option[OrdRange]
         NamedT(nt):
             let d := decl(env, nt.sym)
             if d.kind = "enum" then
-                return Some(OrdRange(lo: 0, hi: len(d.members) - 1))
+                return Some(OrdRange(lo: 0, hi: length(d.members) - 1))
             if d.kind <> "subrange" then
                 return None
             case nt.sym.node of
@@ -862,7 +862,7 @@ function ordinalOf(env: ref Env, e: Expr, t: Type): Option[Integer]
         FieldAccess(f):
             if kindOf(env, t) = "enum" then
                 let members := decl(env, namedSym(t).get()).members
-                for i := 0 to len(members) - 1 do
+                for i := 0 to length(members) - 1 do
                     if members[i] = f.name.name then
                         return Some(i)
             return None
@@ -903,12 +903,12 @@ function typeOfFull(env: ref Env, t: TypeExpr, file: String, thisOk, value: Bool
             return typeName(env, n, file, thisOk, value)
 
 function typeName(env: ref Env, t: TypeName, file: String, thisOk, value: Boolean): Type
-    if len(t.parts) = 1 and t.parts[0] = "This" then
+    if length(t.parts) = 1 and t.parts[0] = "This" then
         if thisOk then
             return thisT()
         return errorT()  # outside a trait: E0111 from stage 1
     let found := lookup(env.index, file, lastSpan(t))
-    if found.isNone() or len(found.get().targets) <> 1 then
+    if found.isNone() or length(found.get().targets) <> 1 then
         return errorT()  # unknown or ambiguous: already reported
     let sym := found.get().targets[0]
     let name := join(t.parts, sep: ".")
@@ -917,20 +917,20 @@ function typeName(env: ref Env, t: TypeName, file: String, thisOk, value: Boolea
         add(var args, typeArg(env, a, file, thisOk))
     if sym.kind = Kind.BuiltinType then
         let want := arityOf(sym.name)
-        if len(args) <> want then
-            return arity(env, t.span, file, name, want, len(args))
+        if length(args) <> want then
+            return arity(env, t.span, file, name, want, length(args))
         if want > 0 then
             return builtin(sym.name, args: args)
         return prim(sym.name)
     if sym.kind = Kind.TypeSym or sym.kind = Kind.TraitSym then
         let d := decl(env, sym)
-        if len(args) <> len(d.params) then
-            return arity(env, t.span, file, name, len(d.params), len(args))
+        if length(args) <> length(d.params) then
+            return arity(env, t.span, file, name, length(d.params), length(args))
         if d.kind = "trait" then
             return traitType(env, TraitT(sym: sym, args: args), file, t.span, value)
         if d.kind = "alias" then
             return subst(d.alias, zipSubst(d.params, args))
-        if len(args) > 0 then
+        if length(args) > 0 then
             env.written["{file}|{t.span.start}|{t.span.end}"] := Written(
                 file: file,
                 span: t.span,
@@ -940,8 +940,8 @@ function typeName(env: ref Env, t: TypeName, file: String, thisOk, value: Boolea
     if sym.kind = Kind.BuiltinTrait then
         return traitType(env, TraitT(sym: sym, args: args), file, t.span, value)
     if sym.kind = Kind.TypeParamSym then
-        if len(args) > 0 then
-            return arity(env, t.span, file, name, 0, len(args))
+        if length(args) > 0 then
+            return arity(env, t.span, file, name, 0, length(args))
         if isConstParam(env, sym) then
             envError(env, t.span, file, "E0304", "'{name}' is a constant parameter, not a type")
             return errorT()
@@ -981,9 +981,9 @@ function typeArg(env: ref Env, a: TypeOrExpr, file: String, thisOk: Boolean): Ty
         TypeExpr(t):
             case t of
                 TypeName(n):
-                    if len(n.parts) = 1 and len(n.args) = 0 and n.parts[0] <> "This" then
+                    if length(n.parts) = 1 and length(n.args) = 0 and n.parts[0] <> "This" then
                         let found := lookup(env.index, file, firstSpan(n))
-                        if found.isSome() and len(found.get().targets) = 1 then
+                        if found.isSome() and length(found.get().targets) = 1 then
                             let sym := found.get().targets[0]
                             if sym.kind = Kind.ConstSym then
                                 case symConstInt(sym) of
@@ -1252,7 +1252,7 @@ export function sig(env: ref Env, sym: ref Symbol): Sig
             None:
                 pass
     var params: List[PInfo] := []
-    for gi := 0 to len(g.params) - 1 do
+    for gi := 0 to length(g.params) - 1 do
         let p := g.params[gi]
         if p.isVarargs then
             add(var params, PInfo(
@@ -1313,7 +1313,7 @@ export function sig(env: ref Env, sym: ref Symbol): Sig
 export function recordSig(env: ref Env, sym: ref Symbol): Sig
     let d := decl(env, sym)
     var params: List[PInfo] := []
-    for i := 0 to len(d.fields) - 1 do
+    for i := 0 to length(d.fields) - 1 do
         let f := d.fields[i]
         add(var params, PInfo(
             name: f.name,
@@ -1334,7 +1334,7 @@ export function recordSig(env: ref Env, sym: ref Symbol): Sig
         params: params,
         result: result,
         kind: "record",
-        positional: len(params) = 1,
+        positional: length(params) = 1,
     )
 
 function functype(g: Sig): Type
@@ -1423,7 +1423,7 @@ procedure run(tc: ref TC)
             Stmt(s):
                 add(var rest, s)
     body(tc, rest)
-    if len(hooks(tc.env)) > 0 then
+    if length(hooks(tc.env)) > 0 then
         walkFile(tc, tc.home.parsed.file)
 
 procedure runDecl(tc: ref TC, d: Decl)
@@ -1481,7 +1481,7 @@ procedure checkTypeDecl(tc: ref TC, d: TypeDecl)
         case d.body of
             RecordType(rt):
                 var i := 0
-                while i < len(info.fields) and i < len(rt.fields) do
+                while i < length(info.fields) and i < length(rt.fields) do
                     _ := cCompatible(tc, info.fields[i].ty, typeSpan(rt.fields[i].declType), true)
                     i := i + 1
             else:
@@ -1519,7 +1519,7 @@ procedure checkTypeDecl(tc: ref TC, d: TypeDecl)
             UnionType(ut):
                 var seen: List[Type] := []
                 var i := 0
-                while i < len(info.variants) and i < len(ut.variants) do
+                while i < length(info.variants) and i < length(ut.variants) do
                     let v := info.variants[i]
                     if not hasError(v) and containsType(seen, v) then
                         fail(
@@ -1843,7 +1843,7 @@ procedure walkTypeOrExpr(tc: ref TC, x: TypeOrExpr, parent: Parent)
 function typeSym(tc: ref TC, t: TypeName): Option[ref Symbol]
     case refAt(tc, lastSpan(t)) of
         Some(r):
-            if len(r.value.targets) = 1 then
+            if length(r.value.targets) = 1 then
                 return Some(r.value.targets[0])
             return None
         None:
@@ -1864,7 +1864,7 @@ function isOwnParam(tc: ref TC, parent: Parent, hook: ref Symbol): Boolean
         return false
     case hook.node of
         Routine(r):
-            return len(r.sig.params) > 0 and r.sig.params[0].span = parent.span
+            return length(r.sig.params) > 0 and r.sig.params[0].span = parent.span
         else:
             return false
 
@@ -1911,7 +1911,7 @@ procedure walkExpr(tc: ref TC, e: Expr, parent: Parent)
                                     "a destroy hook can't be called; it runs when the last reference goes away",
                                 )
                                 return
-                            if isSys(tc.env, s.value, "new") and len(c.args) > 0 then
+                            if isSys(tc.env, s.value, "new") and length(c.args) > 0 then
                                 tc.newArgs[c.args[0].id] := true
                         None:
                             pass
@@ -1920,7 +1920,7 @@ procedure walkExpr(tc: ref TC, e: Expr, parent: Parent)
         Name(n):
             case refAt(tc, n.span) of
                 Some(r):
-                    var all := len(r.value.targets) > 0
+                    var all := length(r.value.targets) > 0
                     for s in r.value.targets do
                         if not isHook(tc.env, s) then
                             all := false
@@ -2047,7 +2047,7 @@ function loop(tc: ref TC, b: Block, isRepeat: Boolean): LoopInfo
     return popLoop(tc)
 
 function popLoop(tc: ref TC): LoopInfo
-    let n := len(tc.loops)
+    let n := length(tc.loops)
     let info := tc.loops[n - 1]
     remove(var tc.loops, n - 1)
     return info
@@ -2146,7 +2146,7 @@ function lambda(tc: ref TC, x: Lambda, expected: Type): Type
     var ok := false
     case expected of
         FuncT(f):
-            if len(f.params) = len(x.params) then
+            if length(f.params) = length(x.params) then
                 params := f.params
                 result := f.result
                 ok := true
@@ -2155,7 +2155,7 @@ function lambda(tc: ref TC, x: Lambda, expected: Type): Type
                     tc,
                     x.span,
                     "E0807",
-                    "this lambda takes {len(x.params)} parameter{plural(len(x.params))}, but {show(expected)} takes {len(f.params)}",
+                    "this lambda takes {length(x.params)} parameter{plural(length(x.params))}, but {show(expected)} takes {length(f.params)}",
                 )
         else:
             if not hasError(expected) then
@@ -2165,7 +2165,7 @@ function lambda(tc: ref TC, x: Lambda, expected: Type): Type
                     "E0806",
                     "a lambda needs a function type here, to know its parameter types; give the variable a type",
                 )
-    for i := 0 to len(x.params) - 1 do
+    for i := 0 to length(x.params) - 1 do
         var t := errorT()
         if ok then
             t := params[i]
@@ -2197,7 +2197,7 @@ function forExpr(tc: ref TC, x: ForExpr, expected: Type): Type
         elem := argsOf(expected)[0]
     add(var tc.fors, elem)
     _ := stmt(tc, x.loop)
-    elem := tc.fors[len(tc.fors) - 1]
+    elem := tc.fors[length(tc.fors) - 1]
     removeLast(var tc.fors)
     if not known(elem) or hasError(elem) then
         return errorT()
@@ -2206,7 +2206,7 @@ function forExpr(tc: ref TC, x: ForExpr, expected: Type): Type
 procedure forValue(tc: ref TC, v: ForValue)
     case v.value of
         Some(e):
-            let n := len(tc.fors)
+            let n := length(tc.fors)
             if known(tc.fors[n - 1]) then
                 _ := check(tc, e.value, tc.fors[n - 1])
             else
@@ -2215,7 +2215,7 @@ procedure forValue(tc: ref TC, v: ForValue)
             pass
 
 procedure leave(tc: ref TC, span: Span, word: String)
-    let n := len(tc.loops)
+    let n := length(tc.loops)
     if n = 0 and tc.inDefer then
         fail(tc, span, "E0507", "'{word}' can't leave a deferred statement")
     else if n = 0 then
@@ -2286,9 +2286,9 @@ procedure forRange(tc: ref TC, s: ForRange)
 
 procedure forIn(tc: ref TC, s: ForIn)
     let t := expr(tc, s.iterable, noType())
-    let elems := elements(tc, t, len(s.vars), s.iterable)
+    let elems := elements(tc, t, length(s.vars), s.iterable)
     var i := 0
-    while i < len(s.vars) and i < len(elems) do
+    while i < length(s.vars) and i < length(elems) do
         setType(tc, symAt(tc, s.vars[i].span), elems[i])
         i := i + 1
     _ := loop(tc, s.body, false)
@@ -2335,7 +2335,7 @@ function elements(tc: ref TC, t0: Type, n: Integer, e: Expr): List[Type]
             pass
     for f in visibleRoutines(tc, "iter") do
         let fs := sig(tc.env, f)
-        if len(fs.params) <> 1 or isSignatureNode(f) then
+        if length(fs.params) <> 1 or isSignatureNode(f) then
             continue
         var sf: Subst := {}
         if unify(fs.params[0].ty, t, var sf, setOf(fs.tparams)) then
@@ -2368,10 +2368,10 @@ export function iteratorItem(tc: ref TC, t: Type): Option[Type]
 
 function caseStmt(tc: ref TC, s: Case): Boolean
     var info := caseBegin(tc, value(tc, s.subject, noType()))
-    var ends := len(s.arms) > 0
+    var ends := length(s.arms) > 0
     var hasElse := false
     for arm in s.arms do
-        hasElse := hasElse or len(arm.labels) = 0
+        hasElse := hasElse or length(arm.labels) = 0
         caseLabels(tc, var info, arm.labels)
         ends := block(tc, arm.body) and ends
     let complete := caseEnd(tc, info, hasElse, s.span)
@@ -2398,9 +2398,9 @@ function caseBegin(tc: ref TC, t: Type): CaseInfo
 
 function keyCount(info: CaseInfo): Integer
     if info.kind = "union" then
-        return len(info.variants)
+        return length(info.variants)
     if info.kind = "enum" then
-        return len(info.members)
+        return length(info.members)
     return 2
 
 ## The key of the `i`th variant, member or truth value, as `covered` holds it.
@@ -2428,7 +2428,7 @@ function caseEnd(tc: ref TC, info: CaseInfo, hasElse: Boolean, span: Span): Bool
     for i := 0 to keyCount(info) - 1 do
         if not (keyAt(info, i) in info.covered) then
             add(var missing, keyName(info, i))
-    if len(missing) > 0 then
+    if length(missing) > 0 then
         fail(
             tc,
             span,
@@ -2447,7 +2447,7 @@ function noVal(): LVal
     return LVal(kind: 0, i: 0, s: "")
 
 function memberIndex(info: CaseInfo, name: String): Integer
-    for i := 0 to len(info.members) - 1 do
+    for i := 0 to length(info.members) - 1 do
         if info.members[i] = name then
             return i
     return -1
@@ -2457,7 +2457,7 @@ procedure caseLabels(tc: ref TC, var info: CaseInfo, labels: List[Label])
         case label of
             VariantLabel(v):
                 variantLabel(tc, var info, v)
-                if len(labels) > 1 and symAt(tc, v.binding.span).isSome() then
+                if length(labels) > 1 and symAt(tc, v.binding.span).isSome() then
                     fail(
                         tc,
                         v.binding.span,
@@ -2540,7 +2540,7 @@ function head(t: Type): String
 function labelHead(tc: ref TC, sym: ref Symbol): String
     if sym.kind = Kind.TypeSym then
         let d := decl(tc.env, sym)
-        if d.kind = "alias" and len(d.params) = 0 then
+        if d.kind = "alias" and length(d.params) = 0 then
             return head(d.alias)
         return "#{sym.id}"
     if sym.kind = Kind.BuiltinType then
@@ -2556,7 +2556,7 @@ function variantOf(
     name: String,
 ): Option[Integer]
     let h := labelHead(tc, sym)
-    for i := 0 to len(info.variants) - 1 do
+    for i := 0 to length(info.variants) - 1 do
         if h <> "" and head(info.variants[i]) = h then
             return Some(i)
     var names: List[String] := []
@@ -2577,7 +2577,7 @@ procedure variantLabel(tc: ref TC, var info: CaseInfo, label: VariantLabel)
     let name := join(tn.parts, sep: ".")
     let r := refAt(tc, lastSpan(tn))
     if info.kind = "union" then
-        if r.isSome() and len(r.get().targets) = 1 then
+        if r.isSome() and length(r.get().targets) = 1 then
             case variantOf(tc, info, r.get().targets[0], tn.span, name) of
                 Some(i):
                     vt := info.variants[i.value]
@@ -2597,7 +2597,7 @@ function namedLabel(tc: ref TC, var info: CaseInfo, e: Expr, doCover: Boolean): 
     case e of
         FieldAccess(f):  # `Color.Red`, `System.None`
             let r := refAt(tc, f.name.span)
-            if r.isNone() or len(r.get().targets) <> 1 then
+            if r.isNone() or length(r.get().targets) <> 1 then
                 return None
             sym := Some(r.get().targets[0])
             name := text(tc, f.span)
@@ -2634,7 +2634,7 @@ function namedLabel(tc: ref TC, var info: CaseInfo, e: Expr, doCover: Boolean): 
         for s in visible(tc, name) do
             if s.kind = Kind.TypeSym or s.kind = Kind.BuiltinType then
                 add(var found, s)
-        if len(found) <> 1 then
+        if length(found) <> 1 then
             fail(tc, span, "E0603", "'{name}' is not a variant of {show(info.ty)}")
             return None
         sym := Some(found[0])
@@ -2642,7 +2642,7 @@ function namedLabel(tc: ref TC, var info: CaseInfo, e: Expr, doCover: Boolean): 
     case variantOf(tc, info, sym.get(), span, name) of
         Some(i):
             let v := info.variants[i.value]
-            if kindOf(tc.env, v) <> "record" or len(decl(tc.env, namedSym(v).get()).fields) > 0 then
+            if kindOf(tc.env, v) <> "record" or length(decl(tc.env, namedSym(v).get()).fields) > 0 then
                 fail(
                     tc,
                     span,
@@ -2661,7 +2661,7 @@ function constLabel(tc: ref TC, info: CaseInfo, e: Expr): LVal
         Name(n):
             if refAt(tc, n.span).isNone() then
                 let found := visible(tc, n.name)
-                if len(found) = 0 then
+                if length(found) = 0 then
                     fail(tc, n.span, "E0100", "unknown name '{n.name}'")
                     return noVal()
                 let sym := found[0]
@@ -2760,7 +2760,7 @@ function expr(tc: ref TC, e: Expr, expected: Type): Type
         Name(x):
             case refAt(tc, x.span) of
                 Some(r):
-                    if len(r.value.targets) > 0 then
+                    if length(r.value.targets) > 0 then
                         t := symValue(tc, r.value.targets, x.span, expected)
                 None:
                     pass
@@ -2784,7 +2784,7 @@ function expr(tc: ref TC, e: Expr, expected: Type): Type
             var hasElse := false
             var values: List[Expr] := []
             for arm in x.arms do
-                hasElse := hasElse or len(arm.labels) = 0
+                hasElse := hasElse or length(arm.labels) = 0
                 caseLabels(tc, var info, arm.labels)
                 add(var values, arm.value)
             _ := caseEnd(tc, info, hasElse, x.span)
@@ -2921,12 +2921,12 @@ function listLit(tc: ref TC, x: ListLit, expected: Type): Type
         if isBuiltin(expected, "Array") then
             case ea[1] of
                 ConstT(n):
-                    if n.isInt and n.value <> len(x.items) then
+                    if n.isInt and n.value <> length(x.items) then
                         fail(
                             tc,
                             x.span,
                             "E0300",
-                            "{show(expected)} needs {n.value} elements, found {len(x.items)}",
+                            "{show(expected)} needs {n.value} elements, found {length(x.items)}",
                         )
                 else:
                     pass
@@ -2935,7 +2935,7 @@ function listLit(tc: ref TC, x: ListLit, expected: Type): Type
         for item in x.items do
             _ := check(tc, item, argsOf(expected)[0])
         return expected
-    if len(x.items) = 0 then
+    if length(x.items) = 0 then
         fail(
             tc,
             x.span,
@@ -2944,7 +2944,7 @@ function listLit(tc: ref TC, x: ListLit, expected: Type): Type
         )
         return errorT()
     let first := value(tc, x.items[0], noType())
-    for i := 1 to len(x.items) - 1 do
+    for i := 1 to length(x.items) - 1 do
         _ := check(tc, x.items[i], first)
     return builtin("List", [first])
 
@@ -2954,7 +2954,7 @@ function setLit(tc: ref TC, x: SetLit, expected: Type): Type
             _ := check(tc, item, argsOf(expected)[0])
         return expected
     let first := value(tc, x.items[0], noType())
-    for i := 1 to len(x.items) - 1 do
+    for i := 1 to length(x.items) - 1 do
         _ := check(tc, x.items[i], first)
     checkElement(tc.env, tc.file, x.span, first)
     return named(sys(tc.env, "Set").get(), [first])
@@ -2966,11 +2966,11 @@ function mapLit(tc: ref TC, x: MapLit, expected: Type): Type
             _ := check(tc, en.key, kv[0])
             _ := check(tc, en.value, kv[1])
         return expected
-    if len(x.entries) = 0 and known(expected) and not hasError(expected) then
+    if length(x.entries) = 0 and known(expected) and not hasError(expected) then
         let hint := if isSet(tc.env, expected) or isBuiltin(expected, "List") then "; write '[]'" else ""
         fail(tc, x.span, "E0300", "expected {show(expected)}, found the empty map '[:]'{hint}")
         return errorT()
-    if len(x.entries) = 0 then
+    if length(x.entries) = 0 then
         fail(
             tc,
             x.span,
@@ -2980,7 +2980,7 @@ function mapLit(tc: ref TC, x: MapLit, expected: Type): Type
         return errorT()
     let k := value(tc, x.entries[0].key, noType())
     let v := value(tc, x.entries[0].value, noType())
-    for i := 1 to len(x.entries) - 1 do
+    for i := 1 to length(x.entries) - 1 do
         _ := check(tc, x.entries[i].key, k)
         _ := check(tc, x.entries[i].value, v)
     return named(sys(tc.env, "Map").get(), [k, v])
@@ -3026,7 +3026,7 @@ function symValue(tc: ref TC, syms: List[ref Symbol], span: Span, expected: Type
                 return errorT()
     if k = Kind.TypeSym then
         let d := decl(tc.env, s)
-        if d.kind = "record" and len(d.fields) = 0 and len(d.params) = 0 then
+        if d.kind = "record" and length(d.fields) = 0 and length(d.params) = 0 then
             return named(s, [])  # `None`: a record without fields is a value
         if d.kind = "alias" then
             return TypeValueT(inner: d.alias)
@@ -3089,30 +3089,30 @@ function routineValue(
         Some(ta):
             var out: List[Sig] := []
             for g in sigs do
-                if len(g.tparams) = len(ta.value) then
+                if length(g.tparams) = length(ta.value) then
                     add(var out, instantiate(g, ta.value))
             sigs := out
         None:
             var plain: List[Sig] := []
             for g in sigs do
-                if len(g.tparams) = 0 then
+                if length(g.tparams) = 0 then
                     add(var plain, g)
-            if len(plain) > 0 then
+            if length(plain) > 0 then
                 sigs := plain
     case expected of
         FuncT(_):
             var fit: List[Sig] := []
             for g in sigs do
-                if len(g.tparams) = 0 and functype(g) = expected then
+                if length(g.tparams) = 0 and functype(g) = expected then
                     add(var fit, g)
-            if len(fit) = 1 then
+            if length(fit) = 1 then
                 narrowTo(tc, span, fit[0].sym)
                 return expected
         else:
             pass
-    if len(sigs) = 1 then
+    if length(sigs) = 1 then
         let g := sigs[0]
-        if len(g.tparams) > 0 then
+        if length(g.tparams) > 0 then
             fail(
                 tc,
                 span,
@@ -3122,7 +3122,7 @@ function routineValue(
             return errorT()
         narrowTo(tc, span, g.sym)
         return functype(g)
-    if len(sigs) = 0 then
+    if length(sigs) = 0 then
         fail(tc, span, "E0302", "'{syms[0].name}' can't be used as a value here")
         return errorT()
     var os: List[ref Symbol] := []
@@ -3143,7 +3143,7 @@ function staticOwner(tc: ref TC, e: Expr): Option[ref Symbol]
         else:
             return None
     let r := refAt(tc, span)
-    if r.isNone() or len(r.get().targets) <> 1 then
+    if r.isNone() or length(r.get().targets) <> 1 then
         return None
     let sym := r.get().targets[0]
     if sym.kind = Kind.UnitSym then
@@ -3164,7 +3164,7 @@ function fieldAccess(tc: ref TC, x: FieldAccess, expected: Type): Type
     if staticOwner(tc, x.target).isSome() then
         case refAt(tc, x.name.span) of
             Some(r):
-                if len(r.value.targets) = 0 then
+                if length(r.value.targets) = 0 then
                     return errorT()
                 return symValue(tc, r.value.targets, x.name.span, expected)
             None:
@@ -3251,7 +3251,7 @@ function field(tc: ref TC, t: Type, ident: Ident): Type
         else:
             pass
     var msg := "{show(t)} has no field '{ident.name}'"
-    if len(visibleRoutines(tc, ident.name)) > 0 then
+    if length(visibleRoutines(tc, ident.name)) > 0 then
         msg := "{msg}; to call function '{ident.name}', add parentheses: '.{ident.name}()'"
     fail(tc, ident.span, "E0320", msg)
     return errorT()
@@ -3517,7 +3517,7 @@ function typeArgs(tc: ref TC, ix: Index): Option[List[Type]]
     if span.isNone() then
         return None
     let r := refAt(tc, span.get())
-    if r.isNone() or len(r.get().targets) = 0 then
+    if r.isNone() or length(r.get().targets) = 0 then
         return None
     let s := r.get().targets[0]
     if not (isRoutine(s.kind) or s.kind = Kind.TypeSym) then
@@ -3559,14 +3559,21 @@ function index(tc: ref TC, ix: Index, expected: Type): Type
                     instanceValue(tc, ix, span, ta.value, t)
                 return t
             let d := decl(tc.env, syms[0])
-            if len(ta.value) <> len(d.params) then
-                return arity(tc.env, ix.span, tc.file, syms[0].name, len(d.params), len(ta.value))
+            if length(ta.value) <> length(d.params) then
+                return arity(
+                    tc.env,
+                    ix.span,
+                    tc.file,
+                    syms[0].name,
+                    length(d.params),
+                    length(ta.value),
+                )
             return TypeValueT(inner: named(syms[0], ta.value))
         None:
             pass
     let t := value(tc, ix.target, noType())
     let b := unref(t)
-    if len(ix.items) <> 1 then
+    if length(ix.items) <> 1 then
         for x in ix.items do
             _ := valueItem(tc, x, noType())
         if not hasError(b) then
@@ -3623,7 +3630,7 @@ function callExpr(tc: ref TC, e: Call, expected: Type): Type
                 callee := ix.target
         else:
             pass
-    if tc.inEnsures and len(e.args) = 1 then
+    if tc.inEnsures and length(e.args) = 1 then
         case callee of
             Name(n):
                 if n.name = "old" and refAt(tc, n.span).isNone() then
@@ -3656,7 +3663,7 @@ function callExpr(tc: ref TC, e: Call, expected: Type): Type
                     items: [],
                 )
                 let cands := ufcsCandidates(tc, name)
-                if len(cands) = 0 then
+                if length(cands) = 0 then
                     _ := prepare(tc, e.args)
                     fail(
                         tc,
@@ -3671,7 +3678,7 @@ function callExpr(tc: ref TC, e: Call, expected: Type): Type
         else:
             return callValue(tc, e, value(tc, callee, noType()), text(tc, exprSpan(callee)))
     let r := refAt(tc, span)
-    if r.isNone() or len(r.get().targets) = 0 then
+    if r.isNone() or length(r.get().targets) = 0 then
         _ := prepare(tc, e.args)
         return errorT()
     let syms := r.get().targets
@@ -3692,9 +3699,9 @@ function callExpr(tc: ref TC, e: Call, expected: Type): Type
 
 ## `cast[T](x)`: reinterprets a pointer or integer as another (SPEC §10.4).
 function cast(tc: ref TC, e: Call, explicit: Option[List[Type]]): Type
-    var ok := explicit.isSome() and len(e.args) = 1
+    var ok := explicit.isSome() and length(e.args) = 1
     if ok then
-        ok := len(explicit.get()) = 1 and e.args[0].name.isNone() and not e.args[0].isVar
+        ok := length(explicit.get()) = 1 and e.args[0].name.isNone() and not e.args[0].isVar
     if not ok then
         _ := prepare(tc, e.args)
         fail(tc, e.span, "E0511", "write 'cast[T](x)': one type argument and one value")
@@ -3718,7 +3725,7 @@ function cast(tc: ref TC, e: Call, explicit: Option[List[Type]]): Type
 ## `addr(var x)`: the address of a variable, or of a field of a C record in one.
 procedure addr(tc: ref TC, e: Call, t: Type)
     requireUnsafe(tc, e.span, "'addr'")
-    if len(e.args) <> 1 or hasError(t) then
+    if length(e.args) <> 1 or hasError(t) then
         return
     let arg := e.args[0].value
     if not cCompatible(tc, argsOf(t)[0], exprSpan(arg), false) then
@@ -3791,7 +3798,7 @@ function candidates(tc: ref TC, syms: List[ref Symbol]): List[Cand]
 
 function ufcsCandidates(tc: ref TC, name: String): List[Cand]
     let bound := boundCandidates(tc, None, name)
-    if len(bound) > 0 then
+    if length(bound) > 0 then
         return bound
     var out: List[Cand] := []
     for s in visibleRoutines(tc, name) do
@@ -3865,7 +3872,7 @@ function construct(
             "'{target.name}' values are written as literals: '{lit}', or '\{}' where the type is known",
         )
         return errorT()
-    if foreign and len(private) > 0 then
+    if foreign and length(private) > 0 then
         _ := prepare(tc, e.args)
         fail(
             tc,
@@ -3879,7 +3886,7 @@ function construct(
 
 function convert(tc: ref TC, e: Call, target: Type): Type
     let args := e.args
-    if len(args) <> 1 or args[0].name.isSome() or args[0].isVar then
+    if length(args) <> 1 or args[0].name.isSome() or args[0].isVar then
         _ := prepare(tc, args)
         fail(
             tc,
@@ -3912,7 +3919,7 @@ function callValue(tc: ref TC, e: Call, t: Type, name: String): Type
     case t of
         FuncT(f):
             var params: List[PInfo] := []
-            for i := 0 to len(f.params) - 1 do
+            for i := 0 to length(f.params) - 1 do
                 add(var params, PInfo(
                     name: "#{i + 1}",
                     ty: f.params[i],
@@ -3946,12 +3953,12 @@ function flex(tc: ref TC, v: Expr): Type
         Paren(p):
             return flex(tc, p.inner)
         ListLit(l):
-            if len(l.items) = 0 then
+            if length(l.items) = 0 then
                 return emptyListT()
         EmptyBraces(_):
             return emptyBracesT()
         MapLit(m):
-            if len(m.entries) = 0 then
+            if length(m.entries) = 0 then
                 return emptyBracesT()
         Lambda(_):
             return lambdaT()
@@ -3975,7 +3982,7 @@ function flex(tc: ref TC, v: Expr): Type
         Some(sp):
             case refAt(tc, sp.value) of
                 Some(r):
-                    var all := len(r.value.targets) > 1
+                    var all := length(r.value.targets) > 1
                     for s in r.value.targets do
                         if not isRoutine(s.kind) then
                             all := false
@@ -3995,7 +4002,7 @@ function prepare(tc: ref TC, args: List[Arg]): List[CArg]
         var items: List[Type] := []
         case a.value of
             ListLit(l):
-                if len(l.items) > 0 then
+                if length(l.items) > 0 then
                     items := listItems(tc, l)
                     f := listLitT()
                     if same(items) then
@@ -4021,7 +4028,7 @@ function prepare(tc: ref TC, args: List[Arg]): List[CArg]
 function listItems(tc: ref TC, l: ListLit): List[Type]
     let first := value(tc, l.items[0], noType())
     var all := [first]
-    for i := 1 to len(l.items) - 1 do
+    for i := 1 to length(l.items) - 1 do
         add(var all, value(tc, l.items[i], first))
     return all
 
@@ -4046,7 +4053,7 @@ function argDesc(a: CArg): String
     if a.flex = lambdaT() then
         case a.expr of
             Lambda(l):
-                return "a lambda taking {len(l.params)} parameter{plural(len(l.params))}"
+                return "a lambda taking {length(l.params)} parameter{plural(length(l.params))}"
             else:
                 return "a lambda"
     if a.flex = listLitT() then
@@ -4070,7 +4077,7 @@ function minInt(a, b: Integer): Integer
 
 ## A match's rank: exact before injected before odd literal types, plain before generic.
 function rank(m: Match): Integer
-    if len(m.sig.tparams) > 0 then
+    if length(m.sig.tparams) > 0 then
         return m.tier * 2 + 1
     return m.tier * 2
 
@@ -4092,19 +4099,19 @@ function call(tc: ref TC, req: CallReq): Type
                 add(var matches, m)
             Fail(f):
                 add(var fails, f)
-    if len(matches) = 0 then
+    if length(matches) = 0 then
         var bound: List[Fail] := []
         for f in fails do
             if f.bound then
                 add(var bound, f)
-        if len(fails) = 1 then
+        if length(fails) = 1 then
             fail(tc, fails[0].span, fails[0].code, fails[0].message)
-        else if len(bound) = 1 then
+        else if length(bound) = 1 then
             fail(tc, bound[0].span, bound[0].code, bound[0].message)
-        else if len(req.cands) > 0 then
+        else if length(req.cands) > 0 then
             var options: List[String] := []
             for c in req.cands do
-                if len(options) < 6 then
+                if length(options) < 6 then
                     add(var options, describeSig(c.sig))
             var descs: List[String] := []
             for a in args do
@@ -4124,7 +4131,7 @@ function call(tc: ref TC, req: CallReq): Type
     for m in matches do
         if rank(m) = best then
             add(var top, m)
-    if len(top) > 1 then
+    if length(top) > 1 then
         var options: List[String] := []
         for m in top do
             add(var options, describeSig(m.sig))
@@ -4138,7 +4145,7 @@ function call(tc: ref TC, req: CallReq): Type
     let m := top[0]
     finish(tc, req.e, req.name, m, req.refSpan)
     tc.calls[req.e.id] := m
-    if m.sig.sym.isSome() and len(m.sig.tparams) > 0 then
+    if m.sig.sym.isSome() and length(m.sig.tparams) > 0 then
         var targs: List[Type] := []
         for tp in m.sig.tparams do
             add(var targs, subst(param(tp), m.s))
@@ -4187,7 +4194,7 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
     let g := c.sig
     let pre := c.pre
     var params := g.params
-    if len(pre) > 0 then
+    if length(pre) > 0 then
         params := []
         for p in g.params do
             var q := p
@@ -4202,15 +4209,15 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
     var s: Subst := {}
     case r.explicit of
         Some(ex):
-            if len(ex.value) <> len(tparams) then
-                let n := len(tparams)
+            if length(ex.value) <> length(tparams) then
+                let n := length(tparams)
                 var ss := "s"
                 if n = 1 then
                     ss := ""
                 return failure(
                     r.span,
                     "E0303",
-                    "'{g.name}' takes {n} type argument{ss}, not {len(ex.value)}",
+                    "'{g.name}' takes {n} type argument{ss}, not {length(ex.value)}",
                     false,
                 )
             s := zipSubst(tparams, ex.value)
@@ -4220,7 +4227,7 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
     # Bind arguments to parameters.
     var slots: List[Option[CArg]] := []
     var rest := -1
-    for i := 0 to len(params) - 1 do
+    for i := 0 to length(params) - 1 do
         add(var slots, None)
         if params[i].varargs and rest < 0 then
             rest := i
@@ -4231,10 +4238,10 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
             None:
                 if not g.positional then
                     var pn := "x"
-                    if len(params) > 0 then
+                    if length(params) > 0 then
                         pn := params[0].name
                     return failure(a.span, "E0511", "name the fields: '{g.name}({pn}: ...)'", false)
-                if pos < len(params) and not params[pos].varargs then
+                if pos < length(params) and not params[pos].varargs then
                     slots[pos] := Some(a)
                     pos := pos + 1
                 else if rest >= 0 then
@@ -4243,13 +4250,13 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
                     return failure(
                         a.span,
                         "E0511",
-                        "too many arguments: '{g.name}' takes {len(params)}",
+                        "too many arguments: '{g.name}' takes {length(params)}",
                         false,
                     )
             Some(nm):
                 let n := nm.value.name
                 var i := -1
-                for j := 0 to len(params) - 1 do
+                for j := 0 to length(params) - 1 do
                     if i < 0 and params[j].name = n and not params[j].varargs then
                         i := j
                 if i < 0 then
@@ -4261,14 +4268,14 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
                     return failure(a.span, "E0511", "'{n}' is passed twice", false)
                 slots[i] := Some(a)
     var missing: List[String] := []
-    for i := 0 to len(params) - 1 do
+    for i := 0 to length(params) - 1 do
         if slots[i].isNone() and not params[i].hasDefault and not params[i].varargs then
             add(var missing, "'{params[i].name}'")
-    if len(missing) > 0 then
+    if length(missing) > 0 then
         return failure(
             r.span,
             "E0511",
-            "missing argument{plural(len(missing))} {join(missing, sep: ", ")} for '{g.name}'",
+            "missing argument{plural(length(missing))} {join(missing, sep: ", ")} for '{g.name}'",
             false,
         )
     if early and mentions(result, vars) then
@@ -4277,7 +4284,7 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
     # Types.
     var tier := 0
     var flexes: List[Integer] := []
-    for i := 0 to len(params) - 1 do
+    for i := 0 to length(params) - 1 do
         if slots[i].isNone() then
             continue
         let a := slots[i].get()
@@ -4392,7 +4399,7 @@ function flexFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Int
             FuncT(f):
                 case a.expr of
                     Lambda(l):
-                        if len(f.params) = len(l.params) then
+                        if length(f.params) = length(l.params) then
                             return lambdaFit(tc, l, f, var s, vars)
                     else:
                         pass
@@ -4439,11 +4446,11 @@ function flexFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Int
                     var found: List[Subst] := []
                     for sym in o.syms do
                         let g := sig(tc.env, sym)
-                        if len(g.tparams) = 0 then
+                        if length(g.tparams) = 0 then
                             var s2 := s
                             if unify(want, functype(g), var s2, vars) then
                                 add(var found, s2)
-                    if len(found) = 1 then
+                    if length(found) = 1 then
                         s := found[0]
                         return 0
                 else:
@@ -4463,13 +4470,13 @@ function lambdaFit(tc: ref TC, l: Lambda, f: FuncT, var s: Subst, vars: Vars): I
     for p in f.params do
         if mentionsUnbound(p, vars, s) then
             return 0
-    let n := len(tc.c.diagnostics)
-    for i := 0 to len(l.params) - 1 do
+    let n := length(tc.c.diagnostics)
+    for i := 0 to length(l.params) - 1 do
         setType(tc, symAt(tc, l.params[i].span), subst(f.params[i], s))
     tc.lambdas := tc.lambdas + 1
     let t := expr(tc, l.body, noType())
     tc.lambdas := tc.lambdas - 1
-    while len(tc.c.diagnostics) > n do
+    while length(tc.c.diagnostics) > n do
         removeLast(var tc.c.diagnostics)
     if not known(t) then
         return 0
@@ -4519,7 +4526,7 @@ procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Sp
         None:
             pass
     var varArgs: List[CArg] := []
-    for i := 0 to len(m.params) - 1 do
+    for i := 0 to length(m.params) - 1 do
         if m.slots[i].isNone() then
             continue
         let a := m.slots[i].get()
@@ -4558,7 +4565,7 @@ procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Sp
                 for x in e.args do
                     add(var rest, text(tc, x.span))
                 var fixed := "{name}(var {text(tc, a.span)}"
-                if len(rest) > 0 then
+                if length(rest) > 0 then
                     fixed := "{fixed}, {join(rest, sep: ", ")}"
                 fixed := "{fixed})"
                 fail(
@@ -4613,7 +4620,7 @@ procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Sp
     if g.kind <> "routine" then
         return
     let dp := g.params
-    for i := 0 to len(m.slots) - 1 do
+    for i := 0 to length(m.slots) - 1 do
         if m.slots[i].isNone() then
             continue
         let a := m.slots[i].get()
@@ -4662,9 +4669,9 @@ procedure varOverlap(tc: ref TC, args: List[CArg])
         if found.isNone() then
             continue
         let path := found.get()
-        for j := 0 to len(seen) - 1 do
+        for j := 0 to length(seen) - 1 do
             let opath := seen[j]
-            let n := minInt(len(path), len(opath))
+            let n := minInt(length(path), length(opath))
             var same := true
             for k := 0 to n - 1 do
                 if path[k] <> opath[k] then
@@ -4690,7 +4697,7 @@ function placePath(tc: ref TC, e: Expr): Option[List[String]]
             return placePath(tc, p.inner)
         Name(n):
             let r := refAt(tc, n.span)
-            if r.isSome() and len(r.get().targets) = 1 then
+            if r.isSome() and length(r.get().targets) = 1 then
                 return Some(["#{r.get().targets[0].id}"])
             return None
         Deref(d):
@@ -4736,7 +4743,7 @@ function immutable(tc: ref TC, e: Expr): String
             return immutable(tc, p.inner)
         Name(n):
             let r := refAt(tc, n.span)
-            if r.isNone() or len(r.get().targets) <> 1 then
+            if r.isNone() or length(r.get().targets) <> 1 then
                 return ""  # already reported
             let s := r.get().targets[0]
             var own := false
@@ -4809,7 +4816,7 @@ function satisfies(
                             var s2 := s
                             var ok := true
                             var i := 0
-                            while ok and i < len(wanted.args) and i < len(bt.args) do
+                            while ok and i < length(wanted.args) and i < length(bt.args) do
                                 ok := unify(wanted.args[i], bt.args[i], var s2, vars)
                                 i := i + 1
                             if ok then
@@ -4963,12 +4970,12 @@ export function provider(
     for p in msig.params do
         add(var need, subst(p.ty, sub))
     let needResult := subst(msig.result, sub)
-    let varThis := len(msig.params) > 0 and msig.params[0].isVar
+    let varThis := length(msig.params) > 0 and msig.params[0].isVar
     for f in visibleRoutines(tc, m.name) do
         if isSignatureNode(f) then
             continue
         let fs := sig(tc.env, f)
-        if len(fs.params) <> len(need) or len(fs.params) = 0 then
+        if length(fs.params) <> length(need) or length(fs.params) = 0 then
             continue
         if fs.params[0].isVar <> varThis or fs.isFunction <> msig.isFunction then
             continue
@@ -4987,7 +4994,7 @@ export function provider(
                         else:
                             pass
         var s2 := s
-        for i := 1 to len(need) - 1 do
+        for i := 1 to length(need) - 1 do
             ok := ok and unify2(need[i], fs.params[i].ty, var s2, var sf, vars, fv)
         ok := ok and unify2(needResult, fs.result, var s2, var sf, vars, fv)
         if ok then

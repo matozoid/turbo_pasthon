@@ -9,7 +9,7 @@ unit Resolve
 ## What is resolved here: plain names, type names, qualified names (`Strings.split`,
 ## `Color.Red`), type parameters, `this`, and `result` / `old` in `ensures`. Names that need
 ## types are left for the type checker without an error: field access and dot calls
-## (`p.x`, `xs.len()`), named arguments, and bare names in `case` labels.
+## (`p.x`, `xs.length()`), named arguments, and bare names in `case` labels.
 
 uses IO, OS, Strings, Source, Diagnostics, Ast, Parser, Symbols, PosixPaths, Difflib
 
@@ -192,13 +192,13 @@ function hexByte(b: Byte): String
     return "{slice(digits, n div 16, n div 16 + 1)}{slice(digits, n mod 16, n mod 16 + 1)}"
 
 function isCont(b: List[Byte], i: Integer, low: Integer := $80, high: Integer := $BF): Boolean
-    return i < len(b) and Integer(b[i]) >= low and Integer(b[i]) <= high
+    return i < length(b) and Integer(b[i]) >= low and Integer(b[i]) <= high
 
 ## The offset of the first byte that starts invalid UTF-8, as Python's strict decoder
 ## finds it: no overlong forms, surrogates, or code points above U+10FFFF.
 function invalidUtf8(b: List[Byte]): Option[Integer]
     var i := 0
-    while i < len(b) do
+    while i < length(b) do
         let x := Integer(b[i])
         var n := 0
         if x < $80 then
@@ -452,7 +452,7 @@ function findUnit(
     var candidates: List[String] := [join(c.stdDir, b: "{name}.pst")]
     if not user.std then
         add(var candidates, join(dirname(user.path), b: "{name}.pst"))
-    for i := 0 to len(candidates) - 1 do
+    for i := 0 to length(candidates) - 1 do
         let path := candidates[i]
         if absolute(path) in c.overlay or isFile(path) then
             case load(c, path, std: i = 0, expected: name) of
@@ -822,22 +822,22 @@ procedure resolveDecl(r: ref Resolver, d: Decl)
 
 function lookup(r: ref Resolver, name: String): Lookup
     if r.hasCtx then
-        for i := len(r.scopes) - 1 downto 0 do
+        for i := length(r.scopes) - 1 downto 0 do
             case get(r.scopes[i], name) of
                 Some(s):
                     return Lookup(symbols: [s.value], ambiguous: [])
                 None:
                     continue
-    for i := len(r.typeScopes) - 1 downto 0 do
+    for i := length(r.typeScopes) - 1 downto 0 do
         case get(r.typeScopes[i], name) of
             Some(s):
                 return Lookup(symbols: [s.value], ambiguous: [])
             None:
                 continue
     let own := getOr(r.cur.top, name, default: [])
-    if len(own) > 0 and not isRoutine(own[0].kind) then
+    if length(own) > 0 and not isRoutine(own[0].kind) then
         return Lookup(symbols: own, ambiguous: [])
-    if len(own) = 0 then
+    if length(own) = 0 then
         case get(r.unitNames, name) of
             Some(u):
                 return Lookup(symbols: [u.value.symbol], ambiguous: [])
@@ -854,9 +854,9 @@ function lookup(r: ref Resolver, name: String): Lookup
             else if not contains(others, s) then
                 add(var others, s)
                 add(var otherUnits, u)
-    if len(own) > 0 or len(others) = 0 then
+    if length(own) > 0 or length(others) = 0 then
         return Lookup(symbols: routines, ambiguous: [])
-    if len(others) = 1 and len(routines) = 0 then
+    if length(others) = 1 and length(routines) = 0 then
         return Lookup(symbols: others, ambiguous: [])
     var units := otherUnits
     for u in usedUnits(r.cur) do
@@ -910,7 +910,7 @@ procedure unknown(r: ref Resolver, name: String, span: Span)
         return
     let matches := closeMatches(name, visibleNames(r), 3, num: 3, den: 4)
     var fixes: List[Fix] := []
-    if len(matches) > 0 then
+    if length(matches) > 0 then
         # Probably a typo for this: don't also call the intended variable unused.
         for sym in lookup(r, matches[0]).symbols do
             sym.reads := sym.reads + 1
@@ -925,7 +925,7 @@ function resolveName(
     read: Boolean := true,
 ): List[ref Symbol]
     let found := lookup(r, name)
-    if len(found.ambiguous) > 0 then
+    if length(found.ambiguous) > 0 then
         var fixes: List[Fix] := []
         var units: List[String] := []
         for u in found.ambiguous do
@@ -942,10 +942,10 @@ function resolveName(
             fixes: fixes,
         )
         return []
-    if len(found.symbols) = 0 then
+    if length(found.symbols) = 0 then
         unknown(r, name, span)
         return []
-    if read and len(found.symbols) = 1 then
+    if read and length(found.symbols) = 1 then
         let s := found.symbols[0]
         s.reads := s.reads + 1
     note(r, span, targets: found.symbols)
@@ -956,7 +956,7 @@ function unitMember(r: ref Resolver, unitSym: ref Symbol, ident: Ident): List[re
         Some(found):
             let u := found.value
             let syms := exports(u, ident.name)
-            if len(syms) = 0 then
+            if length(syms) = 0 then
                 if ident.name in u.top then
                     fail(
                         r,
@@ -1023,7 +1023,7 @@ function staticTarget(r: ref Resolver, e: Expr): Option[ref Symbol]
         Name(n):
             if n.name <> "this" and n.name <> "This" then
                 let found := lookup(r, n.name)
-                if len(found.symbols) = 1 and isStatic(found.symbols[0]) then
+                if length(found.symbols) = 1 and isStatic(found.symbols[0]) then
                     note(r, n.span, targets: found.symbols)
                     return Some(found.symbols[0])
         FieldAccess(f):
@@ -1032,7 +1032,7 @@ function staticTarget(r: ref Resolver, e: Expr): Option[ref Symbol]
                     let owner := o.value
                     if owner.kind = Kind.UnitSym then
                         let syms := unitMember(r, owner, f.name)
-                        if len(syms) = 1 and isStatic(syms[0]) then
+                        if length(syms) = 1 and isStatic(syms[0]) then
                             return Some(syms[0])
                         return None
                     enumMember(r, owner, f.name)
@@ -1088,7 +1088,7 @@ procedure define(
                     break
             None:
                 continue
-    r.scopes[len(r.scopes) - 1][ident.name] := sym
+    r.scopes[length(r.scopes) - 1][ident.name] := sym
     add(var r.locals, sym)
     note(r, ident.span, targets: [sym], isDef: true)
 
@@ -1147,7 +1147,7 @@ procedure pushTypeParams(r: ref Resolver, params: List[TypeParam])
     for n, m in members do
         if not (n in scope) then
             scope[n] := m
-    r.typeScopes[len(r.typeScopes) - 1] := scope
+    r.typeScopes[length(r.typeScopes) - 1] := scope
 
 procedure popTypeParams(r: ref Resolver)
     removeLast(var r.typeScopes)
@@ -1181,16 +1181,16 @@ function typeName(r: ref Resolver, t: TypeName): List[ref Symbol]
     for a in t.args do
         typeOrExpr(r, a)
     var spans := t.partSpans
-    if len(spans) = 0 then
+    if length(spans) = 0 then
         spans := [t.span]
-    if len(t.parts) = 1 and t.parts[0] = "This" then
+    if length(t.parts) = 1 and t.parts[0] = "This" then
         if not r.inTrait then
             fail(r, "E0111", t.span, message: "'This' is only valid inside a trait")
         return []
     var syms := resolveName(r, t.parts[0], spans[0])
     var i := 1
-    while i < len(t.parts) and i < len(spans) do
-        if len(syms) <> 1 or syms[0].kind <> Kind.UnitSym then
+    while i < length(t.parts) and i < length(spans) do
+        if length(syms) <> 1 or syms[0].kind <> Kind.UnitSym then
             return []  # `Enum.Member` and the like: the type checker reports it
         syms := unitMember(r, syms[0], Ident(span: spans[i], name: t.parts[i]))
         i := i + 1
@@ -1269,7 +1269,7 @@ procedure routine(r: ref Resolver, rt: Routine)
     resultType(r, sig)
     for e in rt.pre do
         expr(r, e)
-    if len(rt.post) > 0 then
+    if length(rt.post) > 0 then
         push(r)
         if sig.isFunction then
             let res := newSymbol(
@@ -1281,7 +1281,7 @@ procedure routine(r: ref Resolver, rt: Routine)
                 unitName: r.cur.name,
             )
             res.node := rt
-            r.scopes[len(r.scopes) - 1]["result"] := res
+            r.scopes[length(r.scopes) - 1]["result"] := res
         r.inEnsures := true
         for e in rt.post do
             expr(r, e)
@@ -1418,7 +1418,7 @@ procedure name(r: ref Resolver, e: Name, read: Boolean := true)
         if not r.inTrait then
             fail(r, "E0111", e.span, message: "'This' is only valid inside a trait")
         return
-    if e.name = "this" and len(lookup(r, "this").symbols) = 0 then
+    if e.name = "this" and length(lookup(r, "this").symbols) = 0 then
         fail(r, "E0100", e.span, message: "'this' is only valid in a trait's routine signatures")
         return
     _ := resolveName(r, e.name, e.span, read: read)
@@ -1530,7 +1530,7 @@ procedure checkCasing(r: ref Resolver)
             continue
         var edits: List[Edit] := []
         for x in references(r.c.index, sym) do
-            if x.file = r.file and len(x.targets) = 1 then
+            if x.file = r.file and length(x.targets) = 1 then
                 add(var edits, Edit(span: x.span, text: want))
         fail(
             r,

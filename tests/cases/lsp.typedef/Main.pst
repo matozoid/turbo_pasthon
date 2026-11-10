@@ -10,5 +10,5 @@ let items := [new(i)]
 let size := Size.Large
 writeln(i.qty)
 writeln(first(items).qty)
-writeln(len(items))
+writeln(length(items))
 writeln(size = Size.Small)

@@ -2057,8 +2057,8 @@ knew them, std and the compiler moved over, and `0x`/`0b` are gone.
    (now upper case), `binStr`, and `pos` for `find` (still an `Option`).
 4. Done (§10.1): `external "lib"` and `name "symbol"` instead of `extern` and `as`.
    Finished: std uses them, and `extern` and `as` are gone.
-5. Done (§14): `length` instead of `len`. Left for after the seed release: std and the
-   compiler move over, and `len` goes.
+5. Done (§14): `length` instead of `len`.
+   Finished: std and the compiler use `length`, and `len` is gone.
 6. Comments are `{ ... }`, the only comment style: `#` goes, and a `{ }` comment directly
    above a declaration is its doc comment; end markers read `{ end if }`. Sets and maps
    are written with brackets, by the expected type: `[Color.Red, Color.Blue]`,

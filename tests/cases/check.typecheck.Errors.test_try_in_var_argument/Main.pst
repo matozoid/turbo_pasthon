@@ -15,6 +15,6 @@ function f(n: Option[Integer]): Option[Integer]
     var b := Box(items: [], lists: [none])
     var c := b
     put(var b.items, ys: var c.lists[try n])
-    return Some(len(b.items))
+    return Some(length(b.items))
 
 writeln(isSome(f(Some(0))))

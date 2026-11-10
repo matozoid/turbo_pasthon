@@ -45,4 +45,4 @@ let n := new(41)
 deref(n) := deref(n) + 1
 let s := new("hi")
 deref(s) := "{deref(s)}!"
-writeln("{deref(n)} {deref(s)} {len(xs)} {len(m)}")
+writeln("{deref(n)} {deref(s)} {length(xs)} {length(m)}")

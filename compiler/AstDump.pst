@@ -76,7 +76,7 @@ procedure ident(x: Ident, d: Integer, label: String)
     line(d, label, kind: "Ident", span: x.span, scalars: str("name", value: x.name))
 
 procedure idents(xs: List[Ident], d: Integer, field: String)
-    for i := 0 to len(xs) - 1 do
+    for i := 0 to length(xs) - 1 do
         ident(xs[i], d, label: item(field, i))
 
 procedure typeName(t: TypeName, d: Integer, label: String)
@@ -87,10 +87,10 @@ procedure typeName(t: TypeName, d: Integer, label: String)
     for s in t.partSpans do
         add(var spans, where(s))
     var scalars := " parts=[{join(parts, sep: ",")}]"
-    if len(spans) > 0 then
+    if length(spans) > 0 then
         scalars := "{scalars} part_spans=[{join(spans, sep: ",")}]"
     line(d, label, kind: "TypeName", span: t.span, scalars: scalars)
-    for i := 0 to len(t.args) - 1 do
+    for i := 0 to length(t.args) - 1 do
         typeOrExpr(t.args[i], d + 1, label: item("args", i))
 
 procedure typeExpr(t: TypeExpr, d: Integer, label: String)
@@ -111,7 +111,7 @@ procedure typeExpr(t: TypeExpr, d: Integer, label: String)
             optType(x.result, d + 1, label: one("result"))
 
 procedure typeExprs(ts: List[TypeExpr], d: Integer, field: String)
-    for i := 0 to len(ts) - 1 do
+    for i := 0 to length(ts) - 1 do
         typeExpr(ts[i], d, label: item(field, i))
 
 procedure optType(t: Option[TypeExpr], d: Integer, label: String)
@@ -124,7 +124,7 @@ procedure typeOrExpr(x: TypeOrExpr, d: Integer, label: String)
         Expr(e): expr(e, d, label: label)
 
 procedure typeParams(ps: List[TypeParam], d: Integer, field: String)
-    for i := 0 to len(ps) - 1 do
+    for i := 0 to length(ps) - 1 do
         let p := ps[i]
         line(d, item(field, i), kind: "TypeParam", span: p.span, scalars: "")
         ident(p.name, d + 1, label: one("name"))
@@ -133,7 +133,7 @@ procedure typeParams(ps: List[TypeParam], d: Integer, field: String)
 # --------------------------------------------------------------------- expressions
 
 procedure exprs(es: List[Expr], d: Integer, field: String)
-    for i := 0 to len(es) - 1 do
+    for i := 0 to length(es) - 1 do
         expr(es[i], d, label: item(field, i))
 
 procedure optExpr(e: Option[Expr], d: Integer, label: String)
@@ -163,7 +163,7 @@ procedure expr(e: Expr, d: Integer, label: String)
         )
         InterpString(x):
             line(d, label, kind: "InterpString", span: x.span, scalars: "")
-            for i := 0 to len(x.parts) - 1 do
+            for i := 0 to length(x.parts) - 1 do
                 case x.parts[i] of
                     TextPart(t):
                         writeln("{indent(c)}{item("parts", i)}Text {quote(t.text)}")
@@ -179,7 +179,7 @@ procedure expr(e: Expr, d: Integer, label: String)
             exprs(x.items, c, field: "items")
         MapLit(x):
             line(d, label, kind: "MapLit", span: x.span, scalars: "")
-            for i := 0 to len(x.entries) - 1 do
+            for i := 0 to length(x.entries) - 1 do
                 let m := x.entries[i]
                 line(c, item("entries", i), kind: "MapEntry", span: m.span, scalars: "")
                 expr(m.key, c + 1, label: one("key"))
@@ -207,7 +207,7 @@ procedure expr(e: Expr, d: Integer, label: String)
         Call(x):
             line(d, label, kind: "Call", span: x.span, scalars: "")
             expr(x.callee, c, label: one("callee"))
-            for i := 0 to len(x.args) - 1 do
+            for i := 0 to length(x.args) - 1 do
                 let a := x.args[i]
                 line(
                     c,
@@ -222,7 +222,7 @@ procedure expr(e: Expr, d: Integer, label: String)
         Index(x):
             line(d, label, kind: "Index", span: x.span, scalars: "")
             expr(x.target, c, label: one("target"))
-            for i := 0 to len(x.items) - 1 do
+            for i := 0 to length(x.items) - 1 do
                 typeOrExpr(x.items[i], c, label: item("items", i))
         FieldAccess(x):
             line(d, label, kind: "FieldAccess", span: x.span, scalars: "")
@@ -233,7 +233,7 @@ procedure expr(e: Expr, d: Integer, label: String)
             expr(x.target, c, label: one("target"))
         IfExpr(x):
             line(d, label, kind: "IfExpr", span: x.span, scalars: "")
-            for i := 0 to len(x.branches) - 1 do
+            for i := 0 to length(x.branches) - 1 do
                 let b := x.branches[i]
                 line(c, item("branches", i), kind: "CondExpr", span: b.span, scalars: "")
                 expr(b.cond, c + 1, label: one("cond"))
@@ -242,7 +242,7 @@ procedure expr(e: Expr, d: Integer, label: String)
         CaseExpr(x):
             line(d, label, kind: "CaseExpr", span: x.span, scalars: "")
             expr(x.subject, c, label: one("subject"))
-            for i := 0 to len(x.arms) - 1 do
+            for i := 0 to length(x.arms) - 1 do
                 let a := x.arms[i]
                 line(c, item("arms", i), kind: "CaseExprArm", span: a.span, scalars: "")
                 labels(a.labels, c + 1)
@@ -257,7 +257,7 @@ procedure expr(e: Expr, d: Integer, label: String)
         ErrorExpr(x): line(d, label, kind: "ErrorExpr", span: x.span, scalars: "")
 
 procedure labels(ls: List[Label], d: Integer)
-    for i := 0 to len(ls) - 1 do
+    for i := 0 to length(ls) - 1 do
         let label := item("labels", i)
         case ls[i] of
             ValueLabel(x):
@@ -276,7 +276,7 @@ procedure labels(ls: List[Label], d: Integer)
 
 procedure block(b: Block, d: Integer, label: String)
     line(d, label, kind: "Block", span: b.span, scalars: "")
-    for i := 0 to len(b.stmts) - 1 do
+    for i := 0 to length(b.stmts) - 1 do
         stmt(b.stmts[i], d + 1, label: item("stmts", i))
 
 procedure armBody(b: ArmBody, d: Integer, label: String)
@@ -316,7 +316,7 @@ procedure stmt(s: Stmt, d: Integer, label: String)
                 span: x.span,
                 scalars: optSpan("end_marker", value: x.endMarker),
             )
-            for i := 0 to len(x.branches) - 1 do
+            for i := 0 to length(x.branches) - 1 do
                 let b := x.branches[i]
                 line(c, item("branches", i), kind: "CondBlock", span: b.span, scalars: "")
                 expr(b.cond, c + 1, label: one("cond"))
@@ -364,7 +364,7 @@ procedure stmt(s: Stmt, d: Integer, label: String)
                 scalars: optSpan("end_marker", value: x.endMarker),
             )
             expr(x.subject, c, label: one("subject"))
-            for i := 0 to len(x.arms) - 1 do
+            for i := 0 to length(x.arms) - 1 do
                 let a := x.arms[i]
                 line(c, item("arms", i), kind: "CaseArm", span: a.span, scalars: "")
                 labels(a.labels, c + 1)
@@ -396,7 +396,7 @@ procedure stmt(s: Stmt, d: Integer, label: String)
 # -------------------------------------------------------------------- declarations
 
 procedure fieldDecls(fs: List[FieldDecl], d: Integer)
-    for i := 0 to len(fs) - 1 do
+    for i := 0 to length(fs) - 1 do
         let f := fs[i]
         let scalars := "{flag("exported", value: f.exported)}{optStr("doc", value: f.doc)}"
         line(d, item("fields", i), kind: "FieldDecl", span: f.span, scalars: scalars)
@@ -410,7 +410,7 @@ procedure signature(s: Signature, d: Integer, label: String)
     let c := d + 1
     ident(s.name, c, label: one("name"))
     typeParams(s.typeParams, c, field: "type_params")
-    for i := 0 to len(s.params) - 1 do
+    for i := 0 to length(s.params) - 1 do
         let p := s.params[i]
         let flags := "{flag("is_var", value: p.isVar)}{flag("is_this", value: p.isThis)}{flag("is_varargs", value: p.isVarargs)}"
         line(c, item("params", i), kind: "Param", span: p.span, scalars: flags)
@@ -439,13 +439,13 @@ procedure typeBody(b: TypeBody, d: Integer, label: String)
         TraitType(x):
             line(d, label, kind: "TraitType", span: x.span, scalars: "")
             fieldDecls(x.fields, c)
-            for i := 0 to len(x.routines) - 1 do
+            for i := 0 to length(x.routines) - 1 do
                 signature(x.routines[i], c, label: item("routines", i))
 
 procedure typeSection(s: TypeSection, d: Integer, label: String)
     line(d, label, kind: "TypeSection", span: s.span, scalars: "")
     let c := d + 1
-    for i := 0 to len(s.decls) - 1 do
+    for i := 0 to length(s.decls) - 1 do
         let t := s.decls[i]
         let scalars := "{flag("exported", value: t.exported)}{optStr("doc", value: t.doc)}{optSpan("end_marker", value: t.endMarker)}"
         line(c, item("decls", i), kind: "TypeDecl", span: t.span, scalars: scalars)
@@ -459,7 +459,7 @@ procedure decl(x: Decl, d: Integer, label: String)
         TypeSection(s): typeSection(s, d, label: label)
         ConstSection(s):
             line(d, label, kind: "ConstSection", span: s.span, scalars: "")
-            for i := 0 to len(s.decls) - 1 do
+            for i := 0 to length(s.decls) - 1 do
                 let k := s.decls[i]
                 let scalars := "{flag("exported", value: k.exported)}{optStr("doc", value: k.doc)}"
                 line(c, item("decls", i), kind: "ConstDecl", span: k.span, scalars: scalars)
@@ -475,7 +475,7 @@ procedure decl(x: Decl, d: Integer, label: String)
         ExternBlock(b):
             let scalars := "{str("library", value: b.library)}{optSpan("end_marker", value: b.endMarker)}"
             line(d, label, kind: "ExternBlock", span: b.span, scalars: scalars)
-            for i := 0 to len(b.decls) - 1 do
+            for i := 0 to length(b.decls) - 1 do
                 case b.decls[i] of
                     ExternDecl(e):
                         let es := "{flag("exported", value: e.exported)}{optStr("symbol", value: e.symbol)}{optStr("doc", value: e.doc)}"
@@ -494,7 +494,7 @@ export function dumpAst(text: String, file: String): Boolean
     line(0, "", kind: "File", span: f.span, scalars: str("kind", value: f.kind))
     ident(f.name, 1, label: one("name"))
     idents(f.units, 1, field: "uses")
-    for i := 0 to len(f.items) - 1 do
+    for i := 0 to length(f.items) - 1 do
         case f.items[i] of
             Decl(x): decl(x, 1, label: item("items", i))
             Stmt(x): stmt(x, 1, label: item("items", i))

@@ -37,11 +37,11 @@ use Main.pst 24:1-24:2
 use Main.pst 25:1-25:2
   var 'm' @ Main.pst:23:5
 use Main.pst 26:1-26:7
-  procedure 'remove' @ std/System.pst:380:18
+  procedure 'remove' @ std/System.pst:373:18
 use Main.pst 26:12-26:13
   var 'm' @ Main.pst:23:5
 use Main.pst 27:1-27:7
-  procedure 'remove' @ std/System.pst:380:18
+  procedure 'remove' @ std/System.pst:373:18
 use Main.pst 27:12-27:13
   var 'm' @ Main.pst:23:5
 use Main.pst 28:13-28:14
@@ -60,13 +60,13 @@ use Main.pst 29:17-29:18
   loop variable 'v' @ Main.pst:28:8
 use Main.pst 30:1-30:8
   procedure 'writeln' @ std/IO.pst:16:22
-use Main.pst 30:11-30:14
-  function 'len' @ std/System.pst:349:17
-use Main.pst 30:15-30:16
+use Main.pst 30:11-30:17
+  function 'length' @ std/System.pst:342:17
+use Main.pst 30:18-30:19
   var 'm' @ Main.pst:23:5
-use Main.pst 30:20-30:25
+use Main.pst 30:23-30:28
   function 'total' @ Main.pst:14:10
-use Main.pst 30:26-30:27
+use Main.pst 30:29-30:30
   var 'm' @ Main.pst:23:5
 use Main.pst 31:13-31:14
   var 'm' @ Main.pst:23:5
@@ -76,7 +76,7 @@ def Main.pst 31:5-31:9
 use Main.pst 32:1-32:2
   var 'm' @ Main.pst:23:5
 use Main.pst 33:1-33:4
-  procedure 'inc' @ std/System.pst:122:22
+  procedure 'inc' @ std/System.pst:119:22
 use Main.pst 33:9-33:10
   var 'm' @ Main.pst:23:5
 use Main.pst 34:1-34:5
@@ -85,19 +85,19 @@ use Main.pst 34:10-34:11
   var 'm' @ Main.pst:23:5
 use Main.pst 35:1-35:8
   procedure 'writeln' @ std/IO.pst:16:22
-use Main.pst 35:11-35:14
-  function 'len' @ std/System.pst:349:17
-use Main.pst 35:15-35:19
+use Main.pst 35:11-35:17
+  function 'length' @ std/System.pst:342:17
+use Main.pst 35:18-35:22
   let 'copy' @ Main.pst:31:5
-use Main.pst 35:23-35:26
-  function 'len' @ std/System.pst:349:17
-use Main.pst 35:27-35:28
+use Main.pst 35:26-35:32
+  function 'length' @ std/System.pst:342:17
+use Main.pst 35:33-35:34
   var 'm' @ Main.pst:23:5
-use Main.pst 35:32-35:36
+use Main.pst 35:38-35:42
   let 'copy' @ Main.pst:31:5
-use Main.pst 35:46-35:47
+use Main.pst 35:52-35:53
   var 'm' @ Main.pst:23:5
-use Main.pst 35:57-35:58
+use Main.pst 35:63-35:64
   var 'm' @ Main.pst:23:5
 use Main.pst 36:10-36:11
   var 'm' @ Main.pst:23:5
@@ -204,7 +204,7 @@ def Main.pst 49:5-49:6
 use Main.pst 50:8-50:9
   loop variable 'i' @ Main.pst:49:5
 use Main.pst 51:9-51:15
-  procedure 'remove' @ std/System.pst:380:18
+  procedure 'remove' @ std/System.pst:373:18
 use Main.pst 51:20-51:23
   var 'big' @ Main.pst:46:5
 use Main.pst 51:25-51:26
@@ -225,13 +225,13 @@ use Main.pst 54:18-54:19
   loop variable 'v' @ Main.pst:53:8
 use Main.pst 55:1-55:8
   procedure 'writeln' @ std/IO.pst:16:22
-use Main.pst 55:11-55:14
-  function 'len' @ std/System.pst:349:17
-use Main.pst 55:15-55:18
+use Main.pst 55:11-55:17
+  function 'length' @ std/System.pst:342:17
+use Main.pst 55:18-55:21
   var 'big' @ Main.pst:46:5
-use Main.pst 55:22-55:25
+use Main.pst 55:25-55:28
   var 'sum' @ Main.pst:52:5
-use Main.pst 55:28-55:31
+use Main.pst 55:31-55:34
   var 'big' @ Main.pst:46:5
 def Main.pst 56:5-56:6
   let 'a' @ Main.pst:56:5
@@ -299,9 +299,9 @@ use Main.pst 66:11-66:14
   var 'box' @ Main.pst:64:5
 use Main.pst 66:17-66:20
   type 'Box' @ Main.pst:10:5
-use Main.pst 66:58-66:61
-  function 'len' @ std/System.pst:349:17
-use Main.pst 66:62-66:65
+use Main.pst 66:58-66:64
+  function 'length' @ std/System.pst:342:17
+use Main.pst 66:65-66:68
   var 'box' @ Main.pst:64:5
 use Main.pst 67:16-67:22
   builtin type 'String' @ built into unit System
@@ -315,7 +315,7 @@ def Main.pst 67:5-67:10
   var 'lists' @ Main.pst:67:5
     : Map[String, List[Integer]]
 use Main.pst 68:1-68:4
-  procedure 'add' @ std/System.pst:179:18
+  procedure 'add' @ std/System.pst:176:18
 use Main.pst 68:9-68:14
   var 'lists' @ Main.pst:67:5
 use Main.pst 69:1-69:6
@@ -326,9 +326,9 @@ use Main.pst 70:11-70:16
   var 'lists' @ Main.pst:67:5
 use Main.pst 70:27-70:32
   var 'lists' @ Main.pst:67:5
-use Main.pst 70:43-70:46
-  function 'len' @ std/System.pst:118:21
-use Main.pst 70:47-70:52
+use Main.pst 70:43-70:49
+  function 'length' @ std/System.pst:115:21
+use Main.pst 70:50-70:55
   var 'lists' @ Main.pst:67:5
 use Main.pst 71:16-71:22
   builtin type 'String' @ built into unit System
@@ -347,7 +347,7 @@ use Main.pst 73:5-73:10
 use Main.pst 73:11-73:12
   loop variable 'w' @ Main.pst:72:5
 use Main.pst 73:17-73:22
-  function 'getOr' @ std/System.pst:360:17
+  function 'getOr' @ std/System.pst:353:17
 use Main.pst 73:23-73:28
   var 'words' @ Main.pst:71:5
 use Main.pst 73:30-73:31
@@ -378,24 +378,24 @@ def Main.pst 76:5-76:6
 use Main.pst 77:1-77:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 77:11-77:14
-  function 'get' @ std/System.pst:567:17
+  function 'get' @ std/System.pst:556:17
 use Main.pst 77:15-77:18
-  function 'get' @ std/System.pst:353:17
+  function 'get' @ std/System.pst:346:17
 use Main.pst 77:19-77:20
   var 'm' @ Main.pst:23:5
 use Main.pst 77:32-77:38
-  function 'isNone' @ std/System.pst:555:17
+  function 'isNone' @ std/System.pst:544:17
 use Main.pst 77:39-77:42
-  function 'get' @ std/System.pst:353:17
+  function 'get' @ std/System.pst:346:17
 use Main.pst 77:43-77:44
   var 'm' @ Main.pst:23:5
-use Main.pst 77:56-77:59
-  function 'len' @ std/System.pst:349:17
-use Main.pst 77:60-77:61
+use Main.pst 77:56-77:62
+  function 'length' @ std/System.pst:342:17
+use Main.pst 77:63-77:64
   let 'e' @ Main.pst:76:5
-use Main.pst 77:65-77:66
+use Main.pst 77:68-77:69
   let 'e' @ Main.pst:76:5
-use Main.pst 77:80-77:81
+use Main.pst 77:83-77:84
   let 'e' @ Main.pst:76:5
 use Main.pst 8:12-8:19
   type 'Integer' @ std/System.pst:13:12
@@ -442,7 +442,7 @@ def Main.pst 20:20-20:21
   parameter 'n' @ Main.pst:20:20
     : Integer
 use Main.pst 21:5-21:8
-  procedure 'inc' @ std/System.pst:123:22
+  procedure 'inc' @ std/System.pst:120:22
 use Main.pst 21:13-21:14
   parameter 'n' @ Main.pst:20:20
 use Main.pst 42:40-42:41
@@ -475,6 +475,6 @@ use Main.pst 66:21-66:25
   field 'name' @ Main.pst:11:9
 use Main.pst 66:32-66:36
   field 'tags' @ Main.pst:12:9
-use Main.pst 66:66-66:70
+use Main.pst 66:69-66:73
   field 'tags' @ Main.pst:12:9
 --- stderr

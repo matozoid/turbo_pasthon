@@ -21,11 +21,11 @@ function matching(a, b: List[Char], alo, ahi, blo, bhi: Integer): Integer
     var bestj := blo
     var best := 0
     var prev: List[Integer] := []
-    for j := 0 to len(b) do
+    for j := 0 to length(b) do
         add(var prev, 0)
     for i := alo to ahi - 1 do
         var cur: List[Integer] := []
-        for j := 0 to len(b) do
+        for j := 0 to length(b) do
             add(var cur, 0)
         for j := blo to bhi - 1 do
             if a[i] = b[j] then
@@ -71,19 +71,19 @@ export function closeMatches(
     var scores: List[Score] := []
     for c in candidates do
         let a := charsOf(c)
-        let total := len(a) + len(b)
-        let m := matching(a, b, 0, ahi: len(a), blo: 0, bhi: len(b))
+        let total := length(a) + length(b)
+        let m := matching(a, b, 0, ahi: length(a), blo: 0, bhi: length(b))
         if total > 0 and 2 * m * den >= num * total then
             let s := Score(name: c, matched: m, total: total)
             add(var scores, s)
-            var j := len(scores) - 1
+            var j := length(scores) - 1
             while j > 0 and above(s, y: scores[j - 1]) do
                 scores[j] := scores[j - 1]
                 j := j - 1
             scores[j] := s
     var out: List[String] := []
     for s in scores do
-        if len(out) < n then
+        if length(out) < n then
             add(var out, s.name)
     return out
 

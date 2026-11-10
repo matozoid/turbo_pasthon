@@ -18,7 +18,7 @@ function both(a: String, b: String): Result[String, String]
     defer
         writeln("  leaving {label}")
     let parts := [label, "{try parse(a)}", "{try parse(b)}"]
-    return Ok("{parts[0]}={len(parts)}")
+    return Ok("{parts[0]}={length(parts)}")
 
 function pick(xs: List[String], n: Integer): Option[String]
     defer writeln("  pick done")

@@ -27,7 +27,7 @@ function where(s: Span): String
     return "{s.line}:{s.col}-{s.endLine}:{s.endCol}"
 
 let a := args()
-if len(a) <> 2 then
+if length(a) <> 2 then
     writelnErr("usage: ResolveDump STD_DIR FILE")
     exit(2)
 let r := resolve(a[1], stdDir: a[0])

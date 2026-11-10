@@ -12,7 +12,7 @@ procedure bump(var x: Integer)
 
 var xs: List[Integer] := [1, 2, 3]
 add(var xs, 4)
-writeln("{len(xs)} {xs[0]} {xs[3]}")
+writeln("{length(xs)} {xs[0]} {xs[3]}")
 var ys := xs
 ys[0] := 10
 bump(var ys[1])
@@ -22,7 +22,7 @@ for y in ys do
     write("{y} ")
 writeln()
 let zs := concat(xs, b: ys)
-writeln("{len(zs)} {3 in zs} {7 in zs} {xs = [1, 2, 3, 4]} {xs = ys}")
+writeln("{length(zs)} {3 in zs} {7 in zs} {xs = [1, 2, 3, 4]} {xs = ys}")
 var names: List[String] := []
 for i := 1 to 20 do
     add(var names, "n{i}")
@@ -31,7 +31,7 @@ var it := Item(name: "a", tags: [])
 add(var it.tags, "x")
 let copy := it
 add(var it.tags, "y")
-writeln("{len(it.tags)} {len(copy.tags)}")
+writeln("{length(it.tags)} {length(copy.tags)}")
 var grid: List[List[Integer]] := [[1, 2], [3]]
 add(var grid[1], 4)
 grid[0][1] := 9

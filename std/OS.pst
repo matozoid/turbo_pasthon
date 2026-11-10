@@ -247,7 +247,7 @@ unsafe function launch(
     let errors := files[1]
     let input := files[2]
     let dir := files[3]
-    let n := len(args)
+    let n := length(args)
     let argv := cast[Ptr[CString]](malloc(CSize(8 * (n + 2))))
     deref(argv) := strdup(toCString(path))
     for i := 0 to n - 1 do
@@ -303,7 +303,7 @@ test "directories"
     assert makeDir("{dir}/sub").isErr()
     assert listDir(dir).get() = ["sub"]
     assert removeDir("{dir}/sub").isOk()
-    assert len(listDir(dir).get()) = 0
+    assert length(listDir(dir).get()) = 0
     assert removeDir(dir).isOk()
     assert not isDir(dir)
     assert realPath(dir).isErr()

@@ -188,12 +188,12 @@ File 1:1-59:22 kind="program"
       stmts[1]: ForRange 41:5-42:59 down=false
         var: Ident 41:9-41:10 name="i"
         start: IntLit 41:14-41:15 value=0
-        stop: Binary 41:19-41:33 op="-" op_span=41:30-41:31
-          left: Call 41:19-41:29
-            callee: Name 41:19-41:22 name="len"
-            args[0]: Arg 41:23-41:28 is_var=false
-              value: Name 41:23-41:28 name="items"
-          right: IntLit 41:32-41:33 value=1
+        stop: Binary 41:19-41:36 op="-" op_span=41:33-41:34
+          left: Call 41:19-41:32
+            callee: Name 41:19-41:25 name="length"
+            args[0]: Arg 41:26-41:31 is_var=false
+              value: Name 41:26-41:31 name="items"
+          right: IntLit 41:35-41:36 value=1
         body: Block 42:9-42:59
           stmts[0]: Assign 42:9-42:59
             target: Name 42:9-42:14 name="total"

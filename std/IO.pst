@@ -127,7 +127,7 @@ export unsafe function writeAll(f: ref File, text: String): Result[Integer, Stri
 
 ## Writes `data` to the file. The result is the number of bytes written.
 export unsafe function writeBytes(f: ref File, data: List[Byte]): Result[Integer, String]
-    let n := len(data)
+    let n := length(data)
     let buf := cast[Ptr[Byte]](malloc(CSize(n + 1)))
     var i := 0
     while i < n do

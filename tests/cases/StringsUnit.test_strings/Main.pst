@@ -9,7 +9,7 @@ procedure show(r: Result[Integer, String])
         Err(e):
             writeln(e.error)
 
-writeln(len(bytes("hé")))
+writeln(length(bytes("hé")))
 writeln(bytes("hé")[2])
 writeln(pos("héllo wörld", sub: "wö").getOr(-1))
 writeln(pos("abcabc", sub: "c", start: 3).getOr(-1))

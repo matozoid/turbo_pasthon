@@ -15,7 +15,7 @@ type
 procedure destroy(var r: Res)
     r.id := r.id * 10
     add(var r.log, "bye")
-    writeln("destroy {r.id} {len(r.log)}")
+    writeln("destroy {r.id} {length(r.log)}")
 
 function make(id: Integer): ref Res
     return new(Res(id: id, log: []))
@@ -40,7 +40,7 @@ add(var root.kids, kid)
 case kid.parent of
     Some(p):
         case get(p.value) of
-            Some(r): writeln("{r.value.name} {len(r.value.kids)}")
+            Some(r): writeln("{r.value.name} {length(r.value.kids)}")
             None: writeln("orphan")
     None: writeln("no parent")
 writeln("end")

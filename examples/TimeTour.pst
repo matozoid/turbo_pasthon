@@ -49,8 +49,8 @@ unsafe procedure main()
         meeting("review", start: "2026-11-10T03:00", z: newYork, length: ofHours(1)),
         meeting("planning", start: "2026-11-10T09:15", z: amsterdam, length: ofMinutes(45)),
     ]
-    for i := 0 to len(meetings) - 1 do
-        for j := i + 1 to len(meetings) - 1 do
+    for i := 0 to length(meetings) - 1 do
+        for j := i + 1 to length(meetings) - 1 do
             let a := meetings[i]
             let b := meetings[j]
             case overlap(a.slot, b: b.slot) of

@@ -22,7 +22,7 @@ def Main.pst 21:11-21:15
 use Main.pst 3:6-3:8
   unit 'IO' @ std/IO.pst:1:6
 use Main.pst 24:10-24:13
-  function 'new' @ std/System.pst:131:21
+  function 'new' @ std/System.pst:128:21
 use Main.pst 24:14-24:18
   type 'Node' @ Main.pst:6:5
 use Main.pst 24:35-24:39
@@ -31,7 +31,7 @@ def Main.pst 24:5-24:6
   let 'a' @ Main.pst:24:5
     : ref Node
 use Main.pst 25:10-25:13
-  function 'new' @ std/System.pst:131:21
+  function 'new' @ std/System.pst:128:21
 use Main.pst 25:14-25:18
   type 'Node' @ Main.pst:6:5
 use Main.pst 25:35-25:39
@@ -93,7 +93,7 @@ use Main.pst 34:1-34:5
 use Main.pst 34:10-34:11
   let 'a' @ Main.pst:24:5
 use Main.pst 35:1-35:4
-  procedure 'inc' @ std/System.pst:122:22
+  procedure 'inc' @ std/System.pst:119:22
 use Main.pst 35:9-35:10
   let 'a' @ Main.pst:24:5
 use Main.pst 36:11-36:12
@@ -158,7 +158,7 @@ use Main.pst 43:9-43:10
 use Main.pst 43:19-43:20
   let 'a' @ Main.pst:24:5
 use Main.pst 44:10-44:13
-  function 'new' @ std/System.pst:131:21
+  function 'new' @ std/System.pst:128:21
 def Main.pst 44:5-44:6
   let 'n' @ Main.pst:44:5
     : ref Integer
@@ -167,7 +167,7 @@ use Main.pst 45:7-45:8
 use Main.pst 45:19-45:20
   let 'n' @ Main.pst:44:5
 use Main.pst 46:10-46:13
-  function 'new' @ std/System.pst:131:21
+  function 'new' @ std/System.pst:128:21
 def Main.pst 46:5-46:6
   let 's' @ Main.pst:46:5
     : ref String
@@ -181,13 +181,13 @@ use Main.pst 48:17-48:18
   let 'n' @ Main.pst:44:5
 use Main.pst 48:28-48:29
   let 's' @ Main.pst:46:5
-use Main.pst 48:33-48:36
-  function 'len' @ std/System.pst:118:21
-use Main.pst 48:37-48:39
+use Main.pst 48:33-48:39
+  function 'length' @ std/System.pst:115:21
+use Main.pst 48:40-48:42
   var 'xs' @ Main.pst:39:5
-use Main.pst 48:43-48:46
-  function 'len' @ std/System.pst:349:17
-use Main.pst 48:47-48:48
+use Main.pst 48:46-48:52
+  function 'length' @ std/System.pst:342:17
+use Main.pst 48:53-48:54
   let 'm' @ Main.pst:41:5
 use Main.pst 7:16-7:23
   type 'Integer' @ std/System.pst:13:12

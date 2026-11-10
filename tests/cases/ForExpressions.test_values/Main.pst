@@ -54,11 +54,11 @@ let small := for n in xs for m in xs do if n * m < 5 then n * m else break
 writeln(small)
 let nested := for a in xs do for b in xs do a * b
 writeln(nested)
-let total := len(for n in xs do if n = 2 then continue else n)
+let total := length(for n in xs do if n = 2 then continue else n)
 writeln(total)
 show(sizes(["1", "22"]))
 show(sizes(["1", "x"]))
 let none := for n in xs do if n > 5 then n else continue
-writeln(len(none))
+writeln(length(none))
 let signs := for n in [-1, 0, 2] do if n < 0 then "-" else if n = 0 then "0" else "+"
 writeln(signs)

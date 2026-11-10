@@ -3,7 +3,7 @@ program Main
 uses IO
 
 procedure push(var xs: List[Integer], x: Integer)
-    ensures len(xs) = len(old(xs)) + 1
+    ensures length(xs) = length(old(xs)) + 1
     add(var xs, x)
 
 function double(x: Integer): Integer

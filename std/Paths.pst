@@ -126,7 +126,7 @@ export function normalize(path: String): String
         if part = "" or part = "." then
             continue
         if part = ".." then
-            if len(parts) > 0 and parts[len(parts) - 1] <> ".." then
+            if length(parts) > 0 and parts[length(parts) - 1] <> ".." then
                 removeLast(var parts)
             else if not absolute then
                 add(var parts, part)
@@ -147,16 +147,16 @@ export function relativeTo(path, base: String): Option[String]
     let dest := components(normalize(path))
     let from := components(normalize(base))
     var common := 0
-    while common < len(dest) and common < len(from) and dest[common] = from[common] do
+    while common < length(dest) and common < length(from) and dest[common] = from[common] do
         common := common + 1
     var parts: List[String] := []
-    for i := common to len(from) - 1 do
+    for i := common to length(from) - 1 do
         if from[i] = ".." then
             return None
         add(var parts, "..")
-    for i := common to len(dest) - 1 do
+    for i := common to length(dest) - 1 do
         add(var parts, dest[i])
-    if len(parts) = 0 then
+    if length(parts) = 0 then
         return Some(".")
     return Some(join(parts, sep: "/"))
 

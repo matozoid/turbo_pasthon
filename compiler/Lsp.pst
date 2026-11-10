@@ -85,17 +85,17 @@ type
 ## The next message's body, or `None` at the end of the input. Headers other than
 ## Content-Length are ignored.
 function receive(): Option[String]
-    var length := -1
+    var frameSize := -1
     while true do
         case readln() of
             Some(l):
                 let line := trim(l.value)
                 if line = "" then
-                    if length >= 0 then
-                        return read(length)
+                    if frameSize >= 0 then
+                        return read(frameSize)
                 else if startsWith(line, prefix: "Content-Length:") then
                     let n := slice(line, byteLen("Content-Length:"), byteLen(line))
-                    length := parseInt(trim(n)).getOr(-1)
+                    frameSize := parseInt(trim(n)).getOr(-1)
             None:
                 return None
     return None
@@ -133,8 +133,8 @@ function pathOf(uri: String): String
     let b := bytes(s)
     var out: List[Byte] := []
     var i := 0
-    while i < len(b) do
-        if b[i] = 37 and i + 2 < len(b) then  # '%'
+    while i < length(b) do
+        if b[i] = 37 and i + 2 < length(b) then  # '%'
             let high := hexValue(Char(Integer(b[i + 1])))
             let low := hexValue(Char(Integer(b[i + 2])))
             if high >= 0 and low >= 0 then
@@ -148,12 +148,12 @@ function pathOf(uri: String): String
 ## The 0-based UTF-16 offset of the 1-based column `col` (in code points) on the 1-based
 ## line `line`.
 function utf16(t: Text, line: Integer, col: Integer): Integer
-    if line - 1 >= len(t.lineStarts) then
+    if line - 1 >= length(t.lineStarts) then
         return 0
     let start := t.lineStarts[line - 1]
     var n := 0
     var i := start
-    while i < start + col - 1 and i < len(t.chars) do
+    while i < start + col - 1 and i < length(t.chars) do
         if ord(t.chars[i]) > $FFFF then
             n := n + 2
         else
@@ -164,12 +164,12 @@ function utf16(t: Text, line: Integer, col: Integer): Integer
 ## The 1-based column (in code points) of the 0-based UTF-16 offset `character` on the
 ## 1-based line `line`.
 function column(t: Text, line: Integer, character: Integer): Integer
-    if line < 1 or line - 1 >= len(t.lineStarts) then
+    if line < 1 or line - 1 >= length(t.lineStarts) then
         return 1
     let start := t.lineStarts[line - 1]
     var n := 0
     var i := start
-    while n < character and i < len(t.chars) and t.chars[i] <> '\n' do
+    while n < character and i < length(t.chars) and t.chars[i] <> '\n' do
         if ord(t.chars[i]) > $FFFF then
             n := n + 2
         else
@@ -207,8 +207,8 @@ function range(t: Text, s: Span): String
 
 ## The range of the whole text.
 function wholeRange(t: Text): String
-    let last := len(t.lineStarts)
-    let col := len(t.chars) - t.lineStarts[last - 1] + 1
+    let last := length(t.lineStarts)
+    let col := length(t.chars) - t.lineStarts[last - 1] + 1
     return "\{\"start\":\{\"line\":0,\"character\":0},\"end\":{position(t, last, col: col)}}"
 
 # ------------------------------------------------------------------------- diagnostics
@@ -282,7 +282,7 @@ function firstLine(a: Analysis, file: String, span: Span): String
     case get(a.texts, file) of
         Some(t):
             var end := span.start
-            while end < len(t.value.chars) and t.value.chars[end] <> '\n' do
+            while end < length(t.value.chars) and t.value.chars[end] <> '\n' do
                 end := end + 1
             let line := trim(sub(t.value, span.start, end: end))
             if startsWith(line, prefix: "export ") then
@@ -343,7 +343,7 @@ function hover(s: Server, path: String, params: JValue): String
     let a := analyze(s, path)
     case refAt(a, path, params: params) of
         Some(r):
-            if len(r.value.targets) = 0 then
+            if length(r.value.targets) = 0 then
                 return "null"
             let t := a.texts[path]
             let contents := "\{\"kind\":\"markdown\",\"value\":{quote(hoverText(a, r.value.targets[0]))}}"
@@ -457,7 +457,7 @@ export function occurrencesOf(s: Server, first: Analysis, found: Option[Ref]): O
     var o := Occurrences(sym: None, std: false, refs: [], texts: {}, errors: 0)
     case found of
         Some(r):
-            if len(r.value.targets) > 0 and r.value.targets[0].span.isSome() then
+            if length(r.value.targets) > 0 and r.value.targets[0].span.isSome() then
                 o.sym := Some(r.value.targets[0])
         None:
             pass
@@ -522,7 +522,7 @@ function renamed(t: Text, refs: List[Ref], name: String): String
     for start in starts do
         out := "{out}{sub(t, done, end: start)}{name}"
         done := ends[start]
-    return "{out}{sub(t, done, end: len(t.chars))}"
+    return "{out}{sub(t, done, end: length(t.chars))}"
 
 ## The uses that renaming the symbol `o` is about replaces in each file, and the files'
 ## new texts, or why it can't be renamed: it is in a standard unit, the name doesn't suit
@@ -583,31 +583,31 @@ function callAt(tokens: List[Token], offset: Integer): Option[CallSite]
     var commas: List[Integer] := []
     var starts: List[Integer] := []
     var k := 0
-    while k < len(tokens) and tokens[k].span.start < offset do
+    while k < length(tokens) and tokens[k].span.start < offset do
         let kind := tokens[k].kind
         if kind in [TokenKind.Lparen, TokenKind.Lbracket, TokenKind.Lbrace] then
             add(var opens, k)
             add(var commas, 0)
             add(var starts, k + 1)
         else if kind in [TokenKind.Rparen, TokenKind.Rbracket, TokenKind.Rbrace] then
-            if len(opens) > 0 then
+            if length(opens) > 0 then
                 removeLast(var opens)
                 removeLast(var commas)
                 removeLast(var starts)
-        else if kind = TokenKind.Comma and len(opens) > 0 then
-            commas[len(commas) - 1] := commas[len(commas) - 1] + 1
-            starts[len(starts) - 1] := k + 1
+        else if kind = TokenKind.Comma and length(opens) > 0 then
+            commas[length(commas) - 1] := commas[length(commas) - 1] + 1
+            starts[length(starts) - 1] := k + 1
         k := k + 1
-    if len(opens) = 0 then
+    if length(opens) = 0 then
         return None
-    let o := opens[len(opens) - 1]
+    let o := opens[length(opens) - 1]
     if tokens[o].kind <> TokenKind.Lparen or o = 0 or tokens[o - 1].kind <> TokenKind.Ident then
         return None
-    var index := commas[len(commas) - 1]
+    var index := commas[length(commas) - 1]
     if o >= 2 and tokens[o - 2].kind = TokenKind.Dot then
         index := index + 1
     var named := ""
-    let st := starts[len(starts) - 1]
+    let st := starts[length(starts) - 1]
     if st + 1 < k and tokens[st].kind = TokenKind.Ident and tokens[st + 1].kind = TokenKind.Colon then
         named := tokens[st].text
     return Some(CallSite(callee: tokens[o - 1], index: index, named: named))
@@ -664,7 +664,7 @@ function signatureInfo(a: Analysis, env: ref Env, sym: ref Symbol): Option[Strin
         return None
     let g := found.get()
     var label := sym.name
-    if len(g.tparams) > 0 then
+    if length(g.tparams) > 0 then
         var names: List[String] := []
         for tp in g.tparams do
             add(var names, tp.name)
@@ -672,7 +672,7 @@ function signatureInfo(a: Analysis, env: ref Env, sym: ref Symbol): Option[Strin
     label := "{label}("
     var params: List[String] := []
     for p in g.params do
-        if len(params) > 0 then
+        if length(params) > 0 then
             label := "{label}, "
         var text := "{p.name}: {show(p.ty)}"
         if p.isVar then
@@ -705,7 +705,7 @@ function activeParameter(env: ref Env, sym: ref Symbol, call: CallSite): Integer
     if call.named <> "" then
         case callSig(env, sym) of
             Some(g):
-                for i := 0 to len(g.value.params) - 1 do
+                for i := 0 to length(g.value.params) - 1 do
                     if g.value.params[i].name = call.named then
                         return i
             None:
@@ -722,7 +722,7 @@ function signatureHelp(s: Server, path: String, params: JValue): String
     let pos := field(params, key: "position")
     let line := asInteger(field(pos, key: "line")).getOr(0) + 1
     let col := column(text, line, character: asInteger(field(pos, key: "character")).getOr(0))
-    if line > len(text.lineStarts) then
+    if line > length(text.lineStarts) then
         return "null"
     let offset := text.lineStarts[line - 1] + col - 1
     case callAt(lex(text.str, file: path).tokens, offset: offset) of
@@ -732,12 +732,12 @@ function signatureHelp(s: Server, path: String, params: JValue): String
             for sym in callees(a, path, callee: call.value.callee) do
                 case signatureInfo(a, env, sym: sym) of
                     Some(info):
-                        if len(infos) = 0 then
+                        if length(infos) = 0 then
                             active := activeParameter(env, sym, call: call.value)
                         add(var infos, info.value)
                     None:
                         pass
-            if len(infos) = 0 then
+            if length(infos) = 0 then
                 return "null"
             return "\{\"signatures\":[{join(infos, sep: ",")}],\"activeSignature\":0,\"activeParameter\":{active}}"
         None:
@@ -817,7 +817,7 @@ export function acceptorsOf(a: Analysis, path: String, ty: Type): List[ref Symbo
     let env := a.checked.env.get()
     for sym in visibleRoutines(a, path) do
         let g := sig(env, sym)
-        if len(g.params) > 0 then
+        if length(g.params) > 0 then
             var vars: Vars := {}
             for tp in g.tparams do
                 vars[tp.id] := true
@@ -841,7 +841,7 @@ export function valueTypeOf(env: ref Env, sym: ref Symbol): Option[Type]
         if arityOf(sym.name) = 0 then
             return Some(prim(sym.name))
         var args: List[Type] := []
-        while len(args) < arityOf(sym.name) do
+        while length(args) < arityOf(sym.name) do
             add(var args, errorT())
         return Some(builtin(sym.name, args))
     return typeOfSym(env, sym)
@@ -849,7 +849,7 @@ export function valueTypeOf(env: ref Env, sym: ref Symbol): Option[Type]
 ## The routine of this file whose declaration holds `offset`, as a span; None outside any.
 function enclosingRoutine(a: Analysis, path: String, offset: Integer): Option[Span]
     for r in a.checked.resolved.checker.index.refs do
-        if r.isDef and r.file = path and len(r.targets) = 1 and isRoutine(r.targets[0].kind) then
+        if r.isDef and r.file = path and length(r.targets) = 1 and isRoutine(r.targets[0].kind) then
             let sp := declSpan(r.targets[0])
             if sp.start <= offset and offset <= sp.end then
                 return Some(sp)
@@ -895,7 +895,7 @@ procedure names(var c: Completions, a: Analysis, path: String, offset: Integer)
     let inside := enclosingRoutine(a, path, offset: offset)
     var locals: List[ref Symbol] := []
     for r in a.checked.resolved.checker.index.refs do
-        if r.isDef and r.file = path and len(r.targets) = 1 and isLocal(r.targets[0].kind) and r.span.end <= offset then
+        if r.isDef and r.file = path and length(r.targets) = 1 and isLocal(r.targets[0].kind) and r.span.end <= offset then
             let here := enclosingRoutine(a, path, offset: r.span.start)
             let same := (here.isNone() and inside.isNone()) or (
                 here.isSome()
@@ -904,7 +904,7 @@ procedure names(var c: Completions, a: Analysis, path: String, offset: Integer)
             )
             if same then
                 add(var locals, r.targets[0])
-    var i := len(locals) - 1
+    var i := length(locals) - 1
     while i >= 0 do
         offer(var c, a, sym: locals[i], rank: "0")
         i := i - 1
@@ -937,7 +937,7 @@ function completion(s: Server, path: String, params: JValue): String
     let t := textOf(text.get())
     let pos := field(params, key: "position")
     let line := asInteger(field(pos, key: "line")).getOr(0) + 1
-    if line > len(t.lineStarts) then
+    if line > length(t.lineStarts) then
         return "[]"
     let col := column(t, line, character: asInteger(field(pos, key: "character")).getOr(0))
     var items: List[String] := []
@@ -952,11 +952,11 @@ function completion(s: Server, path: String, params: JValue): String
 ## The completion items at `line` and `col` (in code points) of the open document `path`.
 export function completionsAt(s: Server, path: String, line, col: Integer): List[Candidate]
     let text := get(s.texts, path)
-    if text.isNone() or line > len(textOf(text.get()).lineStarts) then
+    if text.isNone() or line > length(textOf(text.get()).lineStarts) then
         return []
     let t := textOf(text.get())
     let offset := t.lineStarts[line - 1] + col - 1
-    if offset > len(t.chars) then
+    if offset > length(t.chars) then
         return []
     # The word being typed, and the `.` before it.
     var start := offset
@@ -977,10 +977,10 @@ export function completionsAt(s: Server, path: String, line, col: Integer): List
             return []
         # Check the text without the `.` and the word, which the parser may not take.
         var stop := offset
-        while stop < len(t.chars) and isWordChar(t.chars[stop]) do
+        while stop < length(t.chars) and isWordChar(t.chars[stop]) do
             stop := stop + 1
         var texts := s.texts
-        texts[path] := "{sub(t, 0, end: dot - 1)}{sub(t, stop, end: len(t.chars))}"
+        texts[path] := "{sub(t, 0, end: dot - 1)}{sub(t, stop, end: length(t.chars))}"
         let receiverSpan := span(t, begin, end: end)
         var a := analyzeWith(s, path, texts: texts)
         var r := at(
@@ -993,14 +993,14 @@ export function completionsAt(s: Server, path: String, line, col: Integer): List
             # Still no parse: keep only the receiver of the line, as a statement of its own.
             let lineStart := t.lineStarts[receiverSpan.line - 1]
             var lineEnd := lineStart
-            while lineEnd < len(t.chars) and t.chars[lineEnd] <> '\n' do
+            while lineEnd < length(t.chars) and t.chars[lineEnd] <> '\n' do
                 lineEnd := lineEnd + 1
             var indent := lineStart
             while indent < begin and t.chars[indent] = ' ' do
                 indent := indent + 1
             let before := sub(t, 0, end: lineStart)
             let pad := sub(t, lineStart, end: indent)
-            texts[path] := "{before}{pad}{sub(t, begin, end: end)}{sub(t, lineEnd, end: len(t.chars))}"
+            texts[path] := "{before}{pad}{sub(t, begin, end: end)}{sub(t, lineEnd, end: length(t.chars))}"
             a := analyzeWith(s, path, texts: texts)
             r := at(
                 a.checked.resolved.checker.index,
@@ -1010,7 +1010,7 @@ export function completionsAt(s: Server, path: String, line, col: Integer): List
             )
         case r of
             Some(found):
-                if len(found.value.targets) > 0 then
+                if length(found.value.targets) > 0 then
                     members(var c, a, path: path, receiver: found.value.targets[0])
             None:
                 pass
@@ -1086,7 +1086,7 @@ function documentSymbols(s: Server, path: String): String
         return "[]"
     var parts: List[String] := []
     for r in a.checked.resolved.checker.index.refs do
-        if not r.isDef or r.file <> path or len(r.targets) <> 1 then
+        if not r.isDef or r.file <> path or length(r.targets) <> 1 then
             continue
         let sym := r.targets[0]
         var top := sym.kind in [Kind.TypeSym, Kind.TraitSym, Kind.ConstSym] or isRoutine(sym.kind)
@@ -1116,19 +1116,19 @@ function inlayHints(s: Server, path: String, params: JValue): String
     let last := asInteger(field(
         field(wanted, key: "end"),
         key: "line",
-    )).getOr(len(t.lineStarts)) + 1
+    )).getOr(length(t.lineStarts)) + 1
     var parts: List[String] := []
     for r in a.checked.resolved.checker.index.refs do
-        if not r.isDef or r.file <> path or len(r.targets) <> 1 or r.span.line < first or r.span.line > last then
+        if not r.isDef or r.file <> path or length(r.targets) <> 1 or r.span.line < first or r.span.line > last then
             continue
         let sym := r.targets[0]
         if not (sym.kind in [Kind.LetSym, Kind.VarSym, Kind.LoopVar]) then
             continue
         # A declared type follows the name: `let x: T`.
         var i := r.span.end
-        while i < len(t.chars) and t.chars[i] = ' ' do
+        while i < length(t.chars) and t.chars[i] = ' ' do
             i := i + 1
-        if i + 1 < len(t.chars) and t.chars[i] = ':' and t.chars[i + 1] <> '=' then
+        if i + 1 < length(t.chars) and t.chars[i] = ':' and t.chars[i + 1] <> '=' then
             continue
         case get(env.symTypes, sym.id) of
             Some(ty):
@@ -1142,11 +1142,11 @@ function inlayHints(s: Server, path: String, params: JValue): String
     var seen: Map[Integer, Boolean] := {}
     for c in instancesIn(env) do
         let sp := c.span
-        if len(c.args) = 0 or c.file <> path or sp.line < first or sp.line > last or sp.start in seen then
+        if length(c.args) = 0 or c.file <> path or sp.line < first or sp.line > last or sp.start in seen then
             continue
-        if sp.end <= sp.start or sp.end > len(t.chars) or not isNameChar(t.chars[sp.end - 1]) then
+        if sp.end <= sp.start or sp.end > length(t.chars) or not isNameChar(t.chars[sp.end - 1]) then
             continue  # not at a name
-        if sp.end < len(t.chars) and t.chars[sp.end] = '[' then
+        if sp.end < length(t.chars) and t.chars[sp.end] = '[' then
             continue  # written: `f[T](...)`
         var shown: List[String] := []
         for x in c.args do
@@ -1217,7 +1217,7 @@ function semanticTokens(s: Server, path: String): String
             std[u.path] := true
     var refs: Map[Integer, Ref] := {}
     for r in a.checked.resolved.checker.index.refs do
-        if r.file = path and len(r.targets) > 0 then
+        if r.file = path and length(r.targets) > 0 then
             refs[r.span.start] := r
     let lexed := lex(t.str, file: path)
     var found: List[Semantic] := []
@@ -1262,11 +1262,11 @@ function semanticTokens(s: Server, path: String): String
     for f in found do
         let l := f.span.line - 1
         let from := utf16(t, f.span.line, col: f.span.col)
-        let length := utf16(t, f.span.line, col: f.span.endCol) - from
+        let units := utf16(t, f.span.line, col: f.span.endCol) - from
         var delta := from
         if l = line then
             delta := from - char
-        add(var data, "{l - line},{delta},{length},{f.kind},{f.mods}")
+        add(var data, "{l - line},{delta},{units},{f.kind},{f.mods}")
         line := l
         char := from
     return "\{\"data\":[{join(data, sep: ",")}]}"
@@ -1280,7 +1280,7 @@ function implementations(s: Server, path: String, params: JValue): String
     var parts: List[String] := []
     case refAt(first, path, params: params) of
         Some(r):
-            if len(r.value.targets) > 0 then
+            if length(r.value.targets) > 0 then
                 let found := implementationsOf(s, first, sym: r.value.targets[0])
                 for at in found.syms do
                     add(var parts, location(
@@ -1340,7 +1340,7 @@ export function implementationsOf(s: Server, first: Analysis, sym: ref Symbol): 
                 break
             index := index + 1
         for r in a.checked.resolved.checker.index.refs do
-            if not r.isDef or len(r.targets) <> 1 or r.file in std or r.targets[0].kind <> Kind.TypeSym then
+            if not r.isDef or length(r.targets) <> 1 or r.file in std or r.targets[0].kind <> Kind.TypeSym then
                 continue
             let ty := r.targets[0]
             if not (decl(env, ty).kind in ["record", "enum", "union", "subrange"]) then
@@ -1349,7 +1349,7 @@ export function implementationsOf(s: Server, first: Analysis, sym: ref Symbol): 
                 Some(provided):
                     var at := ty
                     if member.isSome() then
-                        if index >= len(provided.value) then
+                        if index >= length(provided.value) then
                             continue
                         at := provided.value[index]
                     let key := "{at.file}:{at.span.get().start}"
@@ -1395,7 +1395,7 @@ function prepareCallHierarchy(s: Server, path: String, params: JValue): String
                     add(var parts, callItem(s, a, sym))
         None:
             pass
-    if len(parts) = 0 then
+    if length(parts) = 0 then
         return "null"
     return "[{join(parts, sep: ",")}]"
 
@@ -1424,7 +1424,7 @@ function callerAt(a: Analysis, file: String, offset: Integer): Option[ref Symbol
     var best: Option[ref Symbol] := None
     var bestStart := -1
     for r in a.checked.resolved.checker.index.refs do
-        if r.isDef and r.file = file and len(r.targets) = 1 and isRoutine(r.targets[0].kind) then
+        if r.isDef and r.file = file and length(r.targets) = 1 and isRoutine(r.targets[0].kind) then
             let sp := declSpan(r.targets[0])
             if sp.start <= offset and offset < sp.end and sp.start > bestStart then
                 best := Some(r.targets[0])
@@ -1504,7 +1504,7 @@ export function callersOf(s: Server, target: ref Symbol): List[Calls]
                     if caller.isSome() then
                         group := "{caller.get().file}:{caller.get().span.get().start}"
                     if not (group in slot) then
-                        slot[group] := len(out)
+                        slot[group] := length(out)
                         add(var out, Calls(sym: caller, file: r.file, spans: [], analysis: a))
                     add(var out[slot[group]].spans, r.span)
             None:
@@ -1536,11 +1536,11 @@ export function calleesOf(a: Analysis, caller: ref Symbol): List[Calls]
     for r in a.checked.resolved.checker.index.refs do
         if r.isDef or r.file <> caller.file or r.span.start < body.start or r.span.end > body.end then
             continue
-        if len(r.targets) = 0 or not isCallable(a, r.targets[0]) then
+        if length(r.targets) = 0 or not isCallable(a, r.targets[0]) then
             continue
         let callee := r.targets[0]
         if not (callee.id in slot) then
-            slot[callee.id] := len(out)
+            slot[callee.id] := length(out)
             add(var out, Calls(sym: Some(callee), file: r.file, spans: [], analysis: a))
         add(var out[slot[callee.id]].spans, r.span)
     return out
@@ -1558,9 +1558,9 @@ export function matches(name, query: String): Boolean
         add(var want, lowerChar(c))
     var i := 0
     for c in name do
-        if i < len(want) and lowerChar(c) = want[i] then
+        if i < length(want) and lowerChar(c) = want[i] then
             i := i + 1
-    return i = len(want)
+    return i = length(want)
 
 ## The types, constants, routines, fields and enum members declared in the open documents
 ## and the units they use, apart from the standard units, whose names match `query`.
@@ -1574,7 +1574,7 @@ function workspaceSymbols(s: Server, query: String): String
             if u.std then
                 std[u.path] := true
         for r in a.checked.resolved.checker.index.refs do
-            if not r.isDef or len(r.targets) <> 1 or r.file in std or not (r.file in a.texts) then
+            if not r.isDef or length(r.targets) <> 1 or r.file in std or not (r.file in a.texts) then
                 continue
             let sym := r.targets[0]
             var wanted := sym.kind in [
@@ -1627,12 +1627,12 @@ function foldingRanges(s: Server, path: String): String
                 n := n + 1
             add(var indents, n)
     var parts: List[String] := []
-    for i := 0 to len(lines) - 1 do
+    for i := 0 to length(lines) - 1 do
         if indents[i] < 0 then
             continue
         var last := i
         var j := i + 1
-        while j < len(lines) and (indents[j] < 0 or indents[j] > indents[i]) do
+        while j < length(lines) and (indents[j] < 0 or indents[j] > indents[i]) do
             if indents[j] >= 0 then
                 last := j
             j := j + 1

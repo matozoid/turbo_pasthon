@@ -73,7 +73,7 @@ export function align(n, a: Integer): Integer
     return (n + a - 1) div a * a
 
 function interpLen(): Integer
-    return len(bytes(Interp)) + 1
+    return length(bytes(Interp)) + 1
 
 function layout(
     codeLen,
@@ -82,16 +82,16 @@ function layout(
     needed: List[String],
     globals: Integer,
 ): Layout
-    let n := len(imports)
+    let n := length(imports)
     let rodata := CodeOffset + align(codeLen, 16)
     let interp := align(rodata + rodataLen, 8)
     let dynstr := interp + interpLen()
-    let dynsym := align(dynstr + len(dynamicStrings(imports, needed: needed)), 8)
+    let dynsym := align(dynstr + length(dynamicStrings(imports, needed: needed)), 8)
     let hash := dynsym + 24 * (n + 1)
     let rela := align(hash + 4 * (3 + n + 1), 8)
     let roEnd := rela + 24 * n
     let dynamic := align(roEnd, 8)
-    let got := dynamic + 16 * (DynamicEntries + len(needed))
+    let got := dynamic + 16 * (DynamicEntries + length(needed))
     return Layout(
         codeLen: codeLen,
         rodata: rodata,
@@ -139,7 +139,7 @@ function dynamicStrings(imports, needed: List[String]): List[Byte]
     return out
 
 procedure put(var out: List[Byte], offset: Integer, data: List[Byte])
-    for i := 0 to len(data) - 1 do
+    for i := 0 to length(data) - 1 do
         out[offset + i] := data[i]
 
 ## Writes `v` as `n` little-endian bytes at `offset`.
@@ -169,8 +169,8 @@ export function executable(
     needed: List[String],
     globals: Integer,
 ): List[Byte]
-    let lay := layout(len(code), len(rodata), imports, needed: needed, globals: globals)
-    let n := len(imports)
+    let lay := layout(length(code), length(rodata), imports, needed: needed, globals: globals)
+    let n := length(imports)
     var out: List[Byte] := []
     for i := 1 to lay.end do
         add(var out, Byte(0))
@@ -203,13 +203,13 @@ export function executable(
         PfR + PfW,
         lay.dynamic,
         addr(lay, lay.dynamic),
-        16 * (DynamicEntries + len(needed)),
+        16 * (DynamicEntries + length(needed)),
         8,
     ])
     programHeader(var out, 5, h: [PtGnuStack, PfR + PfW, 0, 0, 0, 16])
 
     put(var out, CodeOffset, data: code)
-    for i := CodeOffset + len(code) to lay.rodata - 1 do  # int3 padding
+    for i := CodeOffset + length(code) to lay.rodata - 1 do  # int3 padding
         out[i] := Byte($CC)
     put(var out, lay.rodata, data: rodata)
     var interp: List[Byte] := []
@@ -221,12 +221,12 @@ export function executable(
     var name := 1
     for lib in needed do
         add(var libs, name)
-        name := name + len(bytes(lib)) + 1
+        name := name + length(bytes(lib)) + 1
     for i := 0 to n - 1 do  # symbol 0 is the null symbol
         let sym := lay.dynsym + 24 * (i + 1)
         putInt(var out, sym, name, n: 4)
         putInt(var out, sym + 4, $12, n: 1)  # global function, undefined
-        name := name + len(bytes(imports[i])) + 1
+        name := name + length(bytes(imports[i])) + 1
         let rela := lay.rela + 24 * i
         putInt(var out, rela, addr(lay, lay.got + 8 * i), n: 8)
         putInt(var out, rela + 8, (i + 1) * 4294967296 + RX8664GlobDat, n: 8)
@@ -239,15 +239,15 @@ export function executable(
     add(var dyn, Pair(first: DtHash, second: addr(lay, lay.hash)))
     add(var dyn, Pair(first: DtStrtab, second: addr(lay, lay.dynstr)))
     add(var dyn, Pair(first: DtSymtab, second: addr(lay, lay.dynsym)))
-    add(var dyn, Pair(first: DtStrsz, second: len(strings)))
+    add(var dyn, Pair(first: DtStrsz, second: length(strings)))
     add(var dyn, Pair(first: DtSyment, second: 24))
     add(var dyn, Pair(first: DtRela, second: addr(lay, lay.rela)))
     add(var dyn, Pair(first: DtRelasz, second: 24 * n))
     add(var dyn, Pair(first: DtRelaent, second: 24))
     add(var dyn, Pair(first: DtDebug, second: 0))
     add(var dyn, Pair(first: DtNull, second: 0))
-    assert len(dyn) = DynamicEntries + len(needed)
-    for i := 0 to len(dyn) - 1 do
+    assert length(dyn) = DynamicEntries + length(needed)
+    for i := 0 to length(dyn) - 1 do
         putInt(var out, lay.dynamic + 16 * i, dyn[i].first, n: 8)
         putInt(var out, lay.dynamic + 16 * i + 8, dyn[i].second, n: 8)
     return out

@@ -5,7 +5,7 @@ program Frames
 
 uses IO, OS, Strings
 
-if len(args()) > 0 and args()[0] = "unframe" then
+if length(args()) > 0 and args()[0] = "unframe" then
     var length := -1
     while true do
         case readln() of

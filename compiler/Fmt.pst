@@ -97,7 +97,7 @@ function atomsOf(ts: List[Token]): List[Atom]
     var atoms: List[Atom] := []
     var opened: List[Integer] := []
     var i := 0
-    while i < len(ts) do
+    while i < length(ts) do
         let t := ts[i]
         var kind := t.kind
         var text := t.text
@@ -138,7 +138,7 @@ function atomsOf(ts: List[Token]): List[Atom]
             text := join(parts)
             i := j
         let sign := kind = TokenKind.Minus or kind = TokenKind.Plus
-        let unary := sign and (len(atoms) = 0 or not isOperand(atoms[len(atoms) - 1].kind))
+        let unary := sign and (length(atoms) = 0 or not isOperand(atoms[length(atoms) - 1].kind))
         add(var atoms, Atom(
             kind: kind,
             text: text,
@@ -153,11 +153,11 @@ function atomsOf(ts: List[Token]): List[Atom]
             before: [],
             after: "",
         ))
-        let n := len(atoms) - 1
+        let n := length(atoms) - 1
         if isOpener(kind) then
             add(var opened, n)
-        else if isCloser(kind) and len(opened) > 0 then
-            let o := opened[len(opened) - 1]
+        else if isCloser(kind) and length(opened) > 0 then
+            let o := opened[length(opened) - 1]
             removeLast(var opened)
             atoms[o].close := n
             atoms[n].open := o
@@ -167,7 +167,7 @@ function atomsOf(ts: List[Token]): List[Atom]
 ## Attaches comment `c`, inside the logical line of `atoms` or after it, to an atom.
 procedure attach(var atoms: List[Atom], c: Comment)
     var k := 0
-    while k < len(atoms) and atoms[k].start < c.span.start do
+    while k < length(atoms) and atoms[k].start < c.span.start do
         k := k + 1
     if atoms[k - 1].endLine = c.span.line then
         atoms[k - 1].after := c.text
@@ -196,14 +196,14 @@ function itemsOf(r: LexResult): List[Item]
         else if t.kind = TokenKind.Dedent then
             depth := depth - 1
         else if t.kind = TokenKind.Newline or t.kind = TokenKind.Eof then
-            if len(line) > 0 then
+            if length(line) > 0 then
                 var atoms := atomsOf(line)
                 let first := atoms[0]
-                let last := atoms[len(atoms) - 1]
-                while ci < len(r.comments) and r.comments[ci].span.start < first.start do
+                let last := atoms[length(atoms) - 1]
+                while ci < length(r.comments) and r.comments[ci].span.start < first.start do
                     add(var items, commentItem(r.comments[ci]))
                     ci := ci + 1
-                while ci < len(r.comments) and (
+                while ci < length(r.comments) and (
                     r.comments[ci].span.start < last.stop
                     or r.comments[ci].span.line = last.endLine
                 ) do
@@ -220,20 +220,20 @@ function itemsOf(r: LexResult): List[Item]
                 line := []
         else
             add(var line, t)
-    while ci < len(r.comments) do
+    while ci < length(r.comments) do
         add(var items, commentItem(r.comments[ci]))
         ci := ci + 1
     # A comment is indented like the next line, or deeper, up to the previous line, if it
     # is indented more than the next line.
     var next := 0
-    for i := len(items) - 1 downto 0 do
-        if len(items[i].atoms) > 0 then
+    for i := length(items) - 1 downto 0 do
+        if length(items[i].atoms) > 0 then
             next := items[i].depth
         else
             items[i].depth := next
     var prev := 0
-    for i := 0 to len(items) - 1 do
-        if len(items[i].atoms) > 0 then
+    for i := 0 to length(items) - 1 do
+        if length(items[i].atoms) > 0 then
             prev := items[i].depth
         else
             var own := (items[i].col - 1) div 4
@@ -245,21 +245,21 @@ function itemsOf(r: LexResult): List[Item]
 
 ## Whether `it` is a line with only `else`.
 function isBareElse(it: Item): Boolean
-    return len(it.atoms) = 1 and it.atoms[0].kind = TokenKind.KwElse and it.atoms[0].after = ""
+    return length(it.atoms) = 1 and it.atoms[0].kind = TokenKind.KwElse and it.atoms[0].after = ""
 
 ## Rewrites an `else` whose block is a single `if` statement to `else if` (SPEC §6).
 procedure elseIfs(var items: List[Item])
     var i := 0
-    while i < len(items) do
-        if isBareElse(items[i]) and i + 1 < len(items) then
+    while i < length(items) do
+        if isBareElse(items[i]) and i + 1 < length(items) then
             let d := items[i].depth
             let j := i + 1
             let atoms := items[j].atoms
-            if len(atoms) > 0 and items[j].depth = d + 1 and atoms[0].kind = TokenKind.KwIf then
+            if length(atoms) > 0 and items[j].depth = d + 1 and atoms[0].kind = TokenKind.KwIf then
                 var k := j + 1
                 var single := true
-                while k < len(items) and items[k].depth > d do
-                    let inChain := len(items[k].atoms) = 0 or items[k].depth > d + 1
+                while k < length(items) and items[k].depth > d do
+                    let inChain := length(items[k].atoms) = 0 or items[k].depth > d + 1
                     if not inChain and items[k].atoms[0].kind <> TokenKind.KwElse then
                         single := false
                     k := k + 1
@@ -326,7 +326,7 @@ function flatWidth(atoms: List[Atom], from: Integer, stop: Integer): Integer
 ## The atoms on one line.
 function flatText(atoms: List[Atom]): String
     var parts: List[String] := []
-    for k := 0 to len(atoms) - 1 do
+    for k := 0 to length(atoms) - 1 do
         if k > 0 and spaced(atoms[k - 1].kind, unary: atoms[k - 1].unary, b: atoms[k].kind) then
             add(var parts, " ")
         add(var parts, atoms[k].text)
@@ -339,14 +339,14 @@ function flatText(atoms: List[Atom]): String
 function forced(atoms: List[Atom], o: Integer): Boolean
     let c := atoms[o].close
     let logical := isParenExpr(atoms, o) and hasLogical(atoms, o)
-    if atoms[o].after <> "" or len(atoms[c].before) > 0 then
+    if atoms[o].after <> "" or length(atoms[c].before) > 0 then
         return true
     if c - 1 > o and atoms[c - 1].kind = TokenKind.Comma then
         return true
     var k := o + 1
     while k < c do
         let a := atoms[k]
-        if len(a.before) > 0 then
+        if length(a.before) > 0 then
             return true
         if a.close >= 0 then
             if (a.explode and (logical or a.close <> c - 1)) or atoms[a.close].after <> "" then
@@ -360,7 +360,7 @@ function forced(atoms: List[Atom], o: Integer): Boolean
 
 ## Marks the groups of a logical line that `forced` breaks, innermost first.
 procedure markForced(var atoms: List[Atom])
-    for o := len(atoms) - 1 downto 0 do
+    for o := length(atoms) - 1 downto 0 do
         if atoms[o].close >= 0 then
             atoms[o].explode := forced(atoms, o)
 
@@ -463,7 +463,7 @@ procedure emit(var w: Writer, a: Atom)
     let deeper := w.depth + 1
     if w.pending <> "" and a.kind <> TokenKind.Comma then
         newline(var w, deeper)
-    if len(a.before) > 0 then
+    if length(a.before) > 0 then
         if not w.empty then
             newline(var w, deeper)
         let d := w.depth
@@ -592,21 +592,21 @@ function render(items: List[Item]): String
         prevUnary: false,
         pending: "",
     )
-    for i := 0 to len(items) - 1 do
+    for i := 0 to length(items) - 1 do
         let it := items[i]
         if i > 0 then
             let p := items[i - 1]
             if it.first - p.last > 1 and it.depth <= p.depth then
                 add(var w.lines, "")
         newline(var w, it.depth)
-        if len(it.atoms) = 0 then
+        if length(it.atoms) = 0 then
             put(var w, it.comment)
         else
             var atoms := it.atoms
             markForced(var atoms)
-            decide(var atoms, 0, stop: len(atoms), budget: Width - 4 * it.depth)
-            renderSeq(var w, var atoms, 0, stop: len(atoms), depth: it.depth)
+            decide(var atoms, 0, stop: length(atoms), budget: Width - 4 * it.depth)
+            renderSeq(var w, var atoms, 0, stop: length(atoms), depth: it.depth)
         newline(var w, 0)
-    if len(w.lines) = 0 then
+    if length(w.lines) = 0 then
         return ""
     return "{join(w.lines, sep: "\n")}\n"

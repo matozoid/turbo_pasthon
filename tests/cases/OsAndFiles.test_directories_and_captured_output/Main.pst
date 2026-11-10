@@ -9,7 +9,7 @@ case listDir("dir") of
     Ok(names):
         var sorted := names.value
         sort(var sorted)
-        writeln(len(sorted))
+        writeln(length(sorted))
         for n in sorted do
             writeln(n)
     Err(e):

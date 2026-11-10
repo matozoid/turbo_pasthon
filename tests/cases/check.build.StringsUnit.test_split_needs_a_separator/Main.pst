@@ -2,4 +2,4 @@ program Main
 
 uses IO, Strings
 
-writeln(len(split("abc", sep: "")))
+writeln(length(split("abc", sep: "")))

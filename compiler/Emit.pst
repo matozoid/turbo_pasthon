@@ -349,7 +349,7 @@ function slotEntry(slot: Integer): Entry
     return Entry(slot: slot, deferred: None)
 
 procedure own(g: ref Em, slot: Integer)
-    let n := len(g.f.scopes)
+    let n := length(g.f.scopes)
     add(var g.f.scopes[n - 1], slotEntry(slot))
 
 procedure ownParam(g: ref Em, slot: Integer)
@@ -524,7 +524,7 @@ function symType(g: ref Em, sym: ref Symbol): Type
 function refSym(g: ref Em, span: Span): Option[ref Symbol]
     case lookup(g.index, g.f.file, span) of
         Some(r):
-            if len(r.value.targets) = 1 then
+            if length(r.value.targets) = 1 then
                 return Some(r.value.targets[0])
             return None
         None:
@@ -661,8 +661,8 @@ function fields(g: ref Em, t: Type): List[FieldT]
     let d := decl(g.env, namedSym(t).get())
     var s: Subst := {}
     let targs := argsOf(t)
-    for i := 0 to len(d.params) - 1 do
-        if i < len(targs) then
+    for i := 0 to length(d.params) - 1 do
+        if i < length(targs) then
             s[d.params[i].id] := targs[i]
     var out: List[FieldT] := []
     for f in d.fields do
@@ -677,7 +677,7 @@ function fieldTypes(g: ref Em, t: Type): List[Type]
 
 function fieldIndex(g: ref Em, t: Type, name: String): Integer
     let fs := fields(g, t)
-    for i := 0 to len(fs) - 1 do
+    for i := 0 to length(fs) - 1 do
         if fs[i].name = name then
             return i
     return 0
@@ -708,9 +708,9 @@ function descriptorOf(
 ): String
     if not (k in g.descs) then
         var bs: List[Byte] := []
-        word(var bs, len(kinds))
-        word(var bs, Fields + 8 * len(kinds))
-        word(var bs, len(g.descs))
+        word(var bs, length(kinds))
+        word(var bs, Fields + 8 * length(kinds))
+        word(var bs, length(g.descs))
         word(var bs, 0)
         word(var bs, 0)
         word(var bs, 0)
@@ -760,7 +760,7 @@ function listDesc(g: ref Em, t: Type): String
         var bs: List[Byte] := []
         word(var bs, ListCount)
         word(var bs, Elems)
-        word(var bs, len(g.descs))
+        word(var bs, length(g.descs))
         word(var bs, 0)
         word(var bs, 0)
         word(var bs, 0)
@@ -855,7 +855,7 @@ procedure inRange(g: ref Em, t: Type, span: Span)
 procedure wrap(g: ref Em, have, want: Type, span: Span)
     let vs := variants(g.env, want)
     var i := -1
-    for j := 0 to len(vs) - 1 do
+    for j := 0 to length(vs) - 1 do
         if i < 0 and vs[j] = have then
             i := j
     if i < 0 then
@@ -930,7 +930,7 @@ function literal(g: ref Em, t: String): String
     var block: List[Byte] := []
     word(var block, -1)
     word(var block, 0)
-    word(var block, len(bs))
+    word(var block, length(bs))
     word(var block, charCount(t))
     for b in bs do
         add(var block, b)
@@ -958,7 +958,7 @@ procedure drop(g: ref Em, n: Integer)
 procedure save(g: ref Em, t: Type)
     push(g.a, Rax)
     if managed(g, t) then
-        g.a.stack[len(g.a.stack) - 1] := true
+        g.a.stack[length(g.a.stack) - 1] := true
 
 ## Leaves the blocks above `depth`, innermost first: releases their variables and runs
 ## their `defer` statements, in reverse order. Keeps rax.
@@ -966,9 +966,9 @@ procedure releaseScopes(g: ref Em, depth: Integer)
     var keep: Map[Integer, Boolean] := {}
     for _, slot in g.f.keep do
         keep[slot] := true
-    for i := len(g.f.scopes) - 1 downto depth do
+    for i := length(g.f.scopes) - 1 downto depth do
         let scope := g.f.scopes[i]
-        for j := len(scope) - 1 downto 0 do
+        for j := length(scope) - 1 downto 0 do
             let entry := scope[j]
             case entry.deferred of
                 Some(d):
@@ -1148,43 +1148,43 @@ function run(g: ref Em): Built
     xor32(a, Rdi, Rdi)
     exitProgram(g)
     patch32(a, sizeAt, value: align(g.f.size, 16))
-    while len(g.queue) > 0 or len(g.lams) > 0 do
-        if len(g.lams) > 0 then
-            let lm := g.lams[len(g.lams) - 1]
+    while length(g.queue) > 0 or length(g.lams) > 0 do
+        if length(g.lams) > 0 then
+            let lm := g.lams[length(g.lams) - 1]
             removeLast(var g.lams)
             lambdaRoutine(g, lm)
             continue
-        let inst := g.queue[len(g.queue) - 1]
+        let inst := g.queue[length(g.queue) - 1]
         removeLast(var g.queue)
         routine(g, inst)
     a.tracked := false
     for lk in g.lookups do
         lookup(g, lk)
     var i := 0
-    while i < len(g.thunks) do
+    while i < length(g.thunks) do
         thunk(g, g.thunks[i])
         i := i + 1
     i := 0
-    while i < len(g.drops) do
+    while i < length(g.drops) do
         boxDrop(g, g.drops[i])
         i := i + 1
     for p in g.panics do
         label(a, p.label)
         leaData(a, Rsi, label: data(a, p.message))
-        movImm(a, Rdx, value: len(p.message))
+        movImm(a, Rdx, value: length(p.message))
         jmp(a, runtime(g, "rt_panic"))
     emitRuntime(g)
-    if len(g.diagnostics) > 0 then
+    if length(g.diagnostics) > 0 then
         return Built(executable: None, diagnostics: g.diagnostics)
-    let got := gotOffset(len(a.code), len(a.rodata), a.imports, needed: g.needed)
-    finish(a, rodataOffset(len(a.code)), gotOffset: got)
+    let got := gotOffset(length(a.code), length(a.rodata), a.imports, needed: g.needed)
+    finish(a, rodataOffset(length(a.code)), gotOffset: got)
     let exe := executable(
         a.code,
         a.rodata,
         a.labels["_start"],
         a.imports,
         needed: g.needed,
-        globals: len(a.globals),
+        globals: length(a.globals),
     )
     return Built(executable: Some(exe), diagnostics: [])
 
@@ -1211,13 +1211,13 @@ procedure testBlocks(g: ref Em, file: SourceFile)
     ccall(g, "atoi")
     extend(a, Rax, bits: 32, signed: true)
     var labels: List[String] := []
-    for i := 0 to len(tests) - 1 do
+    for i := 0 to length(tests) - 1 do
         add(var labels, newLabel(a, "test"))
-    for i := 0 to len(tests) - 1 do
+    for i := 0 to length(tests) - 1 do
         cmpImm(a, Rax, value: i)
         jcc(a, "e", label: labels[i])
     jmp(a, g.f.exit)
-    for i := 0 to len(tests) - 1 do
+    for i := 0 to length(tests) - 1 do
         label(a, labels[i])
         keepAliveBlock(g, tests[i].body)
         block(g, tests[i].body)
@@ -1235,7 +1235,7 @@ function labelOf(
     let k := "{sym.id}|{typesKey(targs)}"
     if not (k in g.labels) then
         var depth := g.f.depth
-        if len(targs) > 0 then
+        if length(targs) > 0 then
             depth := depth + 1
         if depth > MaxDepth then
             add(var g.diagnostics, Diagnostic(
@@ -1249,9 +1249,9 @@ function labelOf(
             g.bad := true
             return "?"
         var name := sym.name
-        if len(targs) > 0 then
+        if length(targs) > 0 then
             name := "{sym.name}[{showTypes(targs)}]"
-        g.labels[k] := "{sym.unitName}.{name}#{len(g.labels)}"
+        g.labels[k] := "{sym.unitName}.{name}#{length(g.labels)}"
         add(var g.queue, Inst(sym: sym, targs: targs, sites: sites, depth: depth))
     return g.labels[k]
 
@@ -1267,8 +1267,8 @@ procedure routineOf(g: ref Em, inst: Inst, node: Routine)
     let sym := inst.sym
     let sg := sig(g.env, sym)
     var s: Subst := {}
-    for i := 0 to len(sg.tparams) - 1 do
-        if i < len(inst.targs) then
+    for i := 0 to length(sg.tparams) - 1 do
+        if i < length(inst.targs) then
             s[sg.tparams[i].id] := inst.targs[i]
     let f := newFrame(sym.file, Some(sym), exit: newLabel(a, "ret"))
     f.s := s
@@ -1299,7 +1299,7 @@ procedure routineBody(g: ref Em, node: Routine, sg: Sig)
         keepAliveExpr(g, e)
     for s in node.body.stmts do
         keepAliveStmt(g, s)
-    for i := 0 to len(sg.params) - 1 do
+    for i := 0 to length(sg.params) - 1 do
         let p := sg.params[i]
         if p.sym.isNone() then
             unsupported(g, node.sig.span, "this kind of parameter")
@@ -1338,7 +1338,7 @@ procedure routineBody(g: ref Em, node: Routine, sg: Sig)
                 "requires violated: {text(g, exprSpan(e))}",
                 span: exprSpan(e),
             ))
-        if len(node.post) > 0 then
+        if length(node.post) > 0 then
             f.posts := node.post
             f.resultSlot := Some(alloc(g))
             for e in node.post do
@@ -1347,7 +1347,7 @@ procedure routineBody(g: ref Em, node: Routine, sg: Sig)
                     return
     block(g, node.body)
     label(a, f.exit)
-    if len(f.posts) > 0 then
+    if length(f.posts) > 0 then
         let rs := f.resultSlot.get()
         store(a, Rbp, disp: rs, src: Rax)
         for e in f.posts do
@@ -1496,15 +1496,15 @@ procedure saveOld(g: ref Em, e: Expr)
 # --------------------------------------------------------------------- statements
 
 procedure stmts(g: ref Em, ss: List[Stmt])
-    let depth := len(g.a.stack)
+    let depth := length(g.a.stack)
     for s in ss do
         stmt(g, s)
         if g.bad then
-            while len(g.a.stack) > depth do
+            while length(g.a.stack) > depth do
                 removeLast(var g.a.stack)
             g.bad := false
         else
-            assert len(g.a.stack) = depth, "unbalanced pushes"
+            assert length(g.a.stack) = depth, "unbalanced pushes"
 
 ## Compiles a block; its variables are released at its end.
 procedure block(g: ref Em, body: ArmBody)
@@ -1514,7 +1514,7 @@ procedure block(g: ref Em, body: ArmBody)
             stmts(g, b.stmts)
         Stmt(s):
             stmts(g, [s])
-    releaseScopes(g, len(g.f.scopes) - 1)
+    releaseScopes(g, length(g.f.scopes) - 1)
     if g.bad then
         return
     removeLast(var g.f.scopes)
@@ -1573,7 +1573,7 @@ procedure stmtHere(g: ref Em, s: Stmt)
                     pass
             unsupported(g, x.span, "this statement")
         Defer(x):  # runs when its block is left (releaseScopes)
-            let n := len(g.f.scopes)
+            let n := length(g.f.scopes)
             add(var g.f.scopes[n - 1], Entry(slot: 0, deferred: Some(x)))
         If(x):
             let fin := newLabel(a, "fi")
@@ -1620,13 +1620,13 @@ procedure stmtHere(g: ref Em, s: Stmt)
         Case(x):
             caseOf(g, x.subject, x.arms, exprArms: [], result: noneT(), isExpr: false)
         Break(_):
-            let lp := g.f.loops[len(g.f.loops) - 1]
+            let lp := g.f.loops[length(g.f.loops) - 1]
             releaseScopes(g, lp.depth)
             if g.bad then
                 return
             jmp(a, lp.brk)
         Continue(_):
-            let lp := g.f.loops[len(g.f.loops) - 1]
+            let lp := g.f.loops[length(g.f.loops) - 1]
             releaseScopes(g, lp.depth)
             if g.bad then
                 return
@@ -1684,11 +1684,11 @@ procedure forExpr(g: ref Em, x: ForExpr, t: Type)
     save(g, t)
     let fin := newLabel(a, "fend")
     add(var g.f.fors, ForT(
-        stackAt: len(a.stack),
+        stackAt: length(a.stack),
         add: adder,
         elem: arg0(t),
         brk: fin,
-        depth: len(g.f.scopes),
+        depth: length(g.f.scopes),
     ))
     stmt(g, x.loop)
     if g.bad then
@@ -1700,14 +1700,14 @@ procedure forExpr(g: ref Em, x: ForExpr, t: Type)
 ## Adds a value to the list of the innermost `for` expression, or ends it (`break`).
 procedure forValue(g: ref Em, x: ForValue)
     let a := g.a
-    let ft := g.f.fors[len(g.f.fors) - 1]
+    let ft := g.f.fors[length(g.f.fors) - 1]
     case x.value of
         Some(v):
             coerce(g, v.value, ft.elem)
             if g.bad then
                 return
             mov(a, Rsi, Rax)
-            lea(a, Rdi, Rsp, disp: 8 * (len(a.stack) - ft.stackAt))
+            lea(a, Rdi, Rsp, disp: 8 * (length(a.stack) - ft.stackAt))
             call(a, ft.add)
         None:
             releaseScopes(g, ft.depth)
@@ -1716,7 +1716,7 @@ procedure forValue(g: ref Em, x: ForValue)
             jmp(a, ft.brk)
 
 procedure loop(g: ref Em, body: Block, brk, cont: String)
-    add(var g.f.loops, LoopT(brk: brk, cont: cont, depth: len(g.f.scopes)))
+    add(var g.f.loops, LoopT(brk: brk, cont: cont, depth: length(g.f.scopes)))
     block(g, body)
     if g.bad then
         return
@@ -1728,7 +1728,7 @@ procedure repeatStmt(g: ref Em, s: Repeat)
     let a := g.a
     let top := newLabel(a, "repeat")
     let fin := newLabel(a, "rend")
-    let depth := len(g.f.scopes)
+    let depth := length(g.f.scopes)
     label(a, top)
     add(var g.f.scopes, [])
     add(var g.f.loops, LoopT(brk: fin, cont: fin, depth: depth))
@@ -1807,7 +1807,7 @@ procedure forRange(g: ref Em, s: ForRange)
 procedure forIn(g: ref Em, s: ForIn)
     let a := g.a
     let t := typeOfExpr(g, s.iterable)
-    if len(s.vars) <> 1 then
+    if length(s.vars) <> 1 then
         forIterator(g, s, t)
         return
     case t of
@@ -1820,7 +1820,7 @@ procedure forIn(g: ref Em, s: ForIn)
         forIterator(g, s, t)
         return
     let mg := managed(g, arg0(t))
-    let depth := len(g.f.scopes)
+    let depth := length(g.f.scopes)
     add(var g.f.scopes, [])
     expr(g, s.iterable)
     if g.bad then
@@ -1877,7 +1877,7 @@ procedure forEnum(g: ref Em, s: ForIn, t: Type)
     storeImm(a, Rbp, disp: v, value: 0)
     label(a, top)
     load(a, Rax, Rbp, disp: v)
-    cmpImm(a, Rax, value: len(decl(g.env, namedSym(t).get()).members))
+    cmpImm(a, Rax, value: length(decl(g.env, namedSym(t).get()).members))
     jcc(a, "ge", label: fin)
     loop(g, s.body, fin, cont: cont)
     if g.bad then
@@ -1909,7 +1909,7 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
     let chk := g.env.checkers[site]
     var itT := t
     var make := ""
-    let pair := len(s.vars) = 2
+    let pair := length(s.vars) = 2
     var item: Option[Type] := None
     if not pair then
         item := iteratorItem(chk, t)
@@ -1925,7 +1925,7 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
                 var vars: Vars := {}
                 for tp in fs.tparams do
                     vars[tp.id] := true
-                if len(fs.params) = 1 and isRoutineNode(f) and unify(
+                if length(fs.params) = 1 and isRoutineNode(f) and unify(
                     fs.params[0].ty,
                     t,
                     var sf,
@@ -1946,7 +1946,7 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
                         chosen := true
     let tr := decl(g.env, sys(g.env, "Iterator").get())
     var member := tr.routines[0]
-    for i := len(tr.routines) - 1 downto 0 do
+    for i := length(tr.routines) - 1 downto 0 do
         if tr.routines[i].name = "next" then
             member := tr.routines[i]
     var found: Option[Found] := None
@@ -1973,7 +1973,7 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
     let vs := variants(g.env, option)
     let noneHead := "#{sys(g.env, "None").get().id}"
     var none := 0
-    for i := len(vs) - 1 downto 0 do
+    for i := length(vs) - 1 downto 0 do
         if head(vs[i]) = noneHead then
             none := i
     if pair and make = "" then
@@ -1984,10 +1984,10 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
         bound := []
         let fs := fields(g, item.get())
         var i := 0
-        while i < len(s.vars) and i < len(fs) do
+        while i < length(s.vars) and i < length(fs) do
             add(var bound, Bound(name: s.vars[i], offset: Fields + 8 * i, ty: fs[i].ty))
             i := i + 1
-    let depth := len(g.f.scopes)
+    let depth := length(g.f.scopes)
     add(var g.f.scopes, [])
     expr(g, s.iterable)
     if g.bad then
@@ -2018,7 +2018,7 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
     push(a, Rax)
     load(a, Rax, Rax, disp: Fields)  # the Some
     load(a, Rcx, Rax, disp: Fields)  # its value
-    for i := 0 to len(bound) - 1 do
+    for i := 0 to length(bound) - 1 do
         let b := bound[i]
         if b.offset <> 0 then
             load(a, Rax, Rcx, disp: b.offset)
@@ -2054,7 +2054,7 @@ procedure caseOf(
 )
     let a := g.a
     let t := typeOfExpr(g, subject)
-    let depth := len(g.f.scopes)
+    let depth := length(g.f.scopes)
     add(var g.f.scopes, [])
     expr(g, subject)
     if g.bad then
@@ -2064,7 +2064,7 @@ procedure caseOf(
     if managed(g, t) then
         own(g, slot)
     let fin := newLabel(a, "esac")
-    let n := len(stmtArms) + len(exprArms)
+    let n := length(stmtArms) + length(exprArms)
     for ai := 0 to n - 1 do
         var labels: List[Label] := []
         if isExpr then
@@ -2077,7 +2077,7 @@ procedure caseOf(
             caseLabel(g, t, slot, lb, target: body)
             if g.bad then
                 return
-        if len(labels) > 0 then
+        if length(labels) > 0 then
             jmp(a, nxt)
         label(a, body)
         add(var g.f.scopes, [])
@@ -2089,7 +2089,7 @@ procedure caseOf(
                         add(var bound, vl)
                 else:
                     pass
-        if len(bound) > 0 then  # alone in its arm (E0603)
+        if length(bound) > 0 then  # alone in its arm (E0603)
             load(a, Rax, Rbp, disp: slot)
             load(a, Rax, Rax, disp: Fields)
             let bt := subT(g, symType(g, refSym(g, bound[0].binding.span).get()))
@@ -2109,7 +2109,7 @@ procedure caseOf(
                     stmts(g, bb.stmts)
                 Stmt(st):
                     stmts(g, [st])
-        releaseScopes(g, len(g.f.scopes) - 1)  # keeps rax
+        releaseScopes(g, length(g.f.scopes) - 1)  # keeps rax
         if g.bad then
             return
         removeLast(var g.f.scopes)
@@ -2138,7 +2138,7 @@ procedure caseLabel(g: ref Em, t: Type, slot: Integer, lb: Label, target: String
         case lb of
             VariantLabel(v):
                 span := v.variant.span
-                let n := len(v.variant.partSpans)
+                let n := length(v.variant.partSpans)
                 if n > 0 then
                     span := v.variant.partSpans[n - 1]
             ValueLabel(v):
@@ -2165,7 +2165,7 @@ procedure caseLabel(g: ref Em, t: Type, slot: Integer, lb: Label, target: String
         let vs := variants(g.env, t)
         var i := -1
         if h <> "" then
-            for j := 0 to len(vs) - 1 do
+            for j := 0 to length(vs) - 1 do
                 if i < 0 and head(vs[j]) = h then
                     i := j
         if i < 0 then
@@ -2505,7 +2505,7 @@ function sseWords(g: ref Em, t: Type, span: Span): List[Boolean]
         any[w] := true
         if not isRealT(f.ty) then
             sse[w] := false
-    for w := 0 to len(sse) - 1 do
+    for w := 0 to length(sse) - 1 do
         if not any[w] then
             sse[w] := false
     return sse
@@ -2738,9 +2738,9 @@ procedure eListLit(g: ref Em, x: ListLit, e: Expr)
             return
         save(g, arg0(t))
     leaData(a, Rdi, label: listDesc(g, t))
-    movImm(a, Rsi, value: len(x.items))
+    movImm(a, Rsi, value: length(x.items))
     callRuntime(g, "rt_list_new")
-    for i := len(x.items) - 1 downto 0 do
+    for i := length(x.items) - 1 downto 0 do
         pop(a, Rcx)
         store(a, Rax, disp: Elems + 8 * i, src: Rcx)
 
@@ -2897,7 +2897,7 @@ procedure loadSym(g: ref Em, sym: ref Symbol, e: Expr)
         newBlock(g, descriptor(g, key(t), [], name: show(t)))
         return
     if isRoutine(sym.kind) then
-        if not isRoutineNode(sym) or len(sig(g.env, sym).tparams) > 0 then
+        if not isRoutineNode(sym) or length(sig(g.env, sym).tparams) > 0 then
             unsupported(g, span, "{describe(sym)} as a value")
             return
         routineValue(g, labelOf(g, span, sym, [], sites: {}), t)
@@ -2937,7 +2937,7 @@ function closureOf(g: ref Em, target: String): String
         word(var bs, -1)
         word(var bs, 0)
         word(var bs, 0)
-        word(var bs, len(g.labels))  # keeps the block apart from equal ones
+        word(var bs, length(g.labels))  # keeps the block apart from equal ones
         let lbl := data(g.a, bs, align: 8)
         codeRef(g.a, lbl, offset: Fields, label: target)
         g.labels[k] := lbl
@@ -2960,7 +2960,7 @@ procedure lambdaValue(g: ref Em, x: Lambda, t: Type)
         sites: g.f.sites,
         depth: g.f.depth,
     ))
-    if len(caps) = 0 then
+    if length(caps) = 0 then
         routineValue(g, lbl, t)
         return
     var parts := [integerT()]
@@ -2970,7 +2970,7 @@ procedure lambdaValue(g: ref Em, x: Lambda, t: Type)
     leaCode(a, R11, label: lbl)
     sub(a, R11, Rax)
     store(a, Rax, disp: Fields, src: R11)
-    for i := 0 to len(caps) - 1 do
+    for i := 0 to length(caps) - 1 do
         push(a, Rax)
         load(a, Rax, Rbp, disp: g.f.slots[caps[i].id])
         if isVarParam(g, caps[i]) then
@@ -3029,7 +3029,7 @@ procedure lambdaRoutine(g: ref Em, lm: Lam)
         else:
             pass
     keepAliveExpr(g, lm.node.body)
-    for i := 0 to len(lm.node.params) - 1 do
+    for i := 0 to length(lm.node.params) - 1 do
         let t := params[i]
         valueType(g, t, lm.node.params[i].span, what: "parameter '{lm.node.params[i].name}'")
         if g.bad then
@@ -3043,7 +3043,7 @@ procedure lambdaRoutine(g: ref Em, lm: Lam)
         if managed(g, t) then
             ownParam(g, slot)
     if not g.bad then
-        for i := 0 to len(lm.captures) - 1 do
+        for i := 0 to length(lm.captures) - 1 do
             let c := lm.captures[i]
             let slot := alloc(g)
             f.slots[c.id] := slot
@@ -3161,7 +3161,7 @@ procedure tryOf(g: ref Em, x: Unary, e: Expr)
     load(a, Rax, Rax, disp: Fields)  # the Err or None
     retain(g)
     release(g, Rdi)
-    let n := len(a.stack)
+    let n := length(a.stack)
     for i := 0 to n - 1 do
         if a.stack[n - 1 - i] then
             load(a, Rdi, Rsp, disp: 8 * i)
@@ -3471,9 +3471,9 @@ procedure stringOf(g: ref Em, parts: List[InterpPart])
                     return
         save(g, stringT())
     mov(a, Rdi, Rsp)
-    lea(a, Rsi, Rsp, disp: 8 * len(parts))
+    lea(a, Rsi, Rsp, disp: 8 * length(parts))
     callRuntime(g, "rt_concat")
-    addImm(a, Rsp, value: 8 * len(parts))
+    addImm(a, Rsp, value: 8 * length(parts))
 
 ## `\{x:width}` or `\{x:width:decimals}`: the value as text, a real with `decimals` digits
 ## after the point, padded by `System.justify` to `width`; into rax.
@@ -3601,7 +3601,7 @@ procedure callExpr(g: ref Em, c: Call)
             return
         widen(g, typeOfExpr(g, c))  # truncates to a smaller integer type
         return
-    if mo.isNone() and len(c.args) = 1 then
+    if mo.isNone() and length(c.args) = 1 then
         case refSym(g, calleeSpan(c.callee)) of
             Some(sym):
                 if sym.value.kind = Kind.TypeSym or sym.value.kind = Kind.BuiltinType then
@@ -3644,7 +3644,7 @@ procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
     let a := g.a
     var copies: List[Copy] := []
     var pushed: List[Integer] := []
-    for i := 0 to len(m.params) - 1 do
+    for i := 0 to length(m.params) - 1 do
         let p := m.params[i]
         let slot := m.slots[i]
         if not p.isVar or slot.isNone() then
@@ -3653,7 +3653,7 @@ procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
                 return
             save(g, subT(g, subst(p.ty, m.s)))
             add(var pushed, i)
-    for i := 0 to len(m.params) - 1 do
+    for i := 0 to length(m.params) - 1 do
         let slot := m.slots[i]
         if not m.params[i].isVar or slot.isNone() then
             continue
@@ -3665,7 +3665,7 @@ procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
             push(a, Rax)
         else
             var others: List[Expr] := []
-            for j := 0 to len(m.slots) - 1 do
+            for j := 0 to length(m.slots) - 1 do
                 if j <> i and m.params[j].isVar and m.slots[j].isSome() then
                     add(var others, slotExpr(m.slots[j]))
             var types: List[Type] := []
@@ -3695,7 +3695,7 @@ procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
     call(a, target)
     if words > 0 then
         addImm(a, Rsp, value: 8 * words)
-    if len(copies) > 0 then
+    if length(copies) > 0 then
         push(a, Rax)
         for cp in copies do
             address(g, cp.place)
@@ -3715,7 +3715,7 @@ procedure callValue(g: ref Em, c: Call, m: Match)
         return
     save(g, typeOfExpr(g, c.callee))
     var pushed: List[Integer] := []
-    for i := 0 to len(m.params) - 1 do
+    for i := 0 to length(m.params) - 1 do
         let p := m.params[i]
         argument(g, p, m.slots[i], m, file: g.f.file)
         if g.bad then
@@ -3736,7 +3736,7 @@ procedure callValue(g: ref Em, c: Call, m: Match)
 ## seventh on top. Returns the words left on the stack, to drop after the call.
 function placeArgs(g: ref Em, pushed: List[Integer]): Integer
     let a := g.a
-    let n := len(pushed)
+    let n := length(pushed)
     if n <= 6 then
         for k := n - 1 downto 0 do
             pop(a, argReg(pushed[k]))
@@ -3850,7 +3850,7 @@ function movable(g: ref Em, place: Expr, others: List[Expr], types: List[Type]):
     if sym.isNone() then
         return false
     let boxes := boxesOf(g, place)
-    if len(boxes) > 0 then
+    if length(boxes) > 0 then
         var seen: Map[String, Boolean] := {}
         for t in types do
             if reaches(g, t, boxes, seen: var seen) then
@@ -3930,11 +3930,11 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
         if g.bad then
             return
         push(a, Rax)
-        a.stack[len(a.stack) - 1] := true
+        a.stack[length(a.stack) - 1] := true
         lea(a, Rax, Rax, disp: Fields)
         push(a, Rax)
         add(var args, CArgT(ty: integerT(), byValue: false))
-    for i := 0 to len(m.params) - 1 do
+    for i := 0 to length(m.params) - 1 do
         let p := m.params[i]
         if p.varargs then
             continue
@@ -3955,7 +3955,7 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
         push(a, Rax)
         let byValue := isCRecord(g, t) and not p.isVar
         if byValue then  # released after the call
-            a.stack[len(a.stack) - 1] := true
+            a.stack[length(a.stack) - 1] := true
         add(var args, CArgT(ty: t, byValue: byValue))
     for x in m.extra do
         expr(g, x.expr)
@@ -3970,7 +3970,7 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
         add(var args, CArgT(ty: t, byValue: false))
     var regs := 0
     var reals := 0
-    let n := len(args)
+    let n := length(args)
     var spill: List[CWord] := []  # what goes on the stack, in order
     for i := 0 to n - 1 do
         if isRealT(args[i].ty) then  # in the next xmm register
@@ -3996,12 +3996,12 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
             if not x then
                 ints := ints + 1
         # Over 16 bytes, or without registers for all of it, a record goes on the stack.
-        if len(sse) > 2 or regs + ints > 6 or reals + len(sse) - ints > 8 then
-            for w := 0 to len(sse) - 1 do
+        if length(sse) > 2 or regs + ints > 6 or reals + length(sse) - ints > 8 then
+            for w := 0 to length(sse) - 1 do
                 add(var spill, CWord(arg: i, word: w))
             continue
         load(a, R11, Rsp, disp: 8 * (n - 1 - i))
-        for w := 0 to len(sse) - 1 do
+        for w := 0 to length(sse) - 1 do
             if sse[w] then
                 load(a, Rax, R11, disp: Fields + 8 * w)
                 movqToXmm(a, reals, r: Rax)
@@ -4025,7 +4025,7 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
         var ints := 0
         var xmms := 0
         var words: List[Integer] := [R8, R9]
-        for w := 0 to len(sse) - 1 do
+        for w := 0 to length(sse) - 1 do
             if sse[w] then
                 movqFromXmm(a, words[w], x: xmms)
                 xmms := xmms + 1
@@ -4062,7 +4062,7 @@ procedure callback(g: ref Em, e: Expr, t: Type)
             sym := refSym(g, calleeSpan(e))
         else:
             pass
-    if sym.isSome() and isRoutineNode(sym.get()) and len(sig(g.env, sym.get()).tparams) = 0 then
+    if sym.isSome() and isRoutineNode(sym.get()) and length(sig(g.env, sym.get()).tparams) = 0 then
         let target := labelOf(g, exprSpan(e), sym.get(), [], sites: {})
         if g.bad then
             return
@@ -4131,7 +4131,7 @@ procedure thunk(g: ref Em, th: Thunk)
     label(a, th.label)
     push(a, Rbp)
     mov(a, Rbp, Rsp)
-    let n := len(th.params)
+    let n := length(th.params)
     subImm(a, Rsp, value: align(128 + 8 * n, 16))
     for k := 0 to 5 do
         store(a, Rbp, disp: -8 - 8 * k, src: argReg(k))
@@ -4154,9 +4154,9 @@ procedure thunk(g: ref Em, th: Thunk)
             for s in sse do
                 if s then
                     wantXmms := wantXmms + 1
-            let wantInts := len(sse) - wantXmms
+            let wantInts := length(sse) - wantXmms
             if size <= 16 and ints + wantInts <= 6 and xmms + wantXmms <= 8 then
-                for w := 0 to len(sse) - 1 do
+                for w := 0 to length(sse) - 1 do
                     if sse[w] then
                         load(a, Rax, Rbp, disp: -56 - 8 * xmms)
                         xmms := xmms + 1
@@ -4166,7 +4166,7 @@ procedure thunk(g: ref Em, th: Thunk)
                     store(a, Rbp, disp: -128 + 8 * w, src: Rax)
                 from := -128
             else
-                stack := stack + 8 * len(sse)
+                stack := stack + 8 * length(sse)
             newCBlock(g, t, th.span)
             if g.bad then
                 return
@@ -4210,13 +4210,13 @@ procedure thunk(g: ref Em, th: Thunk)
         load(a, Rax, Rbp, disp: -8)
     else if isCRecord(g, th.result) then
         let sse := sseWords(g, th.result, th.span)
-        for w := 0 to len(sse) - 1 do
+        for w := 0 to length(sse) - 1 do
             load(a, R11, Rax, disp: Fields + 8 * w)
             store(a, Rbp, disp: -128 + 8 * w, src: R11)
         release(g)
         var wordInts := 0
         var wordXmms := 0
-        for w := 0 to len(sse) - 1 do
+        for w := 0 to length(sse) - 1 do
             if sse[w] then
                 load(a, R11, Rbp, disp: -128 + 8 * w)
                 movqToXmm(a, wordXmms, r: R11)
@@ -4315,7 +4315,7 @@ procedure sysCall(g: ref Em, span: Span, name: String, args: List[SysArg], targs
         if g.bad then
             return
         save(g, x.ty)
-    for i := len(args) - 1 downto 0 do
+    for i := length(args) - 1 downto 0 do
         pop(g.a, argReg(i))
     let lbl := sysLabel(g, span, name, targs)
     if g.bad then
@@ -4337,7 +4337,7 @@ procedure construct(g: ref Em, c: Call, m: Match)
     valueType(g, t, c.span)
     if g.bad then
         return
-    for i := 0 to len(m.params) - 1 do
+    for i := 0 to length(m.params) - 1 do
         let p := m.params[i]
         argument(g, p, m.slots[i], m, file: m.sig.sym.get().file)
         if g.bad then
@@ -4348,7 +4348,7 @@ procedure construct(g: ref Em, c: Call, m: Match)
         if g.bad then
             return
         let fs := cStruct(g, t, c.span).fields
-        for i := len(fs) - 1 downto 0 do
+        for i := length(fs) - 1 downto 0 do
             pop(a, Rcx)
             push(a, Rax)
             addImm(a, Rax, value: Fields + fs[i].offset)
@@ -4363,7 +4363,7 @@ procedure construct(g: ref Em, c: Call, m: Match)
         if g.bad then
             return
     newBlock(g, descriptor(g, key(t), fieldTypes(g, t), name: show(t), eq: eq))
-    for i := len(m.params) - 1 downto 0 do
+    for i := length(m.params) - 1 downto 0 do
         pop(a, Rcx)
         store(a, Rax, disp: Fields + 8 * i, src: Rcx)
 
@@ -4371,7 +4371,7 @@ procedure construct(g: ref Em, c: Call, m: Match)
 
 ## The first type argument of a call to a generic builtin, in this instance.
 function targ0(g: ref Em, m: Match): Type
-    if len(m.sig.tparams) = 0 then
+    if length(m.sig.tparams) = 0 then
         return noneT()
     return subT(g, getOr(m.s, m.sig.tparams[0].id, default: noneT()))
 
@@ -4387,7 +4387,7 @@ function writeParts(e: Expr): List[InterpPart]
             return [e]
 
 function inScope(g: ref Em, slot: Integer): Boolean
-    for en in g.f.scopes[len(g.f.scopes) - 1] do
+    for en in g.f.scopes[length(g.f.scopes) - 1] do
         if en.deferred.isNone() and en.slot = slot then
             return true
     return false
@@ -4403,7 +4403,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
     let sysU := u = "System"
     if u = "IO" and (n = "write" or n = "writeln" or n = "writeErr" or n = "writelnErr") then
         var parts: List[InterpPart] := []
-        if len(args) > 0 then
+        if length(args) > 0 then
             parts := writeParts(args[0])
         if startsWith(n, prefix: "writeln") then
             add(var parts, TextPart(text: "\n"))
@@ -4468,7 +4468,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         if not isInt(t) then
             unsupported(g, c.span, "'{n}' of {show(t)}")
             return
-        if len(args) > 1 and m.slots[1].isSome() then
+        if length(args) > 1 and m.slots[1].isSome() then
             expr(g, args[1])
             if g.bad then
                 return
@@ -4492,7 +4492,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         mov(a, Rcx, Rax)
         pop(a, Rax)
         storeAt(g, args[0], t)
-    else if sysU and (n = "length" or n = "len") and isList(typeOfExpr(g, args[0])) then
+    else if sysU and n = "length" and isList(typeOfExpr(g, args[0])) then
         expr(g, args[0])
         if g.bad then
             return
@@ -4801,7 +4801,7 @@ function runtime(g: ref Em, name: String): String
 procedure emitRuntime(g: ref Em)
     var done: Map[String, Boolean] := {}
     var n := 0
-    while n < len(g.runtime) do  # a routine may use another
+    while n < length(g.runtime) do  # a routine may use another
         let names := g.runtime
         for name in names do
             if not (name in done) then
@@ -4864,10 +4864,10 @@ procedure ccall(
     let a := g.a
     push(a, Rbp)
     mov(a, Rbp, Rsp)
-    if len(spill) > 0 then
-        subImm(a, Rsp, value: 8 * len(spill))
+    if length(spill) > 0 then
+        subImm(a, Rsp, value: 8 * length(spill))
     andImm(a, Rsp, value: -16)
-    for k := 0 to len(spill) - 1 do
+    for k := 0 to length(spill) - 1 do
         let sw := spill[k]
         load(a, R11, Rbp, disp: 8 + 8 * (args - 1 - sw.arg))
         if sw.word >= 0 then
@@ -4892,7 +4892,7 @@ procedure pushAll(a: ref Assembler, regs: List[Integer])
         push(a, r)
 
 procedure popAll(a: ref Assembler, regs: List[Integer])
-    var i := len(regs) - 1
+    var i := length(regs) - 1
     while i >= 0 do
         pop(a, regs[i])
         i := i - 1
@@ -5665,7 +5665,7 @@ procedure rtOom(g: ref Em)
     let a := g.a
     let message := utf8("panic: out of memory\n")
     leaData(a, Rsi, label: data(a, message))
-    movImm(a, Rdx, value: len(message))
+    movImm(a, Rdx, value: length(message))
     jmp(a, runtime(g, "rt_panic"))
 
 ## rax := a new string block of rdi bytes, refcount 1, NUL-terminated. The bytes and the

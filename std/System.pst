@@ -114,9 +114,6 @@ external "pst"
     ## Number of elements.
     export function length[T](xs: List[T]): Integer
     export function length[T, N: Integer](a: Array[T, N]): Integer
-    ## The old name of `length`, until the next seed release.
-    export function len[T](xs: List[T]): Integer
-    export function len[T, N: Integer](a: Array[T, N]): Integer
 
     ## Adds 1 (or `n`) to an integer or enum variable.
     export procedure inc[T](var x: T)
@@ -177,28 +174,28 @@ external "pst"
 
 ## Appends `x` to the end of `xs`.
 export procedure add[T](var xs: List[T], x: T)
-    let n := len(xs)
+    let n := length(xs)
     resize(var xs, n + 1)
     xs[n] := x
 
 ## Removes the element at `index`, moving the ones after it down.
 export procedure remove[T](var xs: List[T], index: Integer)
     _ := xs[index]  # P0001 if there is no such element
-    let n := len(xs)
+    let n := length(xs)
     for i := index to n - 2 do
         xs[i] := xs[i + 1]
     resize(var xs, n - 1)
 
 ## Removes the last element (`P0001` if there is none).
 export procedure removeLast[T](var xs: List[T])
-    let n := len(xs)
+    let n := length(xs)
     _ := xs[n - 1]  # P0001 if there is no such element
     resize(var xs, n - 1)
 
-## Inserts `x` at `index`, moving the elements from there up. `index` may be `len(xs)`,
+## Inserts `x` at `index`, moving the elements from there up. `index` may be `length(xs)`,
 ## which appends.
 export procedure insert[T](var xs: List[T], index: Integer, x: T)
-    let n := len(xs)
+    let n := length(xs)
     if index <> n then
         _ := xs[index]  # P0001 if there is no such position
     resize(var xs, n + 1)
@@ -209,7 +206,7 @@ export procedure insert[T](var xs: List[T], index: Integer, x: T)
 ## Sorts `xs` into ascending order. Equal elements keep their order. A merge sort:
 ## O(n log n) comparisons.
 export procedure sort[T: Ordered](var xs: List[T])
-    let n := len(xs)
+    let n := length(xs)
     var src := xs
     var dst := xs
     var width := 1
@@ -236,7 +233,7 @@ export procedure sort[T: Ordered](var xs: List[T])
 
 ## Sorts `xs` so that no element is `less` than one before it, as the other `sort` does.
 export procedure sort[T](var xs: List[T], less: function(T, T): Boolean)
-    let n := len(xs)
+    let n := length(xs)
     var src := xs
     var dst := xs
     var width := 1
@@ -264,7 +261,7 @@ export procedure sort[T](var xs: List[T], less: function(T, T): Boolean)
 ## Sorts `xs` by the `key` of each element, ascending, as the other `sort` does. Each
 ## key is computed once.
 export procedure sort[T, K: Ordered](var xs: List[T], key: function(T): K)
-    let n := len(xs)
+    let n := length(xs)
     var src := xs
     var dst := xs
     var srcKeys := for x in xs do key(x)
@@ -304,9 +301,9 @@ function min(a, b: Integer): Integer
 ## A new list: `a` followed by `b`.
 export function concat[T](a, b: List[T]): List[T]
     var out := a
-    let n := len(a)
-    resize(var out, n + len(b))
-    for i := 0 to len(b) - 1 do
+    let n := length(a)
+    resize(var out, n + length(b))
+    for i := 0 to length(b) - 1 do
         out[n + i] := b[i]
     return out
 
@@ -320,7 +317,7 @@ function contains[T: Equatable](x: T, xs: List[T]): Boolean
 ## The items as `[a, b]`, each by its `toString`.
 export function toString[T: Printable](xs: List[T]): String
     var s := "["
-    for i := 0 to len(xs) - 1 do
+    for i := 0 to length(xs) - 1 do
         if i > 0 then
             s := "{s}, "
         s := "{s}{xs[i]}"
@@ -343,10 +340,6 @@ export function justify(s: String, width: Integer): String
 
 ## Number of entries.
 export function length[K: Hashable, V](m: Map[K, V]): Integer
-    return m.count
-
-## The old name of `length`, until the next seed release.
-export function len[K: Hashable, V](m: Map[K, V]): Integer
     return m.count
 
 ## The value of `key`, if present.
@@ -414,9 +407,9 @@ function entryOf[K: Hashable, V](var m: Map[K, V], key: K, insert: Boolean): Int
             return s - 1
     else if not insert then
         return -1
-    if (len(m.keys) + 1) * 4 > len(m.slots) * 3 then
+    if (length(m.keys) + 1) * 4 > length(m.slots) * 3 then
         rehash(var m)
-    let e := len(m.keys)
+    let e := length(m.keys)
     add(var m.keys, key)
     add(var m.hashes, h)
     resize(var m.values, e + 1)
@@ -428,7 +421,7 @@ function entryOf[K: Hashable, V](var m: Map[K, V], key: K, insert: Boolean): Int
 ## one where probing for it stops. A removed entry's slot stays taken, so probing goes
 ## on past it; its hash (-1) matches no key's.
 function slotOf[K: Hashable, V](m: Map[K, V], key: K, h: Integer): Integer
-    let n := len(m.slots)
+    let n := length(m.slots)
     var i := h mod n
     while m.slots[i] <> 0 do
         let e := m.slots[i] - 1
@@ -443,28 +436,28 @@ procedure rehash[K: Hashable, V](var m: Map[K, V])
     var keys: List[K] := []
     var values: List[V] := []
     var hashes: List[Integer] := []
-    for e := 0 to len(m.keys) - 1 do
+    for e := 0 to length(m.keys) - 1 do
         if m.hashes[e] >= 0 then
             add(var keys, m.keys[e])
             add(var values, m.values[e])
             add(var hashes, m.hashes[e])
     var n := 8
-    while n * 3 < (len(keys) + 1) * 8 do
+    while n * 3 < (length(keys) + 1) * 8 do
         n := n * 2
     var slots: List[Integer] := []
     resize(var slots, n)  # all 0: free
-    for e := 0 to len(keys) - 1 do
+    for e := 0 to length(keys) - 1 do
         var i := hashes[e] mod n
         while slots[i] <> 0 do
             i := (i + 1) mod n
         slots[i] := e + 1
-    m := Map(keys: keys, values: values, hashes: hashes, slots: slots, count: len(keys))
+    m := Map(keys: keys, values: values, hashes: hashes, slots: slots, count: length(keys))
 
 ## `a = b`: the same keys, with equal values, in any order. Called by the runtime's `=`.
 function mapEquals[K: Hashable, V: Equatable](a, b: Map[K, V]): Boolean
     if a.count <> b.count then
         return false
-    for e := 0 to len(a.keys) - 1 do
+    for e := 0 to length(a.keys) - 1 do
         if a.hashes[e] >= 0 then
             let f := find(b, a.keys[e])
             if f < 0 or b.values[f] <> a.values[e] then
@@ -479,10 +472,6 @@ export function length[T](s: Set[T]): Integer
     for w in s.words do
         n := n + popCount(w)
     return n
-
-## The old name of `length`, until the next seed release.
-export function len[T](s: Set[T]): Integer
-    return length(s)
 
 ## Adds `x` to the set.
 export procedure add[T](var s: Set[T], x: T)
@@ -593,7 +582,7 @@ export function iter[T](xs: List[T]): ListIter[T]
     return ListIter(items: xs, pos: 0)
 
 export function next[T](var it: ListIter[T]): Option[T]
-    if it.pos >= len(it.items) then
+    if it.pos >= length(it.items) then
         return None
     let x := it.items[it.pos]
     inc(var it.pos)
@@ -603,7 +592,7 @@ export function iter[T, N: Integer](xs: Array[T, N]): ArrayIter[T, N]
     return ArrayIter(items: xs, pos: 0)
 
 export function next[T, N: Integer](var it: ArrayIter[T, N]): Option[T]
-    if it.pos >= len(it.items) then
+    if it.pos >= length(it.items) then
         return None
     let x := it.items[it.pos]
     inc(var it.pos)
@@ -626,7 +615,7 @@ export function iter[K: Hashable, V](m: Map[K, V]): KeyIter[K, V]
     return KeyIter(source: m, pos: 0)
 
 export function next[K: Hashable, V](var it: KeyIter[K, V]): Option[K]
-    while it.pos < len(it.source.keys) do
+    while it.pos < length(it.source.keys) do
         inc(var it.pos)
         if it.source.hashes[it.pos - 1] >= 0 then
             return Some(it.source.keys[it.pos - 1])
@@ -637,7 +626,7 @@ export function entries[K: Hashable, V](m: Map[K, V]): EntryIter[K, V]
     return EntryIter(source: m, pos: 0)
 
 export function next[K: Hashable, V](var it: EntryIter[K, V]): Option[Entry[K, V]]
-    while it.pos < len(it.source.keys) do
+    while it.pos < length(it.source.keys) do
         inc(var it.pos)
         let e := it.pos - 1
         if it.source.hashes[e] >= 0 then
@@ -793,26 +782,26 @@ test "sort is stable"
     var empty: List[Integer] := []
     sort(var empty)
     sort(var empty, key: tens)
-    assert len(empty) = 0
+    assert length(empty) = 0
 
 test "maps"
     var m: Map[String, Integer] := {"a": 1}
     m["b"] := 2
     m["a"] := 3
-    assert len(m) = 2
+    assert length(m) = 2
     assert get(m, "a") = Some(3)
     assert get(m, "z").isNone()
     assert getOr(m, "z", default: 7) = 7
     remove(var m, "a")
     remove(var m, "a")
-    assert len(m) = 1 and not ("a" in m)
+    assert length(m) = 1 and not ("a" in m)
 
 test "sets"
     var s: Set[Byte] := {1, 2}
     add(var s, 3)
     add(var s, 3)
     remove(var s, 1)
-    assert len(s) = 2 and 3 in s and not (1 in s)
+    assert length(s) = 2 and 3 in s and not (1 in s)
     let t: Set[Byte] := {3, 4}
     assert union(s, b: t) = {2, 3, 4}
     assert intersection(s, b: t) = {3}

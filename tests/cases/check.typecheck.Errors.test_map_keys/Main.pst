@@ -8,4 +8,4 @@ function size[K, V](m: Map[K, V]): Integer
 var m: Map[Real, Integer] := {}
 m[1.5] := 1
 let n: Map[String, Integer] := Map(keys: [])
-writeln("{len(n)} {size(n)}")
+writeln("{length(n)} {size(n)}")

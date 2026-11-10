@@ -10,6 +10,6 @@ case readln() of
     None:
         writeln("no input")
 writelnErr("to stderr")
-if len(args()) > 1 then
+if length(args()) > 1 then
     let xs := [1]
     writeln(xs[5])

@@ -149,7 +149,7 @@ export procedure add(
     targets: List[ref Symbol],
     isDef: Boolean := false,
 )
-    ix.bySpan[SpanKey(file: file, start: span.start, end: span.end)] := len(ix.refs)
+    ix.bySpan[SpanKey(file: file, start: span.start, end: span.end)] := length(ix.refs)
     add(var ix.refs, Ref(file: file, span: span, targets: targets, isDef: isDef))
 
 ## The reference recorded for exactly this span (the latest, if several).

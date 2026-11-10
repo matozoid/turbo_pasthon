@@ -15,7 +15,7 @@ let before := xs
 sort(var xs)
 for x in xs do
     write("{x} ")
-writeln(len(before))
+writeln(length(before))
 var ss := ["pear", "apple", "fig", "b"]
 sort(var ss)
 for s in ss do

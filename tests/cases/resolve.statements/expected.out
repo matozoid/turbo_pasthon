@@ -114,7 +114,7 @@ use Main.pst 39:36-39:43
 use Main.pst 39:45-39:47
   unit 'IO' @ std/IO.pst:1:6
 use Main.pst 40:12-40:15
-  function 'new' @ std/System.pst:131:21
+  function 'new' @ std/System.pst:128:21
 use Main.pst 41:14-41:21
   type 'Integer' @ std/System.pst:13:12
 use Main.pst 41:9-41:13
@@ -126,11 +126,6 @@ use Main.pst 42:1-42:8
   procedure 'writeln' @ std/IO.pst:18:22
 use Main.pst 42:9-42:11
   let 'xs' @ Main.pst:41:5
-use Main.pst 42:16-42:19
-  function 'len' @ std/System.pst:118:21
-  function 'len' @ std/System.pst:119:21
-  function 'len' @ std/System.pst:349:17
-  function 'len' @ std/System.pst:484:17
 use Main.pst 42:20-42:27
   type 'Integer' @ std/System.pst:13:12
 use Main.pst 42:29-42:31
@@ -155,4 +150,5 @@ Main.pst error E0100 39:54-39:61 "unknown name 'Strings'"
     edit 39:54-39:61 "String"
   fix "replace with 'toString'"
     edit 39:54-39:61 "toString"
+Main.pst error E0100 42:16-42:19 "unknown name 'len'"
 --- stderr

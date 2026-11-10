@@ -67,7 +67,7 @@ export function textOf(text: String): Text
         add(var offsets, at)
         add(var chars, c)
         if c = '\n' then
-            add(var starts, len(chars))
+            add(var starts, length(chars))
         at := at + utf8Size(c)
     add(var offsets, at)
     return Text(str: s, chars: chars, offsets: offsets, lineStarts: starts)
@@ -79,7 +79,7 @@ export function sub(t: Text, start: Integer, end: Integer): String
 ## The 0-based line that `offset` is on.
 function lineIndex(t: Text, offset: Integer): Integer
     var low := 0
-    var high := len(t.lineStarts)  # the line is in [low, high)
+    var high := length(t.lineStarts)  # the line is in [low, high)
     while high - low > 1 do
         let mid := (low + high) div 2
         if t.lineStarts[mid] <= offset then

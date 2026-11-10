@@ -8,15 +8,15 @@ type
 var s: Set[Color] := {Color.Red}
 add(var s, Color.Blue)
 add(var s, Color.Blue)
-writeln("{len(s)} {Color.Red in s} {Color.Green in s} {Color.Blue in s}")
+writeln("{length(s)} {Color.Red in s} {Color.Green in s} {Color.Blue in s}")
 for c in s do
     write("{c} ")
 let before := s
 remove(var s, Color.Red)
 remove(var s, Color.Green)
 let t := {Color.Green, Color.Blue}
-write("{len(before)} {len(union(s, t))} {len(intersection(s, t))} ")
-writeln("{len(difference(t, s))} {s = {Color.Blue}} {s = t}")
+write("{length(before)} {length(union(s, t))} {length(intersection(s, t))} ")
+writeln("{length(difference(t, s))} {s = {Color.Blue}} {s = t}")
 var bs: Set[Byte] := {255, 0, 64, 63}
 for b in bs do
     write("{b} ")
@@ -24,4 +24,4 @@ var ns: Set[Int8] := {127, -128, 0}
 for n in ns do
     write("{n} ")
 var none: Set[Boolean] := {}
-writeln("{len(bs)} {len(none)} {true in none} {true in {true}}")
+writeln("{length(bs)} {length(none)} {true in none} {true in {true}}")

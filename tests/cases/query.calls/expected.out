@@ -164,7 +164,6 @@ exit 0
 --- stdout
 "name":"total"
 "name":"length"
-"name":"len"
 "name":"inc"
 "name":"inc"
 "name":"dec"

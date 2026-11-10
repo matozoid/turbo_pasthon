@@ -20,7 +20,7 @@ var g: Grid := [1, 2, 3]
 writeln(g[1])
 let h := g
 g[1] := 20
-writeln("{g[1]} {h[1]} {len(g)}")
+writeln("{g[1]} {h[1]} {length(g)}")
 writeln(total(g))
 bump(var g)
 writeln(g[0])
@@ -28,6 +28,6 @@ writeln(g = h)
 var b := Board(cells: ["a", "b"])
 b.cells[1] := "c"
 writeln("{b.cells[0]}{b.cells[1]}")
-for i := 0 to len(h) - 1 do
+for i := 0 to length(h) - 1 do
     writeln(h[i])
 writeln(g[3])

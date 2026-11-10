@@ -252,7 +252,7 @@ export function hasError(t: Type): Boolean
             return false
 
 function showArgs(name: String, args: List[Type]): String
-    if len(args) = 0 then
+    if length(args) = 0 then
         return name
     var parts: List[String] := []
     for a in args do
@@ -341,7 +341,7 @@ function substAll(ts: List[Type], s: Subst): List[Type]
 
 ## Replaces the parameters bound in `s` (one pass: bindings are not re-substituted).
 export function subst(t: Type, s: Subst): Type
-    if len(s) = 0 then
+    if length(s) = 0 then
         return t
     case t of
         ParamT(p):
@@ -409,9 +409,9 @@ export function mentionsUnbound(t: Type, vars: Vars, s: Subst): Boolean
     return false
 
 function unifyAll(patterns, actuals: List[Type], var s: Subst, vars: Vars): Boolean
-    if len(patterns) <> len(actuals) then
+    if length(patterns) <> length(actuals) then
         return false
-    for i := 0 to len(patterns) - 1 do
+    for i := 0 to length(patterns) - 1 do
         if not unify(patterns[i], actuals[i], var s, vars) then
             return false
     return true

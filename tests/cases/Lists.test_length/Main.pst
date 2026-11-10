@@ -12,4 +12,4 @@ var s: Set[Color] := {Color.Red, Color.Blue}
 writeln("{length(xs)} {length(a)} {length(m)} {length(s)}")
 writeln("{xs.length()} {a.length()} {m.length()} {s.length()}")
 let empty: List[String] := []
-writeln("{length(empty)} {len(xs)}")
+writeln("{length(empty)} {length(xs)}")

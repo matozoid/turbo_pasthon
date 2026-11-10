@@ -63,14 +63,14 @@ use Main.pst 24:10-24:12
 use Main.pst 24:21-24:23
   var 'xs' @ Main.pst:23:5
 use Main.pst 25:10-25:13
-  function 'new' @ std/System.pst:131:21
+  function 'new' @ std/System.pst:128:21
 use Main.pst 25:14-25:18
   type 'Pair' @ Main.pst:6:5
 def Main.pst 25:5-25:6
   let 'r' @ Main.pst:25:5
     : ref Pair
 use Main.pst 26:10-26:13
-  function 'new' @ std/System.pst:131:21
+  function 'new' @ std/System.pst:128:21
 use Main.pst 26:14-26:18
   type 'Pair' @ Main.pst:6:5
 def Main.pst 26:5-26:6

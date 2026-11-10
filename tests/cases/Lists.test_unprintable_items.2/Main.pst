@@ -9,5 +9,5 @@ type
 var ps := [P(x: 1), P(x: 2)]
 var m: Map[String, P] := {}
 m["a"] := P(x: 3)
-writeln(len(ps) + len(m) + ps[1].x)
+writeln(length(ps) + length(m) + ps[1].x)
 writeln(ps)

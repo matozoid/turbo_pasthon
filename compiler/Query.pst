@@ -13,7 +13,7 @@ const
 ## A position on the command line, `File.pst:12:5`: the absolute path, line and column.
 export function parsePosition(text: String): Result[Pair[String, List[Integer]], String]
     let parts := split(text, sep: ":")
-    let n := len(parts)
+    let n := length(parts)
     if n < 3 then
         return Err("expected FILE:LINE:COL, got '{text}'")
     var nums: List[Integer] := []
@@ -156,11 +156,11 @@ export function findName(name: String, stdDir: String): Result[String, String]
 ## The definitions `findName` finds, or with `overloads` the overloads of one routine.
 function findNames(name: String, stdDir: String, overloads: Boolean): Result[List[String], String]
     let parts := split(name, sep: ".")
-    if len(parts) > 2 then
+    if length(parts) > 2 then
         return Err("expected NAME, Unit.NAME or Type.NAME, got '{name}'")
-    let last := parts[len(parts) - 1]
+    let last := parts[length(parts) - 1]
     var qualifier := ""
-    if len(parts) = 2 then
+    if length(parts) = 2 then
         qualifier := parts[0]
     var paths: List[String] := []
     case pstFiles(".") of
@@ -190,7 +190,7 @@ function findNames(name: String, stdDir: String, overloads: Boolean): Result[Lis
             unitOf[u.path] := u.name
             covered[u.path] := true
         for r in a.checked.resolved.checker.index.refs do
-            if not r.isDef or len(r.targets) <> 1 then
+            if not r.isDef or length(r.targets) <> 1 then
                 continue
             let sym := r.targets[0]
             if sym.name <> last or sym.file <> r.file or not named(sym.kind) then
@@ -211,15 +211,15 @@ function findNames(name: String, stdDir: String, overloads: Boolean): Result[Lis
                 owners[outer] := true
                 routines := routines and isRoutine(sym.kind)
                 add(var shownAs, "{outer}.{last} ({shown(r.file)}:{r.span.line}:{r.span.col})")
-    if len(found) = 0 then
+    if length(found) = 0 then
         return Err("no symbol named '{name}' in the current directory or the units it uses")
-    if len(found) > 1 and not (overloads and routines and len(owners) = 1) then
+    if length(found) > 1 and not (overloads and routines and length(owners) = 1) then
         return Err("'{name}' is ambiguous: {join(shownAs, sep: ", ")}")
     return Ok(found)
 
 ## The file, line and column of `position`: `file:line:col`, or a symbol's name.
 export function locate(position: String, stdDir: String): Result[Pair[String, List[Integer]], String]
-    if len(split(position, sep: ":")) = 1 then
+    if length(split(position, sep: ":")) = 1 then
         case findName(position, stdDir: stdDir) of
             Ok(at):
                 return parsePosition(at.value)
@@ -244,7 +244,7 @@ export function neighbours(file: String): Result[List[String], String]
 ## `callees` at a position, or an error.
 export function queryAt(request: String, position: String, stdDir: String): Result[String, String]
     var positions := [position]
-    if request <> "complete" and len(split(position, sep: ":")) = 1 then
+    if request <> "complete" and length(split(position, sep: ":")) = 1 then
         case findNames(position, stdDir: stdDir, overloads: true) of
             Ok(found):
                 positions := found.value
@@ -328,7 +328,7 @@ function queryItems(
             add(var items, "{slice(where, 0, byteLen(where) - 1)},\"isDef\":{r.isDef}}")
         return Ok(Pair(first: "locations", second: items))
     if request = "impls" then
-        if len(targets) > 0 then
+        if length(targets) > 0 then
             let places := implementationsOf(s, a, sym: targets[0])
             for sym in places.syms do
                 add(var items, brief(sym))
@@ -344,7 +344,7 @@ function queryItems(
                 return Ok(Pair(first: "callees", second: callsOf("callee", groups: calleesOf(a, caller: sym))))
         return Ok(Pair(first: request, second: items))
     if request = "instances" then
-        if len(targets) > 0 then
+        if length(targets) > 0 then
             var slot: Map[String, Integer] := {}
             var names: List[String] := []
             var args: List[List[String]] := []
@@ -355,12 +355,12 @@ function queryItems(
                     add(var shownArgs, show(t))
                 let key := join(shownArgs, sep: ", ")
                 if not (key in slot) then
-                    slot[key] := len(names)
+                    slot[key] := length(names)
                     add(var names, "{i.sym.name}[{key}]")
                     add(var args, shownArgs)
                     add(var places, [])
                 add(var places[slot[key]], location(i.file, i.span))
-            for k := 0 to len(names) - 1 do
+            for k := 0 to length(names) - 1 do
                 var quoted: List[String] := []
                 for x in args[k] do
                     add(var quoted, quote(x))
@@ -438,7 +438,7 @@ export function querySymbols(
     for path in paths do
         let a := analyze(s, path)
         for r in a.checked.resolved.checker.index.refs do
-            if not r.isDef or len(r.targets) <> 1 or not (r.file in wantFile) then
+            if not r.isDef or length(r.targets) <> 1 or not (r.file in wantFile) then
                 continue
             let sym := r.targets[0]
             var wanted := sym.kind in [
@@ -494,9 +494,9 @@ export function queryIndex(files: List[String], stdDir: String): Result[String, 
             for sym in r.targets do
                 let key := symbolKey(sym)
                 if not (key in ids) then
-                    ids[key] := len(symbols)
+                    ids[key] := length(symbols)
                     let info := symbolInfo(a, sym)
-                    add(var symbols, "\{\"id\":{len(symbols)},{slice(info, 1, byteLen(info))}")
+                    add(var symbols, "\{\"id\":{length(symbols)},{slice(info, 1, byteLen(info))}")
                 let at := "{r.file}:{r.span.start}:{ids[key]}"
                 if at in seen then
                     continue

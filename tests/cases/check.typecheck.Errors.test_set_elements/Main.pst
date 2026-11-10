@@ -14,4 +14,4 @@ let d: Set[Char] := {}
 let e: Set[Big] := {}
 let f := {1, 2}
 let g: Set[Boolean] := Set(words: [])
-writeln("{len(a)} {len(b)} {len(c)} {len(d)} {len(e)} {len(f)} {len(g)}")
+writeln("{length(a)} {length(b)} {length(c)} {length(d)} {length(e)} {length(f)} {length(g)}")

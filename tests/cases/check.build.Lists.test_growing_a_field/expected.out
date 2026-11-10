@@ -22,12 +22,12 @@ def Main.pst 13:5-13:6
   loop variable 'i' @ Main.pst:13:5
     : Integer
 use Main.pst 14:5-14:8
-  procedure 'add' @ std/System.pst:179:18
+  procedure 'add' @ std/System.pst:176:18
 use Main.pst 14:13-14:14
   var 'b' @ Main.pst:12:5
-use Main.pst 14:22-14:25
-  function 'len' @ std/System.pst:118:21
-use Main.pst 14:26-14:27
+use Main.pst 14:22-14:28
+  function 'length' @ std/System.pst:115:21
+use Main.pst 14:29-14:30
   var 'b' @ Main.pst:12:5
 use Main.pst 15:1-15:7
   procedure 'addLen' @ Main.pst:8:11
@@ -45,28 +45,28 @@ def Main.pst 17:5-17:6
   loop variable 'i' @ Main.pst:17:5
     : Integer
 use Main.pst 18:5-18:11
-  procedure 'remove' @ std/System.pst:185:18
+  procedure 'remove' @ std/System.pst:182:18
 use Main.pst 18:16-18:17
   var 'b' @ Main.pst:12:5
-use Main.pst 18:25-18:28
-  function 'len' @ std/System.pst:118:21
-use Main.pst 18:29-18:30
+use Main.pst 18:25-18:31
+  function 'length' @ std/System.pst:115:21
+use Main.pst 18:32-18:33
   var 'b' @ Main.pst:12:5
 def Main.pst 19:5-19:6
   loop variable 'i' @ Main.pst:19:5
     : Integer
 use Main.pst 20:5-20:15
-  procedure 'removeLast' @ std/System.pst:193:18
+  procedure 'removeLast' @ std/System.pst:190:18
 use Main.pst 20:20-20:21
   var 'b' @ Main.pst:12:5
 use Main.pst 21:1-21:8
   procedure 'writeln' @ std/IO.pst:16:22
-use Main.pst 21:9-21:12
-  function 'len' @ std/System.pst:118:21
-use Main.pst 21:13-21:14
+use Main.pst 21:9-21:15
+  function 'length' @ std/System.pst:115:21
+use Main.pst 21:16-21:17
   var 'b' @ Main.pst:12:5
 use Main.pst 22:10-22:13
-  function 'new' @ std/System.pst:131:21
+  function 'new' @ std/System.pst:128:21
 use Main.pst 22:14-22:17
   type 'Bag' @ Main.pst:6:5
 def Main.pst 22:5-22:6
@@ -76,7 +76,7 @@ def Main.pst 23:5-23:6
   loop variable 'i' @ Main.pst:23:5
     : Integer
 use Main.pst 24:5-24:8
-  procedure 'add' @ std/System.pst:179:18
+  procedure 'add' @ std/System.pst:176:18
 use Main.pst 24:13-24:14
   let 'r' @ Main.pst:22:5
 use Main.pst 24:22-24:23
@@ -89,11 +89,11 @@ use Main.pst 25:22-25:23
   let 'r' @ Main.pst:22:5
 use Main.pst 26:1-26:8
   procedure 'writeln' @ std/IO.pst:16:22
-use Main.pst 26:11-26:14
-  function 'len' @ std/System.pst:118:21
-use Main.pst 26:15-26:16
+use Main.pst 26:11-26:17
+  function 'length' @ std/System.pst:115:21
+use Main.pst 26:18-26:19
   let 'r' @ Main.pst:22:5
-use Main.pst 26:26-26:27
+use Main.pst 26:29-26:30
   let 'r' @ Main.pst:22:5
 use Main.pst 7:21-7:28
   type 'Integer' @ std/System.pst:13:12
@@ -112,12 +112,12 @@ def Main.pst 8:41-8:42
   parameter 'b' @ Main.pst:8:41
     : Bag
 use Main.pst 9:5-9:8
-  procedure 'add' @ std/System.pst:179:18
+  procedure 'add' @ std/System.pst:176:18
 use Main.pst 9:13-9:15
   parameter 'xs' @ Main.pst:8:22
-use Main.pst 9:17-9:20
-  function 'len' @ std/System.pst:118:21
-use Main.pst 9:21-9:22
+use Main.pst 9:17-9:23
+  function 'length' @ std/System.pst:115:21
+use Main.pst 9:24-9:25
   parameter 'b' @ Main.pst:8:41
 use Main.pst 10:32-10:39
   type 'Integer' @ std/System.pst:13:12
@@ -132,22 +132,22 @@ def Main.pst 10:42-10:43
   parameter 'r' @ Main.pst:10:42
     : ref Bag
 use Main.pst 11:5-11:8
-  procedure 'add' @ std/System.pst:179:18
+  procedure 'add' @ std/System.pst:176:18
 use Main.pst 11:13-11:15
   parameter 'xs' @ Main.pst:10:23
-use Main.pst 11:17-11:20
-  function 'len' @ std/System.pst:118:21
-use Main.pst 11:21-11:22
+use Main.pst 11:17-11:23
+  function 'length' @ std/System.pst:115:21
+use Main.pst 11:24-11:25
   parameter 'r' @ Main.pst:10:42
-use Main.pst 9:23-9:28
+use Main.pst 9:26-9:31
   field 'items' @ Main.pst:7:9
-use Main.pst 11:23-11:28
+use Main.pst 11:26-11:31
   field 'items' @ Main.pst:7:9
 use Main.pst 12:14-12:19
   field 'items' @ Main.pst:7:9
 use Main.pst 14:15-14:20
   field 'items' @ Main.pst:7:9
-use Main.pst 14:28-14:33
+use Main.pst 14:31-14:36
   field 'items' @ Main.pst:7:9
 use Main.pst 15:14-15:19
   field 'items' @ Main.pst:7:9
@@ -157,11 +157,11 @@ use Main.pst 16:30-16:35
   field 'items' @ Main.pst:7:9
 use Main.pst 18:18-18:23
   field 'items' @ Main.pst:7:9
-use Main.pst 18:31-18:36
+use Main.pst 18:34-18:39
   field 'items' @ Main.pst:7:9
 use Main.pst 20:22-20:27
   field 'items' @ Main.pst:7:9
-use Main.pst 21:15-21:20
+use Main.pst 21:18-21:23
   field 'items' @ Main.pst:7:9
 use Main.pst 22:18-22:23
   field 'items' @ Main.pst:7:9
@@ -169,8 +169,8 @@ use Main.pst 24:15-24:20
   field 'items' @ Main.pst:7:9
 use Main.pst 25:15-25:20
   field 'items' @ Main.pst:7:9
-use Main.pst 26:17-26:22
+use Main.pst 26:20-26:25
   field 'items' @ Main.pst:7:9
-use Main.pst 26:28-26:33
+use Main.pst 26:31-26:36
   field 'items' @ Main.pst:7:9
 --- stderr

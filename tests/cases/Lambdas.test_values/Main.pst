@@ -36,7 +36,7 @@ function mapped[T, U](xs: List[T], f: function(T): U): List[U]
 
 procedure bump(var total: Integer, var names: List[String])
     let f: function(Integer): Integer := x => x + total
-    let g: function(): Integer := () => len(names)
+    let g: function(): Integer := () => length(names)
     let mk: function(Integer): function(Integer): Integer := a => b => a + b + total
     total := f(1)
     add(var names, "z")
@@ -101,8 +101,8 @@ writeln(for th in thunks do th())
 
 # A lambda can reach a box, so a `var` field of it is copied, not moved out
 let shelf := new(Shelf(items: ["a", "b"]))
-grow(var shelf.items, peek: () => len(shelf.items))
-writeln(len(shelf.items))
+grow(var shelf.items, peek: () => length(shelf.items))
+writeln(length(shelf.items))
 
 # A lambda that is a whole right side may have a `case` body
 let word: function(Integer): String := k => case k of

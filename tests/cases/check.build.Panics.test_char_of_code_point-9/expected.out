@@ -16,7 +16,7 @@ use Main.pst 6:9-6:13
 use Main.pst 7:1-7:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 7:9-7:12
-  function 'ord' @ std/System.pst:128:21
+  function 'ord' @ std/System.pst:125:21
 use Main.pst 7:13-7:17
   builtin type 'Char' @ built into unit System
 --- stderr

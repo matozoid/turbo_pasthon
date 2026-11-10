@@ -19,15 +19,15 @@ function hex(bs: List[Byte]): List[String]
         let v := Integer(b)
         add(var parts, slice(digits, v div 16, stop: v div 16 + 1))
         add(var parts, slice(digits, v mod 16, stop: v mod 16 + 1))
-        if len(parts) = 64 then
+        if length(parts) = 64 then
             add(var lines, join(parts))
             parts := []
-    if len(parts) > 0 then
+    if length(parts) > 0 then
         add(var lines, join(parts))
     return lines
 
 procedure dump(title: String, bs: List[Byte])
-    writeln("{title} {len(bs)}")
+    writeln("{title} {length(bs)}")
     for line in hex(bs) do
         writeln(line)
 
@@ -50,7 +50,7 @@ function bytesOf(s: String): List[Byte]
 procedure run(a: ref Assembler, var names: Map[String, String], w: List[String])
     let op := w[0]
     var args: List[String] := []
-    for i := 1 to len(w) - 1 do
+    for i := 1 to length(w) - 1 do
         case get(names, w[i]) of
             Some(n):
                 add(var args, n.value)
@@ -77,7 +77,7 @@ procedure run(a: ref Assembler, var names: Map[String, String], w: List[String])
         a.tracked := false
         a.stack := []
     else if op = "own" then  # marks the top word as an owned reference
-        a.stack[len(a.stack) - 1] := true
+        a.stack[length(a.stack) - 1] := true
     else if op = "label" then
         label(a, args[0])
     else if op = "code_ref" then
@@ -229,8 +229,8 @@ procedure main(text: String)
         if line <> "" then
             run(a, var names, w: split(line, sep: " "))
     let needed := [Libc]
-    let ro := rodataOffset(len(a.code))
-    let got := gotOffset(len(a.code), len(a.rodata), a.imports, needed: needed)
+    let ro := rodataOffset(length(a.code))
+    let got := gotOffset(length(a.code), length(a.rodata), a.imports, needed: needed)
     finish(a, ro, gotOffset: got)
     dump("code", a.code)
     dump("rodata", a.rodata)
@@ -242,11 +242,11 @@ procedure main(text: String)
         0,
         a.imports,
         needed: needed,
-        globals: len(a.globals),
+        globals: length(a.globals),
     ))
 
 let a := args()
-if len(a) <> 1 then
+if length(a) <> 1 then
     writelnErr("usage: AsmDump SCRIPT")
     exit(2)
 case open(a[0]) of

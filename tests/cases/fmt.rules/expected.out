@@ -106,17 +106,17 @@ let ys := [
 ]
 let m: Map[String, Integer] := {"a": 1, "b": 2}
 show([p.x, p.y, combine(1000000, second: 2000000, third: 3000000, fourth: 4000000, fifth: 500000)])
-writeln("{f(1, b: 2)} {check(1, b: 2)} {isBig(3)} {len(xs)} {len(ys)} {len(m)} {Color.Blue} {Shades.Dark}")
+writeln("{f(1, b: 2)} {check(1, b: 2)} {isBig(3)} {length(xs)} {length(ys)} {length(m)} {Color.Blue} {Shades.Dark}")
 if xs[0] = 1 and not (xs[1] = 3) then
     writeln("ok")
-for i := 0 to len(xs) - 1 do
-    writeln("{xs[len(xs) - 1 - i]}")
+for i := 0 to length(xs) - 1 do
+    writeln("{xs[length(xs) - 1 - i]}")
 pick("lsp")
 writeln(join(
     ["a long string to fill the line", "another long string", "and a third one"],
     sep: ", ",
 ))
-writeln("[{len(xs):5}] [{-1.5:0:2}] [{f(1, b: 2):-4}]")
+writeln("[{length(xs):5}] [{-1.5:0:2}] [{f(1, b: 2):-4}]")
 --- stderr
 $ $PST fmt --check o/Messy.pst && $PST check o/Messy.pst && $PST run o/Messy.pst
 exit 0

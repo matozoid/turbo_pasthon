@@ -55,7 +55,7 @@ export function lex(text: String, file: String := "<input>"): LexResult
     var lx := State(
         src: src,
         chars: src.chars,
-        n: len(src.chars),
+        n: length(src.chars),
         file: file,
         pos: 0,
         tokens: [],
@@ -122,9 +122,9 @@ function at(lx: State, i: Integer): Char
 ## Whether the source has `s` at offset `i`.
 ## Whether the characters `cs` are at `i`.
 function hasCharsAt(lx: State, cs: List[Char], i: Integer): Boolean
-    if i + len(cs) > lx.n then
+    if i + length(cs) > lx.n then
         return false
-    for k := 0 to len(cs) - 1 do
+    for k := 0 to length(cs) - 1 do
         if lx.chars[i + k] <> cs[k] then
             return false
     return true
@@ -188,7 +188,7 @@ procedure error(var lx: State, code: String, start: Integer, end: Integer, messa
 
 ## Removes the entries of `xs` from index `n` on.
 procedure truncate[T](var xs: List[T], n: Integer)
-    while len(xs) > n do
+    while length(xs) > n do
         removeLast(var xs)
 
 # -------------------------------------------------------------------------- driver
@@ -204,11 +204,11 @@ procedure run(var lx: State)
             break
         let c := at(lx, lx.pos)
         if c = '\n' then
-            if len(lx.placeholders) > 0 then
+            if length(lx.placeholders) > 0 then
                 abortPlaceholders(var lx)
-            if len(lx.brackets) > 0 and nextLineStartsStatement(lx, lx.pos + 1) then
+            if length(lx.brackets) > 0 and nextLineStartsStatement(lx, lx.pos + 1) then
                 closeUnclosed(var lx)
-            if len(lx.brackets) = 0 then
+            if length(lx.brackets) = 0 then
                 if lx.lineHasTokens then
                     emitPlain(var lx, TokenKind.Newline, lx.pos, end: lx.pos + 1)
                 lx.lineHasTokens := false
@@ -236,8 +236,8 @@ procedure run(var lx: State)
             add(var lx.brackets, Bracket(closer: closer, offset: lx.pos))
             emitSingle(var lx, c)
         else if c = ')' or c = ']' or c = '}' then
-            let depth := len(lx.placeholders)
-            if c = '}' and depth > 0 and len(lx.brackets) = lx.placeholders[depth - 1] then
+            let depth := length(lx.placeholders)
+            if c = '}' and depth > 0 and length(lx.brackets) = lx.placeholders[depth - 1] then
                 remove(var lx.placeholders, depth - 1)
                 let start := lx.pos
                 lx.pos := lx.pos + 1
@@ -249,12 +249,12 @@ procedure run(var lx: State)
     finish(var lx)
 
 procedure finish(var lx: State)
-    if len(lx.placeholders) > 0 then
+    if length(lx.placeholders) > 0 then
         abortPlaceholders(var lx)
     closeUnclosed(var lx)
     if lx.lineHasTokens then
         emitPlain(var lx, TokenKind.Newline, lx.n, end: lx.n)
-    while len(lx.indents) > 1 do
+    while length(lx.indents) > 1 do
         removeLast(var lx.indents)
         emitPlain(var lx, TokenKind.Dedent, lx.n, end: lx.n)
     emitPlain(var lx, TokenKind.Eof, lx.n, end: lx.n)
@@ -264,7 +264,7 @@ function openerOf(closer: Char): Char
 
 ## Reports every open bracket, offering to close them all after the last token.
 procedure closeUnclosed(var lx: State)
-    let count := len(lx.brackets)
+    let count := length(lx.brackets)
     if count = 0 then
         return
     var closers := ""
@@ -272,7 +272,7 @@ procedure closeUnclosed(var lx: State)
     while i >= 0 do
         closers := "{closers}{lx.brackets[i].closer}"
         i := i - 1
-    let end := if len(lx.tokens) > 0 then lx.tokens[len(lx.tokens) - 1].span.end else lx.pos
+    let end := if length(lx.tokens) > 0 then lx.tokens[length(lx.tokens) - 1].span.end else lx.pos
     let fix := Fix(description: "insert '{closers}'", edits: [Edit(
         span: span(lx.src, end, end: end),
         text: closers,
@@ -361,7 +361,7 @@ function nextLineStartsStatement(lx: State, pos: Integer): Boolean
                 return false
             p := nl + 1
             continue
-        return width <= lx.indents[len(lx.indents) - 1] and startsStatement(lx, p)
+        return width <= lx.indents[length(lx.indents) - 1] and startsStatement(lx, p)
     return false
 
 # --------------------------------------------------------------------- indentation
@@ -411,7 +411,7 @@ procedure indent(var lx: State, width: Integer, lineBegin: Integer)
             end: lx.pos,
             message: "indentation of {width} spaces is not a multiple of {IndentWidth}",
         )
-    let top := lx.indents[len(lx.indents) - 1]
+    let top := lx.indents[length(lx.indents) - 1]
     if width > top then
         if width - top > IndentWidth then
             error(
@@ -424,7 +424,7 @@ procedure indent(var lx: State, width: Integer, lineBegin: Integer)
         add(var lx.indents, width)
         emitPlain(var lx, TokenKind.Indent, lx.pos, end: lx.pos)
     else if width < top then
-        while len(lx.indents) > 1 and lx.indents[len(lx.indents) - 1] > width do
+        while length(lx.indents) > 1 and lx.indents[length(lx.indents) - 1] > width do
             removeLast(var lx.indents)
             emitPlain(var lx, TokenKind.Dedent, lx.pos, end: lx.pos)
         # A width between two levels was already reported as E0002; continue at the
@@ -613,7 +613,7 @@ procedure number(var lx: State)
     var tooBig := false
     var i := skip
     let ds := chars(digits).collect()
-    while i < len(ds) do
+    while i < length(ds) do
         let d := UInt64(hexValue(ds[i]))
         if value > (big - d) div b then
             tooBig := true
@@ -694,7 +694,7 @@ procedure stringBody(var lx: State, start: Integer, first: Boolean)
                 end: lx.pos,
                 value: TextValue(text: join(buf)),
             )
-            add(var lx.placeholders, len(lx.brackets))
+            add(var lx.placeholders, length(lx.brackets))
             return
         add(var buf, toString(c))
         lx.pos := lx.pos + 1
@@ -727,17 +727,17 @@ procedure charLiteral(var lx: State)
         lx.pos := lx.pos + 1
     else
         error(var lx, "E0008", start, end: lx.pos, message: "unterminated char literal")
-    if len(chars) <> 1 then
+    if length(chars) <> 1 then
         error(
             var lx,
             "E0008",
             start,
             end: lx.pos,
-            message: "char literal must contain exactly one character, found {len(chars)}",
+            message: "char literal must contain exactly one character, found {length(chars)}",
         )
     # An escape may decode to no character: `'\` at the end of a line.
     var value := '\0'
-    if len(chars) = 1 then
+    if length(chars) = 1 then
         for c in chars[0] do
             value := c
     emit(var lx, TokenKind.CharLit, start, end: lx.pos, value: CharValue(value: value))
@@ -810,9 +810,9 @@ procedure closeBracket(var lx: State, c: Char)
     let start := lx.pos
     lx.pos := lx.pos + 1
     emitPlain(var lx, bracketKind(c), start, end: lx.pos)
-    let depth := len(lx.placeholders)
+    let depth := length(lx.placeholders)
     let floor := if depth > 0 then lx.placeholders[depth - 1] else 0
-    let count := len(lx.brackets)
+    let count := length(lx.brackets)
     if count > floor and lx.brackets[count - 1].closer = c then
         remove(var lx.brackets, count - 1)
         return
@@ -829,11 +829,11 @@ procedure closeBracket(var lx: State, c: Char)
         i := i - 1
 
 procedure operatorOrError(var lx: State)
-    for k := 0 to len(lx.operators) - 1 do
+    for k := 0 to length(lx.operators) - 1 do
         if hasCharsAt(lx, lx.opChars[k], lx.pos) then
             let op := lx.operators[k]
             let start := lx.pos
-            lx.pos := lx.pos + len(lx.opChars[k])
+            lx.pos := lx.pos + length(lx.opChars[k])
             emitPlain(var lx, op.kind, start, end: lx.pos)
             return
     let c := at(lx, lx.pos)

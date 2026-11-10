@@ -13,6 +13,6 @@ let named: Item := i
 let sizes := [Size.Small, Size.Large]
 for k, v in {"a": 1} do
     writeln("{k}{v}")
-writeln(total([i, named]) + len(sizes))
+writeln(total([i, named]) + length(sizes))
 let both := concat([3], [1])
 let same := concat[Integer]([3], [1])

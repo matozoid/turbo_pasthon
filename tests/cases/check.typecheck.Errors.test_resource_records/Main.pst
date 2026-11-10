@@ -21,4 +21,4 @@ let b := Handle(id: 2)
 let c := deref(a)
 destroy(var c)
 let xs: List[Handle] := []
-writeln("{a.id} {b.id} {len(xs)}")
+writeln("{a.id} {b.id} {length(xs)}")

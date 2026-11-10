@@ -106,13 +106,13 @@ function firstDifference(actual: String, expected: String): String
     let a := split(actual, sep: "\n")
     let e := split(expected, sep: "\n")
     var i := 0
-    while i < len(a) and i < len(e) and a[i] = e[i] do
+    while i < length(a) and i < length(e) and a[i] = e[i] do
         i := i + 1
     var got := "(end)"
-    if i < len(a) then
+    if i < length(a) then
         got := a[i]
     var want := "(end)"
-    if i < len(e) then
+    if i < length(e) then
         want := e[i]
     return "line {i + 1}:\n        actual:   {got}\n        expected: {want}"
 
@@ -121,7 +121,7 @@ function selected(name: String, only: List[String]): Boolean
     for o in only do
         if startsWith(name, prefix: o) then
             return true
-    return len(only) = 0
+    return length(only) = 0
 
 let root := currentDir()
 if not isDir("tests/cases") then
