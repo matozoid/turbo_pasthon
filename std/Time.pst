@@ -918,7 +918,7 @@ unsafe function parseTzif(bs: List[Byte], name: String): Result[Zone, String]
         return Err("not a TZif file")
     var at := 0
     var size := 4
-    if bs[4] >= 0x32 then
+    if bs[4] >= $32 then
         # Skip the version 1 data, which has 32-bit times.
         at := 44 + blockSize(bs, at: 0, size: 4)
         size := 8

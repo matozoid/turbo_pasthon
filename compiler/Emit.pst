@@ -82,9 +82,9 @@ const
     Cell = 24
     Target = 16
     ListCount = -1
-    ## 0xCBF29CE484222325 and 0x100000001B3, as 64-bit words.
+    ## $CBF29CE484222325 and $100000001B3, as 64-bit words.
     FnvOffset = -3750763034362895579
-    FnvPrime = 0x100000001B3
+    FnvPrime = $100000001B3
 
 type
     LoopT = record
@@ -3126,7 +3126,7 @@ procedure eUnary(g: ref Em, x: Unary, e: Expr)
             xor(a, Rax, Rcx)  # flips the sign bit
             return
         if t = real32T() then
-            movImm(a, Rcx, value: 0x80000000)
+            movImm(a, Rcx, value: $80000000)
             xor(a, Rax, Rcx)
             return
         neg(a, Rax)  # sets CF unless the operand is 0
@@ -3879,11 +3879,11 @@ procedure convert(g: ref Em, c: Call)
         if g.bad then
             return
         let bad := panic(g, "P0009", "not a Unicode scalar value", span: c.span)
-        cmpImm(a, Rax, value: 0x10FFFF)
+        cmpImm(a, Rax, value: $10FFFF)
         jcc(a, "a", label: bad)  # negative values too, compared unsigned
         mov(a, Rcx, Rax)
-        subImm(a, Rcx, value: 0xD800)
-        cmpImm(a, Rcx, value: 0x7FF)
+        subImm(a, Rcx, value: $D800)
+        cmpImm(a, Rcx, value: $7FF)
         jcc(a, "be", label: bad)  # a surrogate
         if target <> dst then
             inRange(g, target, c.span)
@@ -4518,7 +4518,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
             return
         mov(a, Rcx, Rax)
         movImm(a, Rax, value: 1)
-        for top in [0x80, 0x800, 0x10000] do
+        for top in [$80, $800, $10000] do
             let done := newLabel(a, "w")
             cmpImm(a, Rcx, value: top)
             jcc(a, "b", label: done)
@@ -4803,8 +4803,8 @@ procedure sliceOf(g: ref Em, c: Call, args: List[Expr])
         mov(a, Rcx, Rdi)
         add(a, Rcx, reg)
         load8(a, Rcx, Rcx, disp: BytesAt)
-        and32Imm(a, Rcx, value: 0xC0)
-        cmpImm(a, Rcx, value: 0x80)  # a continuation byte
+        and32Imm(a, Rcx, value: $C0)
+        cmpImm(a, Rcx, value: $80)  # a continuation byte
         jcc(a, "e", label: inside)
         label(a, ok)
     callRuntime(g, "rt_slice")
@@ -5430,7 +5430,7 @@ procedure rtHash(g: ref Em)
 procedure rtMix(g: ref Em)
     let a := g.a
     let shifts := [30, 27, 31]
-    # 0xBF58476D1CE4E5B9 and 0x94D049BB133111EB, as 64-bit words
+    # $BF58476D1CE4E5B9 and $94D049BB133111EB, as 64-bit words
     let factors := [-4658895280553007687, -7723592293110705685]
     for i := 0 to 2 do
         mov(a, Rcx, Rax)
@@ -5729,8 +5729,8 @@ procedure rtStrFrom(g: ref Em)
     load8(a, Rcx, Rbx)
     incR(a, Rbx)
     decR(a, R12)
-    and32Imm(a, Rcx, value: 0xC0)
-    cmpImm(a, Rcx, value: 0x80)
+    and32Imm(a, Rcx, value: $C0)
+    cmpImm(a, Rcx, value: $80)
     jcc(a, "e", label: loop)
     incR(a, Rax)
     jmp(a, loop)
@@ -5751,28 +5751,28 @@ procedure rtUtf8Len(g: ref Em)
     let cont := l[4]
     let bad := l[5]
     load8(a, Rcx, Rdi)
-    cmpImm(a, Rcx, value: 0x80)
+    cmpImm(a, Rcx, value: $80)
     jcc(a, "b", label: one)
-    movImm(a, R9, value: 0x80)  # the range of the second byte
-    movImm(a, R10, value: 0xBF)
+    movImm(a, R9, value: $80)  # the range of the second byte
+    movImm(a, R10, value: $BF)
     movImm(a, R8, value: 2)
-    cmpImm(a, Rcx, value: 0xC2)
+    cmpImm(a, Rcx, value: $C2)
     jcc(a, "b", label: bad)
-    cmpImm(a, Rcx, value: 0xE0)
+    cmpImm(a, Rcx, value: $E0)
     jcc(a, "b", label: check)
     movImm(a, R8, value: 3)
-    cmpImm(a, Rcx, value: 0xF0)
+    cmpImm(a, Rcx, value: $F0)
     jcc(a, "b", label: l[1])
     movImm(a, R8, value: 4)
-    cmpImm(a, Rcx, value: 0xF5)
+    cmpImm(a, Rcx, value: $F5)
     jcc(a, "b", label: l[2])
     jmp(a, bad)
     # E0: overlong below A0, ED: surrogates above 9F; F0: overlong below 90, F4: above
     # U+10FFFF above 8F
-    let leads := [0xE0, 0xF0]
-    let lows := [0xA0, 0x90]
-    let highs := [0x9F, 0x8F]
-    let tops := [0xED, 0xF4]
+    let leads := [$E0, $F0]
+    let lows := [$A0, $90]
+    let highs := [$9F, $8F]
+    let tops := [$ED, $F4]
     for i := 0 to 1 do
         let notLow := newLabel(a, "u8")
         label(a, l[1 + i])
@@ -5799,13 +5799,13 @@ procedure rtUtf8Len(g: ref Em)
     mov(a, Rdx, Rdi)
     add(a, Rdx, R11)
     load8(a, Rdx, Rdx)
-    and32Imm(a, Rdx, value: 0xC0)
-    cmpImm(a, Rdx, value: 0x80)
+    and32Imm(a, Rdx, value: $C0)
+    cmpImm(a, Rdx, value: $80)
     jcc(a, "ne", label: bad)
     incR(a, R11)
     jmp(a, cont)
     label(a, one)  # r8 = 1 isn't set for ASCII: return it here
-    cmpImm(a, Rcx, value: 0x80)
+    cmpImm(a, Rcx, value: $80)
     movImm(a, Rax, value: 1)
     let done := newLabel(a, "u8")
     jcc(a, "b", label: done)
@@ -5827,27 +5827,27 @@ procedure rtDecodeUtf8(g: ref Em)
     let done := l[3]
     add(a, Rsi, Rdi)
     load8(a, Rax, Rsi, disp: BytesAt)
-    cmpImm(a, Rax, value: 0x80)
+    cmpImm(a, Rax, value: $80)
     jcc(a, "b", label: done)
     movImm(a, Rdx, value: 1)  # continuation bytes
-    cmpImm(a, Rax, value: 0xE0)
+    cmpImm(a, Rax, value: $E0)
     jcc(a, "b", label: two)
     incR(a, Rdx)
-    cmpImm(a, Rax, value: 0xF0)
+    cmpImm(a, Rax, value: $F0)
     jcc(a, "b", label: three)
     incR(a, Rdx)
-    and32Imm(a, Rax, value: 0x07)
+    and32Imm(a, Rax, value: $07)
     jmp(a, more)
     label(a, three)
-    and32Imm(a, Rax, value: 0x0F)
+    and32Imm(a, Rax, value: $0F)
     jmp(a, more)
     label(a, two)
-    and32Imm(a, Rax, value: 0x1F)
+    and32Imm(a, Rax, value: $1F)
     label(a, more)
     shlImm(a, Rax, n: 6)
     incR(a, Rsi)
     load8(a, Rcx, Rsi, disp: BytesAt)
-    and32Imm(a, Rcx, value: 0x3F)
+    and32Imm(a, Rcx, value: $3F)
     orR(a, Rax, Rcx)
     decR(a, Rdx)
     jcc(a, "ne", label: more)
@@ -5928,7 +5928,7 @@ procedure rtFromBytes(g: ref Em)
     jcc(a, "ne", label: one)
     jmp(a, copy)
     label(a, replace)
-    let fffd := [0xEF, 0xBF, 0xBD]
+    let fffd := [$EF, $BF, $BD]
     for i := 0 to 2 do
         store8Imm(a, R13, disp: i, value: fffd[i])
     addImm(a, R13, value: 3)
@@ -6182,15 +6182,15 @@ procedure rtCharToStr(g: ref Em)
     let sized := newLabel(a, "u")
     let loop := newLabel(a, "u")
     let lead := newLabel(a, "u")
-    let prefixes := [0, 0xC0, 0xE0]
-    let limits := [0x80, 0x800, 0x10000]
+    let prefixes := [0, $C0, $E0]
+    let limits := [$80, $800, $10000]
     for i := 0 to 2 do
         movImm(a, Rsi, value: i + 1)  # bytes
         movImm(a, Rdx, value: prefixes[i])  # bits of the first byte
         cmpImm(a, Rax, value: limits[i])
         jcc(a, "b", label: sized)
     movImm(a, Rsi, value: 4)
-    movImm(a, Rdx, value: 0xF0)
+    movImm(a, Rdx, value: $F0)
     label(a, sized)
     subImm(a, Rsp, value: 8)  # the bytes
     lea(a, Rcx, Rsp, disp: -1)
@@ -6200,8 +6200,8 @@ procedure rtCharToStr(g: ref Em)
     decR(a, Rdi)
     jcc(a, "e", label: lead)
     mov(a, R8, Rax)
-    and32Imm(a, R8, value: 0x3F)
-    or32Imm(a, R8, value: 0x80)
+    and32Imm(a, R8, value: $3F)
+    or32Imm(a, R8, value: $80)
     store8(a, Rcx, disp: 0, src: R8)
     shrImm(a, Rax, n: 6)
     decR(a, Rcx)

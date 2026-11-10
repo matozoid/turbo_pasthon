@@ -117,7 +117,7 @@ _
 
 | Kind | Examples | Notes |
 |---|---|---|
-| Integer | `42`, `1_000_000`, `$FF` (hexadecimal), `%1010` (binary) | `_` as digit separator only; no octal. `0xFF` and `0b1010` are still read until the seed release knows `$` and `%` |
+| Integer | `42`, `1_000_000`, `$FF` (hexadecimal), `%1010` (binary) | `_` as digit separator only; no octal. `0xFF` and `0b1010` are errors (`E0007`) with the `$` or `%` form as a hint |
 | Real | `3.14`, `1.0e-9`, `2.0` | must contain `.`; `2` is never Real |
 | Boolean | `true`, `false` | |
 | Char | `'a'`, `'\n'`, `'\u{1F600}'` | one Unicode scalar value |
@@ -2048,7 +2048,8 @@ None at the moment.
 
 Pascal, not C, is the model. These changes come in steps; each new form is accepted next to
 the old one until a seed release knows it, then std and the compiler move over and the old
-form goes.
+form goes. The `$`/`%` literals (§2.7) went through these steps and are finished: v0.3
+knew them, std and the compiler moved over, and `0x`/`0b` are gone.
 
 1. Done (§9.1): `and`, `or`, `xor`, `not` bitwise on integers, `shl`/`shr` operators. Left
    for after the seed release: std and the compiler use them, `Bits` keeps only

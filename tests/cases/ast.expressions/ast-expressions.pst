@@ -17,7 +17,7 @@ x := 1 + case y of
     1: 2
 x := if a then 1
 x := _ + 1
-x := 0x1F + 1_000 + 1.5e3 + 1_0.2_5 + 'a' + '\n' + true + false + This + this
+x := $1F + 1_000 + 1.5e3 + 1_0.2_5 + 'a' + '\n' + true + false + This + this
 x := "a{b}c{d + 1}" + "{e}" + "{f}{g}"
 x := "a{b c}"
 x := ()

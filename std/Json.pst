@@ -117,7 +117,7 @@ export function quote(s: String): String
             add(var parts, "\\r")
         else if c = '\t' then
             add(var parts, "\\t")
-        else if ord(c) < 0x20 then
+        else if ord(c) < $20 then
             add(var parts, "\\u00{hexDigit(ord(c) div 16)}{hexDigit(ord(c) mod 16)}")
         else
             add(var parts, toString(c))
@@ -241,7 +241,7 @@ function text(var r: Reader): Result[String, String]
         r.pos := r.pos + 1
         if c = '"' then
             break
-        if ord(c) < 0x20 then
+        if ord(c) < $20 then
             r.pos := r.pos - 1
             return Err(failure(r, "control character in a string"))
         if c <> '\\' then
@@ -263,21 +263,21 @@ function text(var r: Reader): Result[String, String]
             add(var parts, toString(Char(12)))
         else if e = 'u' then
             var code := try hex4(var r)
-            if code >= 0xD800 and code < 0xDC00 and peek(r) = '\\' then
+            if code >= $D800 and code < $DC00 and peek(r) = '\\' then
                 # A surrogate pair: the low half follows as another escape.
                 let back := r.pos
                 r.pos := r.pos + 1
                 if peek(r) = 'u' then
                     r.pos := r.pos + 1
                     let low := try hex4(var r)
-                    if low >= 0xDC00 and low < 0xE000 then
-                        code := 0x10000 + (code - 0xD800) * 0x400 + (low - 0xDC00)
+                    if low >= $DC00 and low < $E000 then
+                        code := $10000 + (code - $D800) * $400 + (low - $DC00)
                     else
                         r.pos := back
                 else
                     r.pos := back
-            if code >= 0xD800 and code < 0xE000 then
-                code := 0xFFFD
+            if code >= $D800 and code < $E000 then
+                code := $FFFD
             add(var parts, toString(Char(code)))
         else
             r.pos := r.pos - 1

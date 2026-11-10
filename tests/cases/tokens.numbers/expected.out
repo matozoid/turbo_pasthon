@@ -33,8 +33,8 @@ IntLit 2:16-2:36 "18446744073709551615" int 18446744073709551615
 Plus 2:37-2:38 "+" -
 IntLit 2:39-2:59 "18446744073709551616" int 0
 Plus 2:60-2:61 "+" -
-IntLit 2:62-2:85 "0x1_0000_0000_0000_0000" int 0
-Newline 2:85-3:1 "\n" -
+IntLit 2:62-2:84 "$1_0000_0000_0000_0000" int 0
+Newline 2:84-3:1 "\n" -
 KwLet 3:1-3:4 "let" -
 Ident 3:5-3:6 "c" -
 Assign 3:7-3:9 ":=" -
@@ -46,25 +46,31 @@ IntLit 3:17-3:18 "1" int 1
 Dotdot 3:18-3:20 ".." -
 IntLit 3:20-3:21 "2" int 2
 Plus 3:22-3:23 "+" -
-IntLit 3:24-3:27 "0x1" int 1
-Dot 3:27-3:28 "." -
-IntLit 3:28-3:29 "5" int 5
-Plus 3:30-3:31 "+" -
-IntLit 3:32-3:37 "12abc" int 0
-Plus 3:38-3:39 "+" -
-IntLit 3:40-3:42 "0b" int 0
-Plus 3:43-3:44 "+" -
-RealLit 3:45-3:48 "9.9" real 9.9
-Dot 3:48-3:49 "." -
-IntLit 3:49-3:50 "9" int 9
-Newline 3:50-4:1 "\n" -
+IntLit 3:24-3:26 "$1" int 1
+Dot 3:26-3:27 "." -
+IntLit 3:27-3:28 "5" int 5
+Plus 3:29-3:30 "+" -
+IntLit 3:31-3:36 "12abc" int 0
+Plus 3:37-3:38 "+" -
+IntLit 3:39-3:41 "0b" int 0
+Plus 3:42-3:43 "+" -
+RealLit 3:44-3:47 "9.9" real 9.9
+Dot 3:47-3:48 "." -
+IntLit 3:48-3:49 "9" int 9
+Plus 3:50-3:51 "+" -
+IntLit 3:52-3:56 "0x1F" int 0
+Plus 3:57-3:58 "+" -
+IntLit 3:59-3:64 "0b101" int 0
+Newline 3:64-4:1 "\n" -
 Eof 4:1-4:1 "" -
 error E0007 1:62-1:65 "malformed number literal '1e5'; a real literal must contain '.', e.g. 1.0e5"
 error E0007 1:68-1:72 "malformed number literal '1__0'; '_' may only appear between two digits"
 error E0007 1:75-1:77 "malformed number literal '1_'; '_' may only appear between two digits"
 error E0007 2:10-2:13 "malformed number literal '0xG'"
 error E0007 2:39-2:59 "integer literal '18446744073709551616' does not fit in 64 bits"
-error E0007 2:62-2:85 "integer literal '0x1_0000_0000_0000_0000' does not fit in 64 bits"
-error E0007 3:32-3:37 "malformed number literal '12abc'"
-error E0007 3:40-3:42 "malformed number literal '0b'"
+error E0007 2:62-2:84 "integer literal '$1_0000_0000_0000_0000' does not fit in 64 bits"
+error E0007 3:31-3:36 "malformed number literal '12abc'"
+error E0007 3:39-3:41 "malformed number literal '0b'"
+error E0007 3:52-3:56 "malformed number literal '0x1F'; hexadecimal is written with '$', e.g. $1F"
+error E0007 3:59-3:64 "malformed number literal '0b101'; binary is written with '%', e.g. %101"
 --- stderr

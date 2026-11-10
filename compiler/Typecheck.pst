@@ -814,7 +814,7 @@ export function ordinalRange(env: ref Env, t: Type): Option[OrdRange]
     if t = booleanT() then
         return Some(OrdRange(lo: 0, hi: 1))
     if t = charT() then
-        return Some(OrdRange(lo: 0, hi: 0x10FFFF))
+        return Some(OrdRange(lo: 0, hi: $10FFFF))
     let n := integerName(t)
     if n <> "" then
         let bits := intBits(n)

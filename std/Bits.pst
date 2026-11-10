@@ -12,7 +12,7 @@ extern "pst"
     export function popCount[T](a: T): Integer
 
 test "bit operations"
-    assert band(0b1100, 0b1010) = 0b1000 and bor(0b1100, 0b1010) = 0b1110
-    assert bxor(0b1100, 0b1010) = 0b0110 and bnot(0) = -1
-    assert shl(1, 10) = 0x400 and shr(0x400, 3) = 0x80
-    assert popCount(0xFF) = 8 and popCount(0) = 0
+    assert band(%1100, %1010) = %1000 and bor(%1100, %1010) = %1110
+    assert bxor(%1100, %1010) = %0110 and bnot(0) = -1
+    assert shl(1, 10) = $400 and shr($400, 3) = $80
+    assert popCount($FF) = 8 and popCount(0) = 0

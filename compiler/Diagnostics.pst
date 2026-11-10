@@ -65,11 +65,11 @@ export function jsonString(s: String): String
             add(var parts, "\\b")
         else if n = 12 then
             add(var parts, "\\f")
-        else if n < 0x20 or (n >= 0x7F and n < 0x10000) then
+        else if n < $20 or (n >= $7F and n < $10000) then
             add(var parts, "\\u{hex4(n)}")
-        else if n >= 0x10000 then
-            let v := n - 0x10000
-            add(var parts, "\\u{hex4(0xD800 + v div 0x400)}\\u{hex4(0xDC00 + v mod 0x400)}")
+        else if n >= $10000 then
+            let v := n - $10000
+            add(var parts, "\\u{hex4($D800 + v div $400)}\\u{hex4($DC00 + v mod $400)}")
         else
             add(var parts, toString(c))
     add(var parts, "\"")

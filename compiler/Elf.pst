@@ -20,8 +20,8 @@ unit Elf
 uses Strings, X86
 
 const
-    export Base = 0x400000
-    Page = 0x1000
+    export Base = $400000
+    Page = $1000
     Ehdr = 64
     Phdr = 56
     ## PT_PHDR, PT_INTERP, PT_LOAD (rx), PT_LOAD (rw), PT_DYNAMIC, PT_GNU_STACK
@@ -34,7 +34,7 @@ const
     PtDynamic = 2
     PtInterp = 3
     PtPhdr = 6
-    PtGnuStack = 0x6474E551
+    PtGnuStack = $6474E551
     PfX = 1
     PfW = 2
     PfR = 4
@@ -174,9 +174,9 @@ export function executable(
     var out: List[Byte] := []
     for i := 1 to lay.end do
         add(var out, Byte(0))
-    put(var out, 0, data: [Byte(0x7F), Byte(69), Byte(76), Byte(70), Byte(2), Byte(1), Byte(1)])  # 64-bit, little-endian, version 1, System V ABI
+    put(var out, 0, data: [Byte($7F), Byte(69), Byte(76), Byte(70), Byte(2), Byte(1), Byte(1)])  # 64-bit, little-endian, version 1, System V ABI
     putInt(var out, 16, 2, n: 2)  # ET_EXEC
-    putInt(var out, 18, 0x3E, n: 2)  # x86-64
+    putInt(var out, 18, $3E, n: 2)  # x86-64
     putInt(var out, 20, 1, n: 4)
     putInt(var out, 24, Base + CodeOffset + entry, n: 8)
     putInt(var out, 32, Ehdr, n: 8)  # program headers right after this header
@@ -210,7 +210,7 @@ export function executable(
 
     put(var out, CodeOffset, data: code)
     for i := CodeOffset + len(code) to lay.rodata - 1 do  # int3 padding
-        out[i] := Byte(0xCC)
+        out[i] := Byte($CC)
     put(var out, lay.rodata, data: rodata)
     var interp: List[Byte] := []
     putString(var interp, Interp)
@@ -225,7 +225,7 @@ export function executable(
     for i := 0 to n - 1 do  # symbol 0 is the null symbol
         let sym := lay.dynsym + 24 * (i + 1)
         putInt(var out, sym, name, n: 4)
-        putInt(var out, sym + 4, 0x12, n: 1)  # global function, undefined
+        putInt(var out, sym + 4, $12, n: 1)  # global function, undefined
         name := name + len(bytes(imports[i])) + 1
         let rela := lay.rela + 24 * i
         putInt(var out, rela, addr(lay, lay.got + 8 * i), n: 8)

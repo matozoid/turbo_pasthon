@@ -22,7 +22,7 @@ type
         r: List[Integer]
 
 const
-    Limb = 0xFFFFFFFF
+    Limb = $FFFFFFFF
 
 procedure trim(var x: List[Integer])
     while len(x) > 0 and x[len(x) - 1] = 0 do
@@ -195,23 +195,23 @@ function nearest(digits: String, f: Format): Integer
     return shl(field, p - 1) + q - shl(1, p - 1)
 
 test "exact and rounded literals"
-    assert realBits("0.0") = 0 and realBits("1.0") = 0x3FF0000000000000
-    assert realBits("0.1") = 0x3FB999999999999A and realBits("2.5") = 0x4004000000000000
-    assert realBits("1.0e-9") = 0x3E112E0BE826D695 and realBits("0.000001") = 0x3EB0C6F7A0B5ED8D
-    assert realBits("123456.789e3") = 0x419D6F3454000000
-    assert realBits("0.30000000000000004") = 0x3FD3333333333334
-    assert realBits("3.141592653589793238462643383279") = 0x400921FB54442D18
-    assert realBits("9007199254740993.0") = 0x4340000000000000  # a tie, to even
+    assert realBits("0.0") = 0 and realBits("1.0") = $3FF0000000000000
+    assert realBits("0.1") = $3FB999999999999A and realBits("2.5") = $4004000000000000
+    assert realBits("1.0e-9") = $3E112E0BE826D695 and realBits("0.000001") = $3EB0C6F7A0B5ED8D
+    assert realBits("123456.789e3") = $419D6F3454000000
+    assert realBits("0.30000000000000004") = $3FD3333333333334
+    assert realBits("3.141592653589793238462643383279") = $400921FB54442D18
+    assert realBits("9007199254740993.0") = $4340000000000000  # a tie, to even
 
 test "the edges of the range"
-    assert realBits("1.7976931348623157e308") = 0x7FEFFFFFFFFFFFFF
-    assert realBits("1.7976931348623159e308") = 0x7FF0000000000000
-    assert realBits("1.0e400") = 0x7FF0000000000000 and realBits("1.0e-400") = 0
-    assert realBits("2.2250738585072014e-308") = 0x10000000000000
+    assert realBits("1.7976931348623157e308") = $7FEFFFFFFFFFFFFF
+    assert realBits("1.7976931348623159e308") = $7FF0000000000000
+    assert realBits("1.0e400") = $7FF0000000000000 and realBits("1.0e-400") = 0
+    assert realBits("2.2250738585072014e-308") = $10000000000000
     assert realBits("4.9e-324") = 1 and realBits("2.5e-324") = 1 and realBits("2.4e-324") = 0
 
 test "singles"
-    assert real32Bits("1.0") = 0x3F800000 and real32Bits("0.1") = 0x3DCCCCCD
-    assert real32Bits("3.4028235e38") = 0x7F7FFFFF and real32Bits("3.5e38") = 0x7F800000
+    assert real32Bits("1.0") = $3F800000 and real32Bits("0.1") = $3DCCCCCD
+    assert real32Bits("3.4028235e38") = $7F7FFFFF and real32Bits("3.5e38") = $7F800000
     assert real32Bits("1.0e-45") = 1 and real32Bits("0.71e-45") = 1 and real32Bits("0.7e-45") = 0
-    assert real32Bits("1.17549435e-38") = 0x800000 and real32Bits("16777217.0") = 0x4B800000
+    assert real32Bits("1.17549435e-38") = $800000 and real32Bits("16777217.0") = $4B800000

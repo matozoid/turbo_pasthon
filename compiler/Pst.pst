@@ -251,7 +251,7 @@ function buildTo(
 
 ## Writes the executable `exe` to `out`, with mode $1ED (octal 755).
 procedure writeExe(out: String, exe: List[Byte])
-    case create(out, mode: 0x1ED) of
+    case create(out, mode: $1ED) of
         Ok(f):
             case writeBytes(f.value, exe) of
                 Ok(_):

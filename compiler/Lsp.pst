@@ -154,7 +154,7 @@ function utf16(t: Text, line: Integer, col: Integer): Integer
     var n := 0
     var i := start
     while i < start + col - 1 and i < len(t.chars) do
-        if ord(t.chars[i]) > 0xFFFF then
+        if ord(t.chars[i]) > $FFFF then
             n := n + 2
         else
             n := n + 1
@@ -170,7 +170,7 @@ function column(t: Text, line: Integer, character: Integer): Integer
     var n := 0
     var i := start
     while n < character and i < len(t.chars) and t.chars[i] <> '\n' do
-        if ord(t.chars[i]) > 0xFFFF then
+        if ord(t.chars[i]) > $FFFF then
             n := n + 2
         else
             n := n + 1

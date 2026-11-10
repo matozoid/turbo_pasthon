@@ -125,15 +125,15 @@ unsafe function fileType(path: String): Integer
     )
     if cStat(toCString(path), addr(var st)) <> 0 then
         return -1
-    return Integer(band(st.w3, 0xF000))
+    return Integer(band(st.w3, $F000))
 
 ## Whether `path` names a regular file (following symbolic links).
 export function isFile(path: String): Boolean
-    return fileType(path) = 0x8000
+    return fileType(path) = $8000
 
 ## Whether `path` names a directory (following symbolic links).
 export function isDir(path: String): Boolean
-    return fileType(path) = 0x4000
+    return fileType(path) = $4000
 
 ## The names of the entries of directory `path`, without `.` and `..`, in no particular
 ## order.
@@ -195,7 +195,7 @@ export unsafe function removeFile(path: String): Result[Integer, String]
     return Ok(0)
 
 ## Creates the directory `path`, with permissions `mode` less the umask.
-export unsafe function makeDir(path: String, mode: Integer := 0x1ED): Result[Integer, String]
+export unsafe function makeDir(path: String, mode: Integer := $1ED): Result[Integer, String]
     if mkdir(toCString(path), CInt(mode)) <> 0 then
         return Err("{path}: {lastError()}")
     return Ok(0)
@@ -264,13 +264,13 @@ unsafe function launch(
             if fd < 0 or dup2(fd, fd2: CInt(0)) < 0 then
                 cExit(CInt(127))
         if output <> "" then
-            let fd := cOpen(out, CInt(1 + 0x40 + 0x200), CInt(0x1A4))
+            let fd := cOpen(out, CInt(1 + $40 + $200), CInt($1A4))
             if fd < 0 or dup2(fd, fd2: CInt(1)) < 0 then
                 cExit(CInt(127))
             if errors = "" and dup2(fd, fd2: CInt(2)) < 0 then
                 cExit(CInt(127))
         if errors <> "" then
-            let fd := cOpen(err, CInt(1 + 0x40 + 0x200), CInt(0x1A4))
+            let fd := cOpen(err, CInt(1 + $40 + $200), CInt($1A4))
             if fd < 0 or dup2(fd, fd2: CInt(2)) < 0 then
                 cExit(CInt(127))
         if dir <> "" and chdir(cwd) <> 0 then
@@ -291,9 +291,9 @@ unsafe function launch(
     if message <> "" then
         return Err("{path}: {message}")
     let s := Integer(status)
-    if band(s, 0x7F) = 0 then
-        return Ok(band(shr(s, 8), 0xFF))
-    return Ok(-band(s, 0x7F))
+    if band(s, $7F) = 0 then
+        return Ok(band(shr(s, 8), $FF))
+    return Ok(-band(s, $7F))
 
 test "directories"
     let dir := tempDir().get()

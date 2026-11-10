@@ -48,11 +48,11 @@ export function normalize(text: String): String
 ## The number of bytes `c` takes in UTF-8.
 export function utf8Size(c: Char): Integer
     let n := ord(c)
-    if n < 0x80 then
+    if n < $80 then
         return 1
-    if n < 0x800 then
+    if n < $800 then
         return 2
-    if n < 0x10000 then
+    if n < $10000 then
         return 3
     return 4
 

@@ -98,7 +98,7 @@ export procedure setLE(var bs: List[Byte], pos, v, n: Integer)
         bs[pos + i] := byte(shr(v, 8 * i))
 
 function rex(w: Boolean, reg: Integer, rm: Integer): Integer
-    var r := 0x40
+    var r := $40
     if w then
         r := r + 8
     if reg >= 8 then
@@ -116,7 +116,7 @@ function low(r: Integer): Integer
 
 ## A ModRM byte with both operands registers.
 function modrm(reg: Integer, rm: Integer): Integer
-    return 0xC0 + 8 * low(reg) + low(rm)
+    return $C0 + 8 * low(reg) + low(rm)
 
 ## A key for a byte string, to share equal data.
 function bytesKey(bs: List[Byte]): String
@@ -199,34 +199,34 @@ export procedure emit(a: ref Assembler, bs: List[Integer])
 ## `op r/m, reg` with both operands registers.
 procedure rr(a: ref Assembler, op, dst, src: Integer, w: Boolean := true)
     let x := rex(w, src, rm: dst)
-    if x <> 0x40 then
+    if x <> $40 then
         emit(a, [x])
     emit(a, [op, modrm(src, rm: dst)])
 
 export procedure mov(a: ref Assembler, dst, src: Integer)
-    rr(a, 0x89, dst, src)
+    rr(a, $89, dst, src)
 
 export procedure movImm(a: ref Assembler, dst: Integer, value: Integer)
     if value >= 0 and value < 4294967296 then  # mov r32, imm32 zero-extends
         if dst >= 8 then
-            emit(a, [0x41])
-        emit(a, [0xB8 + low(dst)])
+            emit(a, [$41])
+        emit(a, [$B8 + low(dst)])
         putLE(var a.code, value, n: 4)
     else if fits32(value) then  # mov r/m64, imm32 sign-extends
-        emit(a, [rex(true, 0, rm: dst), 0xC7, 0xC0 + low(dst)])
+        emit(a, [rex(true, 0, rm: dst), $C7, $C0 + low(dst)])
         putLE(var a.code, value, n: 4)
     else
-        emit(a, [rex(true, 0, rm: dst), 0xB8 + low(dst)])
+        emit(a, [rex(true, 0, rm: dst), $B8 + low(dst)])
         putLE(var a.code, value, n: 8)
 
 ## `mov r64, imm64` whatever the value: the form for unsigned constants above 2^63 - 1.
 export procedure movImm64(a: ref Assembler, dst: Integer, value: Integer)
-    emit(a, [rex(true, 0, rm: dst), 0xB8 + low(dst)])
+    emit(a, [rex(true, 0, rm: dst), $B8 + low(dst)])
     putLE(var a.code, value, n: 8)
 
 ## An instruction with a `[base + disp]` operand. `reg` is the register operand or the
 ## opcode extension. `flags`: 1 for a 64-bit operand (REX.W), 2 for a byte register
-## operand, 4 for a 0x66 prefix.
+## operand, 4 for a $66 prefix.
 procedure mem(
     a: ref Assembler,
     op: List[Integer],
@@ -236,9 +236,9 @@ procedure mem(
     flags: Integer := 1,
 )
     if band(flags, 4) <> 0 then
-        emit(a, [0x66])
+        emit(a, [$66])
     let x := rex(band(flags, 1) <> 0, reg, rm: base)
-    if x <> 0x40 or (band(flags, 2) <> 0 and reg >= 4) then  # spl..dil need a REX prefix
+    if x <> $40 or (band(flags, 2) <> 0 and reg >= 4) then  # spl..dil need a REX prefix
         emit(a, [x])
     emit(a, op)
     var md := 2
@@ -248,7 +248,7 @@ procedure mem(
         md := 1
     emit(a, [md * 64 + 8 * low(reg) + low(base)])
     if low(base) = Rsp then
-        emit(a, [0x24])  # SIB: no index
+        emit(a, [$24])  # SIB: no index
     if md = 1 then
         emit(a, [disp])
     else if md = 2 then
@@ -256,28 +256,28 @@ procedure mem(
 
 ## `mov dst, [base + disp]`.
 export procedure load(a: ref Assembler, dst, base: Integer, disp: Integer := 0)
-    mem(a, [0x8B], dst, base, disp: disp)
+    mem(a, [$8B], dst, base, disp: disp)
 
 ## `mov [base + disp], src`.
 export procedure store(a: ref Assembler, base: Integer, disp: Integer, src: Integer)
-    mem(a, [0x89], src, base, disp: disp)
+    mem(a, [$89], src, base, disp: disp)
 
 ## `mov byte [base + disp], src8`.
 export procedure store8(a: ref Assembler, base: Integer, disp: Integer, src: Integer)
-    mem(a, [0x88], src, base, disp: disp, flags: 2)
+    mem(a, [$88], src, base, disp: disp, flags: 2)
 
 export procedure store8Imm(a: ref Assembler, base: Integer, disp: Integer, value: Integer)
-    mem(a, [0xC6], 0, base, disp: disp, flags: 0)
+    mem(a, [$C6], 0, base, disp: disp, flags: 0)
     emit(a, [value])
 
 ## `mov qword [base + disp], imm32` (sign-extended).
 export procedure storeImm(a: ref Assembler, base: Integer, disp: Integer, value: Integer)
-    mem(a, [0xC7], 0, base, disp: disp)
+    mem(a, [$C7], 0, base, disp: disp)
     putLE(var a.code, value, n: 4)
 
 ## `movzx dst32, byte [base + disp]`.
 export procedure load8(a: ref Assembler, dst, base: Integer, disp: Integer := 0)
-    mem(a, [0x0F, 0xB6], dst, base, disp: disp, flags: 0)
+    mem(a, [$0F, $B6], dst, base, disp: disp, flags: 0)
 
 ## Loads a `bits`-wide integer, sign- or zero-extended to 64 bits.
 export procedure loadW(
@@ -291,26 +291,26 @@ export procedure loadW(
     if bits = 64 then
         load(a, dst, base, disp: disp)
     else if bits = 8 and signed then
-        mem(a, [0x0F, 0xBE], dst, base, disp: disp)
+        mem(a, [$0F, $BE], dst, base, disp: disp)
     else if bits = 8 then
-        mem(a, [0x0F, 0xB6], dst, base, disp: disp, flags: 0)
+        mem(a, [$0F, $B6], dst, base, disp: disp, flags: 0)
     else if bits = 16 and signed then
-        mem(a, [0x0F, 0xBF], dst, base, disp: disp)
+        mem(a, [$0F, $BF], dst, base, disp: disp)
     else if bits = 16 then
-        mem(a, [0x0F, 0xB7], dst, base, disp: disp, flags: 0)
+        mem(a, [$0F, $B7], dst, base, disp: disp, flags: 0)
     else if signed then
-        mem(a, [0x63], dst, base, disp: disp)
+        mem(a, [$63], dst, base, disp: disp)
     else
-        mem(a, [0x8B], dst, base, disp: disp, flags: 0)
+        mem(a, [$8B], dst, base, disp: disp, flags: 0)
 
 ## Stores the low `bits` of `src`.
 export procedure storeW(a: ref Assembler, base: Integer, disp: Integer, src: Integer, bits: Integer)
     if bits = 8 then
         store8(a, base, disp: disp, src: src)
     else if bits = 16 then
-        mem(a, [0x89], src, base, disp: disp, flags: 4)
+        mem(a, [$89], src, base, disp: disp, flags: 4)
     else if bits = 32 then
-        mem(a, [0x89], src, base, disp: disp, flags: 0)
+        mem(a, [$89], src, base, disp: disp, flags: 0)
     else
         store(a, base, disp: disp, src: src)
 
@@ -320,96 +320,96 @@ export procedure extend(a: ref Assembler, r: Integer, bits: Integer, signed: Boo
         return
     if bits = 32 then
         if signed then  # movsxd r64, r32
-            emit(a, [rex(true, r, rm: r), 0x63, modrm(r, rm: r)])
+            emit(a, [rex(true, r, rm: r), $63, modrm(r, rm: r)])
         else  # mov r32, r32 zero-extends
-            rr(a, 0x89, r, r, w: false)
+            rr(a, $89, r, r, w: false)
         return
-    var op := 0xB7
+    var op := $B7
     if bits = 8 and signed then
-        op := 0xBE
+        op := $BE
     else if bits = 8 then
-        op := 0xB6
+        op := $B6
     else if signed then
-        op := 0xBF
-    emit(a, [rex(true, r, rm: r), 0x0F, op, modrm(r, rm: r)])
+        op := $BF
+    emit(a, [rex(true, r, rm: r), $0F, op, modrm(r, rm: r)])
 
 export procedure incMem(a: ref Assembler, base: Integer, disp: Integer := 0)
-    mem(a, [0xFF], 0, base, disp: disp)
+    mem(a, [$FF], 0, base, disp: disp)
 
 export procedure decMem(a: ref Assembler, base: Integer, disp: Integer := 0)
-    mem(a, [0xFF], 1, base, disp: disp)
+    mem(a, [$FF], 1, base, disp: disp)
 
 ## `cmp qword [base + disp], imm8`.
 export procedure cmpMemImm(a: ref Assembler, base: Integer, disp: Integer, value: Integer)
-    mem(a, [0x83], 7, base, disp: disp)
+    mem(a, [$83], 7, base, disp: disp)
     emit(a, [value])
 
 export procedure lea(a: ref Assembler, dst, base: Integer, disp: Integer)
-    mem(a, [0x8D], dst, base, disp: disp)
+    mem(a, [$8D], dst, base, disp: disp)
 
 ## `lea dst, [rip + label]` for a rodata label.
 export procedure leaData(a: ref Assembler, dst: Integer, label: String)
-    emit(a, [rex(true, dst, rm: 0), 0x8D, 0x05 + 8 * low(dst)])
+    emit(a, [rex(true, dst, rm: 0), $8D, $05 + 8 * low(dst)])
     rel32(a, label, kind: "data")
 
 ## `mov dst, [rip + global]`.
 export procedure loadGlobal(a: ref Assembler, dst: Integer, name: String)
-    global(a, 0x8B, dst, name: name)
+    global(a, $8B, dst, name: name)
 
 ## `lea dst, [rip + global]`.
 export procedure leaGlobal(a: ref Assembler, dst: Integer, name: String)
-    global(a, 0x8D, dst, name: name)
+    global(a, $8D, dst, name: name)
 
 ## `mov [rip + global], src`.
 export procedure storeGlobal(a: ref Assembler, name: String, src: Integer)
-    global(a, 0x89, src, name: name)
+    global(a, $89, src, name: name)
 
 procedure global(a: ref Assembler, op, r: Integer, name: String)
     if indexOf(a.globals, name) < 0 then
         add(var a.globals, name)
-    emit(a, [rex(true, r, rm: 0), op, 0x05 + 8 * low(r)])
+    emit(a, [rex(true, r, rm: 0), op, $05 + 8 * low(r)])
     rel32(a, name, kind: "global")
 
 ## `lea dst, [rip + label]` for a code label.
 export procedure leaCode(a: ref Assembler, dst: Integer, label: String)
-    emit(a, [rex(true, dst, rm: 0), 0x8D, 0x05 + 8 * low(dst)])
+    emit(a, [rex(true, dst, rm: 0), $8D, $05 + 8 * low(dst)])
     rel32(a, label)
 
 export procedure add(a: ref Assembler, dst, src: Integer)
-    rr(a, 0x01, dst, src)
+    rr(a, $01, dst, src)
 
 export procedure xor(a: ref Assembler, dst, src: Integer)
-    rr(a, 0x31, dst, src)
+    rr(a, $31, dst, src)
 
 export procedure orR(a: ref Assembler, dst, src: Integer)
-    rr(a, 0x09, dst, src)
+    rr(a, $09, dst, src)
 
 export procedure andR(a: ref Assembler, dst, src: Integer)
-    rr(a, 0x21, dst, src)
+    rr(a, $21, dst, src)
 
 export procedure sub(a: ref Assembler, dst, src: Integer)
-    rr(a, 0x29, dst, src)
+    rr(a, $29, dst, src)
 
 export procedure cmp(a: ref Assembler, x, y: Integer)
-    rr(a, 0x39, x, y)
+    rr(a, $39, x, y)
 
 ## `cmp x, [base + disp]`.
 export procedure cmpMem(a: ref Assembler, x, base: Integer, disp: Integer)
-    mem(a, [0x3B], x, base, disp: disp)
+    mem(a, [$3B], x, base, disp: disp)
 
 export procedure testR(a: ref Assembler, x, y: Integer)
-    rr(a, 0x85, x, y)
+    rr(a, $85, x, y)
 
 ## `test` of the low 32 bits (for C `int` results).
 export procedure test32(a: ref Assembler, x, y: Integer)
-    rr(a, 0x85, x, y, w: false)
+    rr(a, $85, x, y, w: false)
 
 ## `imul dst, src` (signed; sets OF on overflow).
 export procedure imul(a: ref Assembler, dst, src: Integer)
-    emit(a, [rex(true, dst, rm: src), 0x0F, 0xAF, modrm(dst, rm: src)])
+    emit(a, [rex(true, dst, rm: src), $0F, $AF, modrm(dst, rm: src)])
 
 procedure unary(a: ref Assembler, ext, r: Integer)
-    emit(a, [rex(true, 0, rm: r), 0xF7, modrm(ext, rm: r)])
+    emit(a, [rex(true, 0, rm: r), $F7, modrm(ext, rm: r)])
 
 export procedure neg(a: ref Assembler, r: Integer)
     unary(a, 3, r: r)
@@ -418,14 +418,14 @@ export procedure notR(a: ref Assembler, r: Integer)
     unary(a, 2, r: r)
 
 export procedure shlCl(a: ref Assembler, r: Integer)
-    emit(a, [rex(true, 0, rm: r), 0xD3, 0xE0 + low(r)])
+    emit(a, [rex(true, 0, rm: r), $D3, $E0 + low(r)])
 
 ## Logical shift right by cl.
 export procedure shrCl(a: ref Assembler, r: Integer)
-    emit(a, [rex(true, 0, rm: r), 0xD3, 0xE8 + low(r)])
+    emit(a, [rex(true, 0, rm: r), $D3, $E8 + low(r)])
 
 export procedure popcnt(a: ref Assembler, dst, src: Integer)
-    emit(a, [0xF3, rex(true, dst, rm: src), 0x0F, 0xB8, modrm(dst, rm: src)])
+    emit(a, [$F3, rex(true, dst, rm: src), $0F, $B8, modrm(dst, rm: src)])
 
 ## Unsigned rdx:rax := rax * r (sets CF when rdx isn't 0).
 export procedure mul(a: ref Assembler, r: Integer)
@@ -441,70 +441,70 @@ export procedure idiv(a: ref Assembler, r: Integer)
 
 ## Sign-extends rax into rdx.
 export procedure cqo(a: ref Assembler)
-    emit(a, [0x48, 0x99])
+    emit(a, [$48, $99])
 
 export procedure incR(a: ref Assembler, r: Integer)
-    emit(a, [rex(true, 0, rm: r), 0xFF, 0xC0 + low(r)])
+    emit(a, [rex(true, 0, rm: r), $FF, $C0 + low(r)])
 
 export procedure decR(a: ref Assembler, r: Integer)
-    emit(a, [rex(true, 0, rm: r), 0xFF, 0xC8 + low(r)])
+    emit(a, [rex(true, 0, rm: r), $FF, $C8 + low(r)])
 
 ## An SSE2 instruction `prefix [rex] 0F op modrm`, with registers as both operands.
 procedure sse(a: ref Assembler, prefix, op, reg, rm: Integer, w: Boolean := false)
     emit(a, [prefix])
     let x := rex(w, reg, rm: rm)
-    if x <> 0x40 then
+    if x <> $40 then
         emit(a, [x])
-    emit(a, [0x0F, op, modrm(reg, rm: rm)])
+    emit(a, [$0F, op, modrm(reg, rm: rm)])
 
 ## `movq xmm, r64`: the bits of a general register into an xmm register.
 export procedure movqToXmm(a: ref Assembler, x, r: Integer)
-    sse(a, 0x66, 0x6E, x, rm: r, w: true)
+    sse(a, $66, $6E, x, rm: r, w: true)
 
 ## `movq r64, xmm`: the bits of an xmm register into a general register.
 export procedure movqFromXmm(a: ref Assembler, r, x: Integer)
-    sse(a, 0x66, 0x7E, x, rm: r, w: true)
+    sse(a, $66, $7E, x, rm: r, w: true)
 
 ## `movd xmm, r32`: the low 32 bits of a general register into an xmm register.
 export procedure movdToXmm(a: ref Assembler, x, r: Integer)
-    sse(a, 0x66, 0x6E, x, rm: r)
+    sse(a, $66, $6E, x, rm: r)
 
 ## `movd r32, xmm`: the low 32 bits of an xmm register into a general register, zeroing
 ## the upper ones.
 export procedure movdFromXmm(a: ref Assembler, r, x: Integer)
-    sse(a, 0x66, 0x7E, x, rm: r)
+    sse(a, $66, $7E, x, rm: r)
 
 ## `cvtss2sd dst, src`: a single to a double, exactly.
 export procedure cvtss2sd(a: ref Assembler, dst, src: Integer)
-    sse(a, 0xF3, 0x5A, dst, rm: src)
+    sse(a, $F3, $5A, dst, rm: src)
 
 ## `cvtsd2ss dst, src`: a double to the nearest single.
 export procedure cvtsd2ss(a: ref Assembler, dst, src: Integer)
-    sse(a, 0xF2, 0x5A, dst, rm: src)
+    sse(a, $F2, $5A, dst, rm: src)
 
 ## `addsd`, `subsd`, `mulsd` or `divsd dst, src` for the operator `op`.
 export procedure realOp(a: ref Assembler, op: String, dst, src: Integer)
-    var code := 0x58
+    var code := $58
     if op = "-" then
-        code := 0x5C
+        code := $5C
     else if op = "*" then
-        code := 0x59
+        code := $59
     else if op = "/" then
-        code := 0x5E
-    sse(a, 0xF2, code, dst, rm: src)
+        code := $5E
+    sse(a, $F2, code, dst, rm: src)
 
 ## `ucomisd x, y`: compares two reals; unordered (a NaN) sets ZF, PF and CF.
 export procedure ucomisd(a: ref Assembler, x, y: Integer)
-    sse(a, 0x66, 0x2E, x, rm: y)
+    sse(a, $66, $2E, x, rm: y)
 
 ## `cvtsi2sd x, r64`: a signed integer to a real.
 export procedure cvtsi2sd(a: ref Assembler, x, r: Integer)
-    sse(a, 0xF2, 0x2A, x, rm: r, w: true)
+    sse(a, $F2, $2A, x, rm: r, w: true)
 
 ## `cvttsd2si r64, x`: a real to a signed integer, truncating; the integer
-## 0x8000000000000000 if it doesn't fit.
+## $8000000000000000 if it doesn't fit.
 export procedure cvttsd2si(a: ref Assembler, r, x: Integer)
-    sse(a, 0xF2, 0x2C, r, rm: x, w: true)
+    sse(a, $F2, $2C, r, rm: x, w: true)
 
 ## The number of a condition code, for jcc: `jcc(a, "e", l)` jumps if equal.
 function cc(name: String): Integer
@@ -534,26 +534,26 @@ function cc(name: String): Integer
 export procedure setcc(a: ref Assembler, c: String, r: Integer)
     if r >= 4 then
         emit(a, [rex(false, 0, rm: r)])
-    emit(a, [0x0F, 0x90 + cc(c), 0xC0 + low(r)])
+    emit(a, [$0F, $90 + cc(c), $C0 + low(r)])
 
 ## `movzx dst32, src8`.
 export procedure movzx8(a: ref Assembler, dst, src: Integer)
     let x := rex(false, dst, rm: src)
-    if x <> 0x40 or src >= 4 then
+    if x <> $40 or src >= 4 then
         emit(a, [x])
-    emit(a, [0x0F, 0xB6, modrm(dst, rm: src)])
+    emit(a, [$0F, $B6, modrm(dst, rm: src)])
 
 ## `xor r32, imm8` (flips Booleans).
 export procedure xorImm32(a: ref Assembler, dst: Integer, value: Integer)
     if dst >= 8 then
-        emit(a, [0x41])
-    emit(a, [0x83, 0xF0 + low(dst), value])
+        emit(a, [$41])
+    emit(a, [$83, $F0 + low(dst), value])
 
 ## A 32-bit ALU op with an imm32 (no sign extension into the upper half).
 procedure alu32Imm(a: ref Assembler, ext: Integer, dst: Integer, value: Integer)
     if dst >= 8 then
-        emit(a, [0x41])
-    emit(a, [0x81, modrm(ext, rm: dst)])
+        emit(a, [$41])
+    emit(a, [$81, modrm(ext, rm: dst)])
     putLE(var a.code, value, n: 4)
 
 export procedure or32Imm(a: ref Assembler, dst: Integer, value: Integer)
@@ -563,14 +563,14 @@ export procedure and32Imm(a: ref Assembler, dst: Integer, value: Integer)
     alu32Imm(a, 4, dst: dst, value: value)
 
 export procedure shrImm(a: ref Assembler, dst: Integer, n: Integer)
-    emit(a, [rex(true, 0, rm: dst), 0xC1, 0xE8 + low(dst), n])
+    emit(a, [rex(true, 0, rm: dst), $C1, $E8 + low(dst), n])
 
 export procedure shlImm(a: ref Assembler, dst: Integer, n: Integer)
-    emit(a, [rex(true, 0, rm: dst), 0xC1, 0xE0 + low(dst), n])
+    emit(a, [rex(true, 0, rm: dst), $C1, $E0 + low(dst), n])
 
 ## `sub dst, imm32` with the immediate patched later; returns its position.
 export function subImm32Fixed(a: ref Assembler, dst: Integer): Integer
-    emit(a, [rex(true, 0, rm: dst), 0x81, 0xE8 + low(dst)])
+    emit(a, [rex(true, 0, rm: dst), $81, $E8 + low(dst)])
     let pos := len(a.code)
     putLE(var a.code, 0, n: 4)
     return pos
@@ -579,19 +579,19 @@ export procedure patch32(a: ref Assembler, pos: Integer, value: Integer)
     setLE(var a.code, pos, value, n: 4)
 
 export procedure leave(a: ref Assembler)
-    emit(a, [0xC9])
+    emit(a, [$C9])
 
 ## `xor r32, r32`: the short way to zero a register.
 export procedure xor32(a: ref Assembler, dst, src: Integer)
-    rr(a, 0x31, dst, src, w: false)
+    rr(a, $31, dst, src, w: false)
 
 procedure aluImm(a: ref Assembler, ext: Integer, dst: Integer, value: Integer)
     assert fits32(value), "immediate out of range"
     let x := rex(true, 0, rm: dst)
     if value >= -128 and value < 128 then
-        emit(a, [x, 0x83, modrm(ext, rm: dst), value])
+        emit(a, [x, $83, modrm(ext, rm: dst), value])
     else
-        emit(a, [x, 0x81, modrm(ext, rm: dst)])
+        emit(a, [x, $81, modrm(ext, rm: dst)])
         putLE(var a.code, value, n: 4)
 
 export procedure addImm(a: ref Assembler, dst: Integer, value: Integer)
@@ -613,42 +613,42 @@ export procedure andImm(a: ref Assembler, dst: Integer, value: Integer)
 
 export procedure push(a: ref Assembler, r: Integer)
     if r >= 8 then
-        emit(a, [0x41])
-    emit(a, [0x50 + low(r)])
+        emit(a, [$41])
+    emit(a, [$50 + low(r)])
     if a.tracked then
         add(var a.stack, false)
 
 export procedure pop(a: ref Assembler, r: Integer)
     if r >= 8 then
-        emit(a, [0x41])
-    emit(a, [0x58 + low(r)])
+        emit(a, [$41])
+    emit(a, [$58 + low(r)])
     if a.tracked then
         removeLast(var a.stack)
 
 export procedure call(a: ref Assembler, label: String)
-    emit(a, [0xE8])
+    emit(a, [$E8])
     rel32(a, label)
 
 ## `call r`.
 export procedure callReg(a: ref Assembler, r: Integer)
     if r >= 8 then
-        emit(a, [0x41])
-    emit(a, [0xFF, 0xD0 + low(r)])
+        emit(a, [$41])
+    emit(a, [$FF, $D0 + low(r)])
 
 ## `call [rip + GOT slot]` for an imported C function.
 export procedure callImport(a: ref Assembler, name: String)
     if indexOf(a.imports, name) < 0 then
         add(var a.imports, name)
-    emit(a, [0xFF, 0x15])
+    emit(a, [$FF, $15])
     rel32(a, name, kind: "got")
 
 export procedure jmp(a: ref Assembler, label: String)
-    emit(a, [0xE9])
+    emit(a, [$E9])
     rel32(a, label)
 
 export procedure jcc(a: ref Assembler, c: String, label: String)
-    emit(a, [0x0F, 0x80 + cc(c)])
+    emit(a, [$0F, $80 + cc(c)])
     rel32(a, label)
 
 export procedure ret(a: ref Assembler)
-    emit(a, [0xC3])
+    emit(a, [$C3])
