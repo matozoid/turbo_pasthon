@@ -1152,7 +1152,7 @@ function inlayHints(s: Server, path: String, params: JValue): String
         for x in c.args do
             add(var shown, show(x))
         let label := "[{join(shown, sep: ", ")}]"
-        if find(label, sub: "<").isSome() then
+        if pos(label, sub: "<").isSome() then
             continue  # an error or an unsolved parameter
         seen[sp.start] := true
         let at := position(t, sp.endLine, col: sp.endCol)

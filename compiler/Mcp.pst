@@ -569,7 +569,7 @@ function panicOf(stderr: String): String
         if not startsWith(lines[i], prefix: "panic P") then
             continue
         let rest := slice(lines[i], byteLen("panic "), byteLen(lines[i]))
-        let colon := find(rest, sub: ": ").getOr(byteLen(rest))
+        let colon := pos(rest, sub: ": ").getOr(byteLen(rest))
         var members := "\"code\":{quote(slice(rest, 0, colon))}"
         if colon < byteLen(rest) then
             members := "{members},\"message\":{quote(slice(rest, colon + 2, byteLen(rest)))}"

@@ -304,7 +304,7 @@ function testFile(path: String, stdDir: String, o: Options, tmp: String): Tally
     let tests := testsOf(result.resolved.main.get().parsed.file)
     for i := 0 to len(tests) - 1 do
         let t := tests[i]
-        if find(t.name, sub: o.filter).isNone() then
+        if pos(t.name, sub: o.filter).isNone() then
             continue
         var code := 1
         case runFor(exe, ["{i}"], timeout: o.timeout, output: output) of

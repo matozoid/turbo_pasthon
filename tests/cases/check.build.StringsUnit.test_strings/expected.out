@@ -21,16 +21,16 @@ use Main.pst 13:9-13:14
   function 'bytes' @ std/Strings.pst:26:24
 use Main.pst 14:1-14:8
   procedure 'writeln' @ std/IO.pst:16:22
-use Main.pst 14:9-14:13
-  function 'find' @ std/Strings.pst:47:24
+use Main.pst 14:9-14:12
+  function 'pos' @ std/Strings.pst:47:24
 use Main.pst 15:1-15:8
   procedure 'writeln' @ std/IO.pst:16:22
-use Main.pst 15:9-15:13
-  function 'find' @ std/Strings.pst:47:24
+use Main.pst 15:9-15:12
+  function 'pos' @ std/Strings.pst:47:24
 use Main.pst 16:1-16:8
   procedure 'writeln' @ std/IO.pst:16:22
-use Main.pst 16:9-16:13
-  function 'find' @ std/Strings.pst:47:24
+use Main.pst 16:9-16:12
+  function 'pos' @ std/Strings.pst:47:24
 use Main.pst 17:1-17:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 17:9-17:17
@@ -145,19 +145,19 @@ use Main.pst 8:23-8:28
   field 'value' @ std/System.pst:27:16
 use Main.pst 10:23-10:28
   field 'error' @ std/System.pst:30:16
-use Main.pst 14:29-14:32
-  parameter 'sub' @ std/Strings.pst:47:40
-use Main.pst 14:40-14:45
+use Main.pst 14:28-14:31
+  parameter 'sub' @ std/Strings.pst:47:39
+use Main.pst 14:39-14:44
   function 'getOr' @ std/System.pst:570:17
-use Main.pst 15:24-15:27
-  parameter 'sub' @ std/Strings.pst:47:40
-use Main.pst 15:34-15:39
-  parameter 'start' @ std/Strings.pst:47:53
-use Main.pst 15:44-15:49
+use Main.pst 15:23-15:26
+  parameter 'sub' @ std/Strings.pst:47:39
+use Main.pst 15:33-15:38
+  parameter 'start' @ std/Strings.pst:47:52
+use Main.pst 15:43-15:48
   function 'getOr' @ std/System.pst:570:17
-use Main.pst 16:21-16:24
-  parameter 'sub' @ std/Strings.pst:47:40
-use Main.pst 16:31-16:37
+use Main.pst 16:20-16:23
+  parameter 'sub' @ std/Strings.pst:47:39
+use Main.pst 16:30-16:36
   function 'isNone' @ std/System.pst:546:17
 use Main.pst 17:30-17:36
   parameter 'suffix' @ std/Strings.pst:61:37

@@ -29,7 +29,7 @@ function specCodes(text: String): List[Explanation]
                     title := join(rest, sep: " ")
         else if section <> "" and startsWith(line, prefix: "| `") then
             let rest := slice(line, 3, stop: byteLen(line))
-            case find(rest, sub: "` | ") of
+            case pos(rest, sub: "` | ") of
                 Some(at):
                     if endsWith(rest, suffix: " |") then
                         add(var out, Explanation(

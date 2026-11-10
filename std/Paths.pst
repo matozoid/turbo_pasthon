@@ -22,7 +22,7 @@ function lastSlash(s: String): Option[Integer]
     var last: Option[Integer] := None
     var start := 0
     while true do
-        case find(s, sub: "/", start: start) of
+        case pos(s, sub: "/", start: start) of
             Some(at):
                 last := Some(at.value)
                 start := at.value + 1
@@ -70,7 +70,7 @@ function extensionDot(name: String): Option[Integer]
     while start < byteLen(name) and startsWith(slice(name, start, byteLen(name)), prefix: ".") do
         start := start + 1
     while start < byteLen(name) do
-        case find(name, sub: ".", start: start) of
+        case pos(name, sub: ".", start: start) of
             Some(at):
                 dot := Some(at.value)
                 start := at.value + 1

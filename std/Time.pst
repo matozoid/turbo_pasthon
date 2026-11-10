@@ -796,7 +796,7 @@ export function fixedZone(offsetSeconds: Integer): Zone
 
 ## The IANA time zone `name`, such as `Europe/Amsterdam`, read from the tzdata files.
 export unsafe function zone(name: String): Result[Zone, String]
-    if byteLen(name) = 0 or startsWith(name, prefix: "/") or find(name, sub: "..").isSome() then
+    if byteLen(name) = 0 or startsWith(name, prefix: "/") or pos(name, sub: "..").isSome() then
         return Err("invalid time zone name '{name}'")
     return readZone("{zoneDir()}/{name}", name: name)
 
@@ -829,7 +829,7 @@ export unsafe function systemZone(): Result[Zone, String]
 
 ## The zone name in a path under a `zoneinfo` directory, or the path itself.
 function nameFromPath(path: String): String
-    case find(path, sub: "/zoneinfo/") of
+    case pos(path, sub: "/zoneinfo/") of
         Some(at):
             return slice(path, at.value + 10, stop: byteLen(path))
         None:
@@ -1301,7 +1301,7 @@ export function parsePeriod(s: String): Result[Period, String]
         let raw := try number(var r)
         let n := if partNegative then -raw else raw
         let u := peek(r)
-        let at := find(units, sub: toString(u))
+        let at := pos(units, sub: toString(u))
         if u = 'P' or at.isNone() then
             return Err(failure(r, "expected a unit"))
         if u = 'Y' then

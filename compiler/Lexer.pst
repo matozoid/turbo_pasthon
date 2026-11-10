@@ -600,7 +600,7 @@ procedure number(var lx: State)
             hint := "; a real literal must contain '.', e.g. 1.0e5"
         else if startsWith(t, prefix: "0o") or startsWith(t, prefix: "0O") then
             hint := "; there are no octal literals, write it in hexadecimal ($1ED) or decimal"
-        else if find(t, sub: "__").isSome() or endsWith(t, suffix: "_") then
+        else if pos(t, sub: "__").isSome() or endsWith(t, suffix: "_") then
             hint := "; '_' may only appear between two digits"
         error(var lx, "E0007", start, end: lx.pos, message: "malformed number literal '{t}'{hint}")
         emit(var lx, TokenKind.IntLit, start, end: lx.pos, value: IntValue(value: 0))

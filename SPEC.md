@@ -372,7 +372,7 @@ exist on `String` (`E0310`, with a fix suggesting `chars`, `bytes`, or `slice`).
   with O(1) indexing.
 - `bytes(s)` returns a copy of the UTF-8 bytes as a `List[Byte]`, with real O(1) indexing
   for parsers.
-- **Positions are byte offsets.** `find(s, sub, start := 0): Option[Integer]` returns one, and
+- **Positions are byte offsets.** `pos(s, sub, start := 0): Option[Integer]` returns one, and
   `slice(s, from, to)` takes them. An offset that isn't on a `Char` boundary panics (`P0006`).
 
 ### 4.6 Value semantics everywhere (except `ref`)
@@ -1426,7 +1426,7 @@ test "largest of empty list is None"
 |---|---|
 | `System` (implicit) | core types, `Option`, `Result`, `Iterator`, `iter`, adapters (including `chars`) and consumers (§4.14), `len`, `add`, `insert`, `concat`, `remove`, `removeLast`, `sort`, `inc`, `dec`, `ord`, `new`, `weak`, `toString`, `justify(s, width)` (pads with spaces to `width` characters, in front, or after for a negative width; §2.8), conversions, `halt`, `assert` support |
 | `IO` | `write`, `writeln` (standard output), `writeErr`, `writelnErr` (standard error), `readln(): Option[String]`, `read(count): Option[String]` (exactly `count` bytes, `None` if the input ends first); files: `open` (reading), `create(path, mode := $1A4)` (octal 644) (writing; creates or empties), `close`, `readAll`, `readBytes`, `writeAll`, `writeBytes` returning `Result[_, String]` with C's error message. A `File` closes when its last reference goes away. Written in Pasthon on libc's `open`, `read`, `write`, `close` |
-| `Strings` | `bytes`, `fromBytes` (invalid UTF-8 becomes U+FFFD), `charCount`, `byteLen`, `slice`, `find` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `endsWith`, `parseInt`, `parseReal` (`[+-]digits[.digits][(e|E)[+-]digits]`), `repeated(s, count)`, `toUpper`/`toLower` (ASCII letters only), `lines` (split at `\n` or `\r\n`; a break at the end starts no line), `toHex(n, digits := 1)` (lower case, zero-padded, `-` for negatives), `globMatch(text, pattern)` (the whole text; `*`, `?`, `[a-z]`, `[!...]`). `split` and `replace` require a non-empty separator. Written in Pasthon on libc's `memmem`, `memcpy`, `strtod` and `snprintf`, except `charCount`, `byteLen`, `slice` and `startsWith` (compiler intrinsics) |
+| `Strings` | `bytes`, `fromBytes` (invalid UTF-8 becomes U+FFFD), `charCount`, `byteLen`, `slice`, `pos` (byte offsets), `split`, `join`, `trim`, `replace`, `startsWith`, `endsWith`, `parseInt`, `parseReal` (`[+-]digits[.digits][(e|E)[+-]digits]`), `repeated(s, count)`, `upperCase`/`lowerCase` (ASCII letters only), `lines` (split at `\n` or `\r\n`; a break at the end starts no line), `hexStr(n, digits := 1)` and `binStr(n, digits := 1)` (upper case, zero-padded, `-` for negatives), `globMatch(text, pattern)` (the whole text; `*`, `?`, `[a-z]`, `[!...]`). `split` and `replace` require a non-empty separator. Written in Pasthon on libc's `memmem`, `memcpy`, `strtod` and `snprintf`, except `charCount`, `byteLen`, `slice` and `startsWith` (compiler intrinsics) |
 | `Math` | `Pi`, `sqrt`, `sin`, `cos`, `abs`, `min`, `max`, `floor`, `ceil`. Written in Pasthon on libm |
 | `Bits` | `popCount`, and until std moves to the operators (§9.1, §18a) `band`, `bor`, `bxor`, `bnot`, `shl`, `shr`, on all integer types (compiler intrinsics); results wrap to the type's width, `shr` shifts in zeros, a shift count outside 0 to width - 1 gives 0 |
 | `OS` | `args(): List[String]` (without the program name), `env(name): Option[String]`, `exit(code)`, `currentDir(): String`, `realPath(path): Result[String, String]` (absolute, with symbolic links, `.` and `..` resolved), `isFile(path): Boolean` (a regular file, following symbolic links), `isDir(path): Boolean`, `listDir(path): Result[List[String], String]` (the entry names, without `.` and `..`, in no particular order), `programPath(): String` (the running executable, from `/proc/self/exe`), `tempDir(): Result[String, String]` (a new private directory under `TMPDIR`, or `/tmp`), `makeDir(path, mode := $1ED)` (octal 755), `removeFile(path)` and `removeDir(path)` (an empty directory; all three `Result[Integer, String]`), `run(path, args, output := "", errors := "", input := "", dir := ""): Result[Integer, String]` (runs an executable and waits: its exit status, or minus the signal that ended it; 127 if it can't be started; with `output`, its standard output goes to that file, and its standard error too unless `errors` names another file; with `input`, it reads that file; with `dir`, it runs in that directory, while the file paths stay relative to the caller's). Written in Pasthon on libc (`getcwd`, `realpath`, `stat`, `readlink`, `mkdtemp`, `mkdir`, `unlink`, `rmdir`, `opendir`, `readdir`, `fork`, `dup2`, `chdir`, `execv`, `waitpid`); `args` reads `argv`, which the program's entry point keeps in a writable word after the GOT (§15.2) |
@@ -2050,8 +2050,8 @@ form goes.
 2. Done (§2.8): format specifiers in placeholders, as Pascal's `write(x:width:decimals)`:
    `"{n:5}"` right-aligns in 5 characters, `"{s:-8}"` left-aligns, `"{x:0:2}"` writes 2
    decimals. They replaced `padLeft`, `padRight` and `toFixed`.
-3. Pascal names in `Strings`: `upperCase`, `lowerCase`, `hexStr(n, digits)`, `binStr`, and
-   `pos` for `find` (still an `Option`).
+3. Done (§14): Pascal names in `Strings`: `upperCase`, `lowerCase`, `hexStr(n, digits)`
+   (now upper case), `binStr`, and `pos` for `find` (still an `Option`).
 4. `external "lib"` and `name "symbol"` instead of `extern` and `as`.
 5. `length` instead of `len`.
 6. Comments are `{ ... }`, the only comment style: `#` goes, and a `{ }` comment directly

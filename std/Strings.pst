@@ -44,7 +44,7 @@ export unsafe function fromBytes(b: List[Byte]): String
     return r
 
 ## Byte offset of the first occurrence of `sub` at or after byte offset `start`.
-export unsafe function find(s: String, sub: String, start: Integer := 0): Option[Integer]
+export unsafe function pos(s: String, sub: String, start: Integer := 0): Option[Integer]
     requires start >= 0 and start <= byteLen(s)
     let p := cast[Ptr[Byte]](toCString(s))
     let q := memmem(
@@ -60,7 +60,7 @@ export unsafe function find(s: String, sub: String, start: Integer := 0): Option
 ## Whether `s` ends with `suffix`.
 export function endsWith(s: String, suffix: String): Boolean
     let n := byteLen(s) - byteLen(suffix)
-    return n >= 0 and find(s, sub: suffix, start: n).isSome()
+    return n >= 0 and pos(s, sub: suffix, start: n).isSome()
 
 ## The parts between occurrences of `sep`.
 export function split(s: String, sep: String): List[String]
@@ -68,7 +68,7 @@ export function split(s: String, sep: String): List[String]
     var parts: List[String] := []
     var start := 0
     while true do
-        case find(s, sub: sep, start: start) of
+        case pos(s, sub: sep, start: start) of
             Some(at):
                 add(var parts, slice(s, start, at.value))
                 start := at.value + byteLen(sep)
@@ -207,11 +207,11 @@ unsafe function shiftLetters(s: String, lo: Byte, shift: Integer): String
     return fromBytes(out)
 
 ## `s` with the ASCII letters `a` to `z` made upper case; other characters stay.
-export function toUpper(s: String): String
+export function upperCase(s: String): String
     return shiftLetters(s, lo: 97, shift: -32)
 
 ## `s` with the ASCII letters `A` to `Z` made lower case; other characters stay.
-export function toLower(s: String): String
+export function lowerCase(s: String): String
     return shiftLetters(s, lo: 65, shift: 32)
 
 ## The lines of `s`: the parts between line breaks (`\n` or `\r\n`). A break at the very end
@@ -230,18 +230,18 @@ export function lines(s: String): List[String]
             add(var out, line)
     return out
 
-## `n` in hexadecimal with lower-case digits, at least `digits` of them (padded with
+## `n` in base `radix`, with upper-case digits, at least `digits` of them (padded with
 ## zeros), and a `-` in front if it's negative.
-export function toHex(n: Integer, digits: Integer := 1): String
-    let hexDigits := "0123456789abcdef"
+function radixStr(n, radix, digits: Integer): String
+    let allDigits := "0123456789ABCDEF"
     var rest := n
     var out: List[String] := []
     while rest <> 0 or len(out) < digits do
-        var d := rest mod 16
+        var d := rest mod radix
         if d < 0 then
             d := -d
-        add(var out, slice(hexDigits, d, d + 1))
-        rest := rest div 16
+        add(var out, slice(allDigits, d, d + 1))
+        rest := rest div radix
     var r: List[String] := []
     if n < 0 then
         add(var r, "-")
@@ -250,6 +250,16 @@ export function toHex(n: Integer, digits: Integer := 1): String
         add(var r, out[i])
         i := i - 1
     return join(r)
+
+## `n` in hexadecimal with upper-case digits, at least `digits` of them (padded with
+## zeros), and a `-` in front if it's negative: `hexStr(255, 4)` is `00FF`.
+export function hexStr(n: Integer, digits: Integer := 1): String
+    return radixStr(n, 16, digits)
+
+## `n` in binary, at least `digits` digits (padded with zeros), and a `-` in front if it's
+## negative: `binStr(5, 4)` is `0101`.
+export function binStr(n: Integer, digits: Integer := 1): String
+    return radixStr(n, 2, digits)
 
 ## Whether `text` matches the shell-style `pattern` as a whole: `*` matches any characters
 ## (also none), `?` one character, `[abc]` one of the listed characters, with ranges like
@@ -330,11 +340,11 @@ function oneMatches(p: List[Char], at: Integer, c: Char): Boolean
             i := i + 1
     return found <> negated
 
-test "find gives byte offsets"
-    assert find("héllo", sub: "l") = Some(3)
-    assert find("hello", sub: "l", start: 3) = Some(3)
-    assert find("hello", sub: "x").isNone()
-    assert find("", sub: "") = Some(0)
+test "pos gives byte offsets"
+    assert pos("héllo", sub: "l") = Some(3)
+    assert pos("hello", sub: "l", start: 3) = Some(3)
+    assert pos("hello", sub: "x").isNone()
+    assert pos("", sub: "") = Some(0)
 
 test "startsWith and endsWith"
     assert startsWith("hello", prefix: "he")
@@ -389,13 +399,15 @@ test "repeating"
     assert repeated("ab", count: 3) = "ababab" and repeated("x", count: 0) = ""
 
 test "case and lines"
-    assert toUpper("Héllo, w0rld") = "HéLLO, W0RLD" and toLower("ÀBC-d") = "Àbc-d"
+    assert upperCase("Héllo, w0rld") = "HéLLO, W0RLD" and lowerCase("ÀBC-d") = "Àbc-d"
     assert lines("a\nb\r\nc") = ["a", "b", "c"] and lines("a\n\n") = ["a", ""]
     assert lines("") = [] and lines("\n") = [""]
 
 test "number formatting"
-    assert toHex(255) = "ff" and toHex(0) = "0" and toHex(10, digits: 4) = "000a"
-    assert toHex(-255) = "-ff" and toHex(MinInt) = "-8000000000000000"
+    assert hexStr(255) = "FF" and hexStr(0) = "0" and hexStr(10, digits: 4) = "000A"
+    assert hexStr(-255) = "-FF" and hexStr(MinInt) = "-8000000000000000"
+    assert binStr(5, digits: 4) = "0101" and binStr(0) = "0" and binStr(-6) = "-110"
+    assert binStr(MinInt) = "-1{repeated("0", count: 63)}"
 
 test "glob patterns"
     assert globMatch("main.pst", pattern: "*.pst") and not globMatch("main.c", pattern: "*.pst")
