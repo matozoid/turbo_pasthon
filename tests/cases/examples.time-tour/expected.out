@@ -1,0 +1,21 @@
+$ cd $ROOT/examples && $PST run TimeTour.pst
+exit 0
+--- stdout
+2026-11-10 is a Tuesday, day 314 of the year
+a month after 2024-01-31: 2024-02-29
+from 1990-02-28: P36Y8M13D (36 years)
+  2026-11-10T16:00:00 CET in Europe/Amsterdam
+  2026-11-10T10:00:00 EST in America/New_York
+  2026-11-11T02:00:00 AEDT in Australia/Sydney
+a day later on the calendar: 2026-03-29T12:00:00+02:00[Europe/Amsterdam]
+24 hours later:              2026-03-29T13:00:00+02:00[Europe/Amsterdam]
+02:30 doesn't exist that night, so it becomes 03:30:00
+flight time: PT8H35M
+standup and review clash for PT15M
+standup and planning are back to back
+review and planning clash for PT45M
+PT1H30M: 90 minutes
+PT1H30: expected a unit at the end of the text
+2026-02-28: a Saturday
+2026-02-30: day out of range at offset 8
+--- stderr

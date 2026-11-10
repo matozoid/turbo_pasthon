@@ -1,0 +1,77 @@
+program TimeTour
+
+## A tour of the Time unit: dates, durations, time zones, periods and intervals.
+
+uses IO, Time
+
+type
+    Meeting = record
+        title: String
+        slot: Interval
+
+## A meeting starting at the local time `start` in `z`, lasting `length`.
+function meeting(title: String, start: String, z: Zone, length: Duration): Meeting
+    let begins := atZone(parseDateTime(start).get(), z: z)
+    return Meeting(title: title, slot: interval(toInstant(begins), d: length))
+
+unsafe procedure main()
+    # Dates: weekdays, month arithmetic and the time between two dates.
+    let launch := date(2026, 11, 10)
+    writeln("{launch} is a {weekday(launch)}, day {dayOfYear(launch)} of the year")
+    writeln("a month after 2024-01-31: {plusMonths(date(2024, 1, 31), months: 1)}")
+    let age := between(date(1990, 2, 28), b: launch)
+    writeln("from 1990-02-28: {age} ({years(age)} years)")
+
+    # One instant, three zones.
+    let amsterdam := zone("Europe/Amsterdam").get()
+    let newYork := zone("America/New_York").get()
+    let sydney := zone("Australia/Sydney").get()
+    let call := atZone(parseDateTime("2026-11-10T16:00").get(), z: amsterdam)
+    for z in [amsterdam, newYork, sydney] do
+        let there := inZone(toInstant(call), z: z)
+        writeln("  {toLocalDateTime(there)} {abbreviationAt(z, i: toInstant(call))} in {z}")
+
+    # Summer time: a calendar day is not always 24 hours.
+    let saturday := atZone(parseDateTime("2026-03-28T12:00").get(), z: amsterdam)
+    writeln("a day later on the calendar: {plus(saturday, p: period(days: 1))}")
+    writeln("24 hours later:              {plus(saturday, d: ofHours(24))}")
+    let skipped := atZone(parseDateTime("2026-03-29T02:30").get(), z: amsterdam)
+    writeln("02:30 doesn't exist that night, so it becomes {time(skipped)}")
+
+    # A flight: the duration from the departure and arrival times on local clocks.
+    let departs := parseZoned("2026-11-10T10:15:00+01:00[Europe/Amsterdam]").get()
+    let lands := atZone(parseDateTime("2026-11-10T12:50").get(), z: newYork)
+    writeln("flight time: {between(toInstant(departs), b: toInstant(lands))}")
+
+    # Intervals: which meetings clash?
+    let meetings := [
+        meeting("standup", start: "2026-11-10T09:00", z: amsterdam, length: ofMinutes(15)),
+        meeting("review", start: "2026-11-10T03:00", z: newYork, length: ofHours(1)),
+        meeting("planning", start: "2026-11-10T09:15", z: amsterdam, length: ofMinutes(45)),
+    ]
+    for i := 0 to len(meetings) - 1 do
+        for j := i + 1 to len(meetings) - 1 do
+            let a := meetings[i]
+            let b := meetings[j]
+            case overlap(a.slot, b: b.slot) of
+                Some(o):
+                    writeln("{a.title} and {b.title} clash for {duration(o.value)}")
+                None:
+                    if abuts(a.slot, b: b.slot) then
+                        writeln("{a.title} and {b.title} are back to back")
+
+    # Reading ISO-8601 text, with errors that point at the problem.
+    for text in ["PT1H30M", "PT1H30"] do
+        case parseDuration(text) of
+            Ok(d):
+                writeln("{text}: {toMillis(d.value) div 60_000} minutes")
+            Err(e):
+                writeln("{text}: {e.error}")
+    for text in ["2026-02-28", "2026-02-30"] do
+        case parseDate(text) of
+            Ok(d):
+                writeln("{text}: a {weekday(d.value)}")
+            Err(e):
+                writeln("{text}: {e.error}")
+
+main()
