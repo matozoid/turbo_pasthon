@@ -23,8 +23,9 @@ writeln(m)
 let none: Map[String, Integer] := [:]
 writeln(none)
 let shown: Set[Color] := [Color.Blue, Color.Red]
-writeln(shown)
-let cs: Set[Letter] := ['b', 'a']
+{ A set's order is unspecified. }
+writeln(toString(shown) = "[Blue, Red]" or toString(shown) = "[Red, Blue]")
+let cs: Set[Letter] := ['b']
 writeln(cs)
 let no: Set[Color] := []
 writeln(no)

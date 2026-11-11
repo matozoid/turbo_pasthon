@@ -5,10 +5,10 @@ exit 0
 $ $VALGRIND ./main
 exit 0
 --- stdout
-[b, a, c] 3 true false
+[a, b, c] 3 true false
 [a, c, d] [c] [a] [d]
 true false true true false
-c d 505 true false
+2 505 true false
 2 true
 [z, é]
 --- stderr

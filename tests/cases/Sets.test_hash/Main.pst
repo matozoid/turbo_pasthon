@@ -7,17 +7,25 @@ type
         x: Integer
         y: Integer
 
+{ A set's order is unspecified, so the test prints its elements sorted. }
+function sorted[T: Hashable + Ordered](s: Set[T]): List[T]
+    var xs := for x in s do x
+    sort(var xs)
+    return xs
+
 var s: Set[String] := ["b", "a"]
 add(var s, "c")
 add(var s, "c")
 remove(var s, "x")
-writeln("{s} {length(s)} {"c" in s} {"x" in s}")
+writeln("{sorted(s)} {length(s)} {"c" in s} {"x" in s}")
 remove(var s, "b")
 let t: Set[String] := ["c", "d"]
-writeln("{s + t} {s * t} {s - t} {t - s}")
+writeln("{sorted(s + t)} {sorted(s * t)} {sorted(s - t)} {sorted(t - s)}")
 writeln("{s + t = ["d", "c", "a"]} {s = t} {["c"] <= s} {s >= ["c"]} {s <= t}")
-for x in t do
-    write("{x} ")
+var n := 0
+for _ in t do
+    n := n + 1
+write("{n} ")
 var ns: Set[Integer] := []
 for i := 1 to 1000 do
     add(var ns, i * 7919 mod 1009)
@@ -27,4 +35,4 @@ writeln("{length(ns)} {1008 in ns} {500 in ns}")
 let ps: Set[Point] := [Point(x: 1, y: 2), Point(x: 1, y: 2), Point(x: 3, y: 4)]
 writeln("{length(ps)} {Point(x: 3, y: 4) in ps}")
 let cs: Set[Char] := ['z', 'é']
-writeln(cs)
+writeln(sorted(cs))
