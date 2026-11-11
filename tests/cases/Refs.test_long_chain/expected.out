@@ -1,0 +1,13 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 0
+--- stdout
+built 1000000
+tags 2
+destroy b
+destroy a
+done
+--- stderr

@@ -1304,6 +1304,8 @@ unsafe procedure fill(s: Ptr[SdlSurface])
 
 - **Automatic reference counting.** `String`, records, unions, `List`, `Map`, `Set` and `ref T` are refcounted.
 - Increments and decrements are inserted by the compiler. Destruction is deterministic: memory is freed as soon as the last owner goes away.
+  Freeing doesn't recurse: what a freed block held is freed in the same step, from a work
+  list, so a linked list of any length goes away without using up the stack.
 - **No cycle collector.** Strong cycles leak, so use `Weak[T]`. A checked build keeps track
   of the heap blocks it allocates and frees, and of the file and line of the code that
   allocated each. If any are still alive when the program (or a test block) reaches its

@@ -5008,15 +5008,21 @@ procedure walk(g: ref Em, block, desc, count, vals, step: Integer)
 
 { Drops a reference to the block rdi (if not 0). With the last one, runs its drop
   routine, if it has one, releases the references its fields (or elements) hold and
-  frees it. Preserves registers. }
+  frees it. Preserves registers.
+  A dead block goes on the "pending" list, linked through its count word, and only the
+  outermost call frees blocks: the ones its fields release join the list instead of
+  recursing, so a long chain of references doesn't overflow the stack. }
 procedure rtRelease(g: ref Em)
     let a := g.a
-    let l := labels(a, "r", 5)
+    let l := labels(a, "r", 8)
     let loop := l[0]
     let skip := l[1]
     let free := l[2]
     let done := l[3]
     let kept := l[4]
+    let next := l[5]
+    let busy := l[6]
+    let idle := l[7]
     testR(a, Rdi, Rdi)  { an empty slot (toCString's, or a moved-out value) }
     jcc(a, "e", label: done)
     cmpMemImm(a, Rdi, disp: Rc, value: 0)
@@ -5024,7 +5030,21 @@ procedure rtRelease(g: ref Em)
     decMem(a, Rdi, disp: Rc)
     jcc(a, "ne", label: done)
     pushAll(a, callerSaved())
-    mov(a, Rsi, Rdi)  { the block }
+    loadGlobal(a, Rax, name: "pending")
+    store(a, Rdi, disp: Rc, src: Rax)
+    storeGlobal(a, "pending", src: Rdi)
+    loadGlobal(a, Rax, name: "draining")
+    testR(a, Rax, Rax)
+    jcc(a, "ne", label: busy)  { an outer call frees it }
+    movImm(a, Rax, value: 1)
+    storeGlobal(a, "draining", src: Rax)
+    label(a, next)
+    loadGlobal(a, Rsi, name: "pending")  { the block }
+    testR(a, Rsi, Rsi)
+    jcc(a, "e", label: idle)
+    load(a, Rax, Rsi, disp: Rc)
+    storeGlobal(a, "pending", src: Rax)
+    storeImm(a, Rsi, disp: Rc, value: 0)
     load(a, Rdx, Rsi, disp: Desc)
     testR(a, Rdx, Rdx)
     jcc(a, "e", label: free)  { a string }
@@ -5060,6 +5080,10 @@ procedure rtRelease(g: ref Em)
         addImm(a, Rdi, value: -Prefix)
         unlinkBlock(g, Rdi)
     ccall(g, "free")
+    jmp(a, next)
+    label(a, idle)
+    storeGlobal(a, "draining", src: Rsi)  { 0 }
+    label(a, busy)
     popAll(a, callerSaved())
     label(a, done)
     ret(a)

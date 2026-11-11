@@ -1,0 +1,31 @@
+program Main
+
+{ Freeing a long chain of references doesn't recurse, so it can't overflow the stack. }
+
+uses IO
+
+type
+    Node = record
+        value: Integer
+        next: Option[ref Node]
+
+    Tag = record
+        name: String
+
+procedure destroy(var t: Tag)
+    writeln("destroy {t.name}")
+
+procedure chain(n: Integer)
+    var head: Option[ref Node] := None
+    for i := 1 to n do
+        head := Some(new(Node(value: i, next: head)))
+    writeln("built {n}")
+
+procedure tags()
+    let a := new(Tag(name: "a"))
+    let pair := [a, new(Tag(name: "b"))]
+    writeln("tags {length(pair)}")
+
+chain(1_000_000)
+tags()
+writeln("done")
