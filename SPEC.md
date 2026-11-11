@@ -1389,6 +1389,12 @@ v0.1 is single-threaded, but the design is fixed now so v0.1 doesn't rule it out
       at Main.pst:12:15
   ```
   Paths are relative to the program's directory; standard units show their file name.
+  A panic in a standard unit also shows where the program called into it:
+  ```
+  panic P0005: get on None
+      at System.pst:575:15
+      called from Main.pst:7:9
+  ```
   `requires`, `ensures` and `assert` panics quote the failed condition (and the assert's message).
 
 | Code | Cause |

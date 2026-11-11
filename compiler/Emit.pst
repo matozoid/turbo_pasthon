@@ -188,6 +188,8 @@ type
     PanicStub = record
         label: String
         message: List[Byte]
+        { Raised in a standard unit, so also shows where the program called it. }
+        std: Boolean
 
     { A field of a C record: its name, type and offset. }
     CField = record
@@ -877,11 +879,15 @@ function text(g: ref Em, span: Span): String
 function where(g: ref Em, span: Span): String
     return "{place(g, span)}:{span.col}"
 
+{ Whether `file` is a standard unit. }
+function isStd(g: ref Em, file: String): Boolean
+    let u := get(g.units, file)
+    return u.isSome() and u.get().std
+
 { The file and line of `span`. }
 function place(g: ref Em, span: Span): String
     var path := ""
-    let u := get(g.units, g.f.file)
-    if u.isSome() and u.get().std then
+    if isStd(g, g.f.file) then
         path := basename(g.f.file)
     else
         path := relative(g.f.file, dirname(g.main.path))
@@ -924,7 +930,7 @@ procedure callRuntime(g: ref Em, name: String)
 function panic(g: ref Em, code, message: String, span: Span): String
     let lbl := newLabel(g.a, "panic")
     let t := "panic {code}: {message}\n    at {where(g, span)}\n"
-    add(var g.panics, PanicStub(label: lbl, message: utf8(t)))
+    add(var g.panics, PanicStub(label: lbl, message: utf8(t), std: isStd(g, g.f.file)))
     return lbl
 
 { The data label of an immortal string block holding `t`. }
@@ -1174,7 +1180,10 @@ function run(g: ref Em): Built
         label(a, p.label)
         leaData(a, Rsi, label: data(a, p.message))
         movImm(a, Rdx, value: length(p.message))
-        jmp(a, runtime(g, "rt_panic"))
+        if p.std then
+            jmp(a, runtime(g, "rt_panic_std"))
+        else
+            jmp(a, runtime(g, "rt_panic"))
     emitRuntime(g)
     if length(g.diagnostics) > 0 then
         return Built(executable: None, diagnostics: g.diagnostics)
@@ -3720,7 +3729,18 @@ procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
     let target := labelOf(g, c.span, callee.sym, callee.targs, sites: callee.sites)
     if g.bad then
         return
-    call(a, target)
+    if isStd(g, callee.sym.file) and not isStd(g, g.f.file) then
+        { The place a panic in the standard unit shows as its caller: SPEC §12. }
+        let outer := alloc(g)
+        loadGlobal(a, R11, name: "caller")
+        store(a, Rbp, disp: outer, src: R11)
+        leaData(a, R11, label: cText(g, where(g, c.span)))
+        storeGlobal(a, "caller", src: R11)
+        call(a, target)
+        load(a, R11, Rbp, disp: outer)
+        storeGlobal(a, "caller", src: R11)
+    else
+        call(a, target)
     if words > 0 then
         addImm(a, Rsp, value: 8 * words)
     if length(copies) > 0 then
@@ -4560,10 +4580,10 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
             return
         lea(a, Rsi, Rax, disp: BytesAt)
         load(a, Rdx, Rax, disp: Len)
-        movImm(a, Rdi, value: 2)
-        callRuntime(g, "rt_write")
-        movImm(a, Rdi, value: PanicStatus)
-        exitProgram(g)
+        if isStd(g, g.f.file) then
+            callRuntime(g, "rt_panic_std")
+        else
+            callRuntime(g, "rt_panic")
     else if sysU and n = "hash" then
         let t := targ0(g, m)
         expr(g, args[0])
@@ -4843,6 +4863,7 @@ procedure runtimeRoutine(g: ref Em, name: String)
         "rt_write": rtWrite(g)
         "rt_write_str": rtWriteStr(g)
         "rt_panic": rtPanic(g)
+        "rt_panic_std": rtPanicStd(g)
         "rt_retain": rtRetain(g)
         "rt_release": rtRelease(g)
         "rt_ref_eq": rtRefEq(g)
@@ -4978,6 +4999,23 @@ procedure rtPanic(g: ref Em)
     let a := g.a
     movImm(a, Rdi, value: 2)
     callRuntime(g, "rt_write")
+    movImm(a, Rdi, value: PanicStatus)
+    exitProgram(g)
+
+{ As rt_panic, for a panic in a standard unit: then also writes where the program
+  called the standard unit, if it did. }
+procedure rtPanicStd(g: ref Em)
+    let a := g.a
+    let none := newLabel(a, "panic")
+    movImm(a, Rdi, value: 2)
+    callRuntime(g, "rt_write")
+    loadGlobal(a, Rdx, name: "caller")
+    testR(a, Rdx, Rdx)
+    jcc(a, "e", label: none)
+    movImm(a, Rdi, value: 2)
+    leaData(a, Rsi, label: cText(g, "    called from %s\n"))
+    ccall(g, "dprintf")
+    label(a, none)
     movImm(a, Rdi, value: PanicStatus)
     exitProgram(g)
 

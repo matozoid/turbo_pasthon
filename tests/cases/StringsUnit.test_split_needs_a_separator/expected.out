@@ -8,3 +8,4 @@ exit 70
 --- stderr
 panic P0010: requires violated: byteLen(sep) > 0
     at Strings.pst:67:14
+    called from Main.pst:5:16
