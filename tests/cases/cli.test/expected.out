@@ -8,8 +8,8 @@ FAIL Shop.pst:7: half é wrong
         at Shop.pst:9:5
 FAIL Shop.pst:10: bounds
     panic P0001: index out of bounds
-        at Shop.pst:12:13
-FAIL Shop.pst:13: halts
+        at Shop.pst:12:10
+FAIL Shop.pst:14: halts
     exit status 4
 1 passed, 3 failed
 --- stderr
@@ -18,8 +18,8 @@ exit 1
 --- stdout
 {"file": "Shop.pst", "line": 5, "col": 1, "endLine": 6, "endCol": 25, "test": "double doubles", "passed": true, "timedOut": false, "output": ""}
 {"file": "Shop.pst", "line": 7, "col": 1, "endLine": 9, "endCol": 25, "test": "half \u00e9 wrong", "passed": false, "timedOut": false, "output": "about to fail\npanic P0020: assertion failed: double(1) = 3\n    at Shop.pst:9:5\n"}
-{"file": "Shop.pst", "line": 10, "col": 1, "endLine": 12, "endCol": 19, "test": "bounds", "passed": true, "timedOut": false, "output": "134465\n"}
-{"file": "Shop.pst", "line": 13, "col": 1, "endLine": 14, "endCol": 12, "test": "halts", "passed": false, "timedOut": false, "output": ""}
+{"file": "Shop.pst", "line": 10, "col": 1, "endLine": 13, "endCol": 27, "test": "bounds", "passed": true, "timedOut": false, "output": "not checked\n"}
+{"file": "Shop.pst", "line": 14, "col": 1, "endLine": 15, "endCol": 12, "test": "halts", "passed": false, "timedOut": false, "output": ""}
 --- stderr
 $ $PST test Shop.pst --filter double
 exit 0
@@ -42,7 +42,7 @@ FAIL Shop.pst:7: half é wrong
         at Shop.pst:9:5
 FAIL Shop.pst:10: bounds
     panic P0001: index out of bounds
-        at Shop.pst:12:13
+        at Shop.pst:12:10
 1 passed, 2 failed
 --- stderr
 Bad.pst:5:1: error E0502: result of 'f' is ignored; use it, or discard it with '_ := ...'
