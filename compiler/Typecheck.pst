@@ -3463,6 +3463,14 @@ function isComparisonExpr(e: Expr): Boolean
         else:
             return false
 
+{ The set operator to use instead of `op`, one of `and`, `or` and `xor`. }
+function setHint(op: String): String
+    if op = "or" then
+        return "the union of two sets is 'a + b'"
+    if op = "and" then
+        return "the intersection of two sets is 'a * b'"
+    return "the elements in one of two sets but not both are '(a - b) + (b - a)'"
+
 { `and`, `or` and `xor`: logical on Booleans, bitwise on two integers of one type. }
 function logical(tc: ref TC, b: Binary, expected: Type): Type
     let ts := operands(tc, b, hint: expected)
@@ -3473,7 +3481,9 @@ function logical(tc: ref TC, b: Binary, expected: Type): Type
     if lb = rb and (lb = booleanT() or isInteger(lb)) then
         return lb
     var msg := "'{b.op}' needs two Booleans or two integers of one type, not {show(ts[0])} and {show(ts[1])}"
-    if isComparisonExpr(b.left) or isComparisonExpr(b.right) then
+    if isSet(tc.env, ts[0]) or isSet(tc.env, ts[1]) then
+        msg := "{msg}; {setHint(b.op)}"
+    else if isComparisonExpr(b.left) or isComparisonExpr(b.right) then
         msg := "{msg}; a comparison binds tighter: write '(x and $FF) = 0'"
     fail(tc, b.opSpan, "E0305", msg)
     return errorT()
