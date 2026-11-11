@@ -29,8 +29,8 @@ ok   std/System.pst:773: list editing
 ok   std/System.pst:786: sort is stable
 ok   std/System.pst:803: maps
 ok   std/System.pst:815: sets
-ok   std/System.pst:826: options and results
-ok   std/System.pst:836: iterators
+ok   std/System.pst:827: options and results
+ok   std/System.pst:837: iterators
 ok   std/Time.pst:1426: durations
 ok   std/Time.pst:1436: dates
 ok   std/Time.pst:1455: times

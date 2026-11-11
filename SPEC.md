@@ -436,7 +436,6 @@ operators below, and the element-to-bit mapping; the rest is Pasthon in System.
   subset of `b`), `a >= b` (superset), `=`, `<>`; both sides of one set type. `<`, `>`,
   `/`, `div` and `mod` on sets are `E0305`.
 - `add(var s, x)`, `remove(var s, x)` (no-op if absent), `length(s)`, `x in s`.
-- `union(a, b)`, `intersection(a, b)`, `difference(a, b)`: the operators as functions.
 - Iterating gives the elements in `ord` order. `Set(...)` can't be written outside System
   (`E0306`).
 

@@ -117,39 +117,33 @@ use Main.pst 18:16-18:22
   let 'before' @ Main.pst:14:5
 use Main.pst 18:26-18:32
   function 'length' @ std/System.pst:470:17
-use Main.pst 18:33-18:38
-  function 'union' @ std/System.pst:486:17
-use Main.pst 18:39-18:40
+use Main.pst 18:33-18:34
   var 's' @ Main.pst:8:5
-use Main.pst 18:42-18:43
+use Main.pst 18:37-18:38
   let 't' @ Main.pst:17:5
-use Main.pst 18:48-18:54
+use Main.pst 18:42-18:48
   function 'length' @ std/System.pst:470:17
-use Main.pst 18:55-18:67
-  function 'intersection' @ std/System.pst:493:17
-use Main.pst 18:68-18:69
+use Main.pst 18:49-18:50
   var 's' @ Main.pst:8:5
-use Main.pst 18:71-18:72
+use Main.pst 18:53-18:54
   let 't' @ Main.pst:17:5
 use Main.pst 19:1-19:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 19:11-19:17
   function 'length' @ std/System.pst:470:17
-use Main.pst 19:18-19:28
-  function 'difference' @ std/System.pst:500:17
-use Main.pst 19:29-19:30
+use Main.pst 19:18-19:19
   let 't' @ Main.pst:17:5
-use Main.pst 19:32-19:33
+use Main.pst 19:22-19:23
   var 's' @ Main.pst:8:5
-use Main.pst 19:38-19:39
+use Main.pst 19:27-19:28
   var 's' @ Main.pst:8:5
-use Main.pst 19:43-19:48
+use Main.pst 19:32-19:37
   type 'Color' @ Main.pst:6:5
-use Main.pst 19:49-19:53
+use Main.pst 19:38-19:42
   enum member 'Blue' @ Main.pst:6:26
-use Main.pst 19:57-19:58
+use Main.pst 19:46-19:47
   var 's' @ Main.pst:8:5
-use Main.pst 19:61-19:62
+use Main.pst 19:50-19:51
   let 't' @ Main.pst:17:5
 use Main.pst 20:13-20:17
   type 'Byte' @ std/System.pst:16:12

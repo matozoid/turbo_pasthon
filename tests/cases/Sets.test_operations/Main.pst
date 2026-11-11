@@ -15,8 +15,8 @@ let before := s
 remove(var s, Color.Red)
 remove(var s, Color.Green)
 let t: Set[Color] := [Color.Green, Color.Blue]
-write("{length(before)} {length(union(s, t))} {length(intersection(s, t))} ")
-writeln("{length(difference(t, s))} {s = [Color.Blue]} {s = t}")
+write("{length(before)} {length(s + t)} {length(s * t)} ")
+writeln("{length(t - s)} {s = [Color.Blue]} {s = t}")
 var bs: Set[Byte] := [255, 0, 64, 63]
 for b in bs do
     write("{b} ")

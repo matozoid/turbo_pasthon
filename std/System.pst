@@ -482,22 +482,22 @@ export procedure remove[T](var s: Set[T], x: T)
     let b := bitOf(x)
     s.words[b div 64] := s.words[b div 64] and not (1 shl (b mod 64))
 
-{ The elements in `a`, in `b`, or in both. }
-export function union[T](a, b: Set[T]): Set[T]
+{ `a + b`: the elements in `a`, in `b`, or in both. }
+function union[T](a, b: Set[T]): Set[T]
     var s := a
     for i := 0 to 3 do
         s.words[i] := a.words[i] or b.words[i]
     return s
 
-{ The elements in both `a` and `b`. }
-export function intersection[T](a, b: Set[T]): Set[T]
+{ `a * b`: the elements in both `a` and `b`. }
+function intersection[T](a, b: Set[T]): Set[T]
     var s := a
     for i := 0 to 3 do
         s.words[i] := a.words[i] and b.words[i]
     return s
 
-{ The elements in `a` but not in `b`. }
-export function difference[T](a, b: Set[T]): Set[T]
+{ `a - b`: the elements in `a` but not in `b`. }
+function difference[T](a, b: Set[T]): Set[T]
     var s := a
     for i := 0 to 3 do
         s.words[i] := a.words[i] and not b.words[i]
@@ -819,9 +819,10 @@ test "sets"
     remove(var s, 1)
     assert length(s) = 2 and 3 in s and not (1 in s)
     let t: Set[Byte] := [3, 4]
-    assert union(s, b: t) = [2, 3, 4]
-    assert intersection(s, b: t) = [3]
-    assert difference(s, b: t) = [2]
+    assert s + t = [2, 3, 4]
+    assert s * t = [3]
+    assert s - t = [2]
+    assert [3] <= s and s >= [3] and not (s <= t)
 
 test "options and results"
     let some: Option[Integer] := Some(1)
