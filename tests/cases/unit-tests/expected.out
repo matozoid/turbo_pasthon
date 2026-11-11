@@ -31,16 +31,16 @@ ok   std/System.pst:803: maps
 ok   std/System.pst:815: sets
 ok   std/System.pst:827: options and results
 ok   std/System.pst:837: iterators
-ok   std/Time.pst:1426: durations
-ok   std/Time.pst:1436: dates
-ok   std/Time.pst:1455: times
-ok   std/Time.pst:1466: instants
-ok   std/Time.pst:1479: parsing
-ok   std/Time.pst:1505: POSIX TZ rules
-ok   std/Time.pst:1522: tzdata zones
-ok   std/Time.pst:1548: zoned date-times
-ok   std/Time.pst:1569: periods
-ok   std/Time.pst:1594: intervals
+ok   std/Time.pst:1489: durations
+ok   std/Time.pst:1499: dates
+ok   std/Time.pst:1518: times
+ok   std/Time.pst:1529: instants
+ok   std/Time.pst:1542: parsing
+ok   std/Time.pst:1568: POSIX TZ rules
+ok   std/Time.pst:1585: tzdata zones
+ok   std/Time.pst:1611: zoned date-times
+ok   std/Time.pst:1639: periods
+ok   std/Time.pst:1664: intervals
 40 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/compiler

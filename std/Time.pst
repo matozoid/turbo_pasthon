@@ -469,6 +469,37 @@ export function date(dt: LocalDateTime): LocalDate
 export function time(dt: LocalDateTime): LocalTime
     return dt.lt
 
+export function year(dt: LocalDateTime): Integer
+    return year(date(dt))
+
+{ The month, 1 to 12. }
+export function month(dt: LocalDateTime): Integer
+    return month(date(dt))
+
+{ The day of the month, from 1. }
+export function day(dt: LocalDateTime): Integer
+    return day(date(dt))
+
+{ The day of the year, 1 to 366. }
+export function dayOfYear(dt: LocalDateTime): Integer
+    return dayOfYear(date(dt))
+
+export function weekday(dt: LocalDateTime): Weekday
+    return weekday(date(dt))
+
+export function hour(dt: LocalDateTime): Integer
+    return hour(time(dt))
+
+export function minute(dt: LocalDateTime): Integer
+    return minute(time(dt))
+
+export function second(dt: LocalDateTime): Integer
+    return second(time(dt))
+
+{ The nanoseconds within the second, 0 to 999_999_999. }
+export function nano(dt: LocalDateTime): Integer
+    return nano(time(dt))
+
 { The instant at `dt` in the time zone `offsetSeconds` east of UTC. }
 export function toInstant(dt: LocalDateTime, offsetSeconds: Integer := 0): Instant
     let s := toEpochDay(dt.ld) * SecondsPerDay + toNanoOfDay(dt.lt) div NanosPerSecond
@@ -1141,6 +1172,38 @@ export function date(dt: DateTime): LocalDate
 export function time(dt: DateTime): LocalTime
     return toLocalDateTime(dt).lt
 
+{ The year of `dt`'s local date-time in its zone, as are the accessors below. }
+export function year(dt: DateTime): Integer
+    return year(date(dt))
+
+{ The month, 1 to 12. }
+export function month(dt: DateTime): Integer
+    return month(date(dt))
+
+{ The day of the month, from 1. }
+export function day(dt: DateTime): Integer
+    return day(date(dt))
+
+{ The day of the year, 1 to 366. }
+export function dayOfYear(dt: DateTime): Integer
+    return dayOfYear(date(dt))
+
+export function weekday(dt: DateTime): Weekday
+    return weekday(date(dt))
+
+export function hour(dt: DateTime): Integer
+    return hour(time(dt))
+
+export function minute(dt: DateTime): Integer
+    return minute(time(dt))
+
+export function second(dt: DateTime): Integer
+    return second(time(dt))
+
+{ The nanoseconds within the second, 0 to 999_999_999. }
+export function nano(dt: DateTime): Integer
+    return nano(time(dt))
+
 { `dt` moved by an exact `d`, so across a change to summer time 24 hours may be 25 on
   the clock. }
 export function plus(dt: DateTime, d: Duration): DateTime
@@ -1563,6 +1626,13 @@ test "zoned date-times"
     assert toString(zone(fixed)) = "-03:00"
     assert toString(inZone(ofEpochSecond(0), z: utc())) = "1970-01-01T00:00:00Z[UTC]"
     assert offsetText(-12_345) = "-03:25:45" and toString(fixedZone(19_800)) = "+05:30"
+    let local := toLocalDateTime(parsed)
+    assert year(parsed) = 2026 and month(parsed) = 11 and day(parsed) = 10
+    assert dayOfYear(parsed) = 314 and weekday(parsed) = Weekday.Tuesday
+    assert hour(parsed) = 9 and minute(parsed) = 30 and second(parsed) = 0 and nano(parsed) = 0
+    assert year(local) = 2026 and dayOfYear(local) = 314 and weekday(local) = Weekday.Tuesday
+    assert hour(local) = 9 and minute(local) = 30 and second(local) = 0 and nano(local) = 0
+    assert hour(fixed) = 9 and day(inZone(toInstant(fixed), z: ams)) = 10
     let epoch := inZone(ofEpochSecond(0), z: utc())
     assert name(zone(now(utc()))) = "UTC" and isAfter(now(utc()), b: epoch)
 
