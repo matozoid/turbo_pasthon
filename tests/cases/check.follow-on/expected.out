@@ -1,0 +1,10 @@
+$ $PST check Main.pst
+exit 1
+--- stdout
+--- stderr
+Main.pst:6:5: error E0602: 'case' doesn't cover Ok[Integer], Err[String]; add arms for them, or 'else'
+Main.pst:7:9: error E0603: 'Some' is not a variant of Result[Integer, String] (variants: Ok[Integer], Err[String])
+Main.pst:9:9: error E0603: 'None' is not a variant of Result[Integer, String] (variants: Ok[Integer], Err[String])
+Main.pst:12:26: error E0040: function 'next' needs a result type ': T'; a routine without a result is a 'procedure'
+Main.pst:19:23: error E0009: unclosed '('
+Main.pst:22:14: error E0005: invalid escape sequence '\q'

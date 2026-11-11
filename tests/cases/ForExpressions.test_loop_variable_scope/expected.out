@@ -1,0 +1,5 @@
+$ $PST check Main.pst
+exit 1
+--- stdout
+--- stderr
+Main.pst:8:11: error E0100: unknown name 'n'

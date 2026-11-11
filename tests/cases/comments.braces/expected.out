@@ -117,7 +117,6 @@ exit 1
 --- stdout
 --- stderr
 Bad.pst:5:1: error E0010: end marker '{ end while }' does not match the 'if' block it closes; expected '{ end if }'
-Bad.pst:6:5: error E0206: var 'x' is never used
 Bad.pst:6:12: error E0009: unmatched '}'
 Bad.pst:7:27: error E0040: expected an expression, found end of line
 Bad.pst:8:1: error E0011: unclosed comment '{'

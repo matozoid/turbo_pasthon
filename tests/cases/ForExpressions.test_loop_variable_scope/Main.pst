@@ -1,0 +1,8 @@
+program Main
+
+uses IO
+
+let xs := [1, 2, 3]
+let ys := for n in xs do n * 2
+writeln("{ys}")
+writeln("{n}")

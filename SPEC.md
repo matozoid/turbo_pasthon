@@ -1523,6 +1523,12 @@ JSON format (`--json`, one object per line):
 ```
 Error codes are stable forever. Each has a doc page (`pst explain E0502`).
 
+Errors that would only follow from an earlier one are left out: in a file with syntax
+errors, unknown names (E0100), unused names (E0206) and missing returns (E0501), as the
+parser may have dropped the declaration, use or `return`; a missing return in a routine
+whose body has other errors; and anything about the result of a function whose result
+type is missing.
+
 **Positions** in all `pst` JSON output: `line` and `col` are 1-based, and `col` counts
 Unicode code points. Ranges are half-open (`endCol` is one past the last character).
 Paths are relative to the project root. The language server converts to whatever

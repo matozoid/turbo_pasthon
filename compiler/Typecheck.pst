@@ -1296,6 +1296,8 @@ export function sig(env: ref Env, sym: ref Symbol): Sig
     var result := voidT()
     if g.result.isSome() then
         result := optTypeOf(env, g.result, file, inTrait)
+    else if g.isFunction then
+        result := errorT()  { the result type is missing (E0040) }
     let s := Sig(
         sym: Some(sym),
         name: sym.name,
@@ -1625,7 +1627,10 @@ procedure routine(tc: ref TC, r: Routine)
     for e in r.post do
         _ := check(tc, e, booleanT())
     tc.inEnsures := false
-    if not stmts(tc, r.body.stmts) and g.isFunction then
+    let before := length(tc.c.diagnostics)
+    let returns := stmts(tc, r.body.stmts)
+    { An error in the body (a `case` missing arms, say) would make this one noise. }
+    if not returns and g.isFunction and length(tc.c.diagnostics) = before then
         fail(
             tc,
             r.sig.name.span,
@@ -5206,5 +5211,23 @@ export function typecheck(
             e.checkers := [:]
             e.constCheckers := [:]
         env := Some(e)
-    r.checker.diagnostics := sortedDiagnostics(r.checker.diagnostics, mainFile: mainFile(r))
+    r.checker.diagnostics := sortedDiagnostics(
+        syntaxFirst(r.checker.diagnostics, units: r.units),
+        mainFile: mainFile(r),
+    )
     return Checked(resolved: r, env: env)
+
+{ `ds` without the diagnostics that, in a file with syntax errors, usually follow from
+  what the parser had to leave out: an unknown name (its declaration didn't parse), an
+  unused one (its use didn't parse) and a missing `return`. }
+function syntaxFirst(ds: List[Diagnostic], units: List[ref Unit]): List[Diagnostic]
+    var broken: List[String] := []
+    for u in units do
+        for d in u.parsed.diagnostics do
+            if d.severity = Severity.Error and not (u.path in broken) then
+                add(var broken, u.path)
+    var out: List[Diagnostic] := []
+    for d in ds do
+        if not (d.file in broken and d.code in ["E0100", "E0206", "E0501"]) then
+            add(var out, d)
+    return out

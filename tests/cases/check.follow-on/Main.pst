@@ -1,0 +1,22 @@
+program Main
+
+uses IO, Strings
+
+function parseLine(line: String): Result[Integer, String]
+    case parseInt(line) of
+        Some(n):
+            return Ok(n.value)
+        None:
+            return Err("bad")
+
+function next(x: Integer)
+    return x + 1
+
+function road(a: Integer): Integer
+    if a > 0 then
+        return 1
+
+var total: Integer := (1 +
+writeln("{total} {next(1)} {road(2)}")
+let k := 3
+writeln("{k} \q")

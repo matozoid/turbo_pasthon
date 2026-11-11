@@ -2,16 +2,10 @@ $ $PST check Main.pst
 exit 1
 --- stdout
 --- stderr
-Main.pst:6:5: error E0206: let 'a' is never used
 Main.pst:6:40: error E0801: an 'if' expression needs an 'else' branch
-Main.pst:7:5: error E0206: let 'b' is never used
 Main.pst:7:25: error E0805: a 'for' expression needs a value in some branch
-Main.pst:8:5: error E0206: let 'c' is never used
 Main.pst:8:12: error E0305: '+' can't combine Integer and List[Integer]; join lists with concat(a, b)
 Main.pst:8:14: error E0803: a 'for' expression used as an operand must be in parentheses
-Main.pst:9:5: error E0206: let 'd' is never used
 Main.pst:9:46: error E0802: this branch is String, but the first is Integer; all branches must have the same type
 Main.pst:10:25: error E0040: expected an expression, found 'continue'
-Main.pst:11:9: error E0100: unknown name 'n'
-Main.pst:12:5: error E0206: let 'f' is never used
-Main.pst:12:39: error E0300: expected String, found Integer
+Main.pst:11:39: error E0300: expected String, found Integer
