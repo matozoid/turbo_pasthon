@@ -4192,11 +4192,14 @@ function call(tc: ref TC, req: CallReq): Type
             var descs: List[String] := []
             for a in args do
                 add(var descs, argDesc(a))
+            var hint := ""
+            if req.name = "length" and descs = ["String"] then
+                hint := "; a String's length is 'charCount(s)' in characters or 'byteLen(s)' in bytes, from unit Strings"
             fail(
                 tc,
                 req.e.span,
                 "E0511",
-                "no overload of '{req.name}' takes ({join(descs, sep: ", ")}); candidates: {join(options, sep: "; ")}",
+                "no overload of '{req.name}' takes ({join(descs, sep: ", ")}){hint}; candidates: {join(options, sep: "; ")}",
             )
         return errorT()
     var best := rank(matches[0])
