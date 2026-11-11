@@ -592,6 +592,18 @@ export function getOr[T, E](r: Result[T, E], default: T): T
         Ok(v): v.value
         Err(_): default
 
+{ `Some(x)` or `None`, the value by its `toString`. }
+export function toString[T: Printable](o: Option[T]): String
+    return case o of
+        Some(s): "Some({s.value})"
+        None: "None"
+
+{ `Ok(x)` or `Err(e)`, the value or error by its `toString`. }
+export function toString[T: Printable, E: Printable](r: Result[T, E]): String
+    return case r of
+        Ok(v): "Ok({v.value})"
+        Err(e): "Err({e.error})"
+
 { ------------------------------------------------------------------ iterators }
 
 export function iter[T](xs: List[T]): ListIter[T]
@@ -833,6 +845,9 @@ test "options and results"
     let err: Result[Integer, String] := Err("no")
     assert ok.isOk() and err.isErr()
     assert ok.get() = 2 and err.getOr(6) = 6
+    assert "{some} {none} {ok} {err}" = "Some(1) None Ok(2) Err(no)"
+    let nested: Option[List[Integer]] := Some([1, 2])
+    assert toString(nested) = "Some([1, 2])"
 
 test "iterators"
     let xs := [1, 2, 3, 4]

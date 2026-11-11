@@ -543,7 +543,9 @@ satisfied built-in by primitives (except C types), enums, and subranges, and str
 (a visible `toString`) by everything else.
 System declares `toString` for `List`, `Map` and `Set` with Printable items, so they print
 as `[1, 2]`, `[a: 1, b: 2]` (insertion order; `[:]` when empty) and `[Red, Blue]` (`ord`
-order); items show by their own `toString`, so strings appear without quotes.
+order); items show by their own `toString`, so strings appear without quotes. It
+declares one for `Option` and `Result` with Printable contents too: `Some(1)`, `None`,
+`Ok(12)`, `Err(no digits)`.
 A `Real` prints with the fewest significant digits that read back as the same value,
 always as a real literal would be written: `2.0`, `0.1`, `1500.0`, in full below 10^16
 and with an exponent from there or below 0.0001 (`1.0e+16`, `1.5e-07`); and `inf`, `-inf`

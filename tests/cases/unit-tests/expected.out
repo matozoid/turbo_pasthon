@@ -26,12 +26,12 @@ ok   std/Strings.pst:442: case and lines
 ok   std/Strings.pst:447: characters
 ok   std/Strings.pst:456: number formatting
 ok   std/Strings.pst:462: glob patterns
-ok   std/System.pst:773: list editing
-ok   std/System.pst:786: sort is stable
-ok   std/System.pst:803: maps
-ok   std/System.pst:815: sets
-ok   std/System.pst:827: options and results
-ok   std/System.pst:837: iterators
+ok   std/System.pst:785: list editing
+ok   std/System.pst:798: sort is stable
+ok   std/System.pst:815: maps
+ok   std/System.pst:827: sets
+ok   std/System.pst:839: options and results
+ok   std/System.pst:852: iterators
 ok   std/Time.pst:1486: durations
 ok   std/Time.pst:1496: dates
 ok   std/Time.pst:1515: times
