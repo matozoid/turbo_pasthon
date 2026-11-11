@@ -65,13 +65,21 @@ type
         slots: List[Integer]
         count: Integer  { entries not removed }
 
+    { A set (SPEC §4.5), written `[a, b]`, in insertion order: the keys of a map whose
+      values are all `true`. }
+    export Set[T: Hashable] = record
+        items: Map[T, Boolean]
+
     { A set of ordinal values (SPEC §4.5), written `[a, b]`: 256 bits in 4 words, one
       per possible element. Element `x` is bit `bitOf(x)`. }
-    export Set[T] = record
+    export BitSet[T] = record
         words: List[Integer]
 
-    export SetIter[T] = record
-        source: Set[T]
+    export SetIter[T: Hashable] = record
+        keys: KeyIter[T, Boolean]
+
+    export BitSetIter[T] = record
+        source: BitSet[T]
         pos: Integer
 
     export KeyIter[K: Hashable, V] = record
@@ -159,9 +167,9 @@ external "pst"
     procedure vacate[T](var xs: List[T], i: Integer)
     { A hash of `x`, not negative. Equal values have equal hashes. }
     function hash[T: Hashable](x: T): Integer
-    { The bit of a set element: `ord(x)` minus the `ord` of the first value of `T`. }
+    { The bit of a BitSet element: `ord(x)` minus the `ord` of the first value of `T`. }
     function bitOf[T](x: T): Integer
-    { The set element whose bit is `i`. }
+    { The BitSet element whose bit is `i`. }
     function ofBit[T](i: Integer): T
     { As in Bits. }
     function popCount[T](a: T): Integer
@@ -467,55 +475,53 @@ function mapEquals[K: Hashable, V: Equatable](a, b: Map[K, V]): Boolean
 { ----------------------------------------------------------------------- sets }
 
 { Number of elements. }
-export function length[T](s: Set[T]): Integer
-    var n := 0
-    for w in s.words do
-        n := n + popCount(w)
-    return n
+export function length[T: Hashable](s: Set[T]): Integer
+    return length(s.items)
 
-{ Adds `x` to the set. }
-export procedure add[T](var s: Set[T], x: T)
-    include(var s, x)
+{ Adds `x` to the set, if it isn't in it yet. }
+export procedure add[T: Hashable](var s: Set[T], x: T)
+    s.items[x] := true
 
 { Removes `x` from the set, if present. }
-export procedure remove[T](var s: Set[T], x: T)
-    let b := bitOf(x)
-    s.words[b div 64] := s.words[b div 64] and not (1 shl (b mod 64))
+export procedure remove[T: Hashable](var s: Set[T], x: T)
+    remove(var s.items, x)
 
-{ `a + b`: the elements in `a`, in `b`, or in both. }
-function union[T](a, b: Set[T]): Set[T]
+{ `a + b`: the elements in `a`, in `b`, or in both; those of `a` first. }
+function union[T: Hashable](a, b: Set[T]): Set[T]
     var s := a
-    for i := 0 to 3 do
-        s.words[i] := a.words[i] or b.words[i]
+    for x in b do
+        add(var s, x)
     return s
 
-{ `a * b`: the elements in both `a` and `b`. }
-function intersection[T](a, b: Set[T]): Set[T]
-    var s := a
-    for i := 0 to 3 do
-        s.words[i] := a.words[i] and b.words[i]
+{ `a * b`: the elements in both `a` and `b`, in the order of `a`. }
+function intersection[T: Hashable](a, b: Set[T]): Set[T]
+    var s := emptySet[T]()
+    for x in a do
+        if x in b.items then
+            add(var s, x)
     return s
 
-{ `a - b`: the elements in `a` but not in `b`. }
-function difference[T](a, b: Set[T]): Set[T]
-    var s := a
-    for i := 0 to 3 do
-        s.words[i] := a.words[i] and not b.words[i]
+{ `a - b`: the elements in `a` but not in `b`, in the order of `a`. }
+function difference[T: Hashable](a, b: Set[T]): Set[T]
+    var s := emptySet[T]()
+    for x in a do
+        if not (x in b.items) then
+            add(var s, x)
     return s
 
 { `a <= b`: whether every element of `a` is in `b`. }
-function subset[T](a, b: Set[T]): Boolean
-    for i := 0 to 3 do
-        if (a.words[i] and not b.words[i]) <> 0 then
+function subset[T: Hashable](a, b: Set[T]): Boolean
+    for x in a do
+        if not (x in b.items) then
             return false
     return true
 
 { `a >= b`: whether every element of `b` is in `a`. }
-function superset[T](a, b: Set[T]): Boolean
+function superset[T: Hashable](a, b: Set[T]): Boolean
     return subset(b, a)
 
-{ The elements as `[a, b]`, in `ord` order, each by its `toString`. }
-export function toString[T: Printable](s: Set[T]): String
+{ The elements as `[a, b]`, in insertion order, each by its `toString`. }
+export function toString[T: Hashable + Printable](s: Set[T]): String
     var out := "["
     for x in s do
         if out <> "[" then
@@ -524,21 +530,92 @@ export function toString[T: Printable](s: Set[T]): String
     return "{out}]"
 
 { `[]` as a set. }
-function emptySet[T](): Set[T]
-    return Set(words: [0, 0, 0, 0])
+function emptySet[T: Hashable](): Set[T]
+    return Set(items: [:])
 
 { `[a, b]` as a set adds its elements with this; `add` is overloaded. }
-procedure include[T](var s: Set[T], x: T)
+procedure include[T: Hashable](var s: Set[T], x: T)
+    add(var s, x)
+
+{ `x in s`. }
+function includes[T: Hashable](x: T, s: Set[T]): Boolean
+    return x in s.items
+
+{ ------------------------------------------------------------------- bit sets }
+
+{ Number of elements. }
+export function length[T](s: BitSet[T]): Integer
+    var n := 0
+    for w in s.words do
+        n := n + popCount(w)
+    return n
+
+{ Adds `x` to the set. }
+export procedure add[T](var s: BitSet[T], x: T)
+    includeBit(var s, x)
+
+{ Removes `x` from the set, if present. }
+export procedure remove[T](var s: BitSet[T], x: T)
+    let b := bitOf(x)
+    s.words[b div 64] := s.words[b div 64] and not (1 shl (b mod 64))
+
+{ `a + b`: the elements in `a`, in `b`, or in both. }
+function bitUnion[T](a, b: BitSet[T]): BitSet[T]
+    var s := a
+    for i := 0 to 3 do
+        s.words[i] := a.words[i] or b.words[i]
+    return s
+
+{ `a * b`: the elements in both `a` and `b`. }
+function bitIntersection[T](a, b: BitSet[T]): BitSet[T]
+    var s := a
+    for i := 0 to 3 do
+        s.words[i] := a.words[i] and b.words[i]
+    return s
+
+{ `a - b`: the elements in `a` but not in `b`. }
+function bitDifference[T](a, b: BitSet[T]): BitSet[T]
+    var s := a
+    for i := 0 to 3 do
+        s.words[i] := a.words[i] and not b.words[i]
+    return s
+
+{ `a <= b`: whether every element of `a` is in `b`. }
+function bitSubset[T](a, b: BitSet[T]): Boolean
+    for i := 0 to 3 do
+        if (a.words[i] and not b.words[i]) <> 0 then
+            return false
+    return true
+
+{ `a >= b`: whether every element of `b` is in `a`. }
+function bitSuperset[T](a, b: BitSet[T]): Boolean
+    return bitSubset(b, a)
+
+{ The elements as `[a, b]`, in `ord` order, each by its `toString`. }
+export function toString[T: Printable](s: BitSet[T]): String
+    var out := "["
+    for x in s do
+        if out <> "[" then
+            out := "{out}, "
+        out := "{out}{x}"
+    return "{out}]"
+
+{ `[]` as a BitSet. }
+function emptyBitSet[T](): BitSet[T]
+    return BitSet(words: [0, 0, 0, 0])
+
+{ `[a, b]` as a BitSet adds its elements with this; `add` is overloaded. }
+procedure includeBit[T](var s: BitSet[T], x: T)
     let b := bitOf(x)
     s.words[b div 64] := s.words[b div 64] or (1 shl (b mod 64))
 
-{ `[low..high]` as a set adds the elements from `low` to `high` with this. }
-procedure includeRange[T](var s: Set[T], low, high: T)
+{ `[low..high]` as a BitSet adds the elements from `low` to `high` with this. }
+procedure includeBitRange[T](var s: BitSet[T], low, high: T)
     for b := bitOf(low) to bitOf(high) do
         s.words[b div 64] := s.words[b div 64] or (1 shl (b mod 64))
 
 { `x in s`. }
-function includes[T](x: T, s: Set[T]): Boolean
+function includesBit[T](x: T, s: BitSet[T]): Boolean
     let b := bitOf(x)
     return (s.words[b div 64] and (1 shl (b mod 64))) <> 0
 
@@ -626,11 +703,18 @@ export function next[T, N: Integer](var it: ArrayIter[T, N]): Option[T]
     inc(var it.pos)
     return Some(x)
 
-{ The elements of a set, in `ord` order. }
-export function iter[T](s: Set[T]): SetIter[T]
-    return SetIter(source: s, pos: 0)
+{ The elements of a set, in insertion order. }
+export function iter[T: Hashable](s: Set[T]): SetIter[T]
+    return SetIter(keys: iter(s.items))
 
-export function next[T](var it: SetIter[T]): Option[T]
+export function next[T: Hashable](var it: SetIter[T]): Option[T]
+    return next(var it.keys)
+
+{ The elements of a BitSet, in `ord` order. }
+export function iter[T](s: BitSet[T]): BitSetIter[T]
+    return BitSetIter(source: s, pos: 0)
+
+export function next[T](var it: BitSetIter[T]): Option[T]
     while it.pos < 256 do
         inc(var it.pos)
         let b := it.pos - 1
@@ -823,18 +907,6 @@ test "maps"
     remove(var m, "a")
     remove(var m, "a")
     assert length(m) = 1 and not ("a" in m)
-
-test "sets"
-    var s: Set[Byte] := [1, 2]
-    add(var s, 3)
-    add(var s, 3)
-    remove(var s, 1)
-    assert length(s) = 2 and 3 in s and not (1 in s)
-    let t: Set[Byte] := [3, 4]
-    assert s + t = [2, 3, 4]
-    assert s * t = [3]
-    assert s - t = [2]
-    assert [3] <= s and s >= [3] and not (s <= t)
 
 test "options and results"
     let some: Option[Integer] := Some(1)

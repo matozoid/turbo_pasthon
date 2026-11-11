@@ -1,0 +1,14 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main
+exit 0
+--- stdout
+[b, a, c] 3 true false
+[a, c, d] [c] [a] [d]
+true false true true false
+c d 505 true false
+2 true
+[z, é]
+--- stderr

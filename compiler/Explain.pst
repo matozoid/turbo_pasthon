@@ -549,7 +549,7 @@ export function explanations(): List[Explanation]
             code: "E0700",
             section: "16.3",
             title: "Type errors",
-            meaning: "type argument doesn't satisfy a bound, or isn't a valid `Set` element",
+            meaning: "type argument doesn't satisfy a bound, or isn't a valid `BitSet` element",
         ),
         Explanation(
             code: "E0710",

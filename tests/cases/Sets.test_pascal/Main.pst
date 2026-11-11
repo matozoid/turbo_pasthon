@@ -6,17 +6,17 @@ type
     Color = (Red, Green, Blue, Cyan)
     Digit = '0'..'9'
 
-let a: Set[Color] := [Red, Green]
-let b: Set[Color] := [Color.Green, Blue]
+let a: BitSet[Color] := [Red, Green]
+let b: BitSet[Color] := [Color.Green, Blue]
 writeln("{a + b} {a - b} {a * b} {[Red] + b}")
 writeln("{[Green] <= a} {a <= b} {a >= [Red]} {a + [Blue] >= b} {a = [Green, Red]}")
-var c: Set[Color] := []
+var c: BitSet[Color] := []
 c := c + [Green..Cyan]
-let e: Set[Color] := [Cyan..Green]
+let e: BitSet[Color] := [Cyan..Green]
 writeln("{c} {e} {Color.Blue in [Color.Red..Color.Blue]}")
-let d: Set[Digit] := ['0'..'3', '7']
+let d: BitSet[Digit] := ['0'..'3', '7']
 let k: Digit := '5'
 writeln("{d} {k in ['0'..'4']} {k in ['5'..'9']}")
-let n: Set[Int8] := [-3..2, 100]
-var bs: Set[Byte] := [0..255]
+let n: BitSet[Int8] := [-3..2, 100]
+var bs: BitSet[Byte] := [0..255]
 writeln("{n} {length(bs)}")

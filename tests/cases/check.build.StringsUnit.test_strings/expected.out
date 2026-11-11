@@ -12,7 +12,7 @@ use Main.pst 3:10-3:17
 use Main.pst 12:1-12:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 12:9-12:15
-  function 'length' @ std/System.pst:115:21
+  function 'length' @ std/System.pst:123:21
 use Main.pst 12:16-12:21
   function 'bytes' @ std/Strings.pst:26:24
 use Main.pst 13:1-13:8
@@ -148,17 +148,17 @@ use Main.pst 10:23-10:28
 use Main.pst 14:28-14:31
   parameter 'sub' @ std/Strings.pst:47:39
 use Main.pst 14:39-14:44
-  function 'getOr' @ std/System.pst:584:17
+  function 'getOr' @ std/System.pst:661:17
 use Main.pst 15:23-15:26
   parameter 'sub' @ std/Strings.pst:47:39
 use Main.pst 15:33-15:38
   parameter 'start' @ std/Strings.pst:47:52
 use Main.pst 15:43-15:48
-  function 'getOr' @ std/System.pst:584:17
+  function 'getOr' @ std/System.pst:661:17
 use Main.pst 16:20-16:23
   parameter 'sub' @ std/Strings.pst:47:39
 use Main.pst 16:30-16:36
-  function 'isNone' @ std/System.pst:560:17
+  function 'isNone' @ std/System.pst:637:17
 use Main.pst 17:30-17:36
   parameter 'suffix' @ std/Strings.pst:61:37
 use Main.pst 18:23-18:29

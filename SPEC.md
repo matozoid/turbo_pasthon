@@ -135,7 +135,7 @@ while     xor       deref     _
 | String | `"x = {x}, sum = {a + b}\n"` | always interpolates (§2.8); escapes: `\n \t \r \0 \\ \" \' \{ \u{...}` |
 | List | `[1, 2, 3]` | |
 | Map | `["a": 1, "b": 2]`, `[:]` (empty) | |
-| Set | `[Color.Red, Color.Blue]` | a list literal where a `Set` is expected |
+| Set | `["a", "b"]`, `[Red, Green..Blue]` | a list literal where a `Set` or `BitSet` is expected; ranges only in a `BitSet` |
 
 `[a, b]` is a list, an array or a set, by the expected type; with no expected type it is a
 `List`. Empty `[]` and `[:]` require the expected type to be known from context (error
@@ -271,7 +271,7 @@ in the file. No `forward` declarations are needed. Mutual recursion works.
 
 ### 3.6 Standard units
 The standard units (§14) are ordinary `.pst` files shipped with the compiler (`std/` in the repository; installed as `units/` next to the `pst` executable).
-Primitive types, the built-in generic types (`List`, `Map`, `Set`, `Array`, `Weak`), the
+Primitive types, the built-in generic types (`List`, `Map`, `Set`, `BitSet`, `Array`, `Weak`), the
 traits `Equatable`, `Ordered`, `Hashable`, `Sendable`, and the C types `CString`, `Ptr`,
 `Pointer` are provided by the compiler as names in `System` (`C` for the C types). Routines
 the compiler implements are declared like C functions, in `external "pst"` blocks, which are
@@ -326,7 +326,7 @@ type
 ```
 
 - Members are always written qualified (`Color.Red`), **except** as `case` labels where the type is known (`Red:`).
-- Enums are ordinal: `ord(Color.Green) = 1`, comparable with `<`, usable in `for` and as `Set` elements.
+- Enums are ordinal: `ord(Color.Green) = 1`, comparable with `<`, usable in `for` and as `BitSet` elements.
 - Enums are `Printable`: a member prints as its name.
 
 ### 4.4 Records
@@ -372,7 +372,8 @@ type
 | `Array[T, N]` | fixed length `N` (compile-time constant), inline value, C-compatible |
 | `List[T]` | growable, 0-based |
 | `Map[K, V]` | hash map in insertion order; `K` must satisfy `Hashable` |
-| `Set[T]` | `T` must be an ordinal type with at most 256 values (`E0700`); stored as a bitset |
+| `Set[T]` | hash set in insertion order; `T` must satisfy `Hashable` |
+| `BitSet[T]` | `T` must be an ordinal type with at most 256 values (`E0700`); stored as a bitset |
 
 All indexing is 0-based and bounds-checked in checked builds (panic `P0001`).
 
@@ -390,7 +391,7 @@ exist on `String` (`E0310`, with a fix suggesting `chars`, `bytes`, or `slice`).
   `slice(s, from, to)` takes them. An offset that isn't on a `Char` boundary panics (`P0006`).
 
 ### 4.6 Value semantics everywhere (except `ref`)
-`String`, records, unions, `List`, `Map` and `Set` behave as **values**: assignment and parameter
+`String`, records, unions, `List`, `Map`, `Set` and `BitSet` behave as **values**: assignment and parameter
 passing produce logically independent copies. They are implemented as refcounted buffers
 with **copy-on-write**, so copies are O(1) until mutated.
 
@@ -421,23 +422,34 @@ else is Pasthon in System. `Map(...)` can't be written outside System (`E0306`).
 - `=` compares contents regardless of order.
 - `remove` leaves a tombstone; the table is rebuilt (and compacted) when it is 3/4 full.
 
-A `Set` is a record in System holding 256 bits, one per possible element: Boolean, Byte,
-Int8, an enum, or a subrange with at most 256 values (`Set[Char]` and `Set[Integer]` are
-`E0700`; use a subrange like `'a'..'z'`, or a `Map`). Element `x` is bit `ord(x)` minus
-the `ord` of the type's first value. The compiler provides the set literals, `x in s`, the
-operators below, and the element-to-bit mapping; the rest is Pasthon in System.
+A `Set` is a record in System holding a `Map` from its elements to `true`; everything but
+the literals, `x in s` and the operators is Pasthon in System.
+
+- A literal lists elements: `[]`, `["a", "b"]`. A range `a..b` is `E0305` in it.
+- `a + b` (union), `a - b` (in `a`, not in `b`), `a * b` (intersection), `a <= b` (`a` is a
+  subset of `b`), `a >= b` (superset), `=`, `<>` (regardless of order); both sides of one
+  set type. `<`, `>`, `/`, `div` and `mod` on sets are `E0305`.
+- `add(var s, x)` (no-op if present), `remove(var s, x)` (no-op if absent), `length(s)`,
+  `x in s`. All are O(1) on average; the operators are O(n).
+- Iterating gives the elements in insertion order; the operators keep the order of `a`,
+  and `a + b` puts the new elements of `b` after it. `Set(...)` can't be written outside
+  System (`E0306`).
+
+A `BitSet` is the Pascal set: a record in System holding 256 bits, one per possible
+element: Boolean, Byte, Int8, an enum, or a subrange with at most 256 values
+(`BitSet[Char]` and `BitSet[Integer]` are `E0700`; use a subrange like `'a'..'z'`, or a
+`Set`). Element `x` is bit `ord(x)` minus the `ord` of the type's first value. The
+compiler provides the literals, `x in s`, the operators and the element-to-bit mapping;
+the rest is Pasthon in System.
 
 - A literal lists elements and ranges, as in Pascal: `[]`, `[Color.Red, Color.Blue]`,
-  `['0'..'9', '_']`; `[5..3]` is empty. Where a `Set[Color]` is expected, a bare name that
-  isn't otherwise visible is a member of `Color`: `[Red, Green..Blue]`. A literal with a
-  range is a set even with nothing expected: `d in ['0'..'4']` is `Set[Digit]` for a `d:
-  Digit`; elsewhere, `a..b` is `E0305`.
-- `a + b` (union), `a - b` (in `a`, not in `b`), `a * b` (intersection), `a <= b` (`a` is a
-  subset of `b`), `a >= b` (superset), `=`, `<>`; both sides of one set type. `<`, `>`,
-  `/`, `div` and `mod` on sets are `E0305`.
-- `add(var s, x)`, `remove(var s, x)` (no-op if absent), `length(s)`, `x in s`.
-- Iterating gives the elements in `ord` order. `Set(...)` can't be written outside System
-  (`E0306`).
+  `['0'..'9', '_']`; `[5..3]` is empty. Where a `BitSet[Color]` is expected, a bare name
+  that isn't otherwise visible is a member of `Color`: `[Red, Green..Blue]`. A literal with
+  a range is a `BitSet` even with nothing expected: `d in ['0'..'4']` is `BitSet[Digit]`
+  for a `d: Digit`; elsewhere, `a..b` is `E0305`.
+- The operators, `add`, `remove`, `length` and `in` are those of `Set`.
+- Iterating gives the elements in `ord` order. `BitSet(...)` can't be written outside
+  System (`E0306`).
 
 The only aliasing in the language comes from `ref T` (§4.9).
 
@@ -541,9 +553,9 @@ Built-in traits in `System`: `Iterator[T]` (§4.14), `Sendable` (§11.2), `Equat
 type's structure (e.g. a record is `Equatable` if all its fields are). `Printable` is
 satisfied built-in by primitives (except C types), enums, and subranges, and structurally
 (a visible `toString`) by everything else.
-System declares `toString` for `List`, `Map` and `Set` with Printable items, so they print
-as `[1, 2]`, `[a: 1, b: 2]` (insertion order; `[:]` when empty) and `[Red, Blue]` (`ord`
-order); items show by their own `toString`, so strings appear without quotes. It
+System declares `toString` for `List`, `Map`, `Set` and `BitSet` with Printable items, so
+they print as `[1, 2]`, `[a: 1, b: 2]` (insertion order; `[:]` when empty), `[b, a]`
+(insertion order) and `[Red, Blue]` (`ord` order); items show by their own `toString`, so strings appear without quotes. It
 declares one for `Option` and `Result` with Printable contents too: `Some(1)`, `None`,
 `Ok(12)`, `Err(no digits)`.
 A `Real` prints with the fewest significant digits that read back as the same value,
@@ -653,8 +665,8 @@ type
   Each loop is instantiated for its concrete iterator type, so `next` is a direct call.
 - `for _ in e do` iterates without binding.
 - `List`, `Array`, `String` (chars) and enum types (`for c in Color do`, all members in
-  order) are iterated directly by the compiler, without `iter`. `Map` and `Set` have an
-  `iter` in System: a map's yields its keys, a set's its elements.
+  order) are iterated directly by the compiler, without `iter`. `Map`, `Set` and
+  `BitSet` have an `iter` in System: a map's yields its keys, a set's its elements.
 - `for k, v in m do` works on `Map`: it iterates `entries(m)`, which yields
   `Entry[K, V]` (fields `key`, `value`) and binds the two fields.
 - **Snapshot semantics.** An iterator holds its own copy of the collection. With
@@ -689,7 +701,7 @@ function count[T, I: Iterator[T]](it: I): Integer
     return n
 ```
 
-**Built-in iterables:** `List`, `Array`, `Set`, `Map` (keys), `String` (Chars), enum types
+**Built-in iterables:** `List`, `Array`, `Set`, `BitSet`, `Map` (keys), `String` (Chars), enum types
 (all members in order). Integer ranges use `for i := a to b do` (§7.5), the only way to
 loop over integers.
 
@@ -1304,7 +1316,7 @@ unsafe procedure fill(s: Ptr[SdlSurface])
 
 ## 11. Memory model
 
-- **Automatic reference counting.** `String`, records, unions, `List`, `Map`, `Set` and `ref T` are refcounted.
+- **Automatic reference counting.** `String`, records, unions, `List`, `Map`, `Set`, `BitSet` and `ref T` are refcounted.
 - Increments and decrements are inserted by the compiler. Destruction is deterministic: memory is freed as soon as the last owner goes away.
   Freeing doesn't recurse: what a freed block held is freed in the same step, from a work
   list, so a linked list of any length goes away without using up the stack.
@@ -2035,7 +2047,7 @@ already has a lexical error are not reported.
 | `E0601` | overlapping `case` labels |
 | `E0602` | non-exhaustive `case` (enum or union), or missing `else` (other types) |
 | `E0603` | invalid `case` label for the subject's type |
-| `E0700` | type argument doesn't satisfy a bound, or isn't a valid `Set` element |
+| `E0700` | type argument doesn't satisfy a bound, or isn't a valid `BitSet` element |
 | `E0710` | operation on a type parameter that its bounds don't provide |
 | `E0720` | generic instances nest more than 64 deep (§8) |
 | `E0801` | `if` expression without `else` |

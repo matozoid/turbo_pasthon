@@ -7,10 +7,10 @@ type
     Small = -5..5
     Big = 0..300
 
-let a: Set[Digit] := []
-let b: Set[Small] := []
-let c: Set[Real] := []
-let d: Set[Char] := []
-let e: Set[Big] := []
-let g: Set[Boolean] := Set(words: [])
+let a: BitSet[Digit] := []
+let b: BitSet[Small] := []
+let c: BitSet[Real] := []
+let d: BitSet[Char] := []
+let e: BitSet[Big] := []
+let g: BitSet[Boolean] := BitSet(words: [])
 writeln("{length(a)} {length(b)} {length(c)} {length(d)} {length(e)} {length(g)}")

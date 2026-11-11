@@ -5,14 +5,14 @@ uses IO
 type
     Color = (Red, Green, Blue)
 
-procedure show(s: Set[Color])
+procedure show(s: BitSet[Color])
     writeln(s)
 
 procedure showMap(m: Map[String, Integer])
     writeln(m)
 
-var s: Set[Color] := [Color.Red, Color.Blue]
-let e: Set[Color] := []
+var s: BitSet[Color] := [Color.Red, Color.Blue]
+let e: BitSet[Color] := []
 var m: Map[String, Integer] := ["a": 1, "b": 2]
 let em: Map[String, Integer] := [:]
 writeln("{s} {e} {m} {em} {Color.Green in s}")

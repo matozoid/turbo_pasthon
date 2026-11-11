@@ -2727,7 +2727,7 @@ procedure eFieldAccess(g: ref Em, x: FieldAccess, e: Expr)
 procedure eListLit(g: ref Em, x: ListLit, e: Expr)
     let a := g.a
     let t := typeOfExpr(g, e)
-    if isSet(g.env, t) then
+    if isAnySet(g.env, t) then
         setItems(g, x.span, x.items, t)
         return
     if not isList(t) then
@@ -2771,21 +2771,24 @@ procedure eMapLit(g: ref Em, x: MapLit, e: Expr)
         call(a, put)
     pop(a, Rax)
 
-{ A set `t` of `items`: an empty set, then `include` for each element and
-  `includeRange` for each `low..high`. }
+{ A set `t` of `items`: an empty set, then `include` for each element and, in a
+  BitSet, `includeBitRange` for each `low..high`. }
 procedure setItems(g: ref Em, span: Span, items: List[Expr], t: Type)
     let a := g.a
     let targs := argsOf(t)
-    sysCall(g, span, "emptySet", [], targs: targs)
+    let bits := isBitSet(g.env, t)
+    sysCall(g, span, if bits then "emptyBitSet" else "emptySet", [], targs: targs)
     if g.bad then
         return
     save(g, t)  { the set, on the stack }
-    let include := sysLabel(g, span, "include", targs)
+    let include := sysLabel(g, span, if bits then "includeBit" else "include", targs)
     if g.bad then
         return
-    let includeRange := sysLabel(g, span, "includeRange", targs)
-    if g.bad then
-        return
+    var includeRange := ""
+    if bits then
+        includeRange := sysLabel(g, span, "includeBitRange", targs)
+        if g.bad then
+            return
     for it in items do
         case it of
             Binary(r):
@@ -3263,11 +3266,11 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
                 targs: targs,
             )
             return
-        if isSet(g.env, t) then
+        if isAnySet(g.env, t) then
             sysCall(
                 g,
                 x.span,
-                "includes",
+                if isBitSet(g.env, t) then "includesBit" else "includes",
                 [SysArg(e: x.left, ty: targs[0]), SysArg(e: x.right, ty: t)],
                 targs: targs,
             )
@@ -3287,16 +3290,17 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
         pointerArith(g, x)
         return
     let lt := typeOfExpr(g, x.left)
-    if isSet(g.env, lt) and op <> "=" and op <> "<>" then
-        var name := "subset"
+    if isAnySet(g.env, lt) and op <> "=" and op <> "<>" then
+        var name := "Subset"
         if op = "+" then
-            name := "union"
+            name := "Union"
         else if op = "-" then
-            name := "difference"
+            name := "Difference"
         else if op = "*" then
-            name := "intersection"
+            name := "Intersection"
         else if op = ">=" then
-            name := "superset"
+            name := "Superset"
+        name := if isBitSet(g.env, lt) then "bit{name}" else lowerCase(name)
         sysCall(
             g,
             x.span,
@@ -4615,7 +4619,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         let t := targ0(g, m)
         let first := ordinalRange(g.env, t)
         if first.isNone() then
-            unsupported(g, c.span, "a Set of {show(t)}")
+            unsupported(g, c.span, "a BitSet of {show(t)}")
             return
         expr(g, args[0])
         if g.bad then

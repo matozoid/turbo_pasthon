@@ -11,8 +11,8 @@ exit 0
 digits [4, 2]
 [x: [1], y: []]
 [:]
-[Red, Blue]
-[a, b]
+[Blue, Red]
+[b, a]
 []
 P3 P3
 [P3, P4]

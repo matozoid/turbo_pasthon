@@ -1,0 +1,30 @@
+program Main
+
+uses IO
+
+type
+    Point = record
+        x: Integer
+        y: Integer
+
+var s: Set[String] := ["b", "a"]
+add(var s, "c")
+add(var s, "c")
+remove(var s, "x")
+writeln("{s} {length(s)} {"c" in s} {"x" in s}")
+remove(var s, "b")
+let t: Set[String] := ["c", "d"]
+writeln("{s + t} {s * t} {s - t} {t - s}")
+writeln("{s + t = ["d", "c", "a"]} {s = t} {["c"] <= s} {s >= ["c"]} {s <= t}")
+for x in t do
+    write("{x} ")
+var ns: Set[Integer] := []
+for i := 1 to 1000 do
+    add(var ns, i * 7919 mod 1009)
+for i := 1 to 500 do
+    remove(var ns, i)
+writeln("{length(ns)} {1008 in ns} {500 in ns}")
+let ps: Set[Point] := [Point(x: 1, y: 2), Point(x: 1, y: 2), Point(x: 3, y: 4)]
+writeln("{length(ps)} {Point(x: 3, y: 4) in ps}")
+let cs: Set[Char] := ['z', 'é']
+writeln(cs)

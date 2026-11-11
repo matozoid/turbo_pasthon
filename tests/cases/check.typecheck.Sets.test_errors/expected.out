@@ -2,13 +2,17 @@ $ $PST check Main.pst
 exit 1
 --- stdout
 --- stderr
-Main.pst:8:28: error E0100: unknown name 'Purple'
-Main.pst:10:13: error E0305: a range 'a..b' works only in a set literal
+Main.pst:8:31: error E0100: unknown name 'Purple'
+Main.pst:10:13: error E0305: a range 'a..b' works only in a BitSet literal
 Main.pst:12:11: error E0305: '<' doesn't work on sets; use '+', '-' and '*' for union, difference and intersection, '<=' and '>=' for subset and superset
-Main.pst:13:11: error E0305: '+' can't combine Set[Color] and Set[Byte]
+Main.pst:13:11: error E0305: '+' can't combine BitSet[Color] and BitSet[Byte]
 Main.pst:14:11: error E0305: '/' doesn't work on sets; use '+', '-' and '*' for union, difference and intersection, '<=' and '>=' for subset and superset
 Main.pst:15:9: error E0100: unknown name 'Red'
-Main.pst:16:15: error E0700: Char can't be a Set element: it needs an ordinal type with at most 256 values (Boolean, Byte, an enum, or a subrange)
-Main.pst:18:11: error E0305: 'or' needs two Booleans or two integers of one type, not Set[Color] and Set[Color]; the union of two sets is 'a + b'
-Main.pst:19:11: error E0305: 'and' needs two Booleans or two integers of one type, not Set[Color] and Set[Color]; the intersection of two sets is 'a * b'
-Main.pst:20:11: error E0305: 'xor' needs two Booleans or two integers of one type, not Set[Color] and Set[Color]; the elements in one of two sets but not both are '(a - b) + (b - a)'
+Main.pst:16:15: error E0700: Char can't be a BitSet element: it needs an ordinal type with at most 256 values (Boolean, Byte, an enum, or a subrange); use a Set
+Main.pst:18:11: error E0305: 'or' needs two Booleans or two integers of one type, not BitSet[Color] and BitSet[Color]; the union of two sets is 'a + b'
+Main.pst:19:11: error E0305: 'and' needs two Booleans or two integers of one type, not BitSet[Color] and BitSet[Color]; the intersection of two sets is 'a * b'
+Main.pst:20:11: error E0305: 'xor' needs two Booleans or two integers of one type, not BitSet[Color] and BitSet[Color]; the elements in one of two sets but not both are '(a - b) + (b - a)'
+Main.pst:21:23: error E0305: a range 'a..b' works only in a BitSet literal
+Main.pst:22:5: error E0206: let 'r' is never used
+Main.pst:22:8: error E0700: Real doesn't satisfy Hashable, required by 'Set'
+Main.pst:23:11: error E0305: '+' can't combine Set[Byte] and BitSet[Byte]

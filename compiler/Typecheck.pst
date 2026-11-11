@@ -749,12 +749,12 @@ export function isResource(env: ref Env, t: Type): Boolean
             return false
 
 { `Map[Real, V]`: each type argument of a written generic type must satisfy its
-  parameter's bounds (E0700), and a `Set`'s elements must fit one. }
+  parameter's bounds (E0700), and a `BitSet`'s elements must fit one. }
 procedure checkBounds(env: ref Env)
     for _, w in env.written do
         case w.ty of
             NamedT(n):
-                if isSet(env, w.ty) then
+                if isBitSet(env, w.ty) then
                     checkElement(env, w.file, w.span, n.args[0])
                 let d := decl(env, n.sym)
                 let s := zipSubst(d.params, n.args)
@@ -789,11 +789,19 @@ export function instancesIn(env: ref Env): List[Instance]
 export function isSet(env: ref Env, t: Type): Boolean
     return isSysType(env, t, "Set")
 
+{ Whether `t` is a `BitSet[T]`: a record of System's, with literals of its own. }
+export function isBitSet(env: ref Env, t: Type): Boolean
+    return isSysType(env, t, "BitSet")
+
+{ Whether `t` is a `Set` or a `BitSet`: written `[a, b]`, with the set operators. }
+export function isAnySet(env: ref Env, t: Type): Boolean
+    return isSet(env, t) or isBitSet(env, t)
+
 { Whether `t` is a `Map[K, V]`: a record of System's, with literals of its own. }
 export function isMap(env: ref Env, t: Type): Boolean
     return isSysType(env, t, "Map")
 
-{ A `Set` element type: ordinal, with at most 256 values (SPEC §4.5). }
+{ A `BitSet` element type: ordinal, with at most 256 values (SPEC §4.5). }
 procedure checkElement(env: ref Env, file: String, span: Span, t: Type)
     if isParam(t) or hasError(t) then
         return
@@ -804,7 +812,7 @@ procedure checkElement(env: ref Env, file: String, span: Span, t: Type)
             span,
             file,
             "E0700",
-            "{show(t)} can't be a Set element: it needs an ordinal type with at most 256 values (Boolean, Byte, an enum, or a subrange)",
+            "{show(t)} can't be a BitSet element: it needs an ordinal type with at most 256 values (Boolean, Byte, an enum, or a subrange); use a Set",
         )
 
 { The first and last `ord` of an ordinal type. None for other types, and for a
@@ -2924,6 +2932,11 @@ function listLit(tc: ref TC, x: ListLit, expected: Type): Type
     if isSet(tc.env, expected) then
         let elem := argsOf(expected)[0]
         for item in x.items do
+            _ := check(tc, item, elem)
+        return expected
+    if isBitSet(tc.env, expected) then
+        let elem := argsOf(expected)[0]
+        for item in x.items do
             case item of
                 Binary(r):
                     if r.op = ".." then
@@ -2950,7 +2963,7 @@ function listLit(tc: ref TC, x: ListLit, expected: Type): Type
         _ := check(tc, x.items[i], first)
     return builtin("List", [first])
 
-{ `Red` in a literal of a `Set[Color]`: a bare name that Resolve didn't find, and
+{ `Red` in a literal of a `BitSet[Color]`: a bare name that Resolve didn't find, and
   a member of the enum `elem`, is that member, and its unknown-name error goes. }
 procedure bareMember(tc: ref TC, e: Expr, elem: Type)
     case e of
@@ -2978,7 +2991,7 @@ function mapLit(tc: ref TC, x: MapLit, expected: Type): Type
             _ := check(tc, en.value, kv[1])
         return expected
     if length(x.entries) = 0 and known(expected) and not hasError(expected) then
-        let hint := if isSet(tc.env, expected) or isBuiltin(expected, "List") then "; write '[]'" else ""
+        let hint := if isAnySet(tc.env, expected) or isBuiltin(expected, "List") then "; write '[]'" else ""
         fail(tc, x.span, "E0300", "expected {show(expected)}, found the empty map '[:]'{hint}")
         return errorT()
     if length(x.entries) = 0 then
@@ -3386,7 +3399,7 @@ function binary(tc: ref TC, b: Binary, expected: Type): Type
     if op = ".." then
         _ := value(tc, b.left, noType())
         _ := value(tc, b.right, noType())
-        fail(tc, b.opSpan, "E0305", "a range 'a..b' works only in a set literal")
+        fail(tc, b.opSpan, "E0305", "a range 'a..b' works only in a BitSet literal")
         return errorT()
     var hint := noType()
     if isArith(op) then
@@ -3394,7 +3407,7 @@ function binary(tc: ref TC, b: Binary, expected: Type): Type
     let ts := operands(tc, b, hint)
     let lt := ts[0]
     let rt := ts[1]
-    if isSet(tc.env, lt) and (isArith(op) or op = "<" or op = "<=" or op = ">" or op = ">=") then
+    if isAnySet(tc.env, lt) and (isArith(op) or op = "<" or op = "<=" or op = ">" or op = ">=") then
         return setOp(tc, b, lt, rt)
     if isArith(op) then
         return arith(tc, b, lt, rt)
@@ -3486,7 +3499,7 @@ function logical(tc: ref TC, b: Binary, expected: Type): Type
     if lb = rb and (lb = booleanT() or isInteger(lb)) then
         return lb
     var msg := "'{b.op}' needs two Booleans or two integers of one type, not {show(ts[0])} and {show(ts[1])}"
-    if isSet(tc.env, ts[0]) or isSet(tc.env, ts[1]) then
+    if isAnySet(tc.env, ts[0]) or isAnySet(tc.env, ts[1]) then
         msg := "{msg}; {setHint(b.op)}"
     else if isComparisonExpr(b.left) or isComparisonExpr(b.right) then
         msg := "{msg}; a comparison binds tighter: write '(x and $FF) = 0'"
@@ -3533,15 +3546,15 @@ function arith(tc: ref TC, b: Binary, lt, rt: Type): Type
     return lb
 
 function inOp(tc: ref TC, b: Binary): Type
-    if hasRange(b.right) then  { `c in ['a'..'z']`: a set of the left's type }
+    if hasRange(b.right) then  { `c in ['a'..'z']`: a BitSet of the left's type }
         let lt := value(tc, b.left, noType())
         if hasError(lt) then
             return booleanT()
         checkElement(tc.env, tc.file, exprSpan(b.right), lt)
-        _ := check(tc, b.right, named(sys(tc.env, "Set").get(), [lt]))
+        _ := check(tc, b.right, named(sys(tc.env, "BitSet").get(), [lt]))
         return booleanT()
     let rt := value(tc, b.right, noType())
-    if isBuiltin(rt, "List") or isMap(tc.env, rt) or isSet(tc.env, rt) then
+    if isBuiltin(rt, "List") or isMap(tc.env, rt) or isAnySet(tc.env, rt) then
         _ := check(tc, b.left, argsOf(rt)[0])
     else
         _ := value(tc, b.left, noType())
@@ -3938,7 +3951,11 @@ function construct(
         if not f.exported then
             add(var private, f.name)
     let foreign := target.unitName <> tc.home.name
-    if foreign and (isSys(tc.env, target, "Map") or isSys(tc.env, target, "Set")) then
+    if foreign and (
+        isSys(tc.env, target, "Map")
+        or isSys(tc.env, target, "Set")
+        or isSys(tc.env, target, "BitSet")
+    ) then
         _ := prepare(tc, e.args)
         var lit := "'[a, b]', or '[]'"
         if target.name = "Map" then
@@ -4511,7 +4528,7 @@ function flexFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Int
             return 0
         return 2
     if k = emptyListT() then
-        if isBuiltin(want, "List") or isSet(tc.env, want) then
+        if isBuiltin(want, "List") or isAnySet(tc.env, want) then
             return 0
         return -1
     if k = emptyMapT() then
@@ -4581,7 +4598,7 @@ function listFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Int
         let w := subst(want, s)
         if not mentions(w, vars) and assignable(tc, a.ty, w) then
             return 1
-    if not isBuiltin(want, "List") and not isBuiltin(want, "Array") and not isSet(tc.env, want) then
+    if not isBuiltin(want, "List") and not isBuiltin(want, "Array") and not isAnySet(tc.env, want) then
         return -1
     let elem := argsOf(want)[0]
     var s2 := s
@@ -4612,7 +4629,7 @@ procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Sp
         let p := m.params[i]
         let want := subst(p.ty, m.s)
         if a.flex = listLitT() then
-            if isBuiltin(want, "Array") or isSet(tc.env, want) then
+            if isBuiltin(want, "Array") or isAnySet(tc.env, want) then
                 _ := check(tc, a.expr, want)
             else if not known(a.ty) or not assignable(tc, a.ty, want) then
                 tc.types[exprId(a.expr)] := want
