@@ -36,9 +36,9 @@ type
         overlay: Map[String, String]
         { By unit name; programs are not entered. }
         export units: Map[String, ref Unit]
-        missing: Map[String, Boolean]
+        missing: Set[String]
         { Found, but not units. }
-        programs: Map[String, Boolean]
+        programs: Set[String]
         export index: ref SymbolIndex
         export diagnostics: List[Diagnostic]
         nextSymbol: Integer
@@ -269,8 +269,8 @@ export function resolveUnits(
         stdDir: stdDir,
         overlay: overlay,
         units: [:],
-        missing: [:],
-        programs: [:],
+        missing: [],
+        programs: [],
         index: newIndex(),
         diagnostics: [],
         nextSymbol: 0,
@@ -394,11 +394,11 @@ function load(c: ref Checker, path: String, std: Boolean, expected: String := ""
             c.units[expected] := un
     collect(c, un)
 
-    var seen: Map[String, Boolean] := [:]
+    var seen: Set[String] := []
     for ident in tree.units do
         if ident.name in seen then
             continue
-        seen[ident.name] := true
+        add(var seen, ident.name)
         case findUnit(c, ident.name, user: un, span: Some(ident.span)) of
             Some(used):
                 add(var un.used, weak(used.value))
@@ -452,7 +452,7 @@ function findUnit(
             case load(c, path, std: i = 0, expected: name) of
                 Some(u):
                     if u.value.parsed.file.kind <> "unit" then
-                        c.programs[name] := true
+                        add(var c.programs, name)
                         report(
                             c,
                             user,
@@ -464,7 +464,7 @@ function findUnit(
                     return Some(u.value)
                 None:
                     return None
-    c.missing[name] := true
+    add(var c.missing, name)
     var dir := dirname(user.path)
     if dir = "" then
         dir := "."
@@ -866,26 +866,26 @@ export function unitLookup(r: ref Resolver, name: String): List[ref Symbol]
 
 { Every name visible here, in order. }
 function visibleNames(r: ref Resolver): List[String]
-    var names: Map[String, Boolean] := [:]
+    var names: Set[String] := []
     for n, _ in r.cur.top do
-        names[n] := true
+        add(var names, n)
     for n, _ in r.unitNames do
-        names[n] := true
+        add(var names, n)
     if r.hasCtx then
         for scope in r.scopes do
             for n, _ in scope do
-                names[n] := true
+                add(var names, n)
     for scope in r.typeScopes do
         for n, _ in scope do
-            names[n] := true
+            add(var names, n)
     for u in usedUnits(r.cur) do
         for n, syms in u.top do
             for s in syms do
                 if s.exported then
-                    names[n] := true
+                    add(var names, n)
                     break
     var out: List[String] := []
-    for n, _ in names do
+    for n in names do
         add(var out, n)
     sort(var out)
     return out

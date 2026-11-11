@@ -138,7 +138,7 @@ type
         keep: Map[String, Integer]
         { In a lambda: the ids of the `var` parameters it captured, which it holds as
           copies rather than addresses. }
-        copied: Map[Integer, Boolean]
+        copied: Set[Integer]
 
     { A routine instance to compile. }
     Inst = record
@@ -258,10 +258,10 @@ type
         main: ref Unit
         a: ref Assembler
         diagnostics: List[Diagnostic]
-        reported: Map[String, Boolean]
+        reported: Set[String]
         { The runtime routines used, in order. }
         runtime: List[String]
-        used: Map[String, Boolean]
+        used: Set[String]
         panics: List[PanicStub]
         { Routine and type arguments -> label. }
         labels: Map[String, String]
@@ -343,7 +343,7 @@ function newFrame(file: String, sym: Option[ref Symbol], exit: String): ref Fram
         sites: [:],
         depth: 0,
         keep: [:],
-        copied: [:],
+        copied: [],
     ))
 
 function alloc(g: ref Em): Integer
@@ -480,7 +480,7 @@ procedure unsupported(g: ref Em, span: Span, what: String)
     let message := "{what} is not supported by the code generator yet"
     let k := "{g.f.file}|{span.start}|{span.end}|{message}"
     if not (k in g.reported) then
-        g.reported[k] := true
+        add(var g.reported, k)
         add(var g.diagnostics, Diagnostic(
             file: g.f.file,
             span: span,
@@ -585,7 +585,7 @@ function managed(g: ref Em, t: Type): Boolean
 function supported(g: ref Em, t: Type): Boolean
     let k := key(t)
     if not (k in g.supportedCache) then
-        var seen: Map[String, Boolean] := [:]
+        var seen: Set[String] := []
         var done: List[String] := []
         let ok := supportedIn(g, t, var seen, var done)
         { Without a failure, everything visited is supported; after one, only `t` is
@@ -599,7 +599,7 @@ function supported(g: ref Em, t: Type): Boolean
 function supportedAll(
     g: ref Em,
     ts: List[Type],
-    var seen: Map[String, Boolean],
+    var seen: Set[String],
     var done: List[String],
 ): Boolean
     for p in ts do
@@ -611,7 +611,7 @@ function supportedAll(
 function supportedIn(
     g: ref Em,
     t: Type,
-    var seen: Map[String, Boolean],
+    var seen: Set[String],
     var done: List[String],
 ): Boolean
     let k := key(t)
@@ -649,7 +649,7 @@ function supportedIn(
             add(var parts, f.ty)
     else
         parts := variants(g.env, t)
-    seen[k] := true
+    add(var seen, k)
     let ok := supportedAll(g, parts, var seen, var done)
     remove(var seen, k)
     if not (k in done) then
@@ -972,9 +972,9 @@ procedure save(g: ref Em, t: Type)
 { Leaves the blocks above `depth`, innermost first: releases their variables and runs
   their `defer` statements, in reverse order. Keeps rax. }
 procedure releaseScopes(g: ref Em, depth: Integer)
-    var keep: Map[Integer, Boolean] := [:]
+    var keep: Set[Integer] := []
     for _, slot in g.f.keep do
-        keep[slot] := true
+        add(var keep, slot)
     for i := length(g.f.scopes) - 1 downto depth do
         let scope := g.f.scopes[i]
         for j := length(scope) - 1 downto 0 do
@@ -1076,9 +1076,9 @@ export function build(result: Checked, checked: Boolean := true, tests: Boolean 
         main: main,
         a: newAssembler(),
         diagnostics: [],
-        reported: [:],
+        reported: [],
         runtime: [],
-        used: [:],
+        used: [],
         panics: [],
         labels: [:],
         queue: [],
@@ -1903,9 +1903,9 @@ procedure forEnum(g: ref Em, s: ForIn, t: Type)
 { The file whose visibility resolves the bound members of `t`: where the first of its
   type parameters that has a site became concrete, else this file. }
 function siteOf(g: ref Em, t: Type): String
-    var ps: Vars := [:]
+    var ps: List[Integer] := []
     paramsIn(t, var ps)
-    for id, _ in ps do
+    for id in ps do
         if id in g.f.sites then
             return g.f.sites[id]
     return g.f.file
@@ -1933,9 +1933,9 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
             if not chosen then
                 let fs := sig(g.env, f)
                 var sf: Subst := [:]
-                var vars: Vars := [:]
+                var vars: Vars := []
                 for tp in fs.tparams do
-                    vars[tp.id] := true
+                    add(var vars, tp.id)
                 if length(fs.params) = 1 and isRoutineNode(f) and unify(
                     fs.params[0].ty,
                     t,
@@ -1966,7 +1966,7 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
         sub[tr.params[0].id] := item.get()
         sub[ThisId] := itT
         var s2: Subst := [:]
-        found := provider(chk, itT, m: member, sub: sub, s: var s2, vars: [:])
+        found := provider(chk, itT, m: member, sub: sub, s: var s2, vars: [])
     if found.isNone() then
         unsupported(g, exprSpan(s.iterable), "a loop over {show(t)}")
         return
@@ -3068,7 +3068,7 @@ procedure lambdaRoutine(g: ref Em, lm: Lam)
             let c := lm.captures[i]
             let slot := alloc(g)
             f.slots[c.id] := slot
-            f.copied[c.id] := true
+            add(var f.copied, c.id)
             load(a, Rax, Rbp, disp: env)
             load(a, Rax, Rax, disp: Fields + 8 * (i + 1))
             store(a, Rbp, disp: slot, src: Rax)
@@ -3600,7 +3600,7 @@ procedure declaredToString(g: ref Em, e: Expr, t: Type)
         m: tr.routines[0],
         sub: sub,
         s: var s2,
-        vars: [:],
+        vars: [],
     )
     if found.isNone() or not isRoutineNode(found.get().f) then
         unsupported(g, exprSpan(e), "converting {show(t)} to a string")
@@ -3824,8 +3824,8 @@ function countUses(g: ref Em, e: Expr, id: Integer): Integer
     return n
 
 { The keys of the types of the boxes that reaching the place `e` goes through. }
-function boxesOf(g: ref Em, e: Expr): Map[String, Boolean]
-    var boxes: Map[String, Boolean] := [:]
+function boxesOf(g: ref Em, e: Expr): Set[String]
+    var boxes: Set[String] := []
     var r := unparen(e)
     var going := true
     while going do
@@ -3839,7 +3839,7 @@ function boxesOf(g: ref Em, e: Expr): Map[String, Boolean]
         if going then
             case typeOfExpr(g, r) of
                 RefT(b):
-                    boxes[key(b.target)] := true
+                    add(var boxes, key(b.target))
                 else:
                     pass
     return boxes
@@ -3850,13 +3850,13 @@ function boxesOf(g: ref Em, e: Expr): Map[String, Boolean]
 function reaches(
     g: ref Em,
     t: Type,
-    boxes: Map[String, Boolean],
-    var seen: Map[String, Boolean],
+    boxes: Set[String],
+    var seen: Set[String],
 ): Boolean
     let k := key(t)
     if k in seen then
         return false
-    seen[k] := true
+    add(var seen, k)
     case t of
         RefT(r):
             return key(r.target) in boxes or reaches(g, r.target, boxes, seen: var seen)
@@ -3903,7 +3903,7 @@ function movable(g: ref Em, place: Expr, others: List[Expr], types: List[Type]):
         return false
     let boxes := boxesOf(g, place)
     if length(boxes) > 0 then
-        var seen: Map[String, Boolean] := [:]
+        var seen: Set[String] := []
         for t in types do
             if reaches(g, t, boxes, seen: var seen) then
                 return false
@@ -4331,7 +4331,7 @@ function boundMember(g: ref Em, c: Call, m: Match): Callee
         m: member,
         sub: sub,
         s: var s2,
-        vars: [:],
+        vars: [],
     )
     if found.isNone() then
         unsupported(g, c.span, "calling '{member.name}' here")
@@ -4846,18 +4846,18 @@ procedure sliceOf(g: ref Em, c: Call, args: List[Expr])
 { Marks the runtime routine `name` as used. }
 function runtime(g: ref Em, name: String): String
     if not (name in g.used) then
-        g.used[name] := true
+        add(var g.used, name)
         add(var g.runtime, name)
     return name
 
 procedure emitRuntime(g: ref Em)
-    var done: Map[String, Boolean] := [:]
+    var done: Set[String] := []
     var n := 0
     while n < length(g.runtime) do  { a routine may use another }
         let names := g.runtime
         for name in names do
             if not (name in done) then
-                done[name] := true
+                add(var done, name)
                 n := n + 1
                 label(g.a, name)
                 runtimeRoutine(g, name)

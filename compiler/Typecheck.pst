@@ -152,7 +152,7 @@ type
         { Enum members. }
         members: List[String]
         { Keys of covered variants (their position), members, or `true` / `false`. }
-        covered: Map[String, Boolean]
+        covered: Set[String]
         ranges: List[LRange]
 
     { An integer or real literal, possibly negated: 0 none, 1 integer, 2 real. }
@@ -194,7 +194,7 @@ type
         boundCache: Map[Integer, List[Type]]
         export checkers: Map[String, ref TC]
         export constCheckers: Map[String, ref TC]
-        busy: Map[Integer, Boolean]
+        busy: Set[Integer]
         satCache: Map[String, Boolean]
         { Enum members, fields, trait routines, by id: the type that declares them. }
         export owner: Map[Integer, ref Symbol]
@@ -225,7 +225,7 @@ type
         export calls: Map[Integer, Match]
         { Why the last trait check failed. }
         why: String
-        inBuiltin: Map[String, Boolean]
+        inBuiltin: Set[String]
         { The routine being checked: }
         result: Type
         isFunction: Boolean
@@ -241,11 +241,11 @@ type
         { The lambdas whose bodies are being checked, innermost last. }
         open: List[Lambda]
         { The ids of the lambdas that capture variables. }
-        capturing: Map[Integer, Boolean]
+        capturing: Set[Integer]
         inDefer: Boolean
         inEnsures: Boolean
         { Ids of the arguments of `new` calls, for resources(). }
-        newArgs: Map[Integer, Boolean]
+        newArgs: Set[Integer]
         { The depth of the trait check in progress, for provider(). }
         depth: Integer
 
@@ -447,9 +447,9 @@ function zipSubst(params: List[ref Symbol], args: List[Type]): Subst
     return s
 
 function setOf(syms: List[ref Symbol]): Vars
-    var v: Vars := [:]
+    var v: Vars := []
     for s in syms do
-        v[s.id] := true
+        add(var v, s.id)
     return v
 
 procedure merge(var s: Subst, other: Subst)
@@ -580,7 +580,7 @@ function newEnv(c: ref Checker, units: List[ref Unit]): ref Env
         boundCache: [:],
         checkers: [:],
         constCheckers: [:],
-        busy: [:],
+        busy: [],
         satCache: [:],
         owner: [:],
         written: [:],
@@ -620,7 +620,7 @@ function newTC(env: ref Env, u: ref Unit): ref TC
         types: [:],
         calls: [:],
         why: "",
-        inBuiltin: [:],
+        inBuiltin: [],
         result: voidT(),
         isFunction: false,
         inRoutine: false,
@@ -630,10 +630,10 @@ function newTC(env: ref Env, u: ref Unit): ref TC
         fors: [],
         lambdas: 0,
         open: [],
-        capturing: [:],
+        capturing: [],
         inDefer: false,
         inEnsures: false,
-        newArgs: [:],
+        newArgs: [],
         depth: 0,
     ))
 
@@ -1098,7 +1098,7 @@ function typeDecl(env: ref Env, sym: ref Symbol, node: TypeDecl): ref TypeInfo
             if sym.id in env.busy then
                 envError(env, node.name.span, file, "E0304", "alias '{sym.name}' refers to itself")
                 return d
-            env.busy[sym.id] := true
+            add(var env.busy, sym.id)
             d.alias := typeOf(env, t, file)
             remove(var env.busy, sym.id)
     return d
@@ -1194,7 +1194,7 @@ export function constType(env: ref Env, sym: ref Symbol): Type
     if sym.id in env.busy then
         envError(env, sym.span.get(), sym.file, "E0300", "constant '{sym.name}' depends on itself")
         return errorT()
-    env.busy[sym.id] := true
+    add(var env.busy, sym.id)
     var t := errorT()
     case sym.node of
         ConstDecl(cd):
@@ -1601,13 +1601,13 @@ function signature(tc: ref TC, sym: ref Symbol): Sig
     let g := sig(tc.env, sym)
     for tp in g.tparams do
         _ := bounds(tc.env, tp)
-    var done: Map[Integer, Boolean] := [:]
+    var done: Set[Integer] := []
     for p in g.params do
         case p.default of
             Some(x):
                 let id := exprId(x.value)
                 if not (id in done) then
-                    done[id] := true
+                    add(var done, id)
                     _ := check(tc, x.value, p.ty)
             None:
                 pass
@@ -1925,7 +1925,7 @@ procedure walkExpr(tc: ref TC, e: Expr, parent: Parent)
                                 )
                                 return
                             if isSys(tc.env, s.value, "new") and length(c.args) > 0 then
-                                tc.newArgs[c.args[0].id] := true
+                                add(var tc.newArgs, c.args[0].id)
                         None:
                             pass
                 None:
@@ -2368,8 +2368,8 @@ export function iteratorItem(tc: ref TC, t: Type): Option[Type]
         return None
     let x := tc.env.elemVar
     var s: Subst := [:]
-    var vars: Vars := [:]
-    vars[x.id] := true
+    var vars: Vars := []
+    add(var vars, x.id)
     if satisfies(tc, t, TraitT(sym: it.get(), args: [param(x)]), var s, vars, 0) then
         return Some(getOr(s, x.id, default: errorT()))
     return None
@@ -2388,7 +2388,7 @@ function caseStmt(tc: ref TC, s: Case): Boolean
     return ends and complete
 
 function caseInfo(t: Type, kind: String): CaseInfo
-    return CaseInfo(ty: t, kind: kind, variants: [], members: [], covered: [:], ranges: [])
+    return CaseInfo(ty: t, kind: kind, variants: [], members: [], covered: [], ranges: [])
 
 function caseBegin(tc: ref TC, t: Type): CaseInfo
     if hasError(t) then
@@ -2451,7 +2451,7 @@ function caseEnd(tc: ref TC, info: CaseInfo, hasElse: Boolean, span: Span): Bool
 procedure cover(tc: ref TC, var info: CaseInfo, span: Span, key, name: String)
     if key in info.covered then
         fail(tc, span, "E0601", "'{name}' is already covered by an earlier label")
-    info.covered[key] := true
+    add(var info.covered, key)
 
 function noVal(): LVal
     return LVal(kind: 0, i: 0, s: "")
@@ -2902,7 +2902,7 @@ function printable(tc: ref TC, e: Expr): Type
     let printable := sys(tc.env, "Printable")
     if printable.isSome() then
         var s: Subst := [:]
-        if not satisfies(tc, t, TraitT(sym: printable.get(), args: []), var s, [:], 0) then
+        if not satisfies(tc, t, TraitT(sym: printable.get(), args: []), var s, [], 0) then
             fail(
                 tc,
                 exprSpan(e),
@@ -3026,7 +3026,7 @@ procedure noteCapture(tc: ref TC, s: ref Symbol)
         Some(sp):
             for l in tc.open do
                 if sp.value.start < l.span.start or sp.value.end > l.span.end then
-                    tc.capturing[l.id] := true
+                    add(var tc.capturing, l.id)
         None:
             pass
 
@@ -4317,7 +4317,7 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
                     false,
                 )
             s := zipSubst(tparams, ex.value)
-            vars := [:]
+            vars := []
         None:
             pass
     { Bind arguments to parameters. }
@@ -4577,9 +4577,9 @@ function lambdaFit(tc: ref TC, l: Lambda, f: FuncT, var s: Subst, vars: Vars): I
     if not known(t) then
         return 0
     if hasError(t) then  { the body's errors are reported when it is checked again }
-        var found: Vars := [:]
+        var found: List[Integer] := []
         paramsIn(f.result, var found)
-        for id, _ in found do
+        for id in found do
             if id in vars and not (id in s) then
                 s[id] := errorT()
         return 0
@@ -4950,11 +4950,11 @@ export function implementation(tc: ref TC, typeSym, tr: ref Symbol): Option[List
     for p in decl(tc.env, typeSym).params do
         add(var targs, ParamT(sym: p))
     let t := named(typeSym, targs)
-    var vars: Vars := [:]
+    var vars: Vars := []
     var wargs: List[Type] := []
     for p in decl(tc.env, tr).params do
         add(var wargs, ParamT(sym: p))
-        vars[p.id] := true
+        add(var vars, p.id)
     let wanted := TraitT(sym: tr, args: wargs)
     var s: Subst := [:]
     if not satisfies(tc, t, wanted, var s, vars, 0) then
@@ -4998,7 +4998,7 @@ function satisfiesPlain(tc: ref TC, t, wanted: Type): Boolean
     case wanted of
         TraitT(tr):
             var s: Subst := [:]
-            return satisfies(tc, t, tr, var s, [:], 0)
+            return satisfies(tc, t, tr, var s, [], 0)
         else:
             return true
 
@@ -5143,7 +5143,7 @@ export function builtinTrait(tc: ref TC, t: Type, name: String): Boolean
     let k := "{key(t)}|{name}"
     if k in tc.inBuiltin then
         return true  { a recursive type: assume, the other parts decide }
-    tc.inBuiltin[k] := true
+    add(var tc.inBuiltin, k)
     let ok := builtinTraitOf(tc, t, name)
     remove(var tc.inBuiltin, k)
     return ok

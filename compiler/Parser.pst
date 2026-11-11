@@ -62,7 +62,7 @@ type
         file: String
         diags: List[Diagnostic]
         { `code:start` of the reported diagnostics. }
-        reported: Map[String, Boolean]
+        reported: Set[String]
         { The last consumed non-layout token. }
         last: Token
         { `program` or `unit`. }
@@ -71,7 +71,7 @@ type
         { Parser errors on a logical line that already has a lexical error are almost
           always follow-on errors, so they are not reported. A logical line can span
           several physical lines inside brackets. }
-        lexErrorLines: Map[Integer, Boolean]
+        lexErrorLines: Set[Integer]
         lexErrorRanges: List[Pair[Integer, Integer]]
         { The text of each doc comment on a line without code, by line. }
         docs: Map[Integer, String]
@@ -80,9 +80,9 @@ type
 { Parses `text`, the contents of `file`. }
 export function parse(text: String, file: String := "<input>"): ParseResult
     let lexed := lex(text, file: file)
-    var lines: Map[Integer, Boolean] := [:]
+    var lines: Set[Integer] := []
     for d in lexed.diagnostics do
-        lines[d.span.line] := true
+        add(var lines, d.span.line)
     var ends: List[Integer] := []
     for t in lexed.tokens do
         if t.kind = TokenKind.Newline or t.kind = TokenKind.Eof then
@@ -95,10 +95,10 @@ export function parse(text: String, file: String := "<input>"): ParseResult
                 stop := e
                 break
         add(var ranges, Pair(first: d.span.start, second: stop))
-    var codeLines: Map[Integer, Boolean] := [:]
+    var codeLines: Set[Integer] := []
     for t in lexed.tokens do
         if not isLayout(t.kind) then
-            codeLines[t.span.line] := true
+            add(var codeLines, t.span.line)
     var docs: Map[Integer, String] := [:]
     for c in lexed.comments do
         if not (c.span.line in codeLines) and not (c.span.endLine in codeLines) then
@@ -108,7 +108,7 @@ export function parse(text: String, file: String := "<input>"): ParseResult
         i: 0,
         file: file,
         diags: [],
-        reported: [:],
+        reported: [],
         last: lexed.tokens[0],
         kind: "program",
         units: [],
@@ -371,7 +371,7 @@ procedure reportWith(p: ref State, code: String, span: Span, message: String, fi
     let key := "{code}:{span.start}"
     if key in p.reported then
         return
-    p.reported[key] := true
+    add(var p.reported, key)
     add(var p.diags, Diagnostic(
         file: p.file,
         span: span,

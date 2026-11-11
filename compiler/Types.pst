@@ -69,7 +69,7 @@ type
     export Subst = Map[Integer, Type]
 
     { A set of symbol ids: the parameters that may be bound. }
-    export Vars = Map[Integer, Boolean]
+    export Vars = Set[Integer]
 
 const
     export ThisId = 0
@@ -367,11 +367,11 @@ export function subst(t: Type, s: Subst): Type
         else:
             return t
 
-{ Adds the parameters that appear in `t` to `out`. }
-export procedure paramsIn(t: Type, var out: Vars)
+{ Adds the parameters that appear in `t` to `out`, in order of appearance. }
+export procedure paramsIn(t: Type, var out: List[Integer])
     case t of
         ParamT(p):
-            out[p.sym.id] := true
+            add(var out, p.sym.id)
         BuiltinT(b):
             for a in b.args do
                 paramsIn(a, var out)
@@ -392,18 +392,18 @@ export procedure paramsIn(t: Type, var out: Vars)
 
 { Whether a parameter in `vars` appears in `t`. }
 export function mentions(t: Type, vars: Vars): Boolean
-    var found: Vars := [:]
+    var found: List[Integer] := []
     paramsIn(t, var found)
-    for id, _ in found do
+    for id in found do
         if id in vars then
             return true
     return false
 
 { Whether a parameter in `vars` that `s` doesn't bind appears in `t`. }
 export function mentionsUnbound(t: Type, vars: Vars, s: Subst): Boolean
-    var found: Vars := [:]
+    var found: List[Integer] := []
     paramsIn(t, var found)
-    for id, _ in found do
+    for id in found do
         if id in vars and not (id in s) then
             return true
     return false

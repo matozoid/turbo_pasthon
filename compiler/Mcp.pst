@@ -367,13 +367,13 @@ function positionOf(arguments: JValue, key: String): Result[String, String]
 { The diagnostics of `files`, each reported once. }
 function check(files: List[String], stdDir: String): String
     var items: List[String] := []
-    var seen: Map[String, Boolean] := [:]
+    var seen: Set[String] := []
     var errors := 0
     for file in files do
         for d in typecheck(file, stdDir: stdDir).resolved.checker.diagnostics do
             let text := json(d)
             if not (text in seen) then
-                seen[text] := true
+                add(var seen, text)
                 add(var items, text)
                 if d.severity = Severity.Error then
                     errors := errors + 1
