@@ -5,7 +5,7 @@ o/Messy.pst
 program Messy
 uses IO, Strings
 
-## Doc comment.
+{ Doc comment. }
 type
     Point = record
         x: Integer
@@ -17,21 +17,20 @@ type
         Dark,
     )
 
-function f(a: Integer, b: Integer): Integer  # trailing
+function f(a: Integer, b: Integer): Integer  { trailing }
     if a > b then
         return -a + b * -1
     else if a = b then
-        # equal
+        { equal }
         return 0
     else if a < 0 then
         return a
     else
         return (b)
 
-    # end if
+    { end if }
     return a - (-b)
-# end function f
-
+{ end function f }
 function combine(
     first: Integer,
     second: Integer,
@@ -57,13 +56,13 @@ function isBig(n: Integer): Boolean
 procedure show(xs: List[Integer])
     for x in xs do
         writeln("x = {x + 1}, {join(["a", "b"], sep: ",")}")
-        # a comment in the loop
+        { a comment in the loop }
 
-    # a comment after it
+    { a comment after it }
     writeln("done")
 
 procedure pick(word: String)
-    # A long parenthesized expression whose last item breaks hugs it; with `and` it doesn't.
+    { A long parenthesized expression whose last item breaks hugs it; with `and` it doesn't. }
     if word <> "" then
         if not (word in [
             "check",
@@ -93,15 +92,15 @@ procedure pick(word: String)
     ) then
         writeln("long")
 
-let p := Point(x: 1, y: 2)  # point
+let p := Point(x: 1, y: 2)  { point }
 let xs: List[Integer] := [
     1,
     2,
     3,
 ]
 let ys := [
-    10,  # ten
-    # twenty next
+    10,  { ten }
+    { twenty next }
     20,
 ]
 let m: Map[String, Integer] := ["a": 1, "b": 2]

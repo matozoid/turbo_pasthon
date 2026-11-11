@@ -1,5 +1,5 @@
 program P
-## Not attached.
+{ Not attached. }
 
 function f(): Int
     return 1

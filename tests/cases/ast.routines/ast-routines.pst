@@ -1,7 +1,7 @@
 program P
-## Doc one.
-##
-##   Doc two.
+{ Doc one.
+
+    Doc two. }
 export function f[T: Eq](a, b: T, var c: List[T] := [], ...): Integer
     requires a = b
     ensures result > 0

@@ -37,7 +37,7 @@ IntLit 10:12-10:13 "3" int 3
 Rparen 10:13-10:14 ")" -
 Newline 10:14-11:1 "\n" -
 Eof 11:1-11:1 "" -
-comment 6:1-6:10 "# comment" false
+comment 6:1-6:12 "{ comment }"
 error E0009 3:2-3:3 "unclosed '('"
   fix "insert ')'"
     edit 3:5-3:5 ")"

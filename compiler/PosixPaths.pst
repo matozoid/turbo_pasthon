@@ -1,6 +1,6 @@
 unit PosixPaths
 
-## POSIX path operations, as Python's `posixpath` does them.
+{ POSIX path operations, as Python's `posixpath` does them. }
 
 uses OS, Strings
 
@@ -8,21 +8,21 @@ const
     Slash = Byte(47)
     Dot = Byte(46)
 
-## The byte offset of the last `/` in `s`, or -1.
+{ The byte offset of the last `/` in `s`, or -1. }
 function lastSlash(b: List[Byte]): Integer
     var i := length(b) - 1
     while i >= 0 and b[i] <> Slash do
         i := i - 1
     return i
 
-## Whether `s` is all slashes.
+{ Whether `s` is all slashes. }
 function allSlashes(s: String): Boolean
     for c in s do
         if c <> '/' then
             return false
     return true
 
-## Everything up to the last `/`, without trailing slashes (unless it is only slashes).
+{ Everything up to the last `/`, without trailing slashes (unless it is only slashes). }
 export function dirname(p: String): String
     let i := lastSlash(bytes(p)) + 1
     var head := slice(p, 0, i)
@@ -31,13 +31,13 @@ export function dirname(p: String): String
             head := slice(head, 0, byteLen(head) - 1)
     return head
 
-## Everything after the last `/`.
+{ Everything after the last `/`. }
 export function basename(p: String): String
     let i := lastSlash(bytes(p)) + 1
     return slice(p, i, byteLen(p))
 
-## `p` without its extension: the last `.` after the last `/`, unless the name before it
-## is only dots.
+{ `p` without its extension: the last `.` after the last `/`, unless the name before it
+  is only dots. }
 export function stripExt(p: String): String
     let b := bytes(p)
     let sep := lastSlash(b)
@@ -52,7 +52,7 @@ export function stripExt(p: String): String
             i := i + 1
     return p
 
-## `b` relative to `a`, or `b` if it is absolute.
+{ `b` relative to `a`, or `b` if it is absolute. }
 export function join(a: String, b: String): String
     if startsWith(b, prefix: "/") then
         return b
@@ -60,8 +60,8 @@ export function join(a: String, b: String): String
         return "{a}{b}"
     return "{a}/{b}"
 
-## `p` without `.`, `..` and repeated slashes, as far as that can be done without the
-## file system.
+{ `p` without `.`, `..` and repeated slashes, as far as that can be done without the
+  file system. }
 export function normalize(p: String): String
     if byteLen(p) = 0 then
         return "."
@@ -88,7 +88,7 @@ export function normalize(p: String): String
         return "."
     return out
 
-## The absolute, normalized form of `p`.
+{ The absolute, normalized form of `p`. }
 export function absolute(p: String): String
     if startsWith(p, prefix: "/") then
         return normalize(p)
@@ -101,7 +101,7 @@ function components(p: String): List[String]
             add(var out, c)
     return out
 
-## `p` as a path relative to the directory `start`.
+{ `p` as a path relative to the directory `start`. }
 export function relative(p, start: String): String
     let a := components(absolute(p))
     let b := components(absolute(start))

@@ -1,14 +1,14 @@
 program ExplainCheck
 
-## Compares the code tables of SPEC.md (§2.9, §12 and §16) with `Explain.explanations()`,
-## which `pst query explain` answers from, and prints each difference.
-##
-## Usage: `ExplainCheck SPEC`. Matches codes by name. Prints `N codes match` and exits
-## with 0 if they agree, else the differences and exits with 1.
+{ Compares the code tables of SPEC.md (§2.9, §12 and §16) with `Explain.explanations()`,
+  which `pst query explain` answers from, and prints each difference.
+
+  Usage: `ExplainCheck SPEC`. Matches codes by name. Prints `N codes match` and exits
+  with 0 if they agree, else the differences and exits with 1. }
 
 uses IO, OS, Strings, Explain
 
-## The code rows of the tables under the headings `### 2.9`, `## 12.` and `### 16.`.
+{ The code rows of the tables under the headings `### 2.9`, `## 12.` and `### 16.`. }
 function specCodes(text: String): List[Explanation]
     var out: List[Explanation] := []
     var section := ""
@@ -45,7 +45,7 @@ function specCodes(text: String): List[Explanation]
 function show(e: Explanation): String
     return "{e.code} ({e.section} {e.title}): {e.meaning}"
 
-## The entry for `code` in `es`.
+{ The entry for `code` in `es`. }
 function lookup(es: List[Explanation], code: String): Option[Explanation]
     for e in es do
         if e.code = code then

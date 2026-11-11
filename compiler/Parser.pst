@@ -1,16 +1,16 @@
 unit Parser
 
-## Recursive-descent parser (SPEC §16).
-##
-## The parser never stops at the first error (SPEC §15.6). A syntax error inside a line
-## returns `Err(Failed())`, which `try` carries up to the enclosing line list; the list
-## then skips the rest of the line and any block indented under it, and inserts an
-## `ErrorStmt`. Indentation makes these recovery points reliable, so one mistake produces
-## one diagnostic.
-##
-## Errors that don't make the structure ambiguous (a chained comparison, an `if`
-## expression without `else`, a missing initializer that is still followed by a value...)
-## are reported without unwinding, and parsing continues normally.
+{ Recursive-descent parser (SPEC §16).
+
+  The parser never stops at the first error (SPEC §15.6). A syntax error inside a line
+  returns `Err(Failed())`, which `try` carries up to the enclosing line list; the list
+  then skips the rest of the line and any block indented under it, and inserts an
+  `ErrorStmt`. Indentation makes these recovery points reliable, so one mistake produces
+  one diagnostic.
+
+  Errors that don't make the structure ambiguous (a chained comparison, an `if`
+  expression without `else`, a missing initializer that is still followed by a value...)
+  are reported without unwinding, and parsing continues normally. }
 
 uses Source, Tokens, Diagnostics, Lexer, Ast, Strings
 
@@ -20,40 +20,40 @@ type
         export tokens: List[Token]
         export comments: List[Comment]
         export diagnostics: List[Diagnostic]
-        ## The decoded source.
+        { The decoded source. }
         export src: Text
 
-    ## A syntax error that unwinds to the nearest line list; it is already reported.
+    { A syntax error that unwinds to the nearest line list; it is already reported. }
     Failed = record
 
     Parsed[T] = Result[T, Failed]
 
-    ## What an end marker after an item would close.
+    { What an end marker after an item would close. }
     TargetKind = (NoTarget, Broken, RepeatBlock, Closes)
 
     Target = record
         kind: TargetKind
-        ## For `Closes`: the marker's keyword, and the block's name or "".
+        { For `Closes`: the marker's keyword, and the block's name or "". }
         keyword: String
         name: String
         hasMarker: Boolean
 
-    ## How to parse the lines of one kind of list.
+    { How to parse the lines of one kind of list. }
     Lines[T] = record
-        ## One line; `None` for a line that adds nothing.
+        { One line; `None` for a line that adds nothing. }
         one: function(ref State): Parsed[Option[T]]
-        ## The item that stands for a broken line.
+        { The item that stands for a broken line. }
         onError: Option[function(Span): T]
-        ## For items that end markers can close.
+        { For items that end markers can close. }
         marks: Option[Marks[T]]
 
     Marks[T] = record
-        ## What an end marker after the item closes.
+        { What an end marker after the item closes. }
         target: function(T): Target
-        ## The item with its end marker set.
+        { The item with its end marker set. }
         mark: function(T, Span): T
 
-    ## A line in a record or trait.
+    { A line in a record or trait. }
     Member = FieldDecl | Signature
 
     State = record
@@ -61,23 +61,23 @@ type
         i: Integer
         file: String
         diags: List[Diagnostic]
-        ## `code:start` of the reported diagnostics.
+        { `code:start` of the reported diagnostics. }
         reported: Map[String, Boolean]
-        ## The last consumed non-layout token.
+        { The last consumed non-layout token. }
         last: Token
-        ## `program` or `unit`.
+        { `program` or `unit`. }
         kind: String
         units: List[Ident]
-        ## Parser errors on a logical line that already has a lexical error are almost
-        ## always follow-on errors, so they are not reported. A logical line can span
-        ## several physical lines inside brackets.
+        { Parser errors on a logical line that already has a lexical error are almost
+          always follow-on errors, so they are not reported. A logical line can span
+          several physical lines inside brackets. }
         lexErrorLines: Map[Integer, Boolean]
         lexErrorRanges: List[Pair[Integer, Integer]]
-        ## The text of each doc comment on a line without code, by line.
+        { The text of each doc comment on a line without code, by line. }
         docs: Map[Integer, String]
         nextId: Integer
 
-## Parses `text`, the contents of `file`.
+{ Parses `text`, the contents of `file`. }
 export function parse(text: String, file: String := "<input>"): ParseResult
     let lexed := lex(text, file: file)
     var lines: Map[Integer, Boolean] := [:]
@@ -101,7 +101,7 @@ export function parse(text: String, file: String := "<input>"): ParseResult
             codeLines[t.span.line] := true
     var docs: Map[Integer, String] := [:]
     for c in lexed.comments do
-        if c.isDoc and not (c.span.line in codeLines) and not (c.span.endLine in codeLines) then
+        if not (c.span.line in codeLines) and not (c.span.endLine in codeLines) then
             docs[c.span.endLine] := c.text
     let p := new(State(
         toks: lexed.tokens,
@@ -126,7 +126,7 @@ export function parse(text: String, file: String := "<input>"): ParseResult
         src: lexed.src,
     )
 
-## The diagnostics by position, stably.
+{ The diagnostics by position, stably. }
 function sorted(ds: List[Diagnostic]): List[Diagnostic]
     var out := ds
     sort(var out, less: before)
@@ -180,7 +180,7 @@ function describe(tok: Token): String
         return "string start {tok.text}"
     return "'{tok.text}'"
 
-## `s` without trailing spaces and tabs.
+{ `s` without trailing spaces and tabs. }
 function trimEnd(s: String): String
     let cs := collect(chars(s))
     var n := length(cs)
@@ -188,7 +188,7 @@ function trimEnd(s: String): String
         n := n - 1
     return slice(s, 0, byteLen(s) - (length(cs) - n))
 
-# --------------------------------------------------------------------- token kinds
+{ ------------------------------------------------------------------- token kinds }
 
 function isDeclStart(k: TokenKind): Boolean
     return (
@@ -202,7 +202,7 @@ function isDeclStart(k: TokenKind): Boolean
         or k = TokenKind.KwUnsafe
     )
 
-## Kinds that start a type but not an expression.
+{ Kinds that start a type but not an expression. }
 function isTypeOnlyStart(k: TokenKind): Boolean
     return k = TokenKind.KwRef or k = TokenKind.KwFunction or k = TokenKind.KwProcedure or k = TokenKind.KwThisType
 
@@ -220,7 +220,7 @@ function isComparison(k: TokenKind): Boolean
 function isOr(t: Token): Boolean
     return t.kind = TokenKind.KwOr
 
-## Whether `t` is the contextual word `word`.
+{ Whether `t` is the contextual word `word`. }
 function isWordOp(t: Token, word: String): Boolean
     return t.kind = TokenKind.Ident and t.text = word
 
@@ -244,7 +244,7 @@ function isMultiplicative(t: Token): Boolean
         or k = TokenKind.KwShr
     )
 
-# -------------------------------------------------------------------- token values
+{ ------------------------------------------------------------------ token values }
 
 function textValue(t: Token): String
     case t.value of
@@ -271,7 +271,7 @@ function markerValue(t: Token): MarkerValue
         MarkerValue(v): return v
         else: return MarkerValue(keyword: "", name: None)
 
-# ---------------------------------------------------------------- union injections
+{ -------------------------------------------------------------- union injections }
 
 function typeItem(t: TypeExpr): TypeOrExpr
     return t
@@ -291,7 +291,7 @@ function exprPart(e: Expr): InterpPart
 function formatPart(e, width: Expr, decimals: Option[Expr]): InterpPart
     return FormatPart(value: e, width: width, decimals: decimals)
 
-# -------------------------------------------------------------------- token access
+{ ------------------------------------------------------------------ token access }
 
 function peek(p: ref State, ahead: Integer := 0): Token
     let j := p.i + ahead
@@ -308,18 +308,18 @@ function advance(p: ref State): Token
         p.last := tok
     return tok
 
-## Advances past one token.
+{ Advances past one token. }
 procedure step(p: ref State)
     _ := advance(p)
 
-## Advances past a `k`, if there is one, and says whether there was.
+{ Advances past a `k`, if there is one, and says whether there was. }
 function accept(p: ref State, k: TokenKind): Boolean
     if at(p, k) then
         step(p)
         return true
     return false
 
-## Steps over the identifier `word`, a keyword only where it is accepted.
+{ Steps over the identifier `word`, a keyword only where it is accepted. }
 function acceptWord(p: ref State, word: String): Boolean
     if isWordOp(peek(p), word: word) then
         step(p)
@@ -334,7 +334,7 @@ function expect(p: ref State, k: TokenKind, what: String): Parsed[Token]
         return Ok(advance(p))
     return fail(p, "E0040", peek(p).span, message: "expected {what}, found {describe(peek(p))}")
 
-## The span from `start` to the end of the last consumed token.
+{ The span from `start` to the end of the last consumed token. }
 function finish(p: ref State, start: Span): Span
     if p.last.span.end >= start.start then
         return join(start, b: p.last.span)
@@ -343,7 +343,7 @@ function finish(p: ref State, start: Span): Span
 function prevWasDedent(p: ref State): Boolean
     return p.i > 0 and p.toks[p.i - 1].kind = TokenKind.Dedent
 
-## The end of a simple line: NEWLINE, or nothing right after an indented block.
+{ The end of a simple line: NEWLINE, or nothing right after an indented block. }
 function endLine(p: ref State): Parsed[Boolean]
     if at(p, TokenKind.Newline) then
         step(p)
@@ -360,7 +360,7 @@ function newId(p: ref State): Integer
     p.nextId := p.nextId + 1
     return p.nextId
 
-# --------------------------------------------------------------------- diagnostics
+{ ------------------------------------------------------------------- diagnostics }
 
 procedure reportWith(p: ref State, code: String, span: Span, message: String, fixes: List[Fix])
     if span.line in p.lexErrorLines then
@@ -384,12 +384,12 @@ procedure reportWith(p: ref State, code: String, span: Span, message: String, fi
 procedure report(p: ref State, code: String, span: Span, message: String)
     reportWith(p, code, span, message: message, fixes: [])
 
-## Reports, and unwinds to the enclosing line list.
+{ Reports, and unwinds to the enclosing line list. }
 function fail[T](p: ref State, code: String, span: Span, message: String): Parsed[T]
     report(p, code, span, message: message)
     return Err(Failed())
 
-## Skips the rest of the current line and any block indented under it.
+{ Skips the rest of the current line and any block indented under it. }
 procedure sync(p: ref State)
     var depth := 0
     while true do
@@ -413,9 +413,9 @@ procedure sync(p: ref State)
                 return
         step(p)
 
-# ---------------------------------------------------------------------- line lists
+{ -------------------------------------------------------------------- line lists }
 
-## Parses lines until the end of the current block (DEDENT or EOF).
+{ Parses lines until the end of the current block (DEDENT or EOF). }
 function lineList[T](p: ref State, how: Lines[T]): List[T]
     var out: List[T] := []
     while not at(p, TokenKind.Dedent) and not at(p, TokenKind.Eof) do
@@ -448,7 +448,7 @@ function lineList[T](p: ref State, how: Lines[T]): List[T]
             step(p)
     return out
 
-## The end of a header line, then an indented list of lines.
+{ The end of a header line, then an indented list of lines. }
 function indented[T](
     p: ref State,
     how: Lines[T],
@@ -468,8 +468,8 @@ function indented[T](
         report(p, "E0042", indent.span, message: "expected an indented {what}")
     return Ok(out)
 
-## Checks the end marker at the current token against the item before it, and gives
-## the marker's span if the item takes it.
+{ Checks the end marker at the current token against the item before it, and gives
+  the marker's span if the item takes it. }
 function endMarker(p: ref State, prev: Target): Option[Span]
     let tok := advance(p)
     let m := markerValue(tok)
@@ -494,7 +494,7 @@ function endMarker(p: ref State, prev: Target): Option[Span]
             var correct := "end {prev.keyword}"
             if prev.name <> "" and isSome(m.name) then
                 correct := "{correct} {prev.name}"
-            correct := if startsWith(text, prefix: "\{") then "\{ {correct} }" else "# {correct}"
+            correct := "\{ {correct} }"
             let what := if prev.name <> "" then "{prev.keyword} '{prev.name}'" else "'{prev.keyword}' block"
             reportWith(
                 p,
@@ -524,7 +524,7 @@ function closes(keyword: String, name: String, endMarker: Option[Span]): Target
         hasMarker: isSome(endMarker),
     )
 
-# Statements.
+{ Statements. }
 
 function stmtTarget(s: Stmt): Target
     case s of
@@ -582,7 +582,7 @@ function stmtLines(): Lines[Stmt]
         marks: Some(Marks(target: stmtTarget, mark: markStmt)),
     )
 
-# Top-level items.
+{ Top-level items. }
 
 function declTarget(d: Decl): Target
     case d of
@@ -632,7 +632,7 @@ function topLines(): Lines[TopItem]
         marks: Some(Marks(target: topTarget, mark: markTop)),
     )
 
-# Type declarations, members.
+{ Type declarations, members. }
 
 function typeDeclTarget(d: TypeDecl): Target
     case d.body of
@@ -667,7 +667,7 @@ function memberLines(inTrait: Boolean): Lines[Member]
         marks: None,
     )
 
-# The other lists.
+{ The other lists. }
 
 function constLine(p: ref State): Parsed[Option[ConstDecl]]
     return Ok(Some(try constDecl(p)))
@@ -693,33 +693,16 @@ function caseExprArmLine(p: ref State): Parsed[Option[CaseExprArm]]
 function caseExprArmLines(): Lines[CaseExprArm]
     return Lines(one: caseExprArmLine, onError: None, marks: None)
 
-## The doc comment directly above `start`: a `{ }` comment without its braces, or `##`
-## lines without their `## ` prefixes.
+{ The doc comment directly above `start`, without its braces. }
 function doc(p: ref State, start: Span): Option[String]
-    var lines: List[String] := []
-    var line := start.line - 1
-    if line in p.docs and startsWith(p.docs[line], prefix: "\{") then
+    let line := start.line - 1
+    if line in p.docs then
         return Some(braceDoc(p.docs[line]))
-    while line in p.docs do
-        let full := p.docs[line]
-        let text := slice(full, 2, byteLen(full))
-        add(
-            var lines,
-            if startsWith(text, prefix: " ") then slice(text, 1, byteLen(text)) else text,
-        )
-        line := line - 1
-    if length(lines) = 0 then
-        return None
-    var ordered: List[String] := []
-    var i := length(lines) - 1
-    while i >= 0 do
-        add(var ordered, lines[i])
-        i := i - 1
-    return Some(join(ordered, sep: "\n"))
+    return None
 
-## The text of `{ }` comment `c`: without the braces, the blank lines next to them and
-## trailing spaces, and with each line after the first losing up to two leading spaces,
-## the width of `{ `.
+{ The text of `{ }` comment `c`: without the braces, the blank lines next to them and
+  trailing spaces, and with each line after the first losing up to two leading spaces,
+  the width of the opening brace and its space. }
 function braceDoc(c: String): String
     var lines: List[String] := []
     for l in split(slice(c, 1, byteLen(c) - 1), sep: "\n") do
@@ -736,7 +719,7 @@ function braceDoc(c: String): String
         remove(var lines, 0)
     return join(lines, sep: "\n")
 
-# --------------------------------------------------------------------------- names
+{ ------------------------------------------------------------------------- names }
 
 function ident(p: ref State, what: String): Parsed[Ident]
     let tok := peek(p)
@@ -752,7 +735,7 @@ function ident(p: ref State, what: String): Parsed[Ident]
         )
     return fail(p, "E0040", tok.span, message: "expected {what}, found {describe(tok)}")
 
-## A string literal without placeholders (library, symbol, and test names).
+{ A string literal without placeholders (library, symbol, and test names). }
 function stringConst(p: ref State, what: String): Parsed[String]
     if at(p, TokenKind.StringLit) then
         return Ok(textValue(advance(p)))
@@ -772,7 +755,7 @@ function stringConst(p: ref State, what: String): Parsed[String]
         message: "expected {what} (a string), found {describe(peek(p))}",
     )
 
-# ---------------------------------------------------------------------------- file
+{ -------------------------------------------------------------------------- file }
 
 function parseFile(p: ref State): SourceFile
     let start := peek(p).span
@@ -883,7 +866,7 @@ function decl(p: ref State): Parsed[Decl]
         message: "expected 'function' or 'procedure' after 'export', found {describe(peek(p))}",
     )
 
-# --------------------------------------------------------------------------- types
+{ ------------------------------------------------------------------------- types }
 
 function typeSection(p: ref State): Parsed[TypeSection]
     let start := advance(p).span
@@ -999,7 +982,7 @@ function member(p: ref State, inTrait: Boolean): Parsed[Member]
         doc: doc(p, start),
     ))
 
-## `:= value`, if there is one.
+{ `:= value`, if there is one. }
 function defaultValue(p: ref State): Parsed[Option[Expr]]
     if accept(p, TokenKind.Assign) then
         return Ok(Some(try expr(p)))
@@ -1064,11 +1047,11 @@ function typeExpr(p: ref State): Parsed[TypeExpr]
         args := try bracketItems(p, asTypes: true)
     return Ok(TypeName(span: finish(p, start), parts: parts, args: args, partSpans: spans))
 
-## `[a, b]` after a name: type arguments, or (in expressions) index items.
-##
-## In an expression `f[Integer]` and `a[i]` look the same, so names stay expressions
-## there and the checker decides. Items that can only be types (`ref T`,
-## `function(...)`, `This`) are parsed as types either way.
+{ `[a, b]` after a name: type arguments, or (in expressions) index items.
+
+  In an expression `f[Integer]` and `a[i]` look the same, so names stay expressions
+  there and the checker decides. Items that can only be types (`ref T`,
+  `function(...)`, `This`) are parsed as types either way. }
 function bracketItems(p: ref State, asTypes: Boolean): Parsed[List[TypeOrExpr]]
     step(p)
     var items: List[TypeOrExpr] := []
@@ -1083,7 +1066,7 @@ function bracketItems(p: ref State, asTypes: Boolean): Parsed[List[TypeOrExpr]]
     try expect(p, TokenKind.Rbracket, what: "']'")
     return Ok(items)
 
-## A type argument: an expression that names a type becomes that type.
+{ A type argument: an expression that names a type becomes that type. }
 function asType(x: TypeOrExpr): TypeOrExpr
     case x of
         TypeExpr(_): return x
@@ -1092,7 +1075,7 @@ function asType(x: TypeOrExpr): TypeOrExpr
                 Some(t): return typeItem(nameType(t.value))
                 None: return x
 
-## Reinterprets a name expression (`List[T]`, `Geometry.Shape`) as a type.
+{ Reinterprets a name expression (`List[T]`, `Geometry.Shape`) as a type. }
 function exprToType(e: Expr): Option[TypeName]
     case e of
         Name(n):
@@ -1126,7 +1109,7 @@ function exprToType(e: Expr): Option[TypeName]
                 None: return None
         else: return None
 
-# ------------------------------------------------------------ constants, routines
+{ ---------------------------------------------------------- constants, routines }
 
 function constSection(p: ref State): Parsed[ConstSection]
     let start := advance(p).span
@@ -1197,7 +1180,7 @@ function routine(p: ref State, exported: Boolean, start: Span): Parsed[Routine]
         endMarker: None,
     ))
 
-## A `requires` or `ensures` clause, after its keyword `tok`.
+{ A `requires` or `ensures` clause, after its keyword `tok`. }
 function contract(p: ref State, tok: Token, var pre, post: List[Expr]): Parsed[Boolean]
     if tok.kind = TokenKind.KwRequires and length(post) > 0 then
         report(p, "E0040", tok.span, message: "'requires' must come before 'ensures'")
@@ -1329,8 +1312,8 @@ function externDecl(p: ref State): Parsed[ExternItem]
         doc: doc(p, start),
     ))
 
-## A type section in an extern block: C records (SPEC §10.5), whose fields are all
-## exported.
+{ A type section in an extern block: C records (SPEC §10.5), whose fields are all
+  exported. }
 function cRecords(p: ref State): Parsed[TypeSection]
     let section := try typeSection(p)
     var decls: List[TypeDecl] := []
@@ -1370,7 +1353,7 @@ function testBlock(p: ref State): Parsed[TestBlock]
     let body := try block(p)
     return Ok(TestBlock(span: finish(p, start), name: name, body: body, endMarker: None))
 
-# ---------------------------------------------------------------------- statements
+{ -------------------------------------------------------------------- statements }
 
 function blockSpan(stmts: List[Stmt], fallback: Span): Span
     if length(stmts) = 0 then
@@ -1386,7 +1369,7 @@ function block(p: ref State): Parsed[Block]
     let stmts := try indented(p, how: stmtLines(), what: "block")
     return Ok(Block(span: blockSpan(stmts, fallback: start), stmts: stmts))
 
-## An indented block, or one statement on the same line.
+{ An indented block, or one statement on the same line. }
 function armBody(p: ref State): Parsed[ArmBody]
     if at(p, TokenKind.Newline) then
         let b := try block(p)
@@ -1400,7 +1383,7 @@ function stmt(p: ref State): Parsed[Stmt]
     let start := tok.span
 
     if isDeclStart(k) then
-        # The line list skips the rest of the declaration, body included.
+        { The line list skips the rest of the declaration, body included. }
         if k = TokenKind.KwConst then
             return fail(
                 p,
@@ -1524,7 +1507,7 @@ function isAssignable(e: Expr): Boolean
         ErrorExpr(_): return true
         else: return false
 
-## The operand of `try e`, or `e`.
+{ The operand of `try e`, or `e`. }
 function tryOperand(e: Expr): Expr
     case e of
         Unary(u): return if u.op = "try" then u.operand else e
@@ -1536,15 +1519,15 @@ function isCallOrError(e: Expr): Boolean
         ErrorExpr(_): return true
         else: return false
 
-## The span of the operator, if `e` is `a = b`.
+{ The span of the operator, if `e` is `a = b`. }
 function equalsSign(e: Expr): Option[Span]
     case e of
         Binary(b): return if b.op = "=" then Some(b.opSpan) else None
         else: return None
 
-## The right side of `:=` / `var` / `let`, or the operand of `return`. Ends the line.
-## The right side of `:=`, `var`, `let`, or `return`: an expression on the rest of the
-## line, or a `case` expression, also as the body of a lambda: `s => case s of`.
+{ The right side of `:=` / `var` / `let`, or the operand of `return`. Ends the line.
+  The right side of `:=`, `var`, `let`, or `return`: an expression on the rest of the
+  line, or a `case` expression, also as the body of a lambda: `s => case s of`. }
 function rhs(p: ref State): Parsed[Expr]
     if at(p, TokenKind.KwCase) then
         let c := try caseExpr(p)
@@ -1626,7 +1609,7 @@ function forStmt(p: ref State): Parsed[Stmt]
     let body := try block(p)
     return Ok(withBody(head, body, span: finish(p, start)))
 
-## A loop head, `for x in e` or `for i := a to b`, as a `for` statement with an empty body.
+{ A loop head, `for x in e` or `for i := a to b`, as a `for` statement with an empty body. }
 function forClause(p: ref State): Parsed[Stmt]
     let start := advance(p).span
     let first := try loopVar(p)
@@ -1665,7 +1648,7 @@ function forClause(p: ref State): Parsed[Stmt]
         endMarker: None,
     ))
 
-## The `for` statement `head` with `body`, spanning `span`.
+{ The `for` statement `head` with `body`, spanning `span`. }
 function withBody(head: Stmt, body: Block, span: Span): Stmt
     case head of
         ForRange(x):
@@ -1681,7 +1664,7 @@ function withBody(head: Stmt, body: Block, span: Span): Stmt
         else:
             return head
 
-## `for` clauses, then `do e`: the loops that build the list (`ForExpr`).
+{ `for` clauses, then `do e`: the loops that build the list (`ForExpr`). }
 function forExpr(p: ref State): Parsed[ForExpr]
     let start := peek(p).span
     var heads: List[Stmt] := []
@@ -1696,8 +1679,8 @@ function forExpr(p: ref State): Parsed[ForExpr]
         loop := withBody(heads[i], inner, span: join(stmtSpan(heads[i]), b: span))
     return Ok(ForExpr(span: span, id: newId(p), loop: loop))
 
-## The body of a `for` expression: `e`, or an `if` expression with `continue` or `break`
-## branches, which becomes an `if` statement.
+{ The body of a `for` expression: `e`, or an `if` expression with `continue` or `break`
+  branches, which becomes an `if` statement. }
 function forBody(p: ref State): Parsed[Stmt]
     let start := peek(p).span
     if not at(p, TokenKind.KwIf) then
@@ -1731,7 +1714,7 @@ function forBody(p: ref State): Parsed[Stmt]
             else:
                 pass
     let span := finish(p, start)
-    if length(values) = length(items) then  # no `continue` or `break`: an `if` expression
+    if length(values) = length(items) then  { no `continue` or `break`: an `if` expression }
         var branches: List[CondExpr] := []
         for i := 0 to length(conds) - 1 do
             let bs := join(exprSpan(conds[i]), b: exprSpan(values[i]))
@@ -1762,7 +1745,7 @@ function forBody(p: ref State): Parsed[Stmt]
         endMarker: None,
     ))
 
-## A branch of a `for` expression's `if`: a value, `continue` or `break`.
+{ A branch of a `for` expression's `if`: a value, `continue` or `break`. }
 function forItem(p: ref State): Parsed[Stmt]
     let tok := peek(p)
     if accept(p, TokenKind.KwContinue) then
@@ -1772,7 +1755,7 @@ function forItem(p: ref State): Parsed[Stmt]
     let e := try expr(p)
     return Ok(ForValue(span: exprSpan(e), value: Some(e)))
 
-# ---------------------------------------------------------------------------- case
+{ -------------------------------------------------------------------------- case }
 
 function labels(p: ref State): Parsed[List[Label]]
     var out: List[Label] := []
@@ -1839,7 +1822,7 @@ function caseExprArm(p: ref State): Parsed[CaseExprArm]
     try endLine(p)
     return Ok(CaseExprArm(span: finish(p, start), labels: ls, value: value))
 
-# --------------------------------------------------------------------- expressions
+{ ------------------------------------------------------------------- expressions }
 
 function expr(p: ref State): Parsed[Expr]
     if at(p, TokenKind.KwIf) then
@@ -1856,7 +1839,7 @@ function expr(p: ref State): Parsed[Expr]
 function isParamName(k: TokenKind): Boolean
     return k = TokenKind.Ident or k = TokenKind.Underscore
 
-## Whether a lambda starts here: `x =>`, `() =>`, or `(a, b) =>`.
+{ Whether a lambda starts here: `x =>`, `() =>`, or `(a, b) =>`. }
 function lambdaAhead(p: ref State): Boolean
     if isParamName(peek(p).kind) then
         return peek(p, 1).kind = TokenKind.Arrow
@@ -1873,7 +1856,7 @@ function lambdaAhead(p: ref State): Boolean
             i := i + 1
     return peek(p, i).kind = TokenKind.Rparen and peek(p, i + 1).kind = TokenKind.Arrow
 
-## Whether `e` is a `case` expression, or a lambda whose body ends in one.
+{ Whether `e` is a `case` expression, or a lambda whose body ends in one. }
 function endsInCase(e: Expr): Boolean
     case e of
         CaseExpr(_):
@@ -1883,8 +1866,8 @@ function endsInCase(e: Expr): Boolean
         else:
             return false
 
-## A lambda. `whole`: it is the whole right side of an assignment (`rhs`), so its body
-## may be a `case` expression.
+{ A lambda. `whole`: it is the whole right side of an assignment (`rhs`), so its body
+  may be a `case` expression. }
 function lambda(p: ref State, whole: Boolean := false): Parsed[Lambda]
     let start := peek(p).span
     var params: List[Ident] := []
@@ -1898,7 +1881,7 @@ function lambda(p: ref State, whole: Boolean := false): Parsed[Lambda]
     else
         let t := advance(p)
         add(var params, Ident(span: t.span, name: t.text))
-    step(p)  # =>
+    step(p)  { => }
     let body := try lambdaBody(p, whole: whole)
     return Ok(Lambda(span: finish(p, start), id: newId(p), params: params, body: body))
 
@@ -1938,7 +1921,7 @@ function ifExpr(p: ref State): Parsed[IfExpr]
     let missing: Expr := ErrorExpr(span: here, id: newId(p))
     return Ok(IfExpr(span: finish(p, start), id: newId(p), branches: branches, elseValue: missing))
 
-## Left-associative operators: `operand (op operand)*`.
+{ Left-associative operators: `operand (op operand)*`. }
 function binary(
     p: ref State,
     operand: function(ref State): Parsed[Expr],
@@ -2011,8 +1994,8 @@ function multiplicative(p: ref State): Parsed[Expr]
 
 function unary(p: ref State): Parsed[Expr]
     if at(p, TokenKind.Minus) or at(p, TokenKind.KwTry) or at(p, TokenKind.KwNot) then
-        # `not` belongs one level above comparisons; it's accepted here too, since an
-        # operand position (`x = not y`) leaves no ambiguity.
+        { `not` belongs one level above comparisons; it's accepted here too, since an
+          operand position (`x = not y`) leaves no ambiguity. }
         let op := advance(p)
         let operand := try unary(p)
         return Ok(Unary(
@@ -2183,8 +2166,8 @@ function interpolation(p: ref State): Parsed[InterpString]
             )
     return Ok(InterpString(span: finish(p, first.span), id: newId(p), parts: parts))
 
-## `[a, b]`, a list, array or set by the expected type; `[k: v, ...]`, a map; `[:]`, an
-## empty map.
+{ `[a, b]`, a list, array or set by the expected type; `[k: v, ...]`, a map; `[:]`, an
+  empty map. }
 function brackets(p: ref State): Parsed[Expr]
     let start := advance(p).span
     if accept(p, TokenKind.Colon) then
@@ -2206,8 +2189,8 @@ function brackets(p: ref State): Parsed[Expr]
     try expect(p, TokenKind.Rbracket, what: "']' to close the list")
     return Ok(ListLit(span: finish(p, start), id: newId(p), items: items))
 
-## `low` or, followed by `..`, the range `low..high`: a set literal's item, a `Binary`
-## with op `..`.
+{ `low` or, followed by `..`, the range `low..high`: a set literal's item, a `Binary`
+  with op `..`. }
 function rangeItem(p: ref State, low: Expr): Parsed[Expr]
     if not at(p, TokenKind.Dotdot) then
         return Ok(low)
@@ -2222,7 +2205,7 @@ function rangeItem(p: ref State, low: Expr): Parsed[Expr]
         opSpan: op.span,
     ))
 
-## The entries of a map literal, after its first key and ':'; stops before `close`.
+{ The entries of a map literal, after its first key and ':'; stops before `close`. }
 function mapEntries(p: ref State, first: Expr, close: TokenKind): Parsed[List[MapEntry]]
     let value := try expr(p)
     var entries: List[MapEntry] := [MapEntry(

@@ -1,38 +1,38 @@
 unit Typecheck
 
-## Type checking: checker stage 2 (SPEC §4, §6–§9).
-##
-## Runs after name resolution, over every unit (standard units included). Names were
-## already resolved into the symbol index, so this pass finds the symbol behind a name by
-## its span. What it adds:
-##
-## - the type of every expression and variable (`Env.symTypes` for locals),
-## - overload resolution: the index entry of an overloaded call is narrowed to the
-##   routine chosen (SPEC §6.7),
-## - field access and dot calls (UFCS, SPEC §6.6), named arguments, and bare names in
-##   `case` labels, which stage 1 leaves alone because they need types,
-## - trait satisfaction for bounds (SPEC §4.10), checked structurally where the generic
-##   is used.
-##
-## Inside a generic, a type parameter is an opaque type: only what its bounds provide
-## works on it (SPEC §8). A type error produces the error type, which is compatible with
-## everything, so one mistake gives one diagnostic.
+{ Type checking: checker stage 2 (SPEC §4, §6–§9).
+
+  Runs after name resolution, over every unit (standard units included). Names were
+  already resolved into the symbol index, so this pass finds the symbol behind a name by
+  its span. What it adds:
+
+  - the type of every expression and variable (`Env.symTypes` for locals),
+  - overload resolution: the index entry of an overloaded call is narrowed to the
+    routine chosen (SPEC §6.7),
+  - field access and dot calls (UFCS, SPEC §6.6), named arguments, and bare names in
+    `case` labels, which stage 1 leaves alone because they need types,
+  - trait satisfaction for bounds (SPEC §4.10), checked structurally where the generic
+    is used.
+
+  Inside a generic, a type parameter is an opaque type: only what its bounds provide
+  works on it (SPEC §8). A type error produces the error type, which is compatible with
+  everything, so one mistake gives one diagnostic. }
 
 uses Strings, Source, Diagnostics, Ast, Symbols, Resolve, Types
 
 type
-    # ------------------------------------------------------------- signatures
+    { ----------------------------------------------------------- signatures }
 
-    ## One parameter (or record field, for construction).
+    { One parameter (or record field, for construction). }
     export PInfo = record
         export name: String
         export ty: Type
         export isVar: Boolean
         export hasDefault: Boolean
-        ## Parameters declared together (`a, b: T`) share a group.
+        { Parameters declared together (`a, b: T`) share a group. }
         export group: Integer
         export varargs: Boolean
-        ## The parameter or field, for named-argument references.
+        { The parameter or field, for named-argument references. }
         export sym: Option[ref Symbol]
         export default: Option[Expr]
 
@@ -42,11 +42,11 @@ type
         export isFunction: Boolean
         export tparams: List[ref Symbol]
         export params: List[PInfo]
-        ## `<no value>` for procedures.
+        { `<no value>` for procedures. }
         export result: Type
-        ## "routine", "record" (construction), "value" (function value).
+        { "routine", "record" (construction), "value" (function value). }
         export kind: String
-        ## Records: only with a single field.
+        { Records: only with a single field. }
         export positional: Boolean
 
     export FieldInfo = record
@@ -57,31 +57,31 @@ type
         export default: Option[Expr]
         export exported: Boolean
 
-    ## What a declared type is: record, enum, union, subrange, alias, trait, or builtin.
+    { What a declared type is: record, enum, union, subrange, alias, trait, or builtin. }
     export TypeInfo = record
         export kind: String
         export params: List[ref Symbol]
         export fields: List[FieldInfo]
         export variants: List[Type]
-        ## Subranges.
+        { Subranges. }
         export base: Type
         export alias: Type
-        ## Traits.
+        { Traits. }
         export routines: List[ref Symbol]
-        ## Enums.
+        { Enums. }
         export members: List[String]
-        ## A C record (SPEC §10.5).
+        { A C record (SPEC §10.5). }
         export c: Boolean
 
-    ## An overload candidate. `pre` binds `This` and the trait's parameters for a bound
-    ## member, or a generic record's parameters for an alias.
+    { An overload candidate. `pre` binds `This` and the trait's parameters for a bound
+      member, or a generic record's parameters for an alias. }
     Cand = record
         sig: Sig
         pre: Subst
 
-    ## An argument. `ty` is `<none>` while flexible; `flex` is the integer or real literal
-    ## type, `[]`, `{}`, a list literal (`ty` is its own type if its items agree), an
-    ## `OverloadsT`, or `<none>`.
+    { An argument. `ty` is `<none>` while flexible; `flex` is the integer or real literal
+      type, `[]`, `[:]`, a list literal (`ty` is its own type if its items agree), an
+      `OverloadsT`, or `<none>`. }
     export CArg = record
         export span: Span
         export name: Option[Ident]
@@ -89,34 +89,34 @@ type
         export expr: Expr
         export ty: Type
         export flex: Type
-        ## The `a` of `a.f(...)`.
+        { The `a` of `a.f(...)`. }
         export receiver: Boolean
-        ## The item types of a list literal.
+        { The item types of a list literal. }
         export items: List[Type]
 
     Fail = record
         code: String
         span: Span
         message: String
-        ## The arguments fit the parameters; a type was wrong.
+        { The arguments fit the parameters; a type was wrong. }
         bound: Boolean
 
-    ## The overload a call chose, for the backend.
+    { The overload a call chose, for the backend. }
     export Match = record
         export sig: Sig
         export params: List[PInfo]
         export result: Type
         export s: Subst
-        ## 0 exact, 1 union injection, 2 literal of a non-default type.
+        { 0 exact, 1 union injection, 2 literal of a non-default type. }
         export tier: Integer
         export slots: List[Option[CArg]]
         export extra: List[CArg]
-        ## The candidate's `pre`.
+        { The candidate's `pre`. }
         export pre: Subst
 
     MatchResult = Match | Fail
 
-    ## What one call asks: the callee's name, its candidates and the arguments.
+    { What one call asks: the callee's name, its candidates and the arguments. }
     CallReq = record
         e: Call
         name: String
@@ -126,14 +126,14 @@ type
         expected: Type
         refSpan: Option[Span]
 
-    ## The arguments of a call being matched against one candidate.
+    { The arguments of a call being matched against one candidate. }
     MatchReq = record
         args: List[CArg]
         explicit: Option[List[Type]]
         expected: Type
         span: Span
 
-    ## The value of a constant case label: 0 unknown, 1 integer, 2 Boolean, 3 string.
+    { The value of a constant case label: 0 unknown, 1 integer, 2 Boolean, 3 string. }
     LVal = record
         kind: Integer
         i: Integer
@@ -145,17 +145,17 @@ type
 
     CaseInfo = record
         ty: Type
-        ## union, enum, bool, value, error.
+        { union, enum, bool, value, error. }
         kind: String
-        ## Union variants.
+        { Union variants. }
         variants: List[Type]
-        ## Enum members.
+        { Enum members. }
         members: List[String]
-        ## Keys of covered variants (their position), members, or `true` / `false`.
+        { Keys of covered variants (their position), members, or `true` / `false`. }
         covered: Map[String, Boolean]
         ranges: List[LRange]
 
-    ## An integer or real literal, possibly negated: 0 none, 1 integer, 2 real.
+    { An integer or real literal, possibly negated: 0 none, 1 integer, 2 real. }
     Lit = record
         kind: Integer
         neg: Boolean
@@ -165,13 +165,13 @@ type
         broke: Boolean
         isRepeat: Boolean
 
-    ## A generic type written in a type expression.
+    { A generic type written in a type expression. }
     Written = record
         file: String
         span: Span
         ty: Type
 
-    ## A generic routine or type used with arguments, and where (SPEC §8.1).
+    { A generic routine or type used with arguments, and where (SPEC §8.1). }
     export Instance = record
         export sym: ref Symbol
         export args: List[Type]
@@ -182,7 +182,7 @@ type
         export lo: Integer
         export hi: Integer
 
-    ## Everything shared between the units: declared types, signatures, constants.
+    { Everything shared between the units: declared types, signatures, constants. }
     export Env = record
         export c: ref Checker
         index: ref SymbolIndex
@@ -196,22 +196,22 @@ type
         export constCheckers: Map[String, ref TC]
         busy: Map[Integer, Boolean]
         satCache: Map[String, Boolean]
-        ## Enum members, fields, trait routines, by id: the type that declares them.
+        { Enum members, fields, trait routines, by id: the type that declares them. }
         export owner: Map[Integer, ref Symbol]
-        ## Generic types written in type expressions, by file and span: their bounds are
-        ## checked once every declaration is known (checkBounds).
+        { Generic types written in type expressions, by file and span: their bounds are
+          checked once every declaration is known (checkBounds). }
         written: Map[String, Written]
         hooksDone: Boolean
-        ## Resource record id -> its destroy hook.
+        { Resource record id -> its destroy hook. }
         hookMap: Map[Integer, ref Symbol]
-        ## A variable for "the element type", when asking whether a type is an iterator.
+        { A variable for "the element type", when asking whether a type is an iterator. }
         elemVar: ref Symbol
-        ## The types of locals, by symbol id.
+        { The types of locals, by symbol id. }
         export symTypes: Map[Integer, Type]
-        ## The calls of generic routines and constructions of generic records.
+        { The calls of generic routines and constructions of generic records. }
         calls: List[Instance]
 
-    ## The checker of one unit.
+    { The checker of one unit. }
     export TC = record
         env: ref Env
         c: ref Checker
@@ -219,56 +219,56 @@ type
         file: String
         src: Text
         resolver: Option[ref Resolver]
-        ## Expression id -> type.
+        { Expression id -> type. }
         export types: Map[Integer, Type]
-        ## Call id -> the overload chosen, for the backend.
+        { Call id -> the overload chosen, for the backend. }
         export calls: Map[Integer, Match]
-        ## Why the last trait check failed.
+        { Why the last trait check failed. }
         why: String
         inBuiltin: Map[String, Boolean]
-        ## The routine being checked:
+        { The routine being checked: }
         result: Type
         isFunction: Boolean
         inRoutine: Boolean
         inUnsafe: Boolean
         tparams: List[ref Symbol]
         loops: List[LoopInfo]
-        ## The element types of the `for` expressions being checked, innermost last;
-        ## unknown until the first value.
+        { The element types of the `for` expressions being checked, innermost last;
+          unknown until the first value. }
         fors: List[Type]
-        ## How many lambdas the expression being checked is inside.
+        { How many lambdas the expression being checked is inside. }
         lambdas: Integer
-        ## The lambdas whose bodies are being checked, innermost last.
+        { The lambdas whose bodies are being checked, innermost last. }
         open: List[Lambda]
-        ## The ids of the lambdas that capture variables.
+        { The ids of the lambdas that capture variables. }
         capturing: Map[Integer, Boolean]
         inDefer: Boolean
         inEnsures: Boolean
-        ## Ids of the arguments of `new` calls, for resources().
+        { Ids of the arguments of `new` calls, for resources(). }
         newArgs: Map[Integer, Boolean]
-        ## The depth of the trait check in progress, for provider().
+        { The depth of the trait check in progress, for provider(). }
         depth: Integer
 
-    ## What a node is inside, for the resources walk.
+    { What a node is inside, for the resources walk. }
     Parent = record
-        ## other, RefType, Weak, Param, FieldTarget, Arg.
+        { other, RefType, Weak, Param, FieldTarget, Arg. }
         kind: String
         span: Span
         id: Integer
 
-    ## A routine providing a trait routine, and the bindings of its type parameters.
+    { A routine providing a trait routine, and the bindings of its type parameters. }
     export Found = record
         export f: ref Symbol
         export sf: Subst
 
     export Checked = record
         export resolved: Resolved
-        ## None if the main file couldn't be read.
+        { None if the main file couldn't be read. }
         export env: Option[ref Env]
 
-# ------------------------------------------------------------------------ helpers
+{ ---------------------------------------------------------------------- helpers }
 
-## The expected type when there is none.
+{ The expected type when there is none. }
 function noType(): Type
     return SpecialT(name: "<none>")
 
@@ -329,7 +329,7 @@ function unparen(e: Expr): Expr
 function noLit(): Lit
     return Lit(kind: 0, neg: false, mag: 0)
 
-## The value of an integer or real literal, possibly negated.
+{ The value of an integer or real literal, possibly negated. }
 function literalValue(e: Expr): Lit
     case e of
         Paren(p):
@@ -360,7 +360,7 @@ function isIntLit(e: Expr): Boolean
 function isRealLit(e: Expr): Boolean
     return literalValue(e).kind = 2
 
-## An integer literal as an Integer, clamped.
+{ An integer literal as an Integer, clamped. }
 function litInt(l: Lit): Integer
     let big: UInt64 := 9223372036854775807
     if l.mag > big then
@@ -376,7 +376,7 @@ function litText(l: Lit): String
         return "-{l.mag}"
     return "{l.mag}"
 
-## The number of bits of an integer type, and whether it is signed.
+{ The number of bits of an integer type, and whether it is signed. }
 function intBits(name: String): Integer
     if name = "Int8" or name = "UInt8" then
         return 8
@@ -386,7 +386,7 @@ function intBits(name: String): Integer
         return 32
     return 64
 
-## The largest value of an unsigned integer type of `bits` bits.
+{ The largest value of an unsigned integer type of `bits` bits. }
 function unsignedMax(bits: Integer): UInt64
     if bits = 8 then
         return 255
@@ -396,7 +396,7 @@ function unsignedMax(bits: Integer): UInt64
         return 4294967295
     return 18446744073709551615
 
-## 2 to the power `bits - 1`: one past the largest value of a signed type.
+{ 2 to the power `bits - 1`: one past the largest value of a signed type. }
 function signedLimit(bits: Integer): UInt64
     if bits = 8 then
         return 128
@@ -406,7 +406,7 @@ function signedLimit(bits: Integer): UInt64
         return 2147483648
     return 9223372036854775808
 
-## Whether an integer literal fits in the integer type `name`.
+{ Whether an integer literal fits in the integer type `name`. }
 function fits(l: Lit, name: String): Boolean
     let bits := intBits(name)
     if startsWith(name, prefix: "U") then
@@ -420,7 +420,7 @@ function fits(l: Lit, name: String): Boolean
 function castable(t: Type): Boolean
     return isInteger(t) or t = prim("Pointer") or t = prim("CString") or isBuiltin(t, "Ptr")
 
-## The number of type arguments of a builtin generic; 0 for other builtin types.
+{ The number of type arguments of a builtin generic; 0 for other builtin types. }
 export function arityOf(name: String): Integer
     if name = "List" or name = "Weak" or name = "Ptr" then
         return 1
@@ -437,7 +437,7 @@ function paramTypes(syms: List[ref Symbol]): List[Type]
         add(var out, param(p))
     return out
 
-## Pairs `params` with `args`, as far as both go.
+{ Pairs `params` with `args`, as far as both go. }
 function zipSubst(params: List[ref Symbol], args: List[Type]): Subst
     var s: Subst := [:]
     var i := 0
@@ -475,8 +475,8 @@ function dumpStr(s: String): String
         return s
     return "\"{s}\""
 
-## An expression in the compact s-expression form of the Python `ast.dump`, for constant
-## type arguments kept as text.
+{ An expression in the compact s-expression form of the Python `ast.dump`, for constant
+  type arguments kept as text. }
 function dumpExpr(e: Expr): String
     case e of
         Name(x):
@@ -494,8 +494,8 @@ function dumpExpr(e: Expr): String
         else:
             return "(Expr)"
 
-## An expression that names a type (`List[Integer]` in `f[List[Integer]]`), as a
-## TypeName. The resolver recorded its names at the same spans.
+{ An expression that names a type (`List[Integer]` in `f[List[Integer]]`), as a
+  TypeName. The resolver recorded its names at the same spans. }
 function exprToType(x: TypeOrExpr): Option[TypeExpr]
     case x of
         TypeExpr(t):
@@ -558,7 +558,7 @@ function exprToType(x: TypeOrExpr): Option[TypeExpr]
                     return None
     return None
 
-# -------------------------------------------------------------------- environment
+{ ------------------------------------------------------------------ environment }
 
 function newEnv(c: ref Checker, units: List[ref Unit]): ref Env
     var byName: Map[String, ref Unit] := [:]
@@ -642,7 +642,7 @@ export function checker(env: ref Env, u: ref Unit): ref TC
         env.checkers[u.path] := newTC(env, u)
     return env.checkers[u.path]
 
-## A separate checker for constants and subrange bounds, evaluated on demand.
+{ A separate checker for constants and subrange bounds, evaluated on demand. }
 function constChecker(env: ref Env, file: String): ref TC
     if not (file in env.constCheckers) then
         env.constCheckers[file] := newTC(env, env.byFile[file])
@@ -660,7 +660,7 @@ export function defSym(env: ref Env, file: String, span: Span): Option[ref Symbo
         None:
             return None
 
-## A symbol of the System unit.
+{ A symbol of the System unit. }
 export function sys(env: ref Env, name: String): Option[ref Symbol]
     case get(env.units, "System") of
         Some(u):
@@ -673,7 +673,7 @@ export function sys(env: ref Env, name: String): Option[ref Symbol]
         None:
             return None
 
-## Whether `s` is System's `name`.
+{ Whether `s` is System's `name`. }
 function isSys(env: ref Env, s: ref Symbol, name: String): Boolean
     case sys(env, name) of
         Some(x):
@@ -688,8 +688,8 @@ function isSysType(env: ref Env, t: Type, name: String): Boolean
         else:
             return false
 
-## The destroy hooks (SPEC §11.1): resource record symbol -> its `destroy` procedure, a
-## non-generic `procedure destroy(var r: R)` in the record's unit.
+{ The destroy hooks (SPEC §11.1): resource record symbol -> its `destroy` procedure, a
+  non-generic `procedure destroy(var r: R)` in the record's unit. }
 export function hooks(env: ref Env): Map[Integer, ref Symbol]
     if env.hooksDone then
         return env.hookMap
@@ -740,7 +740,7 @@ function isHook(env: ref Env, s: ref Symbol): Boolean
             return true
     return false
 
-## Whether `t` is a resource record, which exists only behind `ref`.
+{ Whether `t` is a resource record, which exists only behind `ref`. }
 export function isResource(env: ref Env, t: Type): Boolean
     case t of
         NamedT(n):
@@ -748,8 +748,8 @@ export function isResource(env: ref Env, t: Type): Boolean
         else:
             return false
 
-## `Map[Real, V]`: each type argument of a written generic type must satisfy its
-## parameter's bounds (E0700), and a `Set`'s elements must fit one.
+{ `Map[Real, V]`: each type argument of a written generic type must satisfy its
+  parameter's bounds (E0700), and a `Set`'s elements must fit one. }
 procedure checkBounds(env: ref Env)
     for _, w in env.written do
         case w.ty of
@@ -773,8 +773,8 @@ procedure checkBounds(env: ref Env)
             else:
                 pass
 
-## The instances of generics the check met: calls of generic routines, constructions of
-## generic records, and generic types written with arguments.
+{ The instances of generics the check met: calls of generic routines, constructions of
+  generic records, and generic types written with arguments. }
 export function instancesIn(env: ref Env): List[Instance]
     var out := env.calls
     for _, w in env.written do
@@ -785,15 +785,15 @@ export function instancesIn(env: ref Env): List[Instance]
                 pass
     return out
 
-## Whether `t` is a `Set[T]`: a record of System's, with literals of its own.
+{ Whether `t` is a `Set[T]`: a record of System's, with literals of its own. }
 export function isSet(env: ref Env, t: Type): Boolean
     return isSysType(env, t, "Set")
 
-## Whether `t` is a `Map[K, V]`: a record of System's, with literals of its own.
+{ Whether `t` is a `Map[K, V]`: a record of System's, with literals of its own. }
 export function isMap(env: ref Env, t: Type): Boolean
     return isSysType(env, t, "Map")
 
-## A `Set` element type: ordinal, with at most 256 values (SPEC §4.5).
+{ A `Set` element type: ordinal, with at most 256 values (SPEC §4.5). }
 procedure checkElement(env: ref Env, file: String, span: Span, t: Type)
     if isParam(t) or hasError(t) then
         return
@@ -807,9 +807,9 @@ procedure checkElement(env: ref Env, file: String, span: Span, t: Type)
             "{show(t)} can't be a Set element: it needs an ordinal type with at most 256 values (Boolean, Byte, an enum, or a subrange)",
         )
 
-## The first and last `ord` of an ordinal type. None for other types, and for a
-## subrange whose bounds aren't literals or enum members. Ranges wider than Integer
-## are clamped.
+{ The first and last `ord` of an ordinal type. None for other types, and for a
+  subrange whose bounds aren't literals or enum members. Ranges wider than Integer
+  are clamped. }
 export function ordinalRange(env: ref Env, t: Type): Option[OrdRange]
     if t = booleanT() then
         return Some(OrdRange(lo: 0, hi: 1))
@@ -850,7 +850,7 @@ export function ordinalRange(env: ref Env, t: Type): Option[OrdRange]
             return None
     return None
 
-## The `ord` of a subrange bound of type `t`: a literal or an enum member.
+{ The `ord` of a subrange bound of type `t`: a literal or an enum member. }
 function ordinalOf(env: ref Env, e: Expr, t: Type): Option[Integer]
     let x := unparen(e)
     let v := literalValue(x)
@@ -869,9 +869,9 @@ function ordinalOf(env: ref Env, e: Expr, t: Type): Option[Integer]
         else:
             return None
 
-# --------------------------------------------------------------- type expressions
+{ ------------------------------------------------------------- type expressions }
 
-## The type a type expression denotes.
+{ The type a type expression denotes. }
 export function typeOf(env: ref Env, t: TypeExpr, file: String): Type
     return typeOfFull(env, t, file, false, true)
 
@@ -882,8 +882,8 @@ function optTypeOf(env: ref Env, t: Option[TypeExpr], file: String, thisOk: Bool
         None:
             return errorT()
 
-## The type a type expression denotes. Traits are only allowed when `value` is false
-## (bounds).
+{ The type a type expression denotes. Traits are only allowed when `value` is false
+  (bounds). }
 function typeOfFull(env: ref Env, t: TypeExpr, file: String, thisOk, value: Boolean): Type
     case t of
         RefType(r):
@@ -906,10 +906,10 @@ function typeName(env: ref Env, t: TypeName, file: String, thisOk, value: Boolea
     if length(t.parts) = 1 and t.parts[0] = "This" then
         if thisOk then
             return thisT()
-        return errorT()  # outside a trait: E0111 from stage 1
+        return errorT()  { outside a trait: E0111 from stage 1 }
     let found := lookup(env.index, file, lastSpan(t))
     if found.isNone() or length(found.get().targets) <> 1 then
-        return errorT()  # unknown or ambiguous: already reported
+        return errorT()  { unknown or ambiguous: already reported }
     let sym := found.get().targets[0]
     let name := join(t.parts, sep: ".")
     var args: List[Type] := []
@@ -1004,7 +1004,7 @@ function typeArg(env: ref Env, a: TypeOrExpr, file: String, thisOk: Boolean): Ty
                     return constText(dumpExpr(e))
     return errorT()
 
-# ------------------------------------------------------------------- declarations
+{ ----------------------------------------------------------------- declarations }
 
 function emptyInfo(kind: String, params: List[ref Symbol], c: Boolean): ref TypeInfo
     return new(TypeInfo(
@@ -1066,7 +1066,7 @@ function typeDecl(env: ref Env, sym: ref Symbol, node: TypeDecl): ref TypeInfo
         else:
             pass
     let d := emptyInfo(kind, params, c)
-    env.declCache[sym.id] := d  # before the parts, which may refer back to the type
+    env.declCache[sym.id] := d  { before the parts, which may refer back to the type }
     case node.body of
         RecordType(rt):
             addFields(env, d, rt.fields, file, false)
@@ -1132,7 +1132,7 @@ export function variants(env: ref Env, t: Type): List[Type]
         else:
             return []
 
-## A subrange's base type; any other type itself.
+{ A subrange's base type; any other type itself. }
 export function base(env: ref Env, t: Type): Type
     case t of
         NamedT(n):
@@ -1143,7 +1143,7 @@ export function base(env: ref Env, t: Type): Type
         else:
             return t
 
-## The kind of a declared type; "" for other types.
+{ The kind of a declared type; "" for other types. }
 export function kindOf(env: ref Env, t: Type): String
     case t of
         NamedT(n):
@@ -1176,7 +1176,7 @@ function constParamType(env: ref Env, tp: ref Symbol): Type
             return b
     return errorT()
 
-## The type of the constant `sym`.
+{ The type of the constant `sym`. }
 export function constType(env: ref Env, sym: ref Symbol): Type
     case get(env.constCache, sym.id) of
         Some(t):
@@ -1207,7 +1207,7 @@ function symConstInt(sym: ref Symbol): Option[Integer]
         else:
             return None
 
-# --------------------------------------------------------------------- signatures
+{ ------------------------------------------------------------------- signatures }
 
 function emptySignature(name: Ident): Signature
     return Signature(
@@ -1309,7 +1309,7 @@ export function sig(env: ref Env, sym: ref Symbol): Sig
     env.sigCache[sym.id] := s
     return s
 
-## The signature of constructing the record `sym`.
+{ The signature of constructing the record `sym`. }
 export function recordSig(env: ref Env, sym: ref Symbol): Sig
     let d := decl(env, sym)
     var params: List[PInfo] := []
@@ -1358,7 +1358,7 @@ function describeSig(g: Sig): String
             pass
     return "{g.name}({join(parts, sep: ", ")}){where}"
 
-# ------------------------------------------------------------------ the checker
+{ ---------------------------------------------------------------- the checker }
 
 procedure fail(tc: ref TC, span: Span, code, message: String, fixes: List[Fix] := [])
     error(tc.c, tc.file, code, span, message: message, fixes: fixes)
@@ -1372,7 +1372,7 @@ function symAt(tc: ref TC, span: Span): Option[ref Symbol]
 function text(tc: ref TC, span: Span): String
     return sub(tc.src, span.start, end: span.end)
 
-## Unit-level lookup, as in a declaration of this unit.
+{ Unit-level lookup, as in a declaration of this unit. }
 function visible(tc: ref TC, name: String): List[ref Symbol]
     if tc.resolver.isNone() then
         tc.resolver := Some(newResolver(tc.c, tc.home))
@@ -1396,7 +1396,7 @@ function assignable(tc: ref TC, actual, expected: Type): Boolean
     if hasError(actual) or hasError(expected) or actual = expected then
         return true
     if base(tc.env, actual) = base(tc.env, expected) then
-        return true  # subrange and its base: checked at runtime
+        return true  { subrange and its base: checked at runtime }
     return containsType(variants(tc.env, expected), actual)
 
 procedure mismatch(tc: ref TC, span: Span, actual, expected: Type)
@@ -1411,7 +1411,7 @@ procedure mismatch(tc: ref TC, span: Span, actual, expected: Type)
         msg := "{msg}; convert with {show(e)}(...)"
     fail(tc, span, "E0300", msg)
 
-# -------------------------------------------------------------------------- units
+{ ------------------------------------------------------------------------ units }
 
 procedure run(tc: ref TC)
     let items := tc.home.parsed.file.items
@@ -1457,7 +1457,7 @@ procedure runDecl(tc: ref TC, d: Decl)
         TestBlock(t):
             body(tc, t.body.stmts)
 
-## The program body or a test block.
+{ The program body or a test block. }
 procedure body(tc: ref TC, ss: List[Stmt])
     tc.result := voidT()
     tc.isFunction := false
@@ -1533,7 +1533,7 @@ procedure checkTypeDecl(tc: ref TC, d: TypeDecl)
             else:
                 pass
 
-## An extern routine's parameters and result must be C-compatible (SPEC §10.1).
+{ An extern routine's parameters and result must be C-compatible (SPEC §10.1). }
 procedure cSignature(tc: ref TC, sym: ref Symbol, node: Signature)
     let g := sig(tc.env, sym)
     for p in g.params do
@@ -1550,7 +1550,7 @@ procedure cSignature(tc: ref TC, sym: ref Symbol, node: Signature)
             None:
                 pass
 
-## Whether C can take or give values of type `t` (SPEC §10.1); E0901 if not.
+{ Whether C can take or give values of type `t` (SPEC §10.1); E0901 if not. }
 function cCompatible(tc: ref TC, t: Type, span: Span, inRecord: Boolean): Boolean
     if isCType(tc, t, inRecord) then
         return true
@@ -1582,7 +1582,7 @@ function isCType(tc: ref TC, t: Type, inRecord: Boolean): Boolean
         else:
             return false
 
-## E0902 unless inside an unsafe routine (SPEC §10.4).
+{ E0902 unless inside an unsafe routine (SPEC §10.4). }
 procedure requireUnsafe(tc: ref TC, span: Span, what: String)
     if not tc.inUnsafe then
         fail(tc, span, "E0902", "{what} is only allowed inside an 'unsafe' function or procedure")
@@ -1636,7 +1636,7 @@ procedure routine(tc: ref TC, r: Routine)
     tc.inRoutine := false
     tc.inUnsafe := false
 
-# --------------------------------------------------------------------- resources
+{ ------------------------------------------------------------------- resources }
 
 function noParent(): Parent
     return Parent(
@@ -1648,9 +1648,9 @@ function noParent(): Parent
 function parentOf(kind: String): Parent
     return Parent(kind: kind, span: noParent().span, id: -1)
 
-## Resource records exist only behind `ref`, and their destroy hook runs by itself (SPEC
-## §11.1): E1103 for a value of one (other than `r.field`, and `R(...)` as the argument of
-## `new`), E1101 for naming the hook.
+{ Resource records exist only behind `ref`, and their destroy hook runs by itself (SPEC
+  §11.1): E1103 for a value of one (other than `r.field`, and `R(...)` as the argument of
+  `new`), E1101 for naming the hook. }
 procedure walkFile(tc: ref TC, f: SourceFile)
     for item in f.items do
         case item of
@@ -1849,8 +1849,8 @@ function typeSym(tc: ref TC, t: TypeName): Option[ref Symbol]
         None:
             return None
 
-## Whether `t` is the type expression `Weak[...]`, whose argument is the type of what it
-## refers to, as with `ref`.
+{ Whether `t` is the type expression `Weak[...]`, whose argument is the type of what it
+  refers to, as with `ref`. }
 function isWeak(tc: ref TC, t: TypeName): Boolean
     case typeSym(tc, t) of
         Some(s):
@@ -1858,7 +1858,7 @@ function isWeak(tc: ref TC, t: TypeName): Boolean
         None:
             return false
 
-## Whether `parent` is the first parameter of destroy hook `hook`.
+{ Whether `parent` is the first parameter of destroy hook `hook`. }
 function isOwnParam(tc: ref TC, parent: Parent, hook: ref Symbol): Boolean
     if parent.kind <> "Param" or hook.file <> tc.file then
         return false
@@ -2008,8 +2008,8 @@ procedure walkChildren(tc: ref TC, e: Expr)
         else:
             pass
 
-## Whether a value of a resource record may appear as `e`: as `r.field`, or `R(...)`
-## directly inside `new`.
+{ Whether a value of a resource record may appear as `e`: as `r.field`, or `R(...)`
+  directly inside `new`. }
 function resourceOk(tc: ref TC, e: Expr, parent: Parent): Boolean
     case e of
         Deref(_):
@@ -2021,9 +2021,9 @@ function resourceOk(tc: ref TC, e: Expr, parent: Parent): Boolean
             pass
     return parent.kind = "FieldTarget"
 
-# -------------------------------------------------------------------- statements
+{ ------------------------------------------------------------------ statements }
 
-## Checks statements; true if they never complete normally (always return).
+{ Checks statements; true if they never complete normally (always return). }
 function stmts(tc: ref TC, ss: List[Stmt]): Boolean
     var ends := false
     for s in ss do
@@ -2103,7 +2103,7 @@ function stmt(tc: ref TC, s: Stmt): Boolean
             forIn(tc, f)
         Case(c):
             return caseStmt(tc, c)
-        Defer(d):  # runs as its block is left, so can't leave itself
+        Defer(d):  { runs as its block is left, so can't leave itself }
             let outerLoops := tc.loops
             let outerDefer := tc.inDefer
             tc.loops := []
@@ -2133,10 +2133,10 @@ function stmt(tc: ref TC, s: Stmt): Boolean
             pass
     return false
 
-## A `for` expression: its loops are checked as statements, and its values give the
-## element type, as the items of a list literal do.
-## A lambda takes its parameter types from the function type `expected`; its body is
-## checked against the result type, with what it captures read-only.
+{ A `for` expression: its loops are checked as statements, and its values give the
+  element type, as the items of a list literal do.
+  A lambda takes its parameter types from the function type `expected`; its body is
+  checked against the result type, with what it captures read-only. }
 function lambda(tc: ref TC, x: Lambda, expected: Type): Type
     var params: List[Type] := []
     var result := errorT()
@@ -2227,7 +2227,7 @@ procedure exprStmt(tc: ref TC, s: ExprStmt)
     case e of
         Unary(u):
             if u.op = "try" then
-                _ := expr(tc, e, noType())  # `try f()` alone: propagate the error, drop the value
+                _ := expr(tc, e, noType())  { `try f()` alone: propagate the error, drop the value }
                 return
         else:
             pass
@@ -2290,7 +2290,7 @@ procedure forIn(tc: ref TC, s: ForIn)
         i := i + 1
     _ := loop(tc, s.body, false)
 
-## The loop variable types of `for ... in e` (SPEC §4.14).
+{ The loop variable types of `for ... in e` (SPEC §4.14). }
 function elements(tc: ref TC, t0: Type, n: Integer, e: Expr): List[Type]
     var bad: List[Type] := []
     for i := 1 to n do
@@ -2361,7 +2361,7 @@ export function iteratorItem(tc: ref TC, t: Type): Option[Type]
         return Some(getOr(s, x.id, default: errorT()))
     return None
 
-# -------------------------------------------------------------------------- case
+{ ------------------------------------------------------------------------ case }
 
 function caseStmt(tc: ref TC, s: Case): Boolean
     var info := caseBegin(tc, value(tc, s.subject, noType()))
@@ -2400,7 +2400,7 @@ function keyCount(info: CaseInfo): Integer
         return length(info.members)
     return 2
 
-## The key of the `i`th variant, member or truth value, as `covered` holds it.
+{ The key of the `i`th variant, member or truth value, as `covered` holds it. }
 function keyAt(info: CaseInfo, i: Integer): String
     if info.kind = "union" then
         return toString(i)
@@ -2497,7 +2497,7 @@ procedure caseLabels(tc: ref TC, var info: CaseInfo, labels: List[Label])
                         fail(tc, r.span, "E0603", "empty range: the low end is above the high end")
                     addRange(tc, var info, LRange(lo: lo, hi: hi), r.span)
 
-## `a < b` for label values of comparable kinds; false for others.
+{ `a < b` for label values of comparable kinds; false for others. }
 function lvLess(a, b: LVal): Boolean
     if a.kind = 3 and b.kind = 3 then
         return a.s < b.s
@@ -2520,8 +2520,8 @@ procedure addRange(tc: ref TC, var info: CaseInfo, r: LRange, span: Span)
             break
     add(var info.ranges, r)
 
-## What a type is, for matching variant labels: `#id` of a declared type, the name of a
-## primitive or builtin, or "".
+{ What a type is, for matching variant labels: `#id` of a declared type, the name of a
+  primitive or builtin, or "". }
 function head(t: Type): String
     case t of
         NamedT(n):
@@ -2533,7 +2533,7 @@ function head(t: Type): String
         else:
             return ""
 
-## What a variant label names: a declared type, or a primitive/builtin name.
+{ What a variant label names: a declared type, or a primitive/builtin name. }
 function labelHead(tc: ref TC, sym: ref Symbol): String
     if sym.kind = Kind.TypeSym then
         let d := decl(tc.env, sym)
@@ -2544,7 +2544,7 @@ function labelHead(tc: ref TC, sym: ref Symbol): String
         return sym.name
     return ""
 
-## The position of the variant `sym` names in the union.
+{ The position of the variant `sym` names in the union. }
 function variantOf(
     tc: ref TC,
     info: CaseInfo,
@@ -2585,14 +2585,14 @@ procedure variantLabel(tc: ref TC, var info: CaseInfo, label: VariantLabel)
         fail(tc, label.span, "E0603", "'{name}(...)' needs a union to match, not {show(info.ty)}")
     setType(tc, binding, vt)
 
-## A bare enum member or variant name (`Red:`, `None:`). Returns the enum member.
+{ A bare enum member or variant name (`Red:`, `None:`). Returns the enum member. }
 function namedLabel(tc: ref TC, var info: CaseInfo, e: Expr, doCover: Boolean): Option[String]
     var sym: Option[ref Symbol] := None
     var span := exprSpan(e)
     var name := ""
     var member := ""
     case e of
-        FieldAccess(f):  # `Color.Red`, `System.None`
+        FieldAccess(f):  { `Color.Red`, `System.None` }
             let r := refAt(tc, f.name.span)
             if r.isNone() or length(r.get().targets) <> 1 then
                 return None
@@ -2652,7 +2652,7 @@ function namedLabel(tc: ref TC, var info: CaseInfo, e: Expr, doCover: Boolean): 
             pass
     return None
 
-## A constant label over a non-enum, non-union type. Returns its value, if known.
+{ A constant label over a non-enum, non-union type. Returns its value, if known. }
 function constLabel(tc: ref TC, info: CaseInfo, e: Expr): LVal
     case e of
         Name(n):
@@ -2705,18 +2705,18 @@ function constLabel(tc: ref TC, info: CaseInfo, e: Expr): LVal
             fail(tc, exprSpan(e), "E0603", "case labels must be constants")
             return noVal()
 
-# ------------------------------------------------------------------- expressions
+{ ----------------------------------------------------------------- expressions }
 
 type
-    ## A field found on a type: the field, the record declaring it (none for a trait
-    ## bound's), and the substitution for its type.
+    { A field found on a type: the field, the record declaring it (none for a trait
+      bound's), and the substitution for its type. }
     FoundField = record
         f: FieldInfo
         owner: Option[ref Symbol]
         s: Subst
 
-## The type of `e`. `expected` is a hint: literals and empty collections take it, and
-## calls use it to infer type arguments. It is not checked here.
+{ The type of `e`. `expected` is a hint: literals and empty collections take it, and
+  calls use it to infer type arguments. It is not checked here. }
 function expr(tc: ref TC, e: Expr, expected: Type): Type
     var t := errorT()
     case e of
@@ -2785,7 +2785,7 @@ function expr(tc: ref TC, e: Expr, expected: Type): Type
     tc.types[exprId(e)] := t
     return t
 
-## Like expr, but the result must be a value.
+{ Like expr, but the result must be a value. }
 function value(tc: ref TC, e: Expr, expected: Type): Type
     return asValue(tc, expr(tc, e, expected), e)
 
@@ -2813,14 +2813,14 @@ function asValue(tc: ref TC, t: Type, e: Expr): Type
                 return errorT()
     return t
 
-## Checks that `e` is a value of type `expected`.
+{ Checks that `e` is a value of type `expected`. }
 function check(tc: ref TC, e: Expr, expected: Type): Type
     let t := value(tc, e, expected)
     if known(expected) and not assignable(tc, t, expected) then
         mismatch(tc, exprSpan(e), t, expected)
     return t
 
-## An index or type argument: type expressions have no value.
+{ An index or type argument: type expressions have no value. }
 function valueItem(tc: ref TC, x: TypeOrExpr, expected: Type): Type
     case x of
         Expr(e):
@@ -2842,7 +2842,7 @@ function itemSpan(x: TypeOrExpr): Span
         TypeExpr(t):
             return typeSpan(t)
 
-# literals
+{ literals }
 
 function intLit(tc: ref TC, l: Lit, span: Span, expected: Type): Type
     var t := integerT()
@@ -2883,7 +2883,7 @@ function interp(tc: ref TC, x: InterpString): Type
                         )
     return stringT()
 
-## The type of `e`, an interpolated value, which must be Printable.
+{ The type of `e`, an interpolated value, which must be Printable. }
 function printable(tc: ref TC, e: Expr): Type
     let t := value(tc, e, noType())
     let printable := sys(tc.env, "Printable")
@@ -2945,8 +2945,8 @@ function listLit(tc: ref TC, x: ListLit, expected: Type): Type
         _ := check(tc, x.items[i], first)
     return builtin("List", [first])
 
-## `Red` in a literal of a `Set[Color]`: a bare name that Resolve didn't find, and
-## a member of the enum `elem`, is that member, and its unknown-name error goes.
+{ `Red` in a literal of a `Set[Color]`: a bare name that Resolve didn't find, and
+  a member of the enum `elem`, is that member, and its unknown-name error goes. }
 procedure bareMember(tc: ref TC, e: Expr, elem: Type)
     case e of
         Name(n):
@@ -2991,9 +2991,9 @@ function mapLit(tc: ref TC, x: MapLit, expected: Type): Type
         _ := check(tc, x.entries[i].value, v)
     return named(sys(tc.env, "Map").get(), [k, v])
 
-# names
+{ names }
 
-## Whether `g` is a C routine's: one declared in an `extern` block.
+{ Whether `g` is a C routine's: one declared in an `extern` block. }
 function isExternSig(g: Sig): Boolean
     case g.sym of
         Some(s):
@@ -3001,8 +3001,8 @@ function isExternSig(g: Sig): Boolean
         None:
             return false
 
-## Notes the open lambdas that `s`, a local read in their bodies, is declared outside
-## of: they capture it.
+{ Notes the open lambdas that `s`, a local read in their bodies, is declared outside
+  of: they capture it. }
 procedure noteCapture(tc: ref TC, s: ref Symbol)
     case s.span of
         Some(sp):
@@ -3033,7 +3033,7 @@ function symValue(tc: ref TC, syms: List[ref Symbol], span: Span, expected: Type
     if k = Kind.TypeSym then
         let d := decl(tc.env, s)
         if d.kind = "record" and length(d.fields) = 0 and length(d.params) = 0 then
-            return named(s, [])  # `None`: a record without fields is a value
+            return named(s, [])  { `None`: a record without fields is a value }
         if d.kind = "alias" then
             return TypeValueT(inner: d.alias)
         return TypeValueT(inner: named(s, paramTypes(d.params)))
@@ -3054,8 +3054,8 @@ function tparamNames(ts: List[ref Symbol]): String
         add(var names, t.name)
     return join(names, sep: ", ")
 
-## Records that the name at `span` means `sym`: the routine picked for an overloaded name,
-## or for the name after the dot in `x.f()`, which the resolver can't know.
+{ Records that the name at `span` means `sym`: the routine picked for an overloaded name,
+  or for the name after the dot in `x.f()`, which the resolver can't know. }
 procedure narrowTo(tc: ref TC, span: Span, sym: Option[ref Symbol])
     case sym of
         Some(s):
@@ -3066,7 +3066,7 @@ procedure narrowTo(tc: ref TC, span: Span, sym: Option[ref Symbol])
         None:
             pass
 
-## `g` with its type parameters replaced by `targs`.
+{ `g` with its type parameters replaced by `targs`. }
 function instantiate(g: Sig, targs: List[Type]): Sig
     let sb := zipSubst(g.tparams, targs)
     var ps: List[PInfo] := []
@@ -3136,7 +3136,7 @@ function routineValue(
         add(var os, g.sym.get())
     return OverloadsT(syms: os)
 
-## The unit or enum that `e` names, if it names one (the left of `Unit.x`).
+{ The unit or enum that `e` names, if it names one (the left of `Unit.x`). }
 function staticOwner(tc: ref TC, e: Expr): Option[ref Symbol]
     var span := exprSpan(e)
     case e of
@@ -3185,7 +3185,7 @@ function unref(t: Type): Type
         else:
             return t
 
-## A field of `t`, or none.
+{ A field of `t`, or none. }
 function findField(tc: ref TC, t: Type, name: String): Option[FoundField]
     let b := unref(t)
     case b of
@@ -3276,7 +3276,7 @@ function derefExpr(tc: ref TC, x: Deref): Type
         fail(tc, x.span, "E0305", "'deref' needs a ref, not {show(t)}")
     return errorT()
 
-# operators
+{ operators }
 
 function unary(tc: ref TC, u: Unary, e: Expr, expected: Type): Type
     if u.op = "try" then
@@ -3412,7 +3412,7 @@ function binary(tc: ref TC, b: Binary, expected: Type): Type
                 fail(tc, b.opSpan, "E0305", "'{op}' doesn't work on {show(t)}: it isn't {wanted}")
     return booleanT()
 
-## Whether `e` is a `[...]` literal with a range `a..b` in it: a set.
+{ Whether `e` is a `[...]` literal with a range `a..b` in it: a set. }
 function hasRange(e: Expr): Boolean
     case e of
         ListLit(l):
@@ -3427,7 +3427,7 @@ function hasRange(e: Expr): Boolean
             pass
     return false
 
-## Whether `e` is a `[...]` literal: typed after the other operand, which gives it its type.
+{ Whether `e` is a `[...]` literal: typed after the other operand, which gives it its type. }
 function isListLit(e: Expr): Boolean
     case e of
         ListLit(_):
@@ -3435,8 +3435,8 @@ function isListLit(e: Expr): Boolean
         else:
             return false
 
-## `+`, `-` and `*` on two sets: union, difference and intersection; `<=` and `>=`: subset
-## and superset.
+{ `+`, `-` and `*` on two sets: union, difference and intersection; `<=` and `>=`: subset
+  and superset. }
 function setOp(tc: ref TC, b: Binary, lt, rt: Type): Type
     let op := b.op
     let cmp := op = "<=" or op = ">="
@@ -3463,7 +3463,7 @@ function isComparisonExpr(e: Expr): Boolean
         else:
             return false
 
-## `and`, `or` and `xor`: logical on Booleans, bitwise on two integers of one type.
+{ `and`, `or` and `xor`: logical on Booleans, bitwise on two integers of one type. }
 function logical(tc: ref TC, b: Binary, expected: Type): Type
     let ts := operands(tc, b, hint: expected)
     let lb := base(tc.env, ts[0])
@@ -3518,7 +3518,7 @@ function arith(tc: ref TC, b: Binary, lt, rt: Type): Type
     return lb
 
 function inOp(tc: ref TC, b: Binary): Type
-    if hasRange(b.right) then  # `c in ['a'..'z']`: a set of the left's type
+    if hasRange(b.right) then  { `c in ['a'..'z']`: a set of the left's type }
         let lt := value(tc, b.left, noType())
         if hasError(lt) then
             return booleanT()
@@ -3560,9 +3560,9 @@ function branches(tc: ref TC, values: List[Expr], expected: Type): Type
         return first
     return errorT()
 
-# indexing
+{ indexing }
 
-## The span of the name an instantiation `f[T]` / `Unit.f[T]` names.
+{ The span of the name an instantiation `f[T]` / `Unit.f[T]` names. }
 function instSpan(tc: ref TC, target: Expr): Option[Span]
     case target of
         Name(n):
@@ -3574,7 +3574,7 @@ function instSpan(tc: ref TC, target: Expr): Option[Span]
         else:
             return None
 
-## The type arguments of `f[T]` / `Stack[T]`, if `ix` is an instantiation.
+{ The type arguments of `f[T]` / `Stack[T]`, if `ix` is an instantiation. }
 function typeArgs(tc: ref TC, ix: Index): Option[List[Type]]
     let span := instSpan(tc, ix.target)
     if span.isNone() then
@@ -3594,7 +3594,7 @@ function typeArgs(tc: ref TC, ix: Index): Option[List[Type]]
                 add(var out, typeArg(tc.env, x, tc.file, false))
     return Some(out)
 
-## Notes the instance a generic routine value `f[T]` names, for the backend as for a call.
+{ Notes the instance a generic routine value `f[T]` names, for the backend as for a call. }
 procedure instanceValue(tc: ref TC, ix: Index, span: Span, targs: List[Type], t: Type)
     let sym := refAt(tc, span).get().targets[0]
     let g := sig(tc.env, sym)
@@ -3663,7 +3663,7 @@ function index(tc: ref TC, ix: Index, expected: Type): Type
         fail(tc, ix.span, "E0311", "{show(t)} can't be indexed")
     return errorT()
 
-# -------------------------------------------------------------------------- calls
+{ ------------------------------------------------------------------------ calls }
 
 function request(
     e: Call,
@@ -3760,7 +3760,7 @@ function callExpr(tc: ref TC, e: Call, expected: Type): Type
     tc.types[exprId(callee)] := ct
     return callValue(tc, e, ct, name)
 
-## `cast[T](x)`: reinterprets a pointer or integer as another (SPEC §10.4).
+{ `cast[T](x)`: reinterprets a pointer or integer as another (SPEC §10.4). }
 function cast(tc: ref TC, e: Call, explicit: Option[List[Type]]): Type
     var ok := explicit.isSome() and length(e.args) = 1
     if ok then
@@ -3785,7 +3785,7 @@ function cast(tc: ref TC, e: Call, explicit: Option[List[Type]]): Type
         )
     return target
 
-## `addr(var x)`: the address of a variable, or of a field of a C record in one.
+{ `addr(var x)`: the address of a variable, or of a field of a C record in one. }
 procedure addr(tc: ref TC, e: Call, t: Type)
     requireUnsafe(tc, e.span, "'addr'")
     if length(e.args) <> 1 or hasError(t) then
@@ -3818,8 +3818,8 @@ procedure addr(tc: ref TC, e: Call, t: Type)
                 "'addr' needs a variable, or a field of a C record held in one",
             )
 
-## Candidates from the bounds of the type parameters in scope: the bound member `one`,
-## or else the trait routines called `name`.
+{ Candidates from the bounds of the type parameters in scope: the bound member `one`,
+  or else the trait routines called `name`. }
 function boundCandidates(tc: ref TC, one: Option[ref Symbol], name: String): List[Cand]
     var out: List[Cand] := []
     for tp in tc.tparams do
@@ -3852,7 +3852,7 @@ function boundCandidates(tc: ref TC, one: Option[ref Symbol], name: String): Lis
 function candidates(tc: ref TC, syms: List[ref Symbol]): List[Cand]
     var out: List[Cand] := []
     for s in syms do
-        if isSignatureNode(s) then  # a bound member (SPEC §8.2)
+        if isSignatureNode(s) then  { a bound member (SPEC §8.2) }
             for c in boundCandidates(tc, Some(s), "") do
                 add(var out, c)
         else
@@ -3869,7 +3869,7 @@ function ufcsCandidates(tc: ref TC, name: String): List[Cand]
             add(var out, Cand(sig: sig(tc.env, s), pre: [:]))
     return out
 
-## `Point(x: 1.0)`, `Some(5)`, or a conversion like `Int32(x)`.
+{ `Point(x: 1.0)`, `Some(5)`, or a conversion like `Int32(x)`. }
 function construct(
     tc: ref TC,
     e: Call,
@@ -4009,8 +4009,8 @@ function callValue(tc: ref TC, e: Call, t: Type, name: String): Type
             fail(tc, exprSpan(e.callee), "E0307", "'{name}' is {show(t)}, not a function")
             return errorT()
 
-## Arguments whose type depends on the parameter: literals, `[]`, `{}`, and overloaded
-## function names.
+{ Arguments whose type depends on the parameter: literals, `[]`, `[:]`, and overloaded
+  function names. }
 function flex(tc: ref TC, v: Expr): Type
     case v of
         Paren(p):
@@ -4084,8 +4084,8 @@ function prepare(tc: ref TC, args: List[Arg]): List[CArg]
         ))
     return out
 
-## Types the items of a list literal argument; they may differ (variants that fit a union
-## parameter).
+{ Types the items of a list literal argument; they may differ (variants that fit a union
+  parameter). }
 function listItems(tc: ref TC, l: ListLit): List[Type]
     let first := value(tc, l.items[0], noType())
     var all := [first]
@@ -4093,7 +4093,7 @@ function listItems(tc: ref TC, l: ListLit): List[Type]
         add(var all, value(tc, l.items[i], first))
     return all
 
-## Whether list literal items share one type.
+{ Whether list literal items share one type. }
 function same(items: List[Type]): Boolean
     for t in items do
         if not hasError(t) and not hasError(items[0]) and not (t = items[0]) then
@@ -4136,7 +4136,7 @@ function minInt(a, b: Integer): Integer
         return a
     return b
 
-## A match's rank: exact before injected before odd literal types, plain before generic.
+{ A match's rank: exact before injected before odd literal types, plain before generic. }
 function rank(m: Match): Integer
     if length(m.sig.tparams) > 0 then
         return m.tier * 2 + 1
@@ -4218,9 +4218,9 @@ function call(tc: ref TC, req: CallReq): Type
         ))
     return subst(m.result, m.s)
 
-## Matches the arguments against a candidate. With an expected type, type parameters
-## are first inferred from it, so that a variant argument is injected (`Ok(Circle(...))`
-## as a `Result[Shape, E]`); if that fails, from the arguments alone.
+{ Matches the arguments against a candidate. With an expected type, type parameters
+  are first inferred from it, so that a variant argument is injected (`Ok(Circle(...))`
+  as a `Result[Shape, E]`); if that fails, from the arguments alone. }
 function matchCand(tc: ref TC, c: Cand, r: MatchReq): MatchResult
     if r.explicit.isNone() and known(r.expected) and not hasError(r.expected) then
         let m := matchWith(tc, c, r, true)
@@ -4239,7 +4239,7 @@ function what(g: Sig, name: String): String
         return "field '{name}' of {g.name}"
     return "parameter '{name}' of '{g.name}'"
 
-## Binds the result type to the expected type, or one of its variants.
+{ Binds the result type to the expected type, or one of its variants. }
 function inferResult(tc: ref TC, result, expected: Type, var s: Subst, vars: Vars): Boolean
     var targets: List[Type] := [expected]
     for v in variants(tc.env, expected) do
@@ -4285,7 +4285,7 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
             vars := [:]
         None:
             pass
-    # Bind arguments to parameters.
+    { Bind arguments to parameters. }
     var slots: List[Option[CArg]] := []
     var rest := -1
     for i := 0 to length(params) - 1 do
@@ -4342,7 +4342,7 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
     if early and mentions(result, vars) then
         if not inferResult(tc, result, r.expected, var s, vars) then
             return failure(r.span, "E0300", "", false)
-    # Types.
+    { Types. }
     var tier := 0
     var flexes: List[Integer] := []
     for i := 0 to length(params) - 1 do
@@ -4387,7 +4387,7 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
                 true,
             )
         tier := maxInt(tier, t)
-    # Bounds, which may also infer parameters used only in bounds (`T` of `I: Iterator[T]`).
+    { Bounds, which may also infer parameters used only in bounds (`T` of `I: Iterator[T]`). }
     for round := 1 to 2 do
         for tp in tparams do
             if not (tp.id in s) then
@@ -4418,7 +4418,7 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
             errors := true
     for tp in tparams do
         if tp.id in vars and not (tp.id in s) then
-            if errors then  # an argument already failed: don't pile on
+            if errors then  { an argument already failed: don't pile on }
                 s[tp.id] := errorT()
                 continue
             return failure(
@@ -4438,7 +4438,7 @@ function matchWith(tc: ref TC, c: Cand, r: MatchReq, early: Boolean): MatchResul
         pre: pre,
     )
 
-## Matches a variant against a union parameter (`Some[T]` against `Option[T]`).
+{ Matches a variant against a union parameter (`Some[T]` against `Option[T]`). }
 function inject(tc: ref TC, pattern, actual: Type, var s: Subst, vars: Vars): Boolean
     for v in variants(tc.env, pattern) do
         var s2 := s
@@ -4447,15 +4447,15 @@ function inject(tc: ref TC, pattern, actual: Type, var s: Subst, vars: Vars): Bo
             return true
     return false
 
-## Whether a flexible argument fits `want`: 0 exact, 1 converted, 2 non-default literal
-## type, -1 not.
+{ Whether a flexible argument fits `want`: 0 exact, 1 converted, 2 non-default literal
+  type, -1 not. }
 function flexFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Integer
     let k := a.flex
     if hasError(want) then
         return 0
     if k = listLitT() then
         return listFit(tc, a, want, var s, vars)
-    if k = lambdaT() then  # its body is checked once the call is chosen (`finish`)
+    if k = lambdaT() then  { its body is checked once the call is chosen (`finish`) }
         case want of
             FuncT(f):
                 case a.expr of
@@ -4520,11 +4520,11 @@ function flexFit(tc: ref TC, a: CArg, want: Type, var s: Subst, vars: Vars): Int
             pass
     return -1
 
-## Whether a list literal fits `want`: 0 as typed, 1 with its items converted, -1 not.
-## Fits lambda `l` to function type `f`, which has as many parameters: when the result
-## has type parameters still to infer and the parameter types are known, they are
-## inferred from the type of the body, checked here without reporting its errors (the
-## body is checked again once the call is chosen). 0 if it fits, -1 if not.
+{ Whether a list literal fits `want`: 0 as typed, 1 with its items converted, -1 not.
+  Fits lambda `l` to function type `f`, which has as many parameters: when the result
+  has type parameters still to infer and the parameter types are known, they are
+  inferred from the type of the body, checked here without reporting its errors (the
+  body is checked again once the call is chosen). 0 if it fits, -1 if not. }
 function lambdaFit(tc: ref TC, l: Lambda, f: FuncT, var s: Subst, vars: Vars): Integer
     if not mentionsUnbound(f.result, vars, s) then
         return 0
@@ -4541,7 +4541,7 @@ function lambdaFit(tc: ref TC, l: Lambda, f: FuncT, var s: Subst, vars: Vars): I
         removeLast(var tc.c.diagnostics)
     if not known(t) then
         return 0
-    if hasError(t) then  # the body's errors are reported when it is checked again
+    if hasError(t) then  { the body's errors are reported when it is checked again }
         var found: Vars := [:]
         paramsIn(f.result, var found)
         for id, _ in found do
@@ -4704,9 +4704,9 @@ procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Sp
                 )],
             )
 
-# -------------------------------------------------------------------- mutability
+{ ------------------------------------------------------------------ mutability }
 
-## The span of the first `try` in `e`, outside lambdas.
+{ The span of the first `try` in `e`, outside lambdas. }
 function tryIn(e: Expr): Option[Span]
     case e of
         Unary(u):
@@ -4720,8 +4720,8 @@ function tryIn(e: Expr): Option[Span]
             return found
     return None
 
-## `var` arguments of one call must be separate places (SPEC §6.3): not the same
-## variable, field or element, and not one inside another.
+{ `var` arguments of one call must be separate places (SPEC §6.3): not the same
+  variable, field or element, and not one inside another. }
 procedure varOverlap(tc: ref TC, args: List[CArg])
     var seen: List[List[String]] := []
     var seenExpr: List[Expr] := []
@@ -4748,10 +4748,10 @@ procedure varOverlap(tc: ref TC, args: List[CArg])
         add(var seen, path)
         add(var seenExpr, a.expr)
 
-## A place as a path from where it is stored, or none if unknown: `p.a[i]` is
-## [#p, .a, []]. The index is left out, since `xs[i]` and `xs[j]` may be the same
-## element. A place reached through a ref starts at the pointee's type, since any two
-## refs to a `T` may point to the same one.
+{ A place as a path from where it is stored, or none if unknown: `p.a[i]` is
+  [#p, .a, []]. The index is left out, since `xs[i]` and `xs[j]` may be the same
+  element. A place reached through a ref starts at the pointee's type, since any two
+  refs to a `T` may point to the same one. }
 function placePath(tc: ref TC, e: Expr): Option[List[String]]
     case e of
         Paren(p):
@@ -4782,7 +4782,7 @@ function extend(tc: ref TC, target: Expr, step: String): Option[List[String]]
     add(var path, step)
     return Some(path)
 
-## The start of a path through `e` if it is a ref or pointer, else none.
+{ The start of a path through `e` if it is a ref or pointer, else none. }
 function pointee(tc: ref TC, e: Expr): Option[List[String]]
     let t := getOr(tc.types, exprId(e), default: noType())
     case t of
@@ -4797,7 +4797,7 @@ function pointee(tc: ref TC, e: Expr): Option[List[String]]
 function throughRef(tc: ref TC, e: Expr): Boolean
     return isRefT(getOr(tc.types, exprId(e), default: noType()))
 
-## "" if `e` is a place that may be changed; otherwise what it is.
+{ "" if `e` is a place that may be changed; otherwise what it is. }
 function immutable(tc: ref TC, e: Expr): String
     case e of
         Paren(p):
@@ -4805,12 +4805,12 @@ function immutable(tc: ref TC, e: Expr): String
         Name(n):
             let r := refAt(tc, n.span)
             if r.isNone() or length(r.get().targets) <> 1 then
-                return ""  # already reported
+                return ""  { already reported }
             let s := r.get().targets[0]
             var own := false
             case s.node of
                 Ident(_):
-                    own := true  # a lambda's own parameter
+                    own := true  { a lambda's own parameter }
                 else:
                     pass
             if tc.lambdas > 0 and not own and (s.kind = Kind.VarSym or s.kind = Kind.ParamSym) then
@@ -4847,10 +4847,10 @@ function immutable(tc: ref TC, e: Expr): String
         else:
             return "'{text(tc, exprSpan(e))}', which isn't a variable"
 
-# ------------------------------------------------------------------------ traits
+{ ---------------------------------------------------------------------- traits }
 
-## Whether `t` satisfies `trait`. Unbound parameters (`vars`) in the trait's arguments are
-## inferred into `s`.
+{ Whether `t` satisfies `trait`. Unbound parameters (`vars`) in the trait's arguments are
+  inferred into `s`. }
 function satisfies(
     tc: ref TC,
     t: Type,
@@ -4901,15 +4901,15 @@ function satisfies(
                 return v.value
             None:
                 pass
-        tc.env.satCache[ck] := true  # assume while checking (recursive types)
+        tc.env.satCache[ck] := true  { assume while checking (recursive types) }
     let ok := structural(tc, t, wanted, var s, vars, depth)
     if ck <> "" then
         tc.env.satCache[ck] := ok
     return ok
 
-## How the type declared by `typeSym` (with its own parameters as arguments) satisfies the
-## trait `tr`, for some arguments of the trait, as seen from `tc`'s unit: the routine
-## that provides each of the trait's routines. None if it doesn't satisfy it.
+{ How the type declared by `typeSym` (with its own parameters as arguments) satisfies the
+  trait `tr`, for some arguments of the trait, as seen from `tc`'s unit: the routine
+  that provides each of the trait's routines. None if it doesn't satisfy it. }
 export function implementation(tc: ref TC, typeSym, tr: ref Symbol): Option[List[ref Symbol]]
     var targs: List[Type] := []
     for p in decl(tc.env, typeSym).params do
@@ -4936,8 +4936,8 @@ export function implementation(tc: ref TC, typeSym, tr: ref Symbol): Option[List
                 pass
     return Some(out)
 
-## Whether the types bound in `s` satisfy their parameters' trait bounds, as `file` sees
-## them; parameters left unbound in `vars` are inferred into `s`.
+{ Whether the types bound in `s` satisfy their parameters' trait bounds, as `file` sees
+  them; parameters left unbound in `vars` are inferred into `s`. }
 export function boundsHold(
     env: ref Env,
     file: String,
@@ -4947,7 +4947,7 @@ export function boundsHold(
 ): Boolean
     if not (file in env.byFile) then
         return true
-    let tc := newTC(env, env.byFile[file])  # not `checker`: kept in `env`, it would be a cycle
+    let tc := newTC(env, env.byFile[file])  { not `checker`: kept in `env`, it would be a cycle }
     for tp in tparams do
         if tp.id in s then
             for b in bounds(env, tp) do
@@ -4967,7 +4967,7 @@ function satisfiesPlain(tc: ref TC, t, wanted: Type): Boolean
         else:
             return true
 
-## The substitution of a trait's declaration for `t` and the trait's arguments.
+{ The substitution of a trait's declaration for `t` and the trait's arguments. }
 function traitSubst(tc: ref TC, t: Type, wanted: TraitT): Subst
     var sub := zipSubst(decl(tc.env, wanted.sym).params, wanted.args)
     sub[ThisId] := t
@@ -5003,8 +5003,8 @@ function structural(
             return false
     return true
 
-## Whether a visible routine provides trait routine `m` for type `t`. Reads the depth of
-## the trait check from `tc.depth`.
+{ Whether a visible routine provides trait routine `m` for type `t`. Reads the depth of
+  the trait check from `tc.depth`. }
 function provides(
     tc: ref TC,
     t: Type,
@@ -5015,8 +5015,8 @@ function provides(
 ): Boolean
     return provider(tc, t, m, sub: traitSubst(tc, t, wanted), s: var s, vars: vars).isSome()
 
-## The visible routine that provides trait routine `m` for type `t`, with the bindings of
-## its own type parameters; `sub` binds `This` and the trait's parameters.
+{ The visible routine that provides trait routine `m` for type `t`, with the bindings of
+  its own type parameters; `sub` binds `This` and the trait's parameters. }
 export function provider(
     tc: ref TC,
     t: Type,
@@ -5063,8 +5063,8 @@ export function provider(
             return Some(Found(f: f, sf: sf))
     return None
 
-## Unifies a trait's requirement with a candidate's declared type, when both sides may
-## have unbound parameters.
+{ Unifies a trait's requirement with a candidate's declared type, when both sides may
+  have unbound parameters. }
 function unify2(need, have: Type, var s, sf: Subst, vars, fv: Vars): Boolean
     var s2 := s
     if unify(need, subst(have, sf), var s2, vars) then
@@ -5076,7 +5076,7 @@ function unify2(need, have: Type, var s, sf: Subst, vars, fv: Vars): Boolean
         return true
     return false
 
-## Built in: primitives, enums, and subranges are Printable (SPEC §4.10).
+{ Built in: primitives, enums, and subranges are Printable (SPEC §4.10). }
 function printable(tc: ref TC, t: Type): Boolean
     case t of
         PrimT(p):
@@ -5107,7 +5107,7 @@ export function builtinTrait(tc: ref TC, t: Type, name: String): Boolean
             pass
     let k := "{key(t)}|{name}"
     if k in tc.inBuiltin then
-        return true  # a recursive type: assume, the other parts decide
+        return true  { a recursive type: assume, the other parts decide }
     tc.inBuiltin[k] := true
     let ok := builtinTraitOf(tc, t, name)
     remove(var tc.inBuiltin, k)
@@ -5174,11 +5174,11 @@ function builtinTraitOf(tc: ref TC, t: Type, name: String): Boolean
         return allTrait(tc, parts, name)
     return false
 
-# ------------------------------------------------------------------------- entry
+{ ----------------------------------------------------------------------- entry }
 
-## Resolves and type-checks a program and the units it uses.
-## `keep` keeps the checkers of the units, for the backend.
-## `overlay` holds texts by absolute path, read instead of the files.
+{ Resolves and type-checks a program and the units it uses.
+  `keep` keeps the checkers of the units, for the backend.
+  `overlay` holds texts by absolute path, read instead of the files. }
 export function typecheck(
     path,
     stdDir: String,

@@ -1,24 +1,24 @@
 unit Types
 
-## Semantic types (SPEC §4).
-##
-## Types are values compared structurally; the symbols in them compare by identity.
-## Declared types (records, enums, unions, subranges, traits) are identified by their
-## declaring symbol plus type arguments. Aliases are expanded when a type expression is
-## evaluated, so `Integer` *is* `Int64`.
-##
-## Type parameters appear as `ParamT`. During inference, the parameters of the generic
-## being called act as variables: `unify` binds them in a substitution, which maps symbol
-## ids to types (`This` has id 0).
+{ Semantic types (SPEC §4).
+
+  Types are values compared structurally; the symbols in them compare by identity.
+  Declared types (records, enums, unions, subranges, traits) are identified by their
+  declaring symbol plus type arguments. Aliases are expanded when a type expression is
+  evaluated, so `Integer` *is* `Int64`.
+
+  Type parameters appear as `ParamT`. During inference, the parameters of the generic
+  being called act as variables: `unify` binds them in a substitution, which maps symbol
+  ids to types (`This` has id 0). }
 
 uses Strings, Symbols
 
 type
-    ## Int8..UInt64, Real32, Real64, Boolean, Char, String, CString, Pointer.
+    { Int8..UInt64, Real32, Real64, Boolean, Char, String, CString, Pointer. }
     export PrimT = record
         export name: String
 
-    ## `List[T]`, `Array[T, N]`, `Weak[T]`, `Ptr[T]`.
+    { `List[T]`, `Array[T, N]`, `Weak[T]`, `Ptr[T]`. }
     export BuiltinT = record
         export name: String
         export args: List[Type]
@@ -26,27 +26,27 @@ type
     export RefT = record
         export target: Type
 
-    ## `result` is `<no value>` for procedures.
+    { `result` is `<no value>` for procedures. }
     export FuncT = record
         export isFunction: Boolean
         export params: List[Type]
         export result: Type
 
-    ## A declared record, enum, union or subrange type, with its type arguments.
+    { A declared record, enum, union or subrange type, with its type arguments. }
     export NamedT = record
         export sym: ref Symbol
         export args: List[Type]
 
-    ## A trait, as used in a bound. Never the type of a value (E0420).
+    { A trait, as used in a bound. Never the type of a value (E0420). }
     export TraitT = record
         export sym: ref Symbol
         export args: List[Type]
 
-    ## A type parameter, or a constant parameter used as a type argument.
+    { A type parameter, or a constant parameter used as a type argument. }
     export ParamT = record
         export sym: ref Symbol
 
-    ## A constant type argument: `5`, or an expression like `N * 2` kept as text.
+    { A constant type argument: `5`, or an expression like `N * 2` kept as text. }
     export ConstT = record
         export isInt: Boolean
         export value: Integer
@@ -55,42 +55,42 @@ type
     export SpecialT = record
         export name: String
 
-    ## A type name used in an expression: a constructor, conversion, or enum.
+    { A type name used in an expression: a constructor, conversion, or enum. }
     export TypeValueT = record
         export inner: Type
 
-    ## A routine name used as a value before a single routine is chosen.
+    { A routine name used as a value before a single routine is chosen. }
     export OverloadsT = record
         export syms: List[ref Symbol]
 
     export Type = PrimT | BuiltinT | RefT | FuncT | NamedT | TraitT | ParamT | ConstT | SpecialT | TypeValueT | OverloadsT
 
-    ## Symbol id to type; `This` is id 0.
+    { Symbol id to type; `This` is id 0. }
     export Subst = Map[Integer, Type]
 
-    ## A set of symbol ids: the parameters that may be bound.
+    { A set of symbol ids: the parameters that may be bound. }
     export Vars = Map[Integer, Boolean]
 
 const
     export ThisId = 0
 
-## Already reported; compatible with everything.
+{ Already reported; compatible with everything. }
 export function errorT(): Type
     return SpecialT(name: "<error>")
 
-## The result of a procedure.
+{ The result of a procedure. }
 export function voidT(): Type
     return SpecialT(name: "<no value>")
 
-## `This`, inside trait signatures.
+{ `This`, inside trait signatures. }
 export function thisT(): Type
     return SpecialT(name: "This")
 
-## `[]` before its type is known.
+{ `[]` before its type is known. }
 export function emptyListT(): Type
     return SpecialT(name: "[]")
 
-## A non-empty list literal argument, which may fit `List[U]` for a union `U`.
+{ A non-empty list literal argument, which may fit `List[U]` for a union `U`. }
 export function listLitT(): Type
     return SpecialT(name: "<list literal>")
 
@@ -142,7 +142,7 @@ export function constInt(v: Integer): Type
 export function constText(s: String): Type
     return ConstT(isInt: false, value: 0, text: s)
 
-## The name of an integer primitive, or "".
+{ The name of an integer primitive, or "". }
 export function integerName(t: Type): String
     case t of
         PrimT(p):
@@ -165,7 +165,7 @@ export function isReal(t: Type): Boolean
 export function isNumeric(t: Type): Boolean
     return isInteger(t) or isReal(t)
 
-## Whether `t` is the builtin generic `name` (`List`, `Array`, `Weak`, `Ptr`).
+{ Whether `t` is the builtin generic `name` (`List`, `Array`, `Weak`, `Ptr`). }
 export function isBuiltin(t: Type, name: String): Boolean
     case t of
         BuiltinT(b):
@@ -173,7 +173,7 @@ export function isBuiltin(t: Type, name: String): Boolean
         else:
             return false
 
-## The type arguments of a builtin, named or trait type; empty for others.
+{ The type arguments of a builtin, named or trait type; empty for others. }
 export function argsOf(t: Type): List[Type]
     case t of
         BuiltinT(b):
@@ -185,7 +185,7 @@ export function argsOf(t: Type): List[Type]
         else:
             return []
 
-## The declaring symbol of a named type.
+{ The declaring symbol of a named type. }
 export function namedSym(t: Type): Option[ref Symbol]
     case t of
         NamedT(n):
@@ -259,7 +259,7 @@ function showArgs(name: String, args: List[Type]): String
         add(var parts, show(a))
     return "{name}[{join(parts, sep: ", ")}]"
 
-## `t` as messages show it.
+{ `t` as messages show it. }
 export function show(t: Type): String
     case t of
         PrimT(p):
@@ -303,7 +303,7 @@ function keyArgs(head: String, args: List[Type]): String
         add(var parts, key(a))
     return "{head}[{join(parts, sep: ",")}]"
 
-## A string that identifies `t` exactly, for caches keyed by type.
+{ A string that identifies `t` exactly, for caches keyed by type. }
 export function key(t: Type): String
     case t of
         PrimT(p):
@@ -339,7 +339,7 @@ function substAll(ts: List[Type], s: Subst): List[Type]
         add(var out, subst(a, s))
     return out
 
-## Replaces the parameters bound in `s` (one pass: bindings are not re-substituted).
+{ Replaces the parameters bound in `s` (one pass: bindings are not re-substituted). }
 export function subst(t: Type, s: Subst): Type
     if length(s) = 0 then
         return t
@@ -367,7 +367,7 @@ export function subst(t: Type, s: Subst): Type
         else:
             return t
 
-## Adds the parameters that appear in `t` to `out`.
+{ Adds the parameters that appear in `t` to `out`. }
 export procedure paramsIn(t: Type, var out: Vars)
     case t of
         ParamT(p):
@@ -390,7 +390,7 @@ export procedure paramsIn(t: Type, var out: Vars)
         else:
             return
 
-## Whether a parameter in `vars` appears in `t`.
+{ Whether a parameter in `vars` appears in `t`. }
 export function mentions(t: Type, vars: Vars): Boolean
     var found: Vars := [:]
     paramsIn(t, var found)
@@ -399,7 +399,7 @@ export function mentions(t: Type, vars: Vars): Boolean
             return true
     return false
 
-## Whether a parameter in `vars` that `s` doesn't bind appears in `t`.
+{ Whether a parameter in `vars` that `s` doesn't bind appears in `t`. }
 export function mentionsUnbound(t: Type, vars: Vars, s: Subst): Boolean
     var found: Vars := [:]
     paramsIn(t, var found)
@@ -416,8 +416,8 @@ function unifyAll(patterns, actuals: List[Type], var s: Subst, vars: Vars): Bool
             return false
     return true
 
-## Matches `pattern` against `actual`, binding parameters in `vars` into `s`. Only exact
-## structure matches; implicit conversions are the caller's business.
+{ Matches `pattern` against `actual`, binding parameters in `vars` into `s`. Only exact
+  structure matches; implicit conversions are the caller's business. }
 export function unify(pattern, actual: Type, var s: Subst, vars: Vars): Boolean
     let err := errorT()
     if actual = err or pattern = err then

@@ -1,10 +1,10 @@
 unit Source
 
-## Source text and positions (SPEC §15.1).
-##
-## Lines and columns are 1-based; columns count code points. Ranges are half-open:
-## `endCol` is one past the last character. Offsets count code points into the
-## normalized source.
+{ Source text and positions (SPEC §15.1).
+
+  Lines and columns are 1-based; columns count code points. Ranges are half-open:
+  `endCol` is one past the last character. Offsets count code points into the
+  normalized source. }
 
 uses Strings
 
@@ -17,17 +17,17 @@ type
         export endLine: Integer
         export endCol: Integer
 
-    ## Normalized source text, indexable by code point.
+    { Normalized source text, indexable by code point. }
     export Text = record
         export str: String
-        ## The code points.
+        { The code points. }
         export chars: List[Char]
-        ## The byte offset in `str` of each code point, and of the end.
+        { The byte offset in `str` of each code point, and of the end. }
         export offsets: List[Integer]
-        ## The offset of the first code point of each line.
+        { The offset of the first code point of each line. }
         export lineStarts: List[Integer]
 
-## The span from the start of `a` to the end of `b`.
+{ The span from the start of `a` to the end of `b`. }
 export function join(a: Span, b: Span): Span
     return Span(
         start: a.start,
@@ -38,14 +38,14 @@ export function join(a: Span, b: Span): Span
         endCol: b.endCol,
     )
 
-## Strips a UTF-8 byte order mark and converts CRLF and CR line endings to LF.
+{ Strips a UTF-8 byte order mark and converts CRLF and CR line endings to LF. }
 export function normalize(text: String): String
     var s := text
     if startsWith(s, prefix: "\u{FEFF}") then
         s := slice(s, 3, byteLen(s))
     return replace(replace(s, target: "\r\n", replacement: "\n"), target: "\r", replacement: "\n")
 
-## The number of bytes `c` takes in UTF-8.
+{ The number of bytes `c` takes in UTF-8. }
 export function utf8Size(c: Char): Integer
     let n := ord(c)
     if n < $80 then
@@ -56,7 +56,7 @@ export function utf8Size(c: Char): Integer
         return 3
     return 4
 
-## The normalized form of `text`.
+{ The normalized form of `text`. }
 export function textOf(text: String): Text
     let s := normalize(text)
     var chars: List[Char] := []
@@ -72,14 +72,14 @@ export function textOf(text: String): Text
     add(var offsets, at)
     return Text(str: s, chars: chars, offsets: offsets, lineStarts: starts)
 
-## The text from code point `start` up to (not including) `end`.
+{ The text from code point `start` up to (not including) `end`. }
 export function sub(t: Text, start: Integer, end: Integer): String
     return slice(t.str, t.offsets[start], t.offsets[end])
 
-## The 0-based line that `offset` is on.
+{ The 0-based line that `offset` is on. }
 function lineIndex(t: Text, offset: Integer): Integer
     var low := 0
-    var high := length(t.lineStarts)  # the line is in [low, high)
+    var high := length(t.lineStarts)  { the line is in [low, high) }
     while high - low > 1 do
         let mid := (low + high) div 2
         if t.lineStarts[mid] <= offset then
@@ -88,7 +88,7 @@ function lineIndex(t: Text, offset: Integer): Integer
             high := mid
     return low
 
-## The span from code point `start` to `end`.
+{ The span from code point `start` to `end`. }
 export function span(t: Text, start: Integer, end: Integer): Span
     let line := lineIndex(t, start)
     let endLine := lineIndex(t, end)

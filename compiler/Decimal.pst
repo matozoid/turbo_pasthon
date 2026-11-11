@@ -1,22 +1,22 @@
 unit Decimal
 
-## The bits of the IEEE-754 double or single nearest a real literal (SPEC §2.4), rounding
-## half to even. The conversion is exact, on natural numbers of any size, since the
-## compiler itself can't use `Real`.
-##
-## A natural number is a `List[Integer]` of base 2^32 limbs, least significant first,
-## with no zero limb on top; zero is the empty list.
+{ The bits of the IEEE-754 double or single nearest a real literal (SPEC §2.4), rounding
+  half to even. The conversion is exact, on natural numbers of any size, since the
+  compiler itself can't use `Real`.
+
+  A natural number is a `List[Integer]` of base 2^32 limbs, least significant first,
+  with no zero limb on top; zero is the empty list. }
 
 uses Strings
 
 type
-    ## An IEEE-754 binary format: the significand's bits, with the implicit one, and the
-    ## exponent's.
+    { An IEEE-754 binary format: the significand's bits, with the implicit one, and the
+      exponent's. }
     Format = record
         precision: Integer
         exponentBits: Integer
 
-    ## A quotient and its remainder.
+    { A quotient and its remainder. }
     Division = record
         q: Integer
         r: List[Integer]
@@ -28,7 +28,7 @@ procedure trim(var x: List[Integer])
     while length(x) > 0 and x[length(x) - 1] = 0 do
         removeLast(var x)
 
-## `x * m + c`, for `m` and `c` below 2^31.
+{ `x * m + c`, for `m` and `c` below 2^31. }
 function mulAdd(x: List[Integer], m, c: Integer): List[Integer]
     var out: List[Integer] := []
     var carry := c
@@ -40,7 +40,7 @@ function mulAdd(x: List[Integer], m, c: Integer): List[Integer]
         add(var out, carry)
     return out
 
-## `x * 2^n`.
+{ `x * 2^n`. }
 function shifted(x: List[Integer], n: Integer): List[Integer]
     if length(x) = 0 then
         return x
@@ -56,7 +56,7 @@ function shifted(x: List[Integer], n: Integer): List[Integer]
         add(var out, carry)
     return out
 
-## The number of bits of `x`.
+{ The number of bits of `x`. }
 function bitLen(x: List[Integer]): Integer
     if length(x) = 0 then
         return 0
@@ -67,7 +67,7 @@ function bitLen(x: List[Integer]): Integer
         top := top shr 1
     return n
 
-## -1, 0 or 1 as `x` is below, equal to or above `y`.
+{ -1, 0 or 1 as `x` is below, equal to or above `y`. }
 function compare(x, y: List[Integer]): Integer
     if length(x) <> length(y) then
         if length(x) < length(y) then
@@ -80,7 +80,7 @@ function compare(x, y: List[Integer]): Integer
             return 1
     return 0
 
-## `x - y`, for `y` at most `x`.
+{ `x - y`, for `y` at most `x`. }
 function minus(x, y: List[Integer]): List[Integer]
     var out: List[Integer] := []
     var borrow := 0
@@ -96,7 +96,7 @@ function minus(x, y: List[Integer]): List[Integer]
     trim(var out)
     return out
 
-## `n / d` and its remainder, for a quotient below 2^55.
+{ `n / d` and its remainder, for a quotient below 2^55. }
 function divide(n, d: List[Integer]): Division
     var q := 0
     var r := n
@@ -107,26 +107,26 @@ function divide(n, d: List[Integer]): Division
             q := q + (1 shl bit)
     return Division(q: q, r: r)
 
-## `n / d`, scaled by 2^-e.
+{ `n / d`, scaled by 2^-e. }
 function scaled(n, d: List[Integer], e: Integer): Division
     if e >= 0 then
         return divide(n, shifted(d, e))
     return divide(shifted(n, -e), d)
 
-## The bits of the double nearest the literal `digits` (`12.5`, `1.0e-9`; no sign).
+{ The bits of the double nearest the literal `digits` (`12.5`, `1.0e-9`; no sign). }
 export function realBits(digits: String): Integer
     return nearest(digits, Format(precision: 53, exponentBits: 11))
 
-## The bits of the single nearest the literal `digits`.
+{ The bits of the single nearest the literal `digits`. }
 export function real32Bits(digits: String): Integer
     return nearest(digits, Format(precision: 24, exponentBits: 8))
 
-## The bits of the number nearest `digits` in format `f`.
+{ The bits of the number nearest `digits` in format `f`. }
 function nearest(digits: String, f: Format): Integer
     let p := f.precision
     let bias := (1 shl (f.exponentBits - 1)) - 1
     let infinity := ((1 shl f.exponentBits) - 1) shl (p - 1)
-    let lowest := 2 - bias - p  # the exponent of the smallest subnormal
+    let lowest := 2 - bias - p  { the exponent of the smallest subnormal }
     let bs := bytes(digits)
     var m: List[Integer] := []
     var exp := 0
@@ -157,7 +157,7 @@ function nearest(digits: String, f: Format): Integer
         exp := exp + sign * e
     if length(m) = 0 then
         return 0
-    let magnitude := bitLen(m) * 301 div 1000 + exp  # about log10 of the value
+    let magnitude := bitLen(m) * 301 div 1000 + exp  { about log10 of the value }
     if magnitude > bias * 301 div 1000 + 2 then
         return infinity
     if magnitude < lowest * 302 div 1000 - 3 then
@@ -168,8 +168,8 @@ function nearest(digits: String, f: Format): Integer
         n := mulAdd(n, 10, c: 0)
     for k := 1 to -exp do
         d := mulAdd(d, 10, c: 0)
-    # n / d is in [2^(k-1), 2^(k+1)) for k = bitLen(n) - bitLen(d), so scaled by 2^-e it
-    # has p or p + 1 bits; at the bottom of the subnormals fewer.
+    { n / d is in [2^(k-1), 2^(k+1)) for k = bitLen(n) - bitLen(d), so scaled by 2^-e it
+      has p or p + 1 bits; at the bottom of the subnormals fewer. }
     var e := bitLen(n) - bitLen(d) - p
     if e < lowest then
         e := lowest
@@ -188,7 +188,7 @@ function nearest(digits: String, f: Format): Integer
         q := 1 shl (p - 1)
         e := e + 1
     if q < 1 shl (p - 1) then
-        return q  # a subnormal: e is the lowest
+        return q  { a subnormal: e is the lowest }
     let field := e - lowest + 1
     if field >= (1 shl f.exponentBits) - 1 then
         return infinity
@@ -201,7 +201,7 @@ test "exact and rounded literals"
     assert realBits("123456.789e3") = $419D6F3454000000
     assert realBits("0.30000000000000004") = $3FD3333333333334
     assert realBits("3.141592653589793238462643383279") = $400921FB54442D18
-    assert realBits("9007199254740993.0") = $4340000000000000  # a tie, to even
+    assert realBits("9007199254740993.0") = $4340000000000000  { a tie, to even }
 
 test "the edges of the range"
     assert realBits("1.7976931348623157e308") = $7FEFFFFFFFFFFFFF

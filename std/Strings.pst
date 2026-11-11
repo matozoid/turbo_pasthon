@@ -1,16 +1,16 @@
 unit Strings
 
-## Text operations. Offsets are byte offsets into the UTF-8 encoding (SPEC §4.5.1).
+{ Text operations. Offsets are byte offsets into the UTF-8 encoding (SPEC §4.5.1). }
 
 uses C
 
 external "pst"
-    ## Number of characters (code points). O(1).
+    { Number of characters (code points). O(1). }
     export function charCount(s: String): Integer
-    ## Number of bytes. O(1).
+    { Number of bytes. O(1). }
     export function byteLen(s: String): Integer
-    ## The bytes from `start` up to (not including) `stop`. Panics with `P0006` if an
-    ## offset is not on a character boundary.
+    { The bytes from `start` up to (not including) `stop`. Panics with `P0006` if an
+      offset is not on a character boundary. }
     export function slice(s: String, start, stop: Integer): String
     export function startsWith(s: String, prefix: String): Boolean
 
@@ -22,7 +22,7 @@ external "libc.so.6"
     function strtod(s: CString, end: Pointer): Real
     function snprintf(buf: Pointer, size: CSize, fmt: CString, ...): CInt
 
-## The UTF-8 bytes of a string.
+{ The UTF-8 bytes of a string. }
 export unsafe function bytes(s: String): List[Byte]
     let p := cast[Ptr[Byte]](toCString(s))
     var r: List[Byte] := []
@@ -32,7 +32,7 @@ export unsafe function bytes(s: String): List[Byte]
         i := i + 1
     return r
 
-## The string with UTF-8 encoding `b`. Invalid UTF-8 is replaced with U+FFFD.
+{ The string with UTF-8 encoding `b`. Invalid UTF-8 is replaced with U+FFFD. }
 export unsafe function fromBytes(b: List[Byte]): String
     let buf := cast[Ptr[Byte]](malloc(CSize(length(b) + 1)))
     var i := 0
@@ -43,7 +43,7 @@ export unsafe function fromBytes(b: List[Byte]): String
     free(cast[Pointer](buf))
     return r
 
-## Byte offset of the first occurrence of `sub` at or after byte offset `start`.
+{ Byte offset of the first occurrence of `sub` at or after byte offset `start`. }
 export unsafe function pos(s: String, sub: String, start: Integer := 0): Option[Integer]
     requires start >= 0 and start <= byteLen(s)
     let p := cast[Ptr[Byte]](toCString(s))
@@ -57,12 +57,12 @@ export unsafe function pos(s: String, sub: String, start: Integer := 0): Option[
         return None
     return Some(cast[Integer](q) - cast[Integer](p))
 
-## Whether `s` ends with `suffix`.
+{ Whether `s` ends with `suffix`. }
 export function endsWith(s: String, suffix: String): Boolean
     let n := byteLen(s) - byteLen(suffix)
     return n >= 0 and pos(s, sub: suffix, start: n).isSome()
 
-## The parts between occurrences of `sep`.
+{ The parts between occurrences of `sep`. }
 export function split(s: String, sep: String): List[String]
     requires byteLen(sep) > 0
     var parts: List[String] := []
@@ -77,7 +77,7 @@ export function split(s: String, sep: String): List[String]
                 return parts
     return parts
 
-## The parts joined with `sep` between them.
+{ The parts joined with `sep` between them. }
 export unsafe function join(parts: List[String], sep: String := ""): String
     var total := 0
     for part in parts do
@@ -111,7 +111,7 @@ const
 function isSpace(b: Byte): Boolean
     return b = 32 or b = 9 or b = 10 or b = 13
 
-## Without leading and trailing whitespace (spaces, tabs, line breaks).
+{ Without leading and trailing whitespace (spaces, tabs, line breaks). }
 export unsafe function trim(s: String): String
     let p := cast[Ptr[Byte]](toCString(s))
     var start := 0
@@ -122,12 +122,12 @@ export unsafe function trim(s: String): String
         stop := stop - 1
     return slice(s, start, stop)
 
-## Every occurrence of `target` replaced by `replacement`.
+{ Every occurrence of `target` replaced by `replacement`. }
 export function replace(s: String, target: String, replacement: String): String
     requires byteLen(target) > 0
     return join(split(s, sep: target), sep: replacement)
 
-## The decimal integer `s`: digits with an optional leading `-` or `+`.
+{ The decimal integer `s`: digits with an optional leading `-` or `+`. }
 export unsafe function parseInt(s: String): Result[Integer, String]
     let p := cast[Ptr[Byte]](toCString(s))
     let n := byteLen(s)
@@ -138,7 +138,7 @@ export unsafe function parseInt(s: String): Result[Integer, String]
         i := 1
     if i = n then
         return Err("'{s}' is not an integer")
-    var value := 0  # accumulated negated, so MinInt fits
+    var value := 0  { accumulated negated, so MinInt fits }
     while i < n do
         let d := Integer(deref(p + i)) - 48
         if d < 0 or d > 9 then
@@ -153,9 +153,9 @@ export unsafe function parseInt(s: String): Result[Integer, String]
         return Err("'{s}' doesn't fit in an Integer")
     return Ok(-value)
 
-## The real written in `s`: an optional sign, digits, optionally a `.` and more digits,
-## optionally an exponent (`e` or `E`, an optional sign, digits). Rounds to the nearest
-## real; a value too large for `Real` is an error.
+{ The real written in `s`: an optional sign, digits, optionally a `.` and more digits,
+  optionally an exponent (`e` or `E`, an optional sign, digits). Rounds to the nearest
+  real; a value too large for `Real` is an error. }
 export unsafe function parseReal(s: String): Result[Real, String]
     let p := cast[Ptr[Byte]](toCString(s))
     let n := byteLen(s)
@@ -163,7 +163,7 @@ export unsafe function parseReal(s: String): Result[Real, String]
     if n > 0 and (deref(p) = 45 or deref(p) = 43) then
         i := 1
     var digits := 0
-    var part := 0  # 0 the integer part, 1 the fraction, 2 the exponent
+    var part := 0  { 0 the integer part, 1 the fraction, 2 the exponent }
     while i < n do
         let b := deref(p + i)
         if b >= 48 and b <= 57 then
@@ -182,11 +182,11 @@ export unsafe function parseReal(s: String): Result[Real, String]
     if digits = 0 then
         return Err("'{s}' is not a real")
     let x := strtod(toCString(s), end: cast[Pointer](0))
-    if x - x <> 0.0 then  # an infinity
+    if x - x <> 0.0 then  { an infinity }
         return Err("'{s}' doesn't fit in a Real")
     return Ok(x)
 
-## `s` written `count` times.
+{ `s` written `count` times. }
 export function repeated(s: String, count: Integer): String
     requires count >= 0
     var parts: List[String] := []
@@ -194,7 +194,7 @@ export function repeated(s: String, count: Integer): String
         add(var parts, s)
     return join(parts)
 
-## `s` with the bytes in `lo` to `lo` + 25 moved by `shift`.
+{ `s` with the bytes in `lo` to `lo` + 25 moved by `shift`. }
 unsafe function shiftLetters(s: String, lo: Byte, shift: Integer): String
     let p := cast[Ptr[Byte]](toCString(s))
     var out: List[Byte] := []
@@ -206,16 +206,16 @@ unsafe function shiftLetters(s: String, lo: Byte, shift: Integer): String
             add(var out, b)
     return fromBytes(out)
 
-## `s` with the ASCII letters `a` to `z` made upper case; other characters stay.
+{ `s` with the ASCII letters `a` to `z` made upper case; other characters stay. }
 export function upperCase(s: String): String
     return shiftLetters(s, lo: 97, shift: -32)
 
-## `s` with the ASCII letters `A` to `Z` made lower case; other characters stay.
+{ `s` with the ASCII letters `A` to `Z` made lower case; other characters stay. }
 export function lowerCase(s: String): String
     return shiftLetters(s, lo: 65, shift: 32)
 
-## The lines of `s`: the parts between line breaks (`\n` or `\r\n`). A break at the very end
-## doesn't start another line, so `"a\nb\n"` has two lines and `""` none.
+{ The lines of `s`: the parts between line breaks (`\n` or `\r\n`). A break at the very end
+  doesn't start another line, so `"a\nb\n"` has two lines and `""` none. }
 export function lines(s: String): List[String]
     var out: List[String] := []
     if s = "" then
@@ -230,8 +230,8 @@ export function lines(s: String): List[String]
             add(var out, line)
     return out
 
-## `n` in base `radix`, with upper-case digits, at least `digits` of them (padded with
-## zeros), and a `-` in front if it's negative.
+{ `n` in base `radix`, with upper-case digits, at least `digits` of them (padded with
+  zeros), and a `-` in front if it's negative. }
 function radixStr(n, radix, digits: Integer): String
     let allDigits := "0123456789ABCDEF"
     var rest := n
@@ -251,20 +251,20 @@ function radixStr(n, radix, digits: Integer): String
         i := i - 1
     return join(r)
 
-## `n` in hexadecimal with upper-case digits, at least `digits` of them (padded with
-## zeros), and a `-` in front if it's negative: `hexStr(255, 4)` is `00FF`.
+{ `n` in hexadecimal with upper-case digits, at least `digits` of them (padded with
+  zeros), and a `-` in front if it's negative: `hexStr(255, 4)` is `00FF`. }
 export function hexStr(n: Integer, digits: Integer := 1): String
     return radixStr(n, 16, digits)
 
-## `n` in binary, at least `digits` digits (padded with zeros), and a `-` in front if it's
-## negative: `binStr(5, 4)` is `0101`.
+{ `n` in binary, at least `digits` digits (padded with zeros), and a `-` in front if it's
+  negative: `binStr(5, 4)` is `0101`. }
 export function binStr(n: Integer, digits: Integer := 1): String
     return radixStr(n, 2, digits)
 
-## Whether `text` matches the shell-style `pattern` as a whole: `*` matches any characters
-## (also none), `?` one character, `[abc]` one of the listed characters, with ranges like
-## `[a-z]` and `[!...]` for any other character. A `[` without its `]` is an ordinary
-## character.
+{ Whether `text` matches the shell-style `pattern` as a whole: `*` matches any characters
+  (also none), `?` one character, `[abc]` one of the listed characters, with ranges like
+  `[a-z]` and `[!...]` for any other character. A `[` without its `]` is an ordinary
+  character. }
 export function globMatch(text, pattern: String): Boolean
     var t: List[Char] := []
     for c in text do
@@ -274,8 +274,8 @@ export function globMatch(text, pattern: String): Boolean
         add(var p, c)
     var ti := 0
     var pi := 0
-    var starP := -1  # the pattern position after the last `*`
-    var starT := 0  # the text position that `*` matched up to
+    var starP := -1  { the pattern position after the last `*` }
+    var starT := 0  { the text position that `*` matched up to }
     while ti < length(t) do
         if pi < length(p) and p[pi] = '*' then
             pi := pi + 1
@@ -294,7 +294,7 @@ export function globMatch(text, pattern: String): Boolean
         pi := pi + 1
     return pi = length(p)
 
-## Position of the `]` that closes the class starting at `p[at]`, or -1.
+{ Position of the `]` that closes the class starting at `p[at]`, or -1. }
 function classEnd(p: List[Char], at: Integer): Integer
     var i := at + 1
     if i < length(p) and p[i] = '!' then
@@ -307,7 +307,7 @@ function classEnd(p: List[Char], at: Integer): Integer
         i := i + 1
     return -1
 
-## Number of pattern characters in the item at `p[at]`.
+{ Number of pattern characters in the item at `p[at]`. }
 function patternLength(p: List[Char], at: Integer): Integer
     if p[at] = '[' then
         let e := classEnd(p, at)
@@ -315,7 +315,7 @@ function patternLength(p: List[Char], at: Integer): Integer
             return e - at + 1
     return 1
 
-## Whether the pattern item at `p[at]` (not `*`) matches `c`.
+{ Whether the pattern item at `p[at]` (not `*`) matches `c`. }
 function oneMatches(p: List[Char], at: Integer, c: Char): Boolean
     if p[at] = '?' then
         return true

@@ -1,11 +1,11 @@
 unit Shapes
 
 type
-    ## Something with an area.
+    { Something with an area. }
     export Shape = trait
         function area(this): Integer
 
-    ## Something with a name.
+    { Something with a name. }
     export Named = trait
         name: String
 

@@ -1,7 +1,7 @@
 program Frames
 
-## A stand-in for an editor: `Frames` frames each line of standard input as a message,
-## with a Content-Length header; `Frames unframe` prints the body of each message.
+{ A stand-in for an editor: `Frames` frames each line of standard input as a message,
+  with a Content-Length header; `Frames unframe` prints the body of each message. }
 
 uses IO, OS, Strings
 

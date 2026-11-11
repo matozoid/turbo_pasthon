@@ -2,7 +2,7 @@ program Main
 
 uses IO, C
 
-# libffi calls the callbacks the way C code would.
+{ libffi calls the callbacks the way C code would. }
 external "libffi.so.8"
     function prepCif(
         cif: Pointer,
@@ -30,7 +30,7 @@ external "libc.so.6"
     procedure free(p: Pointer)
 
 const
-    Unix64 = 2  # FFI_DEFAULT_ABI on x86-64
+    Unix64 = 2  { FFI_DEFAULT_ABI on x86-64 }
 
 function mixed(x: CDouble, n: CInt, y: CFloat): CDouble
     writeln("mixed({x}, {n}, {y})")

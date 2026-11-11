@@ -19,7 +19,7 @@ type
         function f(this): Integer
         procedure g(var this, y: Integer)
     R = record
-        ## A field.
+        { A field. }
         export x: Integer := 3
         y
         z: Integer

@@ -1,4 +1,4 @@
-## doc
-# plain
-x := 1  # trailing
-    # indented comment
+{ doc
+  plain }
+x := 1  { trailing }
+    { indented comment }

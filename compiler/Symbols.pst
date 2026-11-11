@@ -1,10 +1,10 @@
 unit Symbols
 
-## Symbols and the symbol index (SPEC §15.6).
-##
-## Every name the checker resolves is recorded as a `Ref`: definitions and uses, with the
-## symbols they point to. The index answers "what is at this position" and "where is this
-## symbol used", which is what `pst query`, the language server and renames need.
+{ Symbols and the symbol index (SPEC §15.6).
+
+  Every name the checker resolves is recorded as a `Ref`: definitions and uses, with the
+  symbols they point to. The index answers "what is at this position" and "where is this
+  symbol used", which is what `pst query`, the language server and renames need. }
 
 uses Source, Ast
 
@@ -29,34 +29,34 @@ type
         ResultSym,
     )
 
-    ## No declaring node: a compiler-provided symbol.
+    { No declaring node: a compiler-provided symbol. }
     export NoNode = record
 
-    ## The AST node that declares a symbol.
+    { The AST node that declares a symbol. }
     export DeclNode = NoNode | SourceFile | TypeDecl | ConstDecl | Routine | ExternDecl | FieldDecl | Signature | Ident | TypeParam | Param | VarDecl | ForRange | ForIn | VariantLabel
 
     export Symbol = record
-        ## Unique within a check, for facts that later stages attach to symbols.
+        { Unique within a check, for facts that later stages attach to symbols. }
         export id: Integer
         export kind: Kind
         export name: String
-        ## The defining name; only for symbols declared in source.
+        { The defining name; only for symbols declared in source. }
         export span: Option[Span]
-        ## "" for compiler-provided symbols.
+        { "" for compiler-provided symbols. }
         export file: String
         export unitName: String
         export exported: Boolean
         export node: DeclNode
-        ## Enum members, fields, trait routines.
+        { Enum members, fields, trait routines. }
         export members: Map[String, ref Symbol]
         export isExtern: Boolean
-        ## Locals only: how often the symbol is read.
+        { Locals only: how often the symbol is read. }
         export reads: Integer
-        ## Locals only: replaced by `_` when the variable is never read.
+        { Locals only: replaced by `_` when the variable is never read. }
         export unusedFix: Option[Span]
 
-    ## A name at `span` in `file` that defines or uses `targets`. A use of an overloaded
-    ## routine targets every overload until types pick one.
+    { A name at `span` in `file` that defines or uses `targets`. A use of an overloaded
+      routine targets every overload until types pick one. }
     export Ref = record
         export file: String
         export span: Span
@@ -70,10 +70,10 @@ type
 
     export SymbolIndex = record
         export refs: List[Ref]
-        ## The position in `refs` of the latest reference for each span.
+        { The position in `refs` of the latest reference for each span. }
         bySpan: Map[SpanKey, Integer]
 
-## The name of a kind, as messages show it.
+{ The name of a kind, as messages show it. }
 export function name(k: Kind): String
     case k of
         Kind.UnitSym:
@@ -120,19 +120,19 @@ export function isType(k: Kind): Boolean
 export function isLocal(k: Kind): Boolean
     return k = Kind.ParamSym or k = Kind.VarSym or k = Kind.LetSym or k = Kind.LoopVar or k = Kind.Binding or k = Kind.ResultSym
 
-## Names of these kinds are UpperCamel (SPEC §2.5).
+{ Names of these kinds are UpperCamel (SPEC §2.5). }
 export function isUpperCamel(k: Kind): Boolean
     return k = Kind.UnitSym or k = Kind.TypeSym or k = Kind.TraitSym or k = Kind.EnumMember or k = Kind.ConstSym or k = Kind.TypeParamSym
 
-## Names of these kinds are lowerCamel (SPEC §2.5).
+{ Names of these kinds are lowerCamel (SPEC §2.5). }
 export function isLowerCamel(k: Kind): Boolean
     return isRoutine(k) or k = Kind.ParamSym or k = Kind.VarSym or k = Kind.LetSym or k = Kind.LoopVar or k = Kind.Binding or k = Kind.FieldSym
 
-## `function 'area'`.
+{ `function 'area'`. }
 export function describe(s: ref Symbol): String
     return "{name(s.kind)} '{s.name}'"
 
-## `Main.pst:3:10`, or `built into unit System`.
+{ `Main.pst:3:10`, or `built into unit System`. }
 export function location(s: ref Symbol): String
     if s.span.isNone() then
         return "built into unit {s.unitName}"
@@ -152,7 +152,7 @@ export procedure add(
     ix.bySpan[SpanKey(file: file, start: span.start, end: span.end)] := length(ix.refs)
     add(var ix.refs, Ref(file: file, span: span, targets: targets, isDef: isDef))
 
-## The reference recorded for exactly this span (the latest, if several).
+{ The reference recorded for exactly this span (the latest, if several). }
 export function lookup(ix: ref SymbolIndex, file: String, span: Span): Option[Ref]
     case get(ix.bySpan, SpanKey(file: file, start: span.start, end: span.end)) of
         Some(i):
@@ -160,8 +160,8 @@ export function lookup(ix: ref SymbolIndex, file: String, span: Span): Option[Re
         None:
             return None
 
-## Replaces the targets of the reference at `span`: an overloaded name, once the type
-## checker has picked the routine it calls.
+{ Replaces the targets of the reference at `span`: an overloaded name, once the type
+  checker has picked the routine it calls. }
 export procedure narrow(ix: ref SymbolIndex, file: String, span: Span, targets: List[ref Symbol])
     let found := get(ix.bySpan, SpanKey(file: file, start: span.start, end: span.end))
     if found.isSome() then
@@ -169,20 +169,20 @@ export procedure narrow(ix: ref SymbolIndex, file: String, span: Span, targets: 
         let r := ix.refs[i]
         ix.refs[i] := Ref(file: r.file, span: r.span, targets: targets, isDef: r.isDef)
 
-## Whether position `line:col` is in `s`.
+{ Whether position `line:col` is in `s`. }
 function covers(s: Span, line, col: Integer): Boolean
     let afterStart := s.line < line or (s.line = line and s.col <= col)
     let beforeEnd := line < s.endLine or (line = s.endLine and col < s.endCol)
     return afterStart and beforeEnd
 
-## The reference covering a position, if any.
+{ The reference covering a position, if any. }
 export function at(ix: ref SymbolIndex, file: String, line, col: Integer): Option[Ref]
     for r in ix.refs do
         if r.file = file and covers(r.span, line, col: col) then
             return Some(r)
     return None
 
-## Every definition and use of `sym`.
+{ Every definition and use of `sym`. }
 export function references(ix: ref SymbolIndex, sym: ref Symbol): List[Ref]
     var out: List[Ref] := []
     for r in ix.refs do

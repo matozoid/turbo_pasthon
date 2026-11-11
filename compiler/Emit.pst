@@ -1,65 +1,65 @@
 unit Emit
 
-## The emit pass: typed AST to an x86-64 executable (SPEC §15.2 steps 4–5), a port of
-## pst/emit.py that produces the same bytes.
-##
-## Scheme (SPEC §15.2: no IR, no optimizer): every expression leaves its value in rax;
-## binary operators push the left operand while the right one is computed. Each routine
-## has an rbp frame with one 8-byte slot per local. Calls follow System V: arguments in
-## rdi, rsi, rdx, rcx, r8, r9, result in rax. A `var` argument is passed as the address
-## of its place.
-##
-## Strings, records and unions (SPEC §4.6, §11) are pointers to reference-counted heap
-## blocks. Every block starts with a refcount and a descriptor:
-##
-##     string: refcount | 0          | byte length | char count | UTF-8 bytes | NUL
-##     record: refcount | descriptor | field 0 | field 1 | ...     (8 bytes per field)
-##     union:  refcount | descriptor | the variant's value
-##     ref T:  refcount | descriptor | the value | weak cell or 0
-##     cell:   refcount | descriptor | the box, or 0 once it is gone
-##
-## A descriptor (read-only data) gives the number of fields, the block size, a number
-## that makes it unique, an equality routine (0: compare field by field), a drop routine
-## (0: none), and per field whether it holds a reference. A union value has its own
-## block, whose descriptor says which variant it holds; `case` compares descriptors.
-##
-## String literals live in read-only data with refcount -1, which retain and release
-## ignore. Every expression produces an *owned* reference. Reading a variable retains;
-## whoever consumes a value releases it or stores it. Callees own their arguments and
-## release them on exit. Locals are released, and `defer` statements run, when their
-## block ends or a `return`, `break`, `continue` or failing `try` leaves it.
-##
-## A failing `try` can leave in the middle of an expression, while enclosing
-## expressions have values pushed. The assembler tracks the pushed words in code order,
-## and the emitter marks the owned references among them (`save`), so the failure path
-## releases exactly those before it returns.
-##
-## Anything the code generator can't compile is reported as `E0990`: `unsupported` sets
-## `bad`, which makes the emitting routines return at once until the statement being
-## compiled ends.
+{ The emit pass: typed AST to an x86-64 executable (SPEC §15.2 steps 4–5), a port of
+  pst/emit.py that produces the same bytes.
+
+  Scheme (SPEC §15.2: no IR, no optimizer): every expression leaves its value in rax;
+  binary operators push the left operand while the right one is computed. Each routine
+  has an rbp frame with one 8-byte slot per local. Calls follow System V: arguments in
+  rdi, rsi, rdx, rcx, r8, r9, result in rax. A `var` argument is passed as the address
+  of its place.
+
+  Strings, records and unions (SPEC §4.6, §11) are pointers to reference-counted heap
+  blocks. Every block starts with a refcount and a descriptor:
+
+      string: refcount | 0          | byte length | char count | UTF-8 bytes | NUL
+      record: refcount | descriptor | field 0 | field 1 | ...     (8 bytes per field)
+      union:  refcount | descriptor | the variant's value
+      ref T:  refcount | descriptor | the value | weak cell or 0
+      cell:   refcount | descriptor | the box, or 0 once it is gone
+
+  A descriptor (read-only data) gives the number of fields, the block size, a number
+  that makes it unique, an equality routine (0: compare field by field), a drop routine
+  (0: none), and per field whether it holds a reference. A union value has its own
+  block, whose descriptor says which variant it holds; `case` compares descriptors.
+
+  String literals live in read-only data with refcount -1, which retain and release
+  ignore. Every expression produces an *owned* reference. Reading a variable retains;
+  whoever consumes a value releases it or stores it. Callees own their arguments and
+  release them on exit. Locals are released, and `defer` statements run, when their
+  block ends or a `return`, `break`, `continue` or failing `try` leaves it.
+
+  A failing `try` can leave in the middle of an expression, while enclosing
+  expressions have values pushed. The assembler tracks the pushed words in code order,
+  and the emitter marks the owned references among them (`save`), so the failure path
+  releases exactly those before it returns.
+
+  Anything the code generator can't compile is reported as `E0990`: `unsupported` sets
+  `bad`, which makes the emitting routines return at once until the statement being
+  compiled ends. }
 
 uses Strings, Source, Diagnostics, Ast, Symbols, Resolve, Types, Typecheck, PosixPaths, X86, Elf, Decimal
 
 const
     PanicStatus = 70
-    ## Nesting of generic instances (SPEC §8, E0720).
+    { Nesting of generic instances (SPEC §8, E0720). }
     MaxDepth = 64
-    # Heap block layout: the header, then a string's parts or a record's fields.
+    { Heap block layout: the header, then a string's parts or a record's fields. }
     Rc = 0
     Desc = 8
     Len = 16
     Chars = 24
     BytesAt = 32
     Fields = 16
-    # A list block: the header, the element count, the capacity, then the elements.
+    { A list block: the header, the element count, the capacity, then the elements. }
     Count = 16
     Cap = 24
     Elems = 32
-    # Descriptor layout, then one word per field, 1 if it holds a reference. A list's
-    # descriptor has count ListCount and one kind word, for all its elements. DEq is 0,
-    # or the distance from the descriptor to the code of the type's equality routine;
-    # DDrop the same for a routine called with the block in rdi when its last reference
-    # goes; DName the distance to the type's name, NUL-terminated, for leak reports.
+    { Descriptor layout, then one word per field, 1 if it holds a reference. A list's
+      descriptor has count ListCount and one kind word, for all its elements. DEq is 0,
+      or the distance from the descriptor to the code of the type's equality routine;
+      DDrop the same for a routine called with the block in rdi when its last reference
+      goes; DName the distance to the type's name, NUL-terminated, for leak reports. }
     DCount = 0
     DSize = 8
     DId = 16
@@ -67,22 +67,22 @@ const
     DDrop = 32
     DName = 40
     DKinds = 48
-    ## The kind word of a slot holding a reference.
+    { The kind word of a slot holding a reference. }
     Managed = 1
-    # In a checked build each heap block follows a prefix: the next and the previous live
-    # block (the latter as the address of the word pointing to this block), and the data
-    # label of where it was allocated (SPEC §11).
+    { In a checked build each heap block follows a prefix: the next and the previous live
+      block (the latter as the address of the word pointing to this block), and the data
+      label of where it was allocated (SPEC §11). }
     Prefix = 32
     Next = 0
     PrevAt = 8
     Site = 16
-    # A `ref T` box: the header, the value, then its weak cell or 0. A cell: the header,
-    # then the box, or 0 once the box is gone.
+    { A `ref T` box: the header, the value, then its weak cell or 0. A cell: the header,
+      then the box, or 0 once the box is gone. }
     Value = 16
     Cell = 24
     Target = 16
     ListCount = -1
-    ## $CBF29CE484222325 and $100000001B3, as 64-bit words.
+    { $CBF29CE484222325 and $100000001B3, as 64-bit words. }
     FnvOffset = -3750763034362895579
     FnvPrime = $100000001B3
 
@@ -90,11 +90,11 @@ type
     LoopT = record
         brk: String
         cont: String
-        ## Scopes outside the loop's body.
+        { Scopes outside the loop's body. }
         depth: Integer
 
-    ## A `for` expression being compiled: its list is on the stack, `stackAt` words from
-    ## the bottom; `add` adds an element, `brk` is the end and `depth` the scopes outside.
+    { A `for` expression being compiled: its list is on the stack, `stackAt` words from
+      the bottom; `add` adds an element, `brk` is the end and `depth` the scopes outside. }
     ForT = record
         stackAt: Integer
         add: String
@@ -102,50 +102,50 @@ type
         brk: String
         depth: Integer
 
-    ## What a scope releases when it ends: a reference-counted slot, or a `defer` to run.
+    { What a scope releases when it ends: a reference-counted slot, or a `defer` to run. }
     Entry = record
         slot: Integer
         deferred: Option[Defer]
 
-    ## The routine (or program body) being compiled.
+    { The routine (or program body) being compiled. }
     Frame = record
         file: String
         sym: Option[ref Symbol]
-        ## The label of the epilogue.
+        { The label of the epilogue. }
         exit: String
-        ## Symbol id -> rbp offset.
+        { Symbol id -> rbp offset. }
         slots: Map[Integer, Integer]
         size: Integer
-        ## Reference-counted slots per open block, innermost last. The first holds the
-        ## parameters and `old` values, released in the epilogue.
+        { Reference-counted slots per open block, innermost last. The first holds the
+          parameters and `old` values, released in the epilogue. }
         scopes: List[List[Entry]]
         loops: List[LoopT]
         fors: List[ForT]
         resultSlot: Option[Integer]
         posts: List[Expr]
-        ## File and id of an `old` call -> its slot.
+        { File and id of an `old` call -> its slot. }
         old: Map[String, Integer]
-        ## A generic routine's instance: its type parameters' arguments, and per
-        ## parameter the file whose visibility resolves bound members (SPEC §8.2).
+        { A generic routine's instance: its type parameters' arguments, and per
+          parameter the file whose visibility resolves bound members (SPEC §8.2). }
         s: Subst
         sites: Map[Integer, String]
-        ## Instances that led to this one.
+        { Instances that led to this one. }
         depth: Integer
-        ## File and id of a toCString call -> the slot keeping its string.
+        { File and id of a toCString call -> the slot keeping its string. }
         keep: Map[String, Integer]
-        ## In a lambda: the ids of the `var` parameters it captured, which it holds as
-        ## copies rather than addresses.
+        { In a lambda: the ids of the `var` parameters it captured, which it holds as
+          copies rather than addresses. }
         copied: Map[Integer, Boolean]
 
-    ## A routine instance to compile.
+    { A routine instance to compile. }
     Inst = record
         sym: ref Symbol
         targs: List[Type]
         sites: Map[Integer, String]
         depth: Integer
 
-    ## A lambda to compile as a routine at `label`: its function type `ty`, the variables
-    ## it captures, in its block's order, and the generic context it is written in.
+    { A lambda to compile as a routine at `label`: its function type `ty`, the variables
+      it captures, in its block's order, and the generic context it is written in. }
     Lam = record
         label: String
         node: Lambda
@@ -156,8 +156,8 @@ type
         sites: Map[Integer, String]
         depth: Integer
 
-    ## A callback's thunk: its label, the routine's label, the parameter and result
-    ## types, and where the callback is named.
+    { A callback's thunk: its label, the routine's label, the parameter and result
+      types, and where the callback is named. }
     Thunk = record
         label: String
         target: String
@@ -165,19 +165,19 @@ type
         result: Type
         span: Span
 
-    ## A routine used as a value of function type `ty`: its label.
+    { A routine used as a value of function type `ty`: its label. }
     Taken = record
         target: String
         ty: Type
 
-    ## A routine mapping a routine of function type `ty`, used as a value, to its thunk:
-    ## its label, and where it is first needed.
+    { A routine mapping a routine of function type `ty`, used as a value, to its thunk:
+      its label, and where it is first needed. }
     Lookup = record
         label: String
         ty: Type
         span: Span
 
-    ## The drop routine of a box type, and the destroy hook it calls ("" for none).
+    { The drop routine of a box type, and the destroy hook it calls ("" for none). }
     BoxDrop = record
         label: String
         hook: String
@@ -186,7 +186,7 @@ type
         label: String
         message: List[Byte]
 
-    ## A field of a C record: its name, type and offset.
+    { A field of a C record: its name, type and offset. }
     CField = record
         name: String
         ty: Type
@@ -197,51 +197,51 @@ type
         size: Integer
         align: Integer
 
-    ## A field of a record type.
+    { A field of a record type. }
     FieldT = record
         name: String
         ty: Type
 
-    ## An argument of a System call: the expression and the parameter type.
+    { An argument of a System call: the expression and the parameter type. }
     SysArg = record
         e: Expr
         ty: Type
 
-    ## The routine a call reaches, with its type arguments and their sites.
+    { The routine a call reaches, with its type arguments and their sites. }
     Callee = record
         sym: ref Symbol
         targs: List[Type]
         sites: Map[Integer, String]
 
-    ## A `var` argument copied into a temporary.
+    { A `var` argument copied into a temporary. }
     Copy = record
         place: Expr
         tmp: Integer
 
-    ## A C argument: its type, and whether it is a C record passed by value.
+    { A C argument: its type, and whether it is a C record passed by value. }
     CArgT = record
         ty: Type
         byValue: Boolean
 
-    ## A word of a C call's arguments that goes on the stack: argument `arg` (pushed in
-    ## order), or with `word` >= 0 that word of the C record it points to.
+    { A word of a C call's arguments that goes on the stack: argument `arg` (pushed in
+      order), or with `word` >= 0 that word of the C record it points to. }
     CWord = record
         arg: Integer
         word: Integer
 
-    ## A variable bound by a `for` over an iterator: its offset in the item and type.
+    { A variable bound by a `for` over an iterator: its offset in the item and type. }
     Bound = record
         name: Ident
         offset: Integer
         ty: Type
 
-    ## A part of an interpolated string: text, or an expression.
+    { A part of an interpolated string: text, or an expression. }
     Part = record
         text: String
         e: Option[Expr]
 
     export Built = record
-        ## None if there were errors.
+        { None if there were errors. }
         export executable: Option[List[Byte]]
         export diagnostics: List[Diagnostic]
 
@@ -254,37 +254,37 @@ type
         a: ref Assembler
         diagnostics: List[Diagnostic]
         reported: Map[String, Boolean]
-        ## The runtime routines used, in order.
+        { The runtime routines used, in order. }
         runtime: List[String]
         used: Map[String, Boolean]
         panics: List[PanicStub]
-        ## Routine and type arguments -> label.
+        { Routine and type arguments -> label. }
         labels: Map[String, String]
         queue: List[Inst]
         lams: List[Lam]
-        ## Type keys -> descriptor label.
+        { Type keys -> descriptor label. }
         descs: Map[String, String]
         supportedCache: Map[String, Boolean]
         thunks: List[Thunk]
         taken: List[Taken]
         lookups: List[Lookup]
         drops: List[BoxDrop]
-        ## Shared libraries, in DT_NEEDED order.
+        { Shared libraries, in DT_NEEDED order. }
         needed: List[String]
-        ## File and id of an extern declaration -> its library.
+        { File and id of an extern declaration -> its library. }
         library: Map[String, String]
         units: Map[String, ref Unit]
-        ## Per file: expression id -> type, call id -> the overload chosen.
+        { Per file: expression id -> type, call id -> the overload chosen. }
         types: Map[String, Map[Integer, Type]]
         calls: Map[String, Map[Integer, Match]]
         f: ref Frame
-        ## In a checked build, while compiling a routine's code: the data label of the
-        ## place being compiled, which runtime calls record for leak reports.
+        { In a checked build, while compiling a routine's code: the data label of the
+          place being compiled, which runtime calls record for leak reports. }
         site: String
-        ## Source text per file, for `text`.
+        { Source text per file, for `text`. }
         bad: Boolean
 
-# ------------------------------------------------------------------------ helpers
+{ ---------------------------------------------------------------------- helpers }
 
 function argReg(i: Integer): Integer
     return [Rdi, Rsi, Rdx, Rcx, R8, R9][i]
@@ -313,7 +313,7 @@ function unsignedCC(op: String): String
 function isCompare(op: String): Boolean
     return op = "=" or op = "<>" or op = "<" or op = "<=" or op = ">" or op = ">="
 
-## The type of an expression the checker didn't type.
+{ The type of an expression the checker didn't type. }
 function noneT(): Type
     return SpecialT(name: "<none>")
 
@@ -355,7 +355,7 @@ procedure own(g: ref Em, slot: Integer)
 procedure ownParam(g: ref Em, slot: Integer)
     add(var g.f.scopes[0], slotEntry(slot))
 
-## Bits of an integer type (8, 16, 32, 64), or 0 for other types.
+{ Bits of an integer type (8, 16, 32, 64), or 0 for other types. }
 function intBits(t: Type): Integer
     case t of
         PrimT(p):
@@ -378,11 +378,11 @@ function intSigned(t: Type): Boolean
 function isInt(t: Type): Boolean
     return intBits(t) > 0
 
-## `Ptr[T]`, `Pointer` or `CString`: an unmanaged address (SPEC §4.13).
+{ `Ptr[T]`, `Pointer` or `CString`: an unmanaged address (SPEC §4.13). }
 function isPointer(t: Type): Boolean
     return t = prim("Pointer") or t = prim("CString") or isBuiltin(t, "Ptr")
 
-## A `List`, or an `Array`: a list block whose length never changes.
+{ A `List`, or an `Array`: a list block whose length never changes. }
 function isList(t: Type): Boolean
     return isBuiltin(t, "List") or isBuiltin(t, "Array")
 
@@ -406,7 +406,7 @@ function isFunc(t: Type): Boolean
         else:
             return false
 
-## `T` for `ref T`, else `t`.
+{ `T` for `ref T`, else `t`. }
 function unboxed(t: Type): Type
     case t of
         RefT(r):
@@ -417,7 +417,7 @@ function unboxed(t: Type): Type
 function arg0(t: Type): Type
     return argsOf(t)[0]
 
-## What a variant label names: a declared type's symbol id, a primitive's name, or "".
+{ What a variant label names: a declared type's symbol id, a primitive's name, or "". }
 function head(t: Type): String
     case t of
         NamedT(n):
@@ -434,7 +434,7 @@ function unparen(e: Expr): Expr
         else:
             return e
 
-## The span naming what a callee refers to: `f`, or the `f` of `Unit.f` or `f[T]`.
+{ The span naming what a callee refers to: `f`, or the `f` of `Unit.f` or `f[T]`. }
 function calleeSpan(c: Expr): Span
     case c of
         Index(x):
@@ -493,7 +493,7 @@ function rawType(g: ref Em, id: Integer): Type
         None:
             return noneT()
 
-## `t` in the instance being compiled: its type parameters replaced.
+{ `t` in the instance being compiled: its type parameters replaced. }
 function subT(g: ref Em, t: Type): Type
     if t = noneT() then
         return t
@@ -509,7 +509,7 @@ function callOf(g: ref Em, e: Call): Option[Match]
         None:
             return None
 
-## "record", "union", "enum", ... for a declared type.
+{ "record", "union", "enum", ... for a declared type. }
 function kind(g: ref Em, t: Type): String
     return kindOf(g.env, t)
 
@@ -533,7 +533,7 @@ function refSym(g: ref Em, span: Span): Option[ref Symbol]
 function hasSlot(g: ref Em, sym: Option[ref Symbol]): Boolean
     return sym.isSome() and sym.get().id in g.f.slots
 
-## A slot for the local declared at `span`.
+{ A slot for the local declared at `span`. }
 function local(g: ref Em, span: Span): Integer
     let slot := alloc(g)
     case refSym(g, span) of
@@ -543,15 +543,15 @@ function local(g: ref Em, span: Span): Integer
             pass
     return slot
 
-## Extends the low bits of a value of type `t` that C (or a cast) left in `reg`.
+{ Extends the low bits of a value of type `t` that C (or a cast) left in `reg`. }
 procedure widen(g: ref Em, t: Type, reg: Integer := Rax)
     if isInt(t) then
         extend(g.a, reg, bits: intBits(t), signed: intSigned(t))
     else if t = booleanT() then
         movzx8(g.a, reg, reg)
 
-## After 64-bit arithmetic in rax: wraps the result to integer type `t`. A checked
-## build panics if it didn't fit (for 64-bit types: if flag `cc` is set).
+{ After 64-bit arithmetic in rax: wraps the result to integer type `t`. A checked
+  build panics if it didn't fit (for 64-bit types: if flag `cc` is set). }
 procedure fit(g: ref Em, t: Type, span: Span, cc: String := "o")
     let a := g.a
     var bits := 64
@@ -570,21 +570,21 @@ procedure fit(g: ref Em, t: Type, span: Span, cc: String := "o")
         cmp(a, Rax, Rdx)
         jcc(a, "ne", label: panic(g, "P0002", "integer overflow", span: span))
 
-## Whether values of type `t` are reference counted.
+{ Whether values of type `t` are reference counted. }
 function managed(g: ref Em, t: Type): Boolean
     let k := kind(g, t)
     return t = stringT() or k = "record" or k = "union" or isList(t) or isRef(t) or isWeak(t) or isFunc(t)
 
-## Whether the code generator handles values of type `t`: every type reachable from it
-## is.
+{ Whether the code generator handles values of type `t`: every type reachable from it
+  is. }
 function supported(g: ref Em, t: Type): Boolean
     let k := key(t)
     if not (k in g.supportedCache) then
         var seen: Map[String, Boolean] := [:]
         var done: List[String] := []
         let ok := supportedIn(g, t, var seen, var done)
-        # Without a failure, everything visited is supported; after one, only `t` is
-        # known to be unsupported (a type visited inside a cycle may reach it too).
+        { Without a failure, everything visited is supported; after one, only `t` is
+          known to be unsupported (a type visited inside a cycle may reach it too). }
         if ok then
             for u in done do
                 g.supportedCache[u] := true
@@ -602,7 +602,7 @@ function supportedAll(
             return false
     return true
 
-## `seen`: the records and unions being visited; `done`: those visited.
+{ `seen`: the records and unions being visited; `done`: those visited. }
 function supportedIn(
     g: ref Em,
     t: Type,
@@ -621,7 +621,7 @@ function supportedIn(
     case t of
         RefT(r):
             return supportedIn(g, r.target, var seen, var done)
-        FuncT(f):  # a named top-level routine: its address
+        FuncT(f):  { a named top-level routine: its address }
             var parts: List[Type] := []
             for p in f.params do
                 if p <> voidT() then
@@ -651,12 +651,12 @@ function supportedIn(
         add(var done, k)
     return ok
 
-## Checks that the code generator handles values of type `t`.
+{ Checks that the code generator handles values of type `t`. }
 procedure valueType(g: ref Em, t: Type, span: Span, what: String := "a value")
     if not supported(g, t) then
         unsupported(g, span, "{what} of type {show(t)}")
 
-## The fields of record type `t`.
+{ The fields of record type `t`. }
 function fields(g: ref Em, t: Type): List[FieldT]
     let d := decl(g.env, namedSym(t).get())
     var s: Subst := [:]
@@ -682,8 +682,8 @@ function fieldIndex(g: ref Em, t: Type, name: String): Integer
             return i
     return 0
 
-## The data label of the descriptor for blocks of `k`, named `name`, holding `parts`,
-## with equality routine `eq` and drop routine `drop` (code labels) if not "".
+{ The data label of the descriptor for blocks of `k`, named `name`, holding `parts`,
+  with equality routine `eq` and drop routine `drop` (code labels) if not "". }
 function descriptor(
     g: ref Em,
     k: String,
@@ -697,7 +697,7 @@ function descriptor(
         add(var kinds, slotKind(g, p))
     return descriptorOf(g, k, kinds, name: name, eq: eq, drop: drop)
 
-## The descriptor `descriptor` makes, from the kinds of the slots.
+{ The descriptor `descriptor` makes, from the kinds of the slots. }
 function descriptorOf(
     g: ref Em,
     k: String,
@@ -725,8 +725,8 @@ function descriptorOf(
             codeRef(g.a, lbl, offset: DDrop, label: drop)
     return g.descs[k]
 
-## A descriptor's kind word for a slot of type `t`: 1 for a reference, 2 for a `Real`
-## and 3 for a `Real32` (compared as numbers by `=`), 0 for anything else.
+{ A descriptor's kind word for a slot of type `t`: 1 for a reference, 2 for a `Real`
+  and 3 for a `Real32` (compared as numbers by `=`), 0 for anything else. }
 function slotKind(g: ref Em, t: Type): Integer
     if managed(g, t) then
         return Managed
@@ -739,21 +739,21 @@ function slotKind(g: ref Em, t: Type): Integer
 function isRealT(t: Type): Boolean
     return t = realT() or t = real32T()
 
-## Turns the single in the low half of `r` into a double in xmm register `x`.
+{ Turns the single in the low half of `r` into a double in xmm register `x`. }
 procedure singleToXmm(a: ref Assembler, x, r: Integer)
     movdToXmm(a, x, r: r)
     cvtss2sd(a, x, src: x)
 
-## Rounds the double in xmm register `x` to a single, into the low half of `r`.
+{ Rounds the double in xmm register `x` to a single, into the low half of `r`. }
 procedure singleFromXmm(a: ref Assembler, r, x: Integer)
     cvtsd2ss(a, x, src: x)
     movdFromXmm(a, r, x: x)
 
-## The descriptor of union `t`'s blocks holding variant `i`.
+{ The descriptor of union `t`'s blocks holding variant `i`. }
 function variantDesc(g: ref Em, t: Type, i: Integer, v: Type): String
     return descriptor(g, "{key(t)}/{i}", [v], name: show(t))
 
-## The descriptor of lists of type `t`.
+{ The descriptor of lists of type `t`. }
 function listDesc(g: ref Em, t: Type): String
     let k := "list/{key(arg0(t))}"
     if not (k in g.descs) then
@@ -770,8 +770,8 @@ function listDesc(g: ref Em, t: Type): String
         g.descs[k] := lbl
     return g.descs[k]
 
-## The descriptor of `ref T` boxes (SPEC §4.9): `=` compares identity, and the drop
-## routine clears the weak cell and runs a resource record's destroy hook.
+{ The descriptor of `ref T` boxes (SPEC §4.9): `=` compares identity, and the drop
+  routine clears the weak cell and runs a resource record's destroy hook. }
 function boxDesc(g: ref Em, t: Type, span: Span): String
     let k := "ref/{key(t)}"
     if not (k in g.descs) then
@@ -799,7 +799,7 @@ function boxDesc(g: ref Em, t: Type, span: Span): String
         )
     return g.descs[k]
 
-## The drop routine of a box type, for rt_release: rdi is the box.
+{ The drop routine of a box type, for rt_release: rdi is the box. }
 procedure boxDrop(g: ref Em, d: BoxDrop)
     let a := g.a
     let alone := newLabel(a, "d")
@@ -807,20 +807,20 @@ procedure boxDrop(g: ref Em, d: BoxDrop)
     load(a, Rax, Rdi, disp: Cell)
     testR(a, Rax, Rax)
     jcc(a, "e", label: alone)
-    storeImm(a, Rax, disp: Target, value: 0)  # weak references now get None
+    storeImm(a, Rax, disp: Target, value: 0)  { weak references now get None }
     label(a, alone)
     if d.hook <> "" then
-        addImm(a, Rdi, value: Value)  # destroy(var r): the address of the value
+        addImm(a, Rdi, value: Value)  { destroy(var r): the address of the value }
         call(a, d.hook)
     ret(a)
 
-## rax := a new block with descriptor `desc`; its fields are the caller's.
+{ rax := a new block with descriptor `desc`; its fields are the caller's. }
 procedure newBlock(g: ref Em, desc: String)
     leaData(g.a, Rdi, label: desc)
     callRuntime(g, "rt_new")
 
-## Computes `e` into rax as a value of type `want`: a variant is put into its union
-## (SPEC §4.7, the only implicit conversion).
+{ Computes `e` into rax as a value of type `want`: a variant is put into its union
+  (SPEC §4.7, the only implicit conversion). }
 procedure coerce(g: ref Em, e: Expr, want: Type)
     expr(g, e)
     if g.bad then
@@ -833,8 +833,8 @@ procedure coerce(g: ref Em, e: Expr, want: Type)
     else if kind(g, want) = "union" then
         wrap(g, have, want: want, span: exprSpan(e))
 
-## Checks, in checked builds, that the value in rax is within subrange `t` (panic
-## `P0003`).
+{ Checks, in checked builds, that the value in rax is within subrange `t` (panic
+  `P0003`). }
 procedure inRange(g: ref Em, t: Type, span: Span)
     if not g.checked then
         return
@@ -851,7 +851,7 @@ procedure inRange(g: ref Em, t: Type, span: Span)
         None:
             pass
 
-## Puts the variant in rax, of type `have`, into a new block of union `want`.
+{ Puts the variant in rax, of type `have`, into a new block of union `want`. }
 procedure wrap(g: ref Em, have, want: Type, span: Span)
     let vs := variants(g.env, want)
     var i := -1
@@ -874,7 +874,7 @@ function text(g: ref Em, span: Span): String
 function where(g: ref Em, span: Span): String
     return "{place(g, span)}:{span.col}"
 
-## The file and line of `span`.
+{ The file and line of `span`. }
 function place(g: ref Em, span: Span): String
     var path := ""
     let u := get(g.units, g.f.file)
@@ -884,13 +884,13 @@ function place(g: ref Em, span: Span): String
         path := relative(g.f.file, dirname(g.main.path))
     return "{path}:{span.line}"
 
-## The data label of `t` as a NUL-terminated C string.
+{ The data label of `t` as a NUL-terminated C string. }
 function cText(g: ref Em, t: String): String
     var bs := utf8(t)
     add(var bs, Byte(0))
     return data(g.a, bs)
 
-## Compiles `e`, with its place recorded for leak reports in a checked build.
+{ Compiles `e`, with its place recorded for leak reports in a checked build. }
 procedure expr(g: ref Em, e: Expr)
     let outer := g.site
     if g.checked then
@@ -898,7 +898,7 @@ procedure expr(g: ref Em, e: Expr)
     exprHere(g, e)
     g.site := outer
 
-## Compiles `s`, with its place recorded for leak reports in a checked build.
+{ Compiles `s`, with its place recorded for leak reports in a checked build. }
 procedure stmt(g: ref Em, s: Stmt)
     let outer := g.site
     if g.checked then
@@ -906,8 +906,8 @@ procedure stmt(g: ref Em, s: Stmt)
     stmtHere(g, s)
     g.site := outer
 
-## Calls runtime routine `name`, first recording the place being compiled in a checked
-## build.
+{ Calls runtime routine `name`, first recording the place being compiled in a checked
+  build. }
 procedure callRuntime(g: ref Em, name: String)
     let a := g.a
     if g.checked and g.site <> "" then
@@ -917,14 +917,14 @@ procedure callRuntime(g: ref Em, name: String)
         pop(a, R11)
     call(a, runtime(g, name))
 
-## A label that panics with `code` at `span`.
+{ A label that panics with `code` at `span`. }
 function panic(g: ref Em, code, message: String, span: Span): String
     let lbl := newLabel(g.a, "panic")
     let t := "panic {code}: {message}\n    at {where(g, span)}\n"
     add(var g.panics, PanicStub(label: lbl, message: utf8(t)))
     return lbl
 
-## The data label of an immortal string block holding `t`.
+{ The data label of an immortal string block holding `t`. }
 function literal(g: ref Em, t: String): String
     let bs := utf8(t)
     var block: List[Byte] := []
@@ -937,31 +937,31 @@ function literal(g: ref Em, t: String): String
     add(var block, Byte(0))
     return data(g.a, block, align: 8)
 
-## Adds a reference to the block in rax.
+{ Adds a reference to the block in rax. }
 procedure retain(g: ref Em)
     call(g.a, runtime(g, "rt_retain"))
 
-## Drops a reference to the block in `reg`. Preserves every register.
+{ Drops a reference to the block in `reg`. Preserves every register. }
 procedure release(g: ref Em, reg: Integer := Rax)
     if reg <> Rdi then
         mov(g.a, Rdi, reg)
     call(g.a, runtime(g, "rt_release"))
 
-## Pops `n` owned references off the stack and releases them; keeps rax.
+{ Pops `n` owned references off the stack and releases them; keeps rax. }
 procedure drop(g: ref Em, n: Integer)
     for k := 1 to n do
         pop(g.a, Rdi)
         release(g, Rdi)
 
-## Pushes rax, a value of type `t`. If it is reference counted, the word is marked as
-## an owned reference: one that a failing `try` releases.
+{ Pushes rax, a value of type `t`. If it is reference counted, the word is marked as
+  an owned reference: one that a failing `try` releases. }
 procedure save(g: ref Em, t: Type)
     push(g.a, Rax)
     if managed(g, t) then
         g.a.stack[length(g.a.stack) - 1] := true
 
-## Leaves the blocks above `depth`, innermost first: releases their variables and runs
-## their `defer` statements, in reverse order. Keeps rax.
+{ Leaves the blocks above `depth`, innermost first: releases their variables and runs
+  their `defer` statements, in reverse order. Keeps rax. }
 procedure releaseScopes(g: ref Em, depth: Integer)
     var keep: Map[Integer, Boolean] := [:]
     for _, slot in g.f.keep do
@@ -980,17 +980,17 @@ procedure releaseScopes(g: ref Em, depth: Integer)
                 None:
                     load(g.a, Rdi, Rbp, disp: entry.slot)
                     release(g, Rdi)
-                    if entry.slot in keep then  # the scope may be entered again without reaching toCString
+                    if entry.slot in keep then  { the scope may be entered again without reaching toCString }
                         storeImm(g.a, Rbp, disp: entry.slot, value: 0)
 
-## The key of a call or other expression in `Frame.keep` and `Frame.old`.
+{ The key of a call or other expression in `Frame.keep` and `Frame.old`. }
 function exprKey(g: ref Em, id: Integer): String
     return "{g.f.file}:{id}"
 
 function noSpan(): Span
     return Span(start: 0, end: 0, line: 0, col: 0, endLine: 0, endCol: 0)
 
-## The expression of an index item (a type there is a type argument).
+{ The expression of an index item (a type there is a type argument). }
 function itemExpr(t: TypeOrExpr): Expr
     case t of
         Expr(e):
@@ -998,8 +998,8 @@ function itemExpr(t: TypeOrExpr): Expr
         else:
             return ErrorExpr(span: noSpan(), id: -1)
 
-## Whether `sym`, in the routine being compiled, is a `var` parameter: its slot holds an
-## address.
+{ Whether `sym`, in the routine being compiled, is a `var` parameter: its slot holds an
+  address. }
 function isVarParam(g: ref Em, sym: ref Symbol): Boolean
     if sym.kind <> Kind.ParamSym or sym.id in g.f.copied then
         return false
@@ -1023,14 +1023,12 @@ function hasCall(g: ref Em, id: Integer): Boolean
         None:
             return false
 
-# ------------------------------------------------------------------------- driver
+{ ----------------------------------------------------------------------- driver }
 
-## Compiles a checked program, which must have no errors. `checked` keeps the runtime
-## checks that `--unchecked` drops (overflow, bounds, contracts).
-## Compiles a checked program. `result` must have no errors. `checked` keeps the runtime
-## checks that `--unchecked` drops (overflow, bounds, contracts). With `tests`, the main
-## file may also be a unit, and the executable runs its `test` block number `argv[1]`
-## instead of the program's body (SPEC §13).
+{ Compiles a checked program. `result` must have no errors. `checked` keeps the runtime
+  checks that `--unchecked` drops (overflow, bounds, contracts). With `tests`, the main
+  file may also be a unit, and the executable runs its `test` block number `argv[1]`
+  instead of the program's body (SPEC §13). }
 export function build(result: Checked, checked: Boolean := true, tests: Boolean := false): Built
     let r := result.resolved
     let env := result.env.get()
@@ -1122,7 +1120,7 @@ function run(g: ref Em): Built
         return Built(executable: None, diagnostics: g.diagnostics)
     g.f := newFrame(g.main.path, None, exit: newLabel(a, "exit"))
     label(a, "_start")
-    storeGlobal(a, "args", src: Rsp)  # argc, then argv: SPEC §14 `OS.args`
+    storeGlobal(a, "args", src: Rsp)  { argc, then argv: SPEC §14 `OS.args` }
     mov(a, Rbp, Rsp)
     let sizeAt := subImm32Fixed(a, Rsp)
     a.tracked := true
@@ -1188,8 +1186,8 @@ function run(g: ref Em): Built
     )
     return Built(executable: Some(exe), diagnostics: [])
 
-## The body of a test executable: runs test block number `atoi(argv[1])` of the main
-## file, or none if there is no such argument or block.
+{ The body of a test executable: runs test block number `atoi(argv[1])` of the main
+  file, or none if there is no such argument or block. }
 procedure testBlocks(g: ref Em, file: SourceFile)
     let a := g.a
     var tests: List[TestBlock] := []
@@ -1223,8 +1221,8 @@ procedure testBlocks(g: ref Em, file: SourceFile)
         block(g, tests[i].body)
         jmp(a, g.f.exit)
 
-## The label of a routine, or of a generic routine's instance for `targs`. An instance is
-## compiled once, however many places use it (SPEC §8.1).
+{ The label of a routine, or of a generic routine's instance for `targs`. An instance is
+  compiled once, however many places use it (SPEC §8.1). }
 function labelOf(
     g: ref Em,
     span: Span,
@@ -1311,7 +1309,7 @@ procedure routineBody(g: ref Em, node: Routine, sg: Sig)
         f.slots[p.sym.get().id] := slot
         if i < 6 then
             store(a, Rbp, disp: slot, src: argReg(i))
-        else  # pushed by the caller, the seventh nearest
+        else  { pushed by the caller, the seventh nearest }
             load(a, Rax, Rbp, disp: 16 + 8 * (i - 6))
             store(a, Rbp, disp: slot, src: Rax)
         if managed(g, subT(g, p.ty)) and not p.isVar then
@@ -1364,10 +1362,10 @@ procedure routineBody(g: ref Em, node: Routine, sg: Sig)
         load(a, Rax, Rbp, disp: rs)
     releaseScopes(g, 0)
 
-# ------------------------------------------------------------------------ walkers
+{ ---------------------------------------------------------------------- walkers }
 
-## Gives each `toCString` call in `e` a slot, cleared on entry, that keeps its string
-## alive until the end of the enclosing block (SPEC §10.2).
+{ Gives each `toCString` call in `e` a slot, cleared on entry, that keeps its string
+  alive until the end of the enclosing block (SPEC §10.2). }
 procedure keepAliveExpr(g: ref Em, e: Expr)
     case e of
         Call(c):
@@ -1452,7 +1450,7 @@ procedure keepAliveStmt(g: ref Em, s: Stmt)
         else:
             pass
 
-## Whether `c` calls the routine `name` of unit C.
+{ Whether `c` calls the routine `name` of unit C. }
 function isC(g: ref Em, c: Call, name: String): Boolean
     var sym: Option[ref Symbol] := None
     case callOf(g, c) of
@@ -1472,7 +1470,7 @@ function isOld(g: ref Em, c: Call): Boolean
         else:
             return false
 
-## Evaluates the `old(x)` calls of an `ensures` on entry.
+{ Evaluates the `old(x)` calls of an `ensures` on entry. }
 procedure saveOld(g: ref Em, e: Expr)
     case e of
         Call(c):
@@ -1493,7 +1491,7 @@ procedure saveOld(g: ref Em, e: Expr)
         if g.bad then
             return
 
-# --------------------------------------------------------------------- statements
+{ ------------------------------------------------------------------- statements }
 
 procedure stmts(g: ref Em, ss: List[Stmt])
     let depth := length(g.a.stack)
@@ -1506,7 +1504,7 @@ procedure stmts(g: ref Em, ss: List[Stmt])
         else
             assert length(g.a.stack) = depth, "unbalanced pushes"
 
-## Compiles a block; its variables are released at its end.
+{ Compiles a block; its variables are released at its end. }
 procedure block(g: ref Em, body: ArmBody)
     add(var g.f.scopes, [])
     case body of
@@ -1559,7 +1557,7 @@ procedure stmtHere(g: ref Em, s: Stmt)
         ExprStmt(x):
             case x.expr of
                 Unary(u):
-                    if u.op = "try" then  # `try f()`
+                    if u.op = "try" then  { `try f()` }
                         expr(g, x.expr)
                         if g.bad then
                             return
@@ -1572,7 +1570,7 @@ procedure stmtHere(g: ref Em, s: Stmt)
                 else:
                     pass
             unsupported(g, x.span, "this statement")
-        Defer(x):  # runs when its block is left (releaseScopes)
+        Defer(x):  { runs when its block is left (releaseScopes) }
             let n := length(g.f.scopes)
             add(var g.f.scopes[n - 1], Entry(slot: 0, deferred: Some(x)))
         If(x):
@@ -1639,7 +1637,7 @@ procedure stmtHere(g: ref Em, s: Stmt)
                         return
                 None:
                     pass
-            releaseScopes(g, 1)  # the parameters are released after `ensures`
+            releaseScopes(g, 1)  { the parameters are released after `ensures` }
             if g.bad then
                 return
             jmp(a, g.f.exit)
@@ -1671,11 +1669,11 @@ procedure stmtHere(g: ref Em, s: Stmt)
         ErrorStmt(x):
             unsupported(g, x.span, "the 'ErrorStmt' statement")
 
-## `for ... do e` of type `t`: a new list on the stack, then the loops, whose `ForValue`s
-## add to it.
+{ `for ... do e` of type `t`: a new list on the stack, then the loops, whose `ForValue`s
+  add to it. }
 procedure forExpr(g: ref Em, x: ForExpr, t: Type)
     let a := g.a
-    let adder := sysLabel(g, x.span, "add", argsOf(t))  # the first `add` is the List one
+    let adder := sysLabel(g, x.span, "add", argsOf(t))  { the first `add` is the List one }
     if g.bad then
         return
     leaData(a, Rdi, label: listDesc(g, t))
@@ -1697,7 +1695,7 @@ procedure forExpr(g: ref Em, x: ForExpr, t: Type)
     label(a, fin)
     pop(a, Rax)
 
-## Adds a value to the list of the innermost `for` expression, or ends it (`break`).
+{ Adds a value to the list of the innermost `for` expression, or ends it (`break`). }
 procedure forValue(g: ref Em, x: ForValue)
     let a := g.a
     let ft := g.f.fors[length(g.f.fors) - 1]
@@ -1722,8 +1720,8 @@ procedure loop(g: ref Em, body: Block, brk, cont: String)
         return
     removeLast(var g.f.loops)
 
-## The `until` condition sees the body's variables, so the body's block is released
-## after it. (`continue` isn't allowed in `repeat`, SPEC §7.4.)
+{ The `until` condition sees the body's variables, so the body's block is released
+  after it. (`continue` isn't allowed in `repeat`, SPEC §7.4.) }
 procedure repeatStmt(g: ref Em, s: Repeat)
     let a := g.a
     let top := newLabel(a, "repeat")
@@ -1737,7 +1735,7 @@ procedure repeatStmt(g: ref Em, s: Repeat)
     expr(g, s.cond)
     let was := g.bad
     g.bad := false
-    releaseScopes(g, depth)  # keeps rax
+    releaseScopes(g, depth)  { keeps rax }
     if g.bad then
         return
     removeLast(var g.f.scopes)
@@ -1790,7 +1788,7 @@ procedure forRange(g: ref Em, s: ForRange)
     if g.bad then
         return
     label(a, cont)
-    load(a, Rax, Rbp, disp: v)  # the counter can't overflow: it stops at `stop`
+    load(a, Rax, Rbp, disp: v)  { the counter can't overflow: it stops at `stop` }
     load(a, Rcx, Rbp, disp: stopSlot)
     cmp(a, Rax, Rcx)
     jcc(a, "e", label: fin)
@@ -1802,8 +1800,8 @@ procedure forRange(g: ref Em, s: ForRange)
     jmp(a, top)
     label(a, fin)
 
-## `for x in xs` over a list: the loop runs over the list as it was when the loop started
-## (a copy, SPEC §4.14), kept in a slot of its own block.
+{ `for x in xs` over a list: the loop runs over the list as it was when the loop started
+  (a copy, SPEC §4.14), kept in a slot of its own block. }
 procedure forIn(g: ref Em, s: ForIn)
     let a := g.a
     let t := typeOfExpr(g, s.iterable)
@@ -1848,7 +1846,7 @@ procedure forIn(g: ref Em, s: ForIn)
     if mg then
         retain(g)
         load(a, Rdi, Rbp, disp: v)
-        release(g, Rdi)  # the previous element
+        release(g, Rdi)  { the previous element }
     store(a, Rbp, disp: v, src: Rax)
     loop(g, s.body, fin, cont: cont)
     if g.bad then
@@ -1864,7 +1862,7 @@ procedure forIn(g: ref Em, s: ForIn)
         return
     removeLast(var g.f.scopes)
 
-## `for c in Color`: every member, in order.
+{ `for c in Color`: every member, in order. }
 procedure forEnum(g: ref Em, s: ForIn, t: Type)
     let a := g.a
     if kind(g, t) <> "enum" then
@@ -1889,8 +1887,8 @@ procedure forEnum(g: ref Em, s: ForIn, t: Type)
     jmp(a, top)
     label(a, fin)
 
-## The file whose visibility resolves the bound members of `t`: where the first of its
-## type parameters that has a site became concrete, else this file.
+{ The file whose visibility resolves the bound members of `t`: where the first of its
+  type parameters that has a site became concrete, else this file. }
 function siteOf(g: ref Em, t: Type): String
     var ps: Vars := [:]
     paramsIn(t, var ps)
@@ -1899,10 +1897,10 @@ function siteOf(g: ref Em, t: Type): String
             return g.f.sites[id]
     return g.f.file
 
-## `for x in e` by the iterator protocol (SPEC §4.14): `e` itself if it is an Iterator,
-## else `iter(e)`, then `next` until it returns `None`. `iter` and `next` are found where
-## the iterable's type became concrete, as bound members are. `for k, v in m` iterates
-## `entries(m)`, binding the two fields of each entry.
+{ `for x in e` by the iterator protocol (SPEC §4.14): `e` itself if it is an Iterator,
+  else `iter(e)`, then `next` until it returns `None`. `iter` and `next` are found where
+  the iterable's type became concrete, as bound members are. `for k, v in m` iterates
+  `entries(m)`, binding the two fields of each entry. }
 procedure forIterator(g: ref Em, s: ForIn, t: Type)
     let a := g.a
     let site := siteOf(g, rawType(g, exprId(s.iterable)))
@@ -2016,8 +2014,8 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
     cmpMem(a, Rcx, Rax, disp: Desc)
     jcc(a, "e", label: done)
     push(a, Rax)
-    load(a, Rax, Rax, disp: Fields)  # the Some
-    load(a, Rcx, Rax, disp: Fields)  # its value
+    load(a, Rax, Rax, disp: Fields)  { the Some }
+    load(a, Rcx, Rax, disp: Fields)  { its value }
     for i := 0 to length(bound) - 1 do
         let b := bound[i]
         if b.offset <> 0 then
@@ -2027,7 +2025,7 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
         if managed(g, b.ty) then
             retain(g)
             load(a, Rdi, Rbp, disp: slots[i])
-            release(g, Rdi)  # the previous value
+            release(g, Rdi)  { the previous value }
         store(a, Rbp, disp: slots[i], src: Rax)
     drop(g, 1)
     loop(g, s.body, fin, cont: top)
@@ -2042,8 +2040,8 @@ procedure forIterator(g: ref Em, s: ForIn, t: Type)
         return
     removeLast(var g.f.scopes)
 
-## A `case` statement (`stmtArms`), or a `case` expression (`exprArms`) of type `result`,
-## each arm's value then ending up in rax. The subject is kept in a slot of its own block.
+{ A `case` statement (`stmtArms`), or a `case` expression (`exprArms`) of type `result`,
+  each arm's value then ending up in rax. The subject is kept in a slot of its own block. }
 procedure caseOf(
     g: ref Em,
     subject: Expr,
@@ -2089,7 +2087,7 @@ procedure caseOf(
                         add(var bound, vl)
                 else:
                     pass
-        if length(bound) > 0 then  # alone in its arm (E0603)
+        if length(bound) > 0 then  { alone in its arm (E0603) }
             load(a, Rax, Rbp, disp: slot)
             load(a, Rax, Rax, disp: Fields)
             let bt := subT(g, symType(g, refSym(g, bound[0].binding.span).get()))
@@ -2109,7 +2107,7 @@ procedure caseOf(
                     stmts(g, bb.stmts)
                 Stmt(st):
                     stmts(g, [st])
-        releaseScopes(g, length(g.f.scopes) - 1)  # keeps rax
+        releaseScopes(g, length(g.f.scopes) - 1)  { keeps rax }
         if g.bad then
             return
         removeLast(var g.f.scopes)
@@ -2130,7 +2128,7 @@ function labelSpan(lb: Label): Span
         VariantLabel(v):
             return v.span
 
-## Jumps to `target` if the subject in `slot` (of type `t`) matches.
+{ Jumps to `target` if the subject in `slot` (of type `t`) matches. }
 procedure caseLabel(g: ref Em, t: Type, slot: Integer, lb: Label, target: String)
     let a := g.a
     if kind(g, t) = "union" then
@@ -2204,7 +2202,7 @@ procedure caseLabel(g: ref Em, t: Type, slot: Integer, lb: Label, target: String
         VariantLabel(v):
             unsupported(g, v.span, "this label")
 
-## Compares the subject in `slot` with the label value `e`, setting the flags.
+{ Compares the subject in `slot` with the label value `e`, setting the flags. }
 procedure labelCompare(g: ref Em, t: Type, slot: Integer, e: Expr)
     let a := g.a
     expr(g, e)
@@ -2221,12 +2219,12 @@ procedure labelCompare(g: ref Em, t: Type, slot: Integer, e: Expr)
         load(a, Rcx, Rbp, disp: slot)
         cmp(a, Rcx, Rax)
 
-# ------------------------------------------------------------------------- places
+{ ----------------------------------------------------------------------- places }
 
-## Puts the address of the place `e` in rax. A field's record is made unique first, so
-## the write doesn't show through other copies. `m[k]` with `k` not in map `m` panics
-## (P0008), or with `insert` adds an entry with an empty value, for the caller to store
-## into.
+{ Puts the address of the place `e` in rax. A field's record is made unique first, so
+  the write doesn't show through other copies. `m[k]` with `k` not in map `m` panics
+  (P0008), or with `insert` adds an entry with an empty value, for the caller to store
+  into. }
 procedure address(g: ref Em, e: Expr, insert: Boolean := false)
     let a := g.a
     case e of
@@ -2239,7 +2237,7 @@ procedure address(g: ref Em, e: Expr, insert: Boolean := false)
         cplace(g, e)
         return
     case e of
-        Deref(d):  # `deref(r)` of a ref: the box's value
+        Deref(d):  { `deref(r)` of a ref: the box's value }
             boxValue(g, d.target)
             return
         FieldAccess(fa):
@@ -2286,15 +2284,15 @@ procedure address(g: ref Em, e: Expr, insert: Boolean := false)
             pass
     unsupported(g, exprSpan(e), "changing this kind of place")
 
-## rax := the address of the value of `e`, `m[k]`, in a map made unique. Its entry is
-## found (or added) by System's `entryOf`.
+{ rax := the address of the value of `e`, `m[k]`, in a map made unique. Its entry is
+  found (or added) by System's `entryOf`. }
 procedure mapEntry(g: ref Em, e: Index, insert: Boolean)
     let a := g.a
     let t := typeOfExpr(g, e.target)
     coerce(g, itemExpr(e.items[0]), arg0(t))
     if g.bad then
         return
-    save(g, arg0(t))  # the key, for entryOf
+    save(g, arg0(t))  { the key, for entryOf }
     address(g, e.target)
     if g.bad then
         return
@@ -2321,8 +2319,8 @@ procedure mapEntry(g: ref Em, e: Index, insert: Boolean)
     pop(a, Rcx)
     element(g, Rax, Rcx, span: e.span)
 
-## The variable a place is in: `e` without its fields, indexes (and derefs, if
-## `throughDeref`) and parentheses.
+{ The variable a place is in: `e` without its fields, indexes (and derefs, if
+  `throughDeref`) and parentheses. }
 function placeRoot(e: Expr, throughDeref: Boolean): Expr
     var r := unparen(e)
     var going := true
@@ -2341,10 +2339,10 @@ function placeRoot(e: Expr, throughDeref: Boolean): Expr
                 going := false
     return r
 
-## rax := the address of the value in the box that ref `e` refers to. The box isn't made
-## unique, as refs share it (SPEC §4.9). When `e` is rooted in a variable, that keeps the
-## box alive, so its reference is dropped at once; otherwise (`make().value := 3`) it is
-## held in a hidden variable of the block until the block is left.
+{ rax := the address of the value in the box that ref `e` refers to. The box isn't made
+  unique, as refs share it (SPEC §4.9). When `e` is rooted in a variable, that keeps the
+  box alive, so its reference is dropped at once; otherwise (`make().value := 3`) it is
+  held in a hidden variable of the block until the block is left. }
 procedure boxValue(g: ref Em, e: Expr)
     var rooted := false
     case placeRoot(e, throughDeref: true) of
@@ -2363,7 +2361,7 @@ procedure boxValue(g: ref Em, e: Expr)
         own(g, slot)
     addImm(g.a, Rax, value: Value)
 
-## Whether the place `e` is in C memory: `deref(p)`, or a field of a C record.
+{ Whether the place `e` is in C memory: `deref(p)`, or a field of a C record. }
 function isCPlace(g: ref Em, e: Expr): Boolean
     case unparen(e) of
         Deref(d):
@@ -2373,8 +2371,8 @@ function isCPlace(g: ref Em, e: Expr): Boolean
         else:
             return false
 
-## rax := the address of the C bytes of place `e`: `deref(p)`, a field of a C record, or
-## a C record held in a variable or a box (made unique first).
+{ rax := the address of the C bytes of place `e`: `deref(p)`, a field of a C record, or
+  a C record held in a variable or a box (made unique first). }
 procedure cplace(g: ref Em, e0: Expr)
     let a := g.a
     let e := unparen(e0)
@@ -2406,8 +2404,8 @@ procedure cplace(g: ref Em, e0: Expr)
     callRuntime(g, "rt_unique")
     addImm(a, Rax, value: Fields)
 
-## Stores the owned value rcx of type `t` at address rax of `place`, releasing what it
-## replaces.
+{ Stores the owned value rcx of type `t` at address rax of `place`, releasing what it
+  replaces. }
 procedure storeAt(g: ref Em, place: Expr, t: Type)
     if isCPlace(g, place) then
         storeC(g, t, exprSpan(place))
@@ -2417,7 +2415,7 @@ procedure storeAt(g: ref Em, place: Expr, t: Type)
         release(g, Rdi)
     store(g.a, Rax, disp: 0, src: Rcx)
 
-## rax := the value of type `t` at address rax of `place` (owned).
+{ rax := the value of type `t` at address rax of `place` (owned). }
 procedure loadAt(g: ref Em, place: Expr, t: Type)
     if isCPlace(g, place) then
         loadC(g, t, exprSpan(place))
@@ -2426,14 +2424,14 @@ procedure loadAt(g: ref Em, place: Expr, t: Type)
     if managed(g, t) then
         retain(g)
 
-# ----------------------------------------------------------------------- C memory
-# C records (SPEC §10.5) are blocks like other records, but their payload has the C
-# struct's layout. Its padding and tail are zeroed, so `=` compares it word by word.
+{ --------------------------------------------------------------------- C memory
+  C records (SPEC §10.5) are blocks like other records, but their payload has the C
+  struct's layout. Its padding and tail are zeroed, so `=` compares it word by word. }
 
 function cSize(size, al: Integer): CStruct
     return CStruct(fields: [], size: size, align: al)
 
-## The size and alignment of type `t` in C memory.
+{ The size and alignment of type `t` in C memory. }
 function cLayout(g: ref Em, t: Type, span: Span): CStruct
     if isInt(t) then
         return cSize(intBits(t) div 8, al: intBits(t) div 8)
@@ -2448,7 +2446,7 @@ function cLayout(g: ref Em, t: Type, span: Span): CStruct
     unsupported(g, span, "{show(t)} in C memory")
     return cSize(8, al: 8)
 
-## The fields of C record `t` with their offsets, its size and alignment.
+{ The fields of C record `t` with their offsets, its size and alignment. }
 function cStruct(g: ref Em, t: Type, span: Span): CStruct
     var out: List[CField] := []
     var offset := 0
@@ -2470,9 +2468,9 @@ function cOffset(g: ref Em, t: Type, name: String, span: Span): Integer
             return f.offset
     return 0
 
-## The descriptor kind of each word of C record `t`: 2 for a `Real`, and for words holding
-## `Real32`s 3 (in the low half), 4 (in the high half) or 5 (in both), so `=` compares
-## them as numbers.
+{ The descriptor kind of each word of C record `t`: 2 for a `Real`, and for words holding
+  `Real32`s 3 (in the low half), 4 (in the high half) or 5 (in both), so `=` compares
+  them as numbers. }
 function cKinds(g: ref Em, t: Type, span: Span): List[Integer]
     let c := cStruct(g, t, span)
     var kinds: List[Integer] := []
@@ -2483,7 +2481,7 @@ function cKinds(g: ref Em, t: Type, span: Span): List[Integer]
         if f.ty = realT() then
             kinds[w] := 2
         else if f.ty = real32T() then
-            var halves := 1  # 1 the low half, 2 the high one
+            var halves := 1  { 1 the low half, 2 the high one }
             if f.offset mod 8 = 4 then
                 halves := 2
             if kinds[w] > 0 then
@@ -2491,8 +2489,8 @@ function cKinds(g: ref Em, t: Type, span: Span): List[Integer]
             kinds[w] := 2 + halves
     return kinds
 
-## Whether each word of C record `t` is passed to C in an xmm register: the System V
-## class of an eightbyte holding only reals.
+{ Whether each word of C record `t` is passed to C in an xmm register: the System V
+  class of an eightbyte holding only reals. }
 function sseWords(g: ref Em, t: Type, span: Span): List[Boolean]
     let c := cStruct(g, t, span)
     var sse: List[Boolean] := []
@@ -2510,7 +2508,7 @@ function sseWords(g: ref Em, t: Type, span: Span): List[Boolean]
             sse[w] := false
     return sse
 
-## rax := a new zeroed block for C record `t`.
+{ rax := a new zeroed block for C record `t`. }
 procedure newCBlock(g: ref Em, t: Type, span: Span)
     let a := g.a
     let words := (cStruct(g, t, span).size + 7) div 8
@@ -2524,7 +2522,7 @@ procedure newCBlock(g: ref Em, t: Type, span: Span)
     ccall(g, "memset")
     pop(a, Rax)
 
-## rax := the value of type `t` in C memory at address rax (owned).
+{ rax := the value of type `t` in C memory at address rax (owned). }
 procedure loadC(g: ref Em, t: Type, span: Span)
     let a := g.a
     if isInt(t) then
@@ -2550,7 +2548,7 @@ procedure loadC(g: ref Em, t: Type, span: Span)
     else
         unsupported(g, span, "reading {show(t)} from C memory")
 
-## Stores the owned value rcx of type `t` in C memory at address rax.
+{ Stores the owned value rcx of type `t` in C memory at address rax. }
 procedure storeC(g: ref Em, t: Type, span: Span)
     let a := g.a
     if isInt(t) then
@@ -2571,9 +2569,9 @@ procedure storeC(g: ref Em, t: Type, span: Span)
     else
         unsupported(g, span, "writing {show(t)} to C memory")
 
-# -------------------------------------------------------------------- expressions
+{ ------------------------------------------------------------------ expressions }
 
-## Computes `e` into rax (an owned reference, for a string).
+{ Computes `e` into rax (an owned reference, for a string). }
 procedure exprHere(g: ref Em, e: Expr)
     let t := typeOfExpr(g, e)
     if t <> noneT() and t <> voidT() then
@@ -2628,7 +2626,7 @@ procedure exprHere(g: ref Em, e: Expr)
                 loadC(g, t, x.span)
                 return
             push(a, Rax)
-            load(a, Rax, Rax, disp: Value)  # a copy of the box's value
+            load(a, Rax, Rax, disp: Value)  { a copy of the box's value }
             if managed(g, unboxed(tt)) then
                 retain(g)
             drop(g, 1)
@@ -2680,14 +2678,14 @@ procedure eFieldAccess(g: ref Em, x: FieldAccess, e: Expr)
             isTV := true
         else:
             pass
-    if isTV then  # `Color.Red`, `Unit.name`
+    if isTV then  { `Color.Red`, `Unit.name` }
         case refSym(g, x.name.span) of
             Some(sym):
                 loadSym(g, sym.value, e)
             None:
                 unsupported(g, x.span, "this name")
         return
-    let boxed := isRef(t)  # `r.x` reads the field of the value in the box
+    let boxed := isRef(t)  { `r.x` reads the field of the value in the box }
     t := unboxed(t)
     if kind(g, t) <> "record" then
         unsupported(g, x.span, "a field of {show(t)}")
@@ -2734,7 +2732,7 @@ procedure eListLit(g: ref Em, x: ListLit, e: Expr)
         pop(a, Rcx)
         store(a, Rax, disp: Elems + 8 * i, src: Rcx)
 
-## `{k: v, ...}`: an empty map, then `put` for each entry, in order.
+{ `[k: v, ...]`: an empty map, then `put` for each entry, in order. }
 procedure eMapLit(g: ref Em, x: MapLit, e: Expr)
     let a := g.a
     let t := typeOfExpr(g, e)
@@ -2742,7 +2740,7 @@ procedure eMapLit(g: ref Em, x: MapLit, e: Expr)
     sysCall(g, x.span, "emptyMap", [], targs: targs)
     if g.bad then
         return
-    save(g, t)  # the map, on the stack
+    save(g, t)  { the map, on the stack }
     let put := sysLabel(g, x.span, "put", targs)
     if g.bad then
         return
@@ -2760,15 +2758,15 @@ procedure eMapLit(g: ref Em, x: MapLit, e: Expr)
         call(a, put)
     pop(a, Rax)
 
-## A set `t` of `items`: an empty set, then `include` for each element and
-## `includeRange` for each `low..high`.
+{ A set `t` of `items`: an empty set, then `include` for each element and
+  `includeRange` for each `low..high`. }
 procedure setItems(g: ref Em, span: Span, items: List[Expr], t: Type)
     let a := g.a
     let targs := argsOf(t)
     sysCall(g, span, "emptySet", [], targs: targs)
     if g.bad then
         return
-    save(g, t)  # the set, on the stack
+    save(g, t)  { the set, on the stack }
     let include := sysLabel(g, span, "include", targs)
     if g.bad then
         return
@@ -2838,7 +2836,7 @@ procedure eIndex(g: ref Em, x: Index, e: Expr)
         retain(g)
     drop(g, 1)
 
-## `m[k]`: the value, found by System's `find`; panics (P0008) if `k` is missing.
+{ `m[k]`: the value, found by System's `find`; panics (P0008) if `k` is missing. }
 procedure mapValue(g: ref Em, x: Index, t: Type)
     let a := g.a
     let targs := argsOf(t)
@@ -2846,7 +2844,7 @@ procedure mapValue(g: ref Em, x: Index, t: Type)
     if g.bad then
         return
     save(g, t)
-    retain(g)  # for find, which owns its arguments
+    retain(g)  { for find, which owns its arguments }
     save(g, t)
     coerce(g, itemExpr(x.items[0]), targs[0])
     if g.bad then
@@ -2868,13 +2866,13 @@ procedure mapValue(g: ref Em, x: Index, t: Type)
         retain(g)
     drop(g, 1)
 
-## rax := the address of element `index` of the list `blk`. A checked build panics
-## (P0001) if there is no such element.
+{ rax := the address of element `index` of the list `blk`. A checked build panics
+  (P0001) if there is no such element. }
 procedure element(g: ref Em, blk, index: Integer, span: Span)
     let a := g.a
     if g.checked then
         cmpMem(a, index, blk, disp: Count)
-        jcc(a, "ae", label: panic(g, "P0001", "index out of bounds", span: span))  # also < 0
+        jcc(a, "ae", label: panic(g, "P0001", "index out of bounds", span: span))  { also < 0 }
     shlImm(a, index, n: 3)
     add(a, index, blk)
     lea(a, Rax, index, disp: Elems)
@@ -2900,7 +2898,7 @@ procedure loadSym(g: ref Em, sym: ref Symbol, e: Expr)
             i := i + 1
         movImm(a, Rax, value: i)
         return
-    if sym.kind = Kind.TypeSym and kind(g, t) = "record" then  # `None`
+    if sym.kind = Kind.TypeSym and kind(g, t) = "record" then  { `None` }
         newBlock(g, descriptor(g, key(t), [], name: show(t)))
         return
     if isRoutine(sym.kind) then
@@ -2915,7 +2913,7 @@ procedure loadSym(g: ref Em, sym: ref Symbol, e: Expr)
         load(a, Rax, Rbp, disp: g.f.slots[sym.id])
         if isVarParam(g, sym) then
             load(a, Rax, Rax)
-        if isInt(t) then  # C may have written only the low bits (`addr`)
+        if isInt(t) then  { C may have written only the low bits (`addr`) }
             widen(g, t)
     else
         unsupported(g, span, "using {describe(sym)} as a value")
@@ -2923,8 +2921,8 @@ procedure loadSym(g: ref Em, sym: ref Symbol, e: Expr)
     if managed(g, t) then
         retain(g)
 
-## rax := the routine at label `target` as a value of function type `t`: its immortal
-## block (see `closureOf`); noted for callbacks.
+{ rax := the routine at label `target` as a value of function type `t`: its immortal
+  block (see `closureOf`); noted for callbacks. }
 procedure routineValue(g: ref Em, target: String, t: Type)
     if g.bad then
         return
@@ -2934,9 +2932,9 @@ procedure routineValue(g: ref Em, target: String, t: Type)
             return
     add(var g.taken, Taken(target: target, ty: t))
 
-## The data label of the immortal block that is the routine at label `target` as a
-## function value. A function value is a block whose first field holds the distance from
-## the block to its code; a call passes the block in r10.
+{ The data label of the immortal block that is the routine at label `target` as a
+  function value. A function value is a block whose first field holds the distance from
+  the block to its code; a call passes the block in r10. }
 function closureOf(g: ref Em, target: String): String
     let k := "closure|{target}"
     if not (k in g.labels) then
@@ -2944,14 +2942,14 @@ function closureOf(g: ref Em, target: String): String
         word(var bs, -1)
         word(var bs, 0)
         word(var bs, 0)
-        word(var bs, length(g.labels))  # keeps the block apart from equal ones
+        word(var bs, length(g.labels))  { keeps the block apart from equal ones }
         let lbl := data(g.a, bs, align: 8)
         codeRef(g.a, lbl, offset: Fields, label: target)
         g.labels[k] := lbl
     return g.labels[k]
 
-## rax := lambda `x` as a value of function type `t`: a new block holding its code and
-## copies of the variables it captures, or without any, an immortal one (SPEC §4.11).
+{ rax := lambda `x` as a value of function type `t`: a new block holding its code and
+  copies of the variables it captures, or without any, an immortal one (SPEC §4.11). }
 procedure lambdaValue(g: ref Em, x: Lambda, t: Type)
     let a := g.a
     var caps: List[ref Symbol] := []
@@ -2988,7 +2986,7 @@ procedure lambdaValue(g: ref Em, x: Lambda, t: Type)
         pop(a, Rax)
         store(a, Rax, disp: Fields + 8 * (i + 1), src: Rcx)
 
-## Adds the variables of the routine being compiled that `e` reads to `out`.
+{ Adds the variables of the routine being compiled that `e` reads to `out`. }
 procedure captures(g: ref Em, e: Expr, var out: List[ref Symbol])
     case e of
         Name(x):
@@ -3010,8 +3008,8 @@ procedure captures(g: ref Em, e: Expr, var out: List[ref Symbol])
     for k in exprKids(e) do
         captures(g, k, var out)
 
-## Compiles a lambda's body as a routine. It takes the block in r10 and copies the
-## captured variables into its own slots.
+{ Compiles a lambda's body as a routine. It takes the block in r10 and copies the
+  captured variables into its own slots. }
 procedure lambdaRoutine(g: ref Em, lm: Lam)
     let a := g.a
     let f := newFrame(lm.file, None, exit: newLabel(a, "ret"))
@@ -3074,7 +3072,7 @@ procedure lambdaRoutine(g: ref Em, lm: Lam)
     ret(a)
     patch32(a, sizeAt, value: align(f.size, 16))
 
-## rax := the address of the instance of generic routine `sym` that `x`, `f[T]`, names.
+{ rax := the address of the instance of generic routine `sym` that `x`, `f[T]`, names. }
 procedure instanceValue(g: ref Em, sym: ref Symbol, x: Index, e: Expr)
     var s: Subst := [:]
     case get(g.calls, g.f.file) of
@@ -3089,13 +3087,13 @@ procedure instanceValue(g: ref Em, sym: ref Symbol, x: Index, e: Expr)
     let callee := instance(g, sym, sig(g.env, sym).tparams, s)
     routineValue(g, labelOf(g, x.span, sym, callee.targs, sites: callee.sites), typeOfExpr(g, e))
 
-## The 64-bit pattern of `v`.
+{ The 64-bit pattern of `v`. }
 function wrap(v: UInt64): Integer
     if v <= UInt64(9223372036854775807) then
         return Integer(v)
     return Integer(v - UInt64(9223372036854775807) - UInt64(1)) - 9223372036854775807 - 1
 
-## `-n` of a literal, as the 64-bit pattern of the negated value.
+{ `-n` of a literal, as the 64-bit pattern of the negated value. }
 function negated(v: UInt64): Integer
     let i := wrap(v)
     if i = -9223372036854775807 - 1 then
@@ -3130,13 +3128,13 @@ procedure eUnary(g: ref Em, x: Unary, e: Expr)
         if t = realT() then
             movImm(a, Rcx, value: 1)
             shlImm(a, Rcx, n: 63)
-            xorR(a, Rax, Rcx)  # flips the sign bit
+            xorR(a, Rax, Rcx)  { flips the sign bit }
             return
         if t = real32T() then
             movImm(a, Rcx, value: $80000000)
             xorR(a, Rax, Rcx)
             return
-        neg(a, Rax)  # sets CF unless the operand is 0
+        neg(a, Rax)  { sets CF unless the operand is 0 }
         if t = uint64T() then
             fit(g, t, x.span, cc: "b")
         else
@@ -3146,10 +3144,10 @@ procedure eUnary(g: ref Em, x: Unary, e: Expr)
     else
         unsupported(g, x.span, "'{x.op}'")
 
-## `try x` (SPEC §9.2): the value in an `Ok` or `Some`. An `Err` or `None` is returned at
-## once, put into the routine's result type, after releasing the owned references on the
-## stack (pushed by the enclosing expressions) and leaving the open blocks, which runs
-## their defers.
+{ `try x` (SPEC §9.2): the value in an `Ok` or `Some`. An `Err` or `None` is returned at
+  once, put into the routine's result type, after releasing the owned references on the
+  stack (pushed by the enclosing expressions) and leaving the open blocks, which runs
+  their defers. }
 procedure tryOf(g: ref Em, x: Unary, e: Expr)
     let a := g.a
     if g.f.sym.isNone() then
@@ -3165,7 +3163,7 @@ procedure tryOf(g: ref Em, x: Unary, e: Expr)
     cmpMem(a, Rcx, Rax, disp: Desc)
     jcc(a, "e", label: ok)
     mov(a, Rdi, Rax)
-    load(a, Rax, Rax, disp: Fields)  # the Err or None
+    load(a, Rax, Rax, disp: Fields)  { the Err or None }
     retain(g)
     release(g, Rdi)
     let n := length(a.stack)
@@ -3182,8 +3180,8 @@ procedure tryOf(g: ref Em, x: Unary, e: Expr)
     jmp(a, g.f.exit)
     label(a, ok)
     push(a, Rax)
-    load(a, Rax, Rax, disp: Fields)  # the Ok or Some
-    load(a, Rax, Rax, disp: Fields)  # its value
+    load(a, Rax, Rax, disp: Fields)  { the Ok or Some }
+    load(a, Rax, Rax, disp: Fields)  { its value }
     if managed(g, typeOfExpr(g, e)) then
         retain(g)
     drop(g, 1)
@@ -3214,7 +3212,7 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
         pop(a, Rax)
         bitsCore(g, x.span, op, t)
         return
-    if op = "xor" then  # Booleans
+    if op = "xor" then  { Booleans }
         expr(g, x.left)
         if g.bad then
             return
@@ -3296,7 +3294,7 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
         return
     var t := lt
     if kind(g, typeOfExpr(g, x.right)) = "union" then
-        t := typeOfExpr(g, x.right)  # comparing a variant with a union
+        t := typeOfExpr(g, x.right)  { comparing a variant with a union }
     coerce(g, x.left, t)
     if g.bad then
         return
@@ -3304,7 +3302,7 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
     coerce(g, x.right, t)
     if g.bad then
         return
-    if managed(g, t) and t <> stringT() then  # `=` or `<>`
+    if managed(g, t) and t <> stringT() then  { `=` or `<>` }
         push(a, Rax)
         load(a, Rdi, Rsp, disp: 8)
         mov(a, Rsi, Rax)
@@ -3339,10 +3337,10 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
     else
         unsupported(g, x.span, "'{op}'")
 
-## rax := rax op rcx for reals, as IEEE-754 doubles: a comparison with a NaN is false
-## except `<>`, and dividing by zero gives an infinity or a NaN.
-## Applies `op` to the reals in rax and rcx, singles if `single`: they are computed as
-## doubles, which hold the exact result of an operation on singles to round.
+{ rax := rax op rcx for reals, as IEEE-754 doubles: a comparison with a NaN is false
+  except `<>`, and dividing by zero gives an infinity or a NaN.
+  Applies `op` to the reals in rax and rcx, singles if `single`: they are computed as
+  doubles, which hold the exact result of an operation on singles to round. }
 procedure realBinary(g: ref Em, op: String, span: Span, single: Boolean)
     let a := g.a
     if single then
@@ -3361,7 +3359,7 @@ procedure realBinary(g: ref Em, op: String, span: Span, single: Boolean)
         setcc(a, "ae", Rax)
     else if op = "=" then
         setcc(a, "e", Rax)
-        setcc(a, "np", Rcx)  # unordered sets ZF too
+        setcc(a, "np", Rcx)  { unordered sets ZF too }
         andR(a, Rax, Rcx)
     else if op = "<>" then
         setcc(a, "ne", Rax)
@@ -3379,8 +3377,8 @@ procedure realBinary(g: ref Em, op: String, span: Span, single: Boolean)
         return
     movzx8(a, Rax, Rax)
 
-## Truncates the real in xmm0 to an integer in rax; checked builds panic if it doesn't
-## fit (or is a NaN).
+{ Truncates the real in xmm0 to an integer in rax; checked builds panic if it doesn't
+  fit (or is a NaN). }
 procedure truncate(g: ref Em, span: Span)
     let a := g.a
     cvttsd2si(a, Rax, x: Xmm0)
@@ -3391,14 +3389,14 @@ procedure truncate(g: ref Em, span: Span)
     movImm(a, Rcx, value: 1)
     shlImm(a, Rcx, n: 63)
     cmp(a, Rax, Rcx)
-    jcc(a, "ne", label: ok)  # anything else fitted
+    jcc(a, "ne", label: ok)  { anything else fitted }
     cvtsi2sd(a, Xmm1, r: Rax)
     ucomisd(a, Xmm0, y: Xmm1)
     jcc(a, "p", label: bad)
-    jcc(a, "ne", label: bad)  # only -2^63 itself truncates to it
+    jcc(a, "ne", label: bad)  { only -2^63 itself truncates to it }
     label(a, ok)
 
-## rax := rax op rcx for integers of type `t`, checked for overflow.
+{ rax := rax op rcx for integers of type `t`, checked for overflow. }
 procedure arith(g: ref Em, op: String, t: Type, span: Span)
     let a := g.a
     if op = "div" or op = "mod" then
@@ -3421,7 +3419,7 @@ procedure arith(g: ref Em, op: String, t: Type, span: Span)
         imul(a, Rax, Rcx)
     fit(g, t, span)
 
-## `p + n`, `p - n`: moves a `Ptr[T]` by `n` values of type T (SPEC §10.4).
+{ `p + n`, `p - n`: moves a `Ptr[T]` by `n` values of type T (SPEC §10.4). }
 procedure pointerArith(g: ref Em, x: Binary)
     let a := g.a
     let size := cLayout(g, arg0(typeOfExpr(g, x.left)), x.span).size
@@ -3442,8 +3440,8 @@ procedure pointerArith(g: ref Em, x: Binary)
     else
         sub(a, Rax, Rcx)
 
-## rax div/mod rcx, truncating toward zero (the remainder takes the sign of the
-## dividend). Division by zero panics even in unchecked builds.
+{ rax div/mod rcx, truncating toward zero (the remainder takes the sign of the
+  dividend). Division by zero panics even in unchecked builds. }
 procedure divide(g: ref Em, op: String, t: Type, span: Span)
     let a := g.a
     let normal := newLabel(a, "div")
@@ -3461,7 +3459,7 @@ procedure divide(g: ref Em, op: String, t: Type, span: Span)
         if op = "mod" then
             mov(a, Rax, Rdx)
         return
-    cmpImm(a, Rcx, value: -1)  # idiv traps on MIN div -1
+    cmpImm(a, Rcx, value: -1)  { idiv traps on MIN div -1 }
     jcc(a, "ne", label: normal)
     if op = "div" then
         neg(a, Rax)
@@ -3476,11 +3474,11 @@ procedure divide(g: ref Em, op: String, t: Type, span: Span)
         mov(a, Rax, Rdx)
     label(a, done)
     if bits < 64 then
-        fit(g, t, span)  # MIN div -1
+        fit(g, t, span)  { MIN div -1 }
 
-# ------------------------------------------------------------------------ strings
+{ ---------------------------------------------------------------------- strings }
 
-## Builds a new string from text and Printable expressions, into rax.
+{ Builds a new string from text and Printable expressions, into rax. }
 procedure stringOf(g: ref Em, parts: List[InterpPart])
     let a := g.a
     for p in parts do
@@ -3501,8 +3499,8 @@ procedure stringOf(g: ref Em, parts: List[InterpPart])
     callRuntime(g, "rt_concat")
     addImm(a, Rsp, value: 8 * length(parts))
 
-## `\{x:width}` or `\{x:width:decimals}`: the value as text, a real with `decimals` digits
-## after the point, padded by `System.justify` to `width`; into rax.
+{ `{x:width}` or `{x:width:decimals}`: the value as text, a real with `decimals` digits
+  after the point, padded by `System.justify` to `width`; into rax. }
 procedure formatted(g: ref Em, fp: FormatPart)
     let a := g.a
     case fp.decimals of
@@ -3536,8 +3534,8 @@ procedure formatted(g: ref Em, fp: FormatPart)
         return
     call(a, lbl)
 
-## Computes `e` and converts it to a String (`toString`). An enum member's string is
-## its name.
+{ Computes `e` and converts it to a String (`toString`). An enum member's string is
+  its name. }
 procedure toString(g: ref Em, e: Expr)
     let t := base(g.env, typeOfExpr(g, e))
     let isEnum := kind(g, t) = "enum"
@@ -3570,8 +3568,8 @@ procedure toString(g: ref Em, e: Expr)
         leaData(a, Rsi, label: data(a, names))
         callRuntime(g, "rt_enum_name")
 
-## Computes `e`, of type `t`, and calls the `toString` that makes `t` Printable, found
-## where `t` became concrete, as bound members are.
+{ Computes `e`, of type `t`, and calls the `toString` that makes `t` Printable, found
+  where `t` became concrete, as bound members are. }
 procedure declaredToString(g: ref Em, e: Expr, t: Type)
     let a := g.a
     let site := siteOf(g, rawType(g, exprId(e)))
@@ -3605,9 +3603,9 @@ procedure declaredToString(g: ref Em, e: Expr, t: Type)
     mov(a, Rdi, Rax)
     call(a, target)
 
-# -------------------------------------------------------------------------- calls
+{ ------------------------------------------------------------------------ calls }
 
-## The expression of an argument slot, or an error expression for a missing one.
+{ The expression of an argument slot, or an error expression for a missing one. }
 function slotExpr(slot: Option[CArg]): Expr
     case slot of
         Some(c):
@@ -3615,7 +3613,7 @@ function slotExpr(slot: Option[CArg]): Expr
         None:
             return ErrorExpr(span: noSpan(), id: -1)
 
-## Calls a routine; a function's result is left in rax.
+{ Calls a routine; a function's result is left in rax. }
 procedure callExpr(g: ref Em, c: Call)
     let mo := callOf(g, c)
     if mo.isSome() and mo.get().sig.kind = "record" then
@@ -3625,7 +3623,7 @@ procedure callExpr(g: ref Em, c: Call)
         expr(g, c.args[0].value)
         if g.bad then
             return
-        widen(g, typeOfExpr(g, c))  # truncates to a smaller integer type
+        widen(g, typeOfExpr(g, c))  { truncates to a smaller integer type }
         return
     if mo.isNone() and length(c.args) = 1 then
         case refSym(g, calleeSpan(c.callee)) of
@@ -3662,10 +3660,10 @@ procedure callExpr(g: ref Em, c: Call)
         return
     callRoutine(g, c, m, callee)
 
-## `var` arguments that aren't whole variables are copied to temporaries (`Copy`) and
-## stored back after the call. They can't hold a `try` (E0524), which would return with
-## the places empty. The other arguments come first, then the `var` places (SPEC §6.3), so
-## nothing that runs after a place is bound sees it emptied by a move.
+{ `var` arguments that aren't whole variables are copied to temporaries (`Copy`) and
+  stored back after the call. They can't hold a `try` (E0524), which would return with
+  the places empty. The other arguments come first, then the `var` places (SPEC §6.3), so
+  nothing that runs after a place is bound sees it emptied by a move. }
 procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
     let a := g.a
     var copies: List[Copy] := []
@@ -3698,7 +3696,7 @@ procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
             for p in m.params do
                 add(var types, subT(g, subst(p.ty, m.s)))
             if movable(g, place, others, types) then
-                address(g, place)  # moved out, so the callee's copy isn't shared
+                address(g, place)  { moved out, so the callee's copy isn't shared }
                 if g.bad then
                     return
                 mov(a, Rcx, Rax)
@@ -3733,7 +3731,7 @@ procedure callRoutine(g: ref Em, c: Call, m: Match, callee: Callee)
                 return
         pop(a, Rax)
 
-## Calls a function value: `f(x)` with `f: function(T): U`.
+{ Calls a function value: `f(x)` with `f: function(T): U`. }
 procedure callValue(g: ref Em, c: Call, m: Match)
     let a := g.a
     expr(g, c.callee)
@@ -3757,9 +3755,9 @@ procedure callValue(g: ref Em, c: Call, m: Match)
         addImm(a, Rsp, value: 8 * words)
     drop(g, 1)
 
-## Moves the pushed arguments, the parameter indexes `pushed` in push order, to where
-## the callee takes them: the first six into registers, the others pushed again with the
-## seventh on top. Returns the words left on the stack, to drop after the call.
+{ Moves the pushed arguments, the parameter indexes `pushed` in push order, to where
+  the callee takes them: the first six into registers, the others pushed again with the
+  seventh on top. Returns the words left on the stack, to drop after the call. }
 function placeArgs(g: ref Em, pushed: List[Integer]): Integer
     let a := g.a
     let n := length(pushed)
@@ -3797,7 +3795,7 @@ function countUses(g: ref Em, e: Expr, id: Integer): Integer
         n := n + countUses(g, k, id)
     return n
 
-## The keys of the types of the boxes that reaching the place `e` goes through.
+{ The keys of the types of the boxes that reaching the place `e` goes through. }
 function boxesOf(g: ref Em, e: Expr): Map[String, Boolean]
     var boxes: Map[String, Boolean] := [:]
     var r := unparen(e)
@@ -3818,9 +3816,9 @@ function boxesOf(g: ref Em, e: Expr): Map[String, Boolean]
                     pass
     return boxes
 
-## Whether a value of type `t` can hold a `ref` or `Weak` to one of the types `boxes`.
-## `seen`: the types already visited. A function value may: a lambda holds what it
-## captures, which its type doesn't tell.
+{ Whether a value of type `t` can hold a `ref` or `Weak` to one of the types `boxes`.
+  `seen`: the types already visited. A function value may: a lambda holds what it
+  captures, which its type doesn't tell. }
 function reaches(
     g: ref Em,
     t: Type,
@@ -3858,12 +3856,12 @@ function reaches(
                 return true
     return false
 
-## Whether a `var` argument that isn't a whole variable can be moved out of its place for
-## the call, instead of copied (SPEC §6.3): when it is managed, so a copy would be shared
-## and the callee's changes would copy it again; when no other `var` place `others` of the
-## call uses its variable, so none of them sees it empty; and when the callee can't reach
-## a box the place is in. Without mutable globals, it can only do that through an
-## argument, so through a value of one of the parameter types `types`.
+{ Whether a `var` argument that isn't a whole variable can be moved out of its place for
+  the call, instead of copied (SPEC §6.3): when it is managed, so a copy would be shared
+  and the callee's changes would copy it again; when no other `var` place `others` of the
+  call uses its variable, so none of them sees it empty; and when the callee can't reach
+  a box the place is in. Without mutable globals, it can only do that through an
+  argument, so through a value of one of the parameter types `types`. }
 function movable(g: ref Em, place: Expr, others: List[Expr], types: List[Type]): Boolean
     if not managed(g, typeOfExpr(g, place)) or isCPlace(g, place) then
         return false
@@ -3887,33 +3885,33 @@ function movable(g: ref Em, place: Expr, others: List[Expr], types: List[Type]):
         count := count + countUses(g, o, id)
     return count = 1
 
-## `Int32(x)`: converts between integer types, panicking (in checked builds) if the
-## value doesn't fit. `Char(i)` converts a code point.
+{ `Int32(x)`: converts between integer types, panicking (in checked builds) if the
+  value doesn't fit. `Char(i)` converts a code point. }
 procedure convert(g: ref Em, c: Call)
     let a := g.a
     let src := base(g.env, typeOfExpr(g, c.args[0].value))
     let target := typeOfExpr(g, c)
     let dst := base(g.env, target)
-    if src = dst then  # to or from a subrange
+    if src = dst then  { to or from a subrange }
         expr(g, c.args[0].value)
         if not g.bad and target <> dst then
             inRange(g, target, c.span)
         return
-    if dst = charT() and isInt(src) then  # `Char(i)`: checked in every build
+    if dst = charT() and isInt(src) then  { `Char(i)`: checked in every build }
         expr(g, c.args[0].value)
         if g.bad then
             return
         let bad := panic(g, "P0009", "not a Unicode scalar value", span: c.span)
         cmpImm(a, Rax, value: $10FFFF)
-        jcc(a, "a", label: bad)  # negative values too, compared unsigned
+        jcc(a, "a", label: bad)  { negative values too, compared unsigned }
         mov(a, Rcx, Rax)
         subImm(a, Rcx, value: $D800)
         cmpImm(a, Rcx, value: $7FF)
-        jcc(a, "be", label: bad)  # a surrogate
+        jcc(a, "be", label: bad)  { a surrogate }
         if target <> dst then
             inRange(g, target, c.span)
         return
-    if isRealT(src) and isRealT(dst) then  # `Real(x)` widens exactly, `Real32(x)` rounds
+    if isRealT(src) and isRealT(dst) then  { `Real(x)` widens exactly, `Real32(x)` rounds }
         expr(g, c.args[0].value)
         if g.bad then
             return
@@ -3931,27 +3929,27 @@ procedure convert(g: ref Em, c: Call)
     if g.bad then
         return
     if g.checked and (src = uint64T()) <> (dst = uint64T()) and (src = uint64T() or not intSigned(dst)) then
-        testR(a, Rax, Rax)  # UInt64 above Int64's range, or a negative value to UInt64
+        testR(a, Rax, Rax)  { UInt64 above Int64's range, or a negative value to UInt64 }
         jcc(a, "s", label: panic(g, "P0002", "integer overflow", span: c.span))
     fit(g, dst, c.span)
     if target <> dst then
         inRange(g, target, c.span)
 
-## Calls a C function (SPEC §10.1) through the GOT, with the System V ABI. C records of
-## up to 16 bytes are passed and returned in registers.
+{ Calls a C function (SPEC §10.1) through the GOT, with the System V ABI. C records of
+  up to 16 bytes are passed and returned in registers. }
 procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
     let a := g.a
     let lib := g.library["{sym.file}:{xd.id}"]
     if not (lib in g.needed) then
         add(var g.needed, lib)
-    var args: List[CArgT] := []  # whether each is a C record passed by value
+    var args: List[CArgT] := []  { whether each is a C record passed by value }
     let result := subT(g, subst(m.result, m.s))
-    var big := false  # a C record result of more than 16 bytes, which C writes to memory
+    var big := false  { a C record result of more than 16 bytes, which C writes to memory }
     if isCRecord(g, result) then
         big := cLayout(g, result, c.span).size > 16
         if g.bad then
             return
-    if big then  # the block for it, and a hidden first argument: where to write it
+    if big then  { the block for it, and a hidden first argument: where to write it }
         newCBlock(g, result, c.span)
         if g.bad then
             return
@@ -3980,7 +3978,7 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
             return
         push(a, Rax)
         let byValue := isCRecord(g, t) and not p.isVar
-        if byValue then  # released after the call
+        if byValue then  { released after the call }
             a.stack[length(a.stack) - 1] := true
         add(var args, CArgT(ty: t, byValue: byValue))
     for x in m.extra do
@@ -3988,7 +3986,7 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
         if g.bad then
             return
         var t := typeOfExpr(g, x.expr)
-        if t = real32T() then  # C promotes a variadic float to a double
+        if t = real32T() then  { C promotes a variadic float to a double }
             singleToXmm(a, Xmm0, r: Rax)
             movqFromXmm(a, Rax, x: Xmm0)
             t := realT()
@@ -3997,14 +3995,14 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
     var regs := 0
     var reals := 0
     let n := length(args)
-    var spill: List[CWord] := []  # what goes on the stack, in order
+    var spill: List[CWord] := []  { what goes on the stack, in order }
     for i := 0 to n - 1 do
-        if isRealT(args[i].ty) then  # in the next xmm register
+        if isRealT(args[i].ty) then  { in the next xmm register }
             if reals = 8 then
                 add(var spill, CWord(arg: i, word: -1))
                 continue
             load(a, Rax, Rsp, disp: 8 * (n - 1 - i))
-            movqToXmm(a, reals, r: Rax)  # a single's upper half is 0
+            movqToXmm(a, reals, r: Rax)  { a single's upper half is 0 }
             reals := reals + 1
             continue
         if not args[i].byValue then
@@ -4021,7 +4019,7 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
         for x in sse do
             if not x then
                 ints := ints + 1
-        # Over 16 bytes, or without registers for all of it, a record goes on the stack.
+        { Over 16 bytes, or without registers for all of it, a record goes on the stack. }
         if length(sse) > 2 or regs + ints > 6 or reals + length(sse) - ints > 8 then
             for w := 0 to length(sse) - 1 do
                 add(var spill, CWord(arg: i, word: w))
@@ -4046,7 +4044,7 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
         pop(a, Rax)
     else if isCRecord(g, result) then
         let size := cLayout(g, result, c.span).size
-        # Each word comes back in the next of rax, rdx, or of xmm0, xmm1 if it's all reals.
+        { Each word comes back in the next of rax, rdx, or of xmm0, xmm1 if it's all reals. }
         let sse := sseWords(g, result, c.span)
         var ints := 0
         var xmms := 0
@@ -4075,10 +4073,10 @@ procedure cCall(g: ref Em, c: Call, sym: ref Symbol, m: Match, xd: ExternDecl)
     else if result = real32T() then
         movdFromXmm(a, Rax, x: Xmm0)
     else if m.sig.isFunction then
-        widen(g, result)  # C leaves the upper bits of small results undefined
+        widen(g, result)  { C leaves the upper bits of small results undefined }
 
-## rax := the address of a thunk through which C calls the routine `e` names or holds
-## (SPEC §10.3).
+{ rax := the address of a thunk through which C calls the routine `e` names or holds
+  (SPEC §10.3). }
 procedure callback(g: ref Em, e: Expr, t: Type)
     var sym: Option[ref Symbol] := None
     case e of
@@ -4103,8 +4101,8 @@ procedure callback(g: ref Em, e: Expr, t: Type)
         add(var g.lookups, Lookup(label: g.labels[k], ty: t, span: exprSpan(e)))
     call(g.a, g.labels[k])
 
-## The label of the thunk through which C calls the routine at label `target`, of
-## function type `t`.
+{ The label of the thunk through which C calls the routine at label `target`, of
+  function type `t`. }
 function thunkOf(g: ref Em, target: String, t: Type, span: Span): String
     let k := "thunk|{target}"
     if k in g.labels then
@@ -4122,9 +4120,9 @@ function thunkOf(g: ref Em, target: String, t: Type, span: Span): String
     add(var g.thunks, Thunk(label: lbl, target: target, params: params, result: result, span: span))
     return lbl
 
-## rax := the thunk of the routine at address rax, of function type `lk.ty`: one of the
-## routines used as values. A lambda that captures variables is a block of its own, which
-## C can't call; it panics (SPEC §10.3).
+{ rax := the thunk of the routine at address rax, of function type `lk.ty`: one of the
+  routines used as values. A lambda that captures variables is a block of its own, which
+  C can't call; it panics (SPEC §10.3). }
 procedure lookup(g: ref Em, lk: Lookup)
     let a := g.a
     label(a, lk.label)
@@ -4139,18 +4137,18 @@ procedure lookup(g: ref Em, lk: Lookup)
             label(a, next)
     jmp(a, panic(g, "P0012", "a function value passed to C captures variables", span: lk.span))
 
-## C passes reals in xmm registers and the rest in the integer ones, counted apart, and
-## what doesn't fit, or a C record over 16 bytes, on the stack; the routine takes each
-## argument in the integer register of its position, from the seventh on the stack. The
-## thunk saves C's argument registers in its frame and puts each argument together in a
-## slot there: a small integer extended, since C leaves its upper bits undefined, and a C
-## record copied into a new block, which the routine owns. Then it calls the routine and
-## returns a real result in xmm0, and a C record result as `cCall` takes it: up to 16 bytes
-## word by word in rax, rdx, xmm0, xmm1, a bigger one copied to where C's hidden first
-## argument points.
-##
-## The frame: C's integer argument registers at rbp-8 down, its xmm ones at rbp-56 down,
-## two words gathering a C record from registers at rbp-128, and the slots at rbp-136 down.
+{ C passes reals in xmm registers and the rest in the integer ones, counted apart, and
+  what doesn't fit, or a C record over 16 bytes, on the stack; the routine takes each
+  argument in the integer register of its position, from the seventh on the stack. The
+  thunk saves C's argument registers in its frame and puts each argument together in a
+  slot there: a small integer extended, since C leaves its upper bits undefined, and a C
+  record copied into a new block, which the routine owns. Then it calls the routine and
+  returns a real result in xmm0, and a C record result as `cCall` takes it: up to 16 bytes
+  word by word in rax, rdx, xmm0, xmm1, a bigger one copied to where C's hidden first
+  argument points.
+
+  The frame: C's integer argument registers at rbp-8 down, its xmm ones at rbp-56 down,
+  two words gathering a C record from registers at rbp-128, and the slots at rbp-136 down. }
 procedure thunk(g: ref Em, th: Thunk)
     let a := g.a
     g.site := ""
@@ -4166,7 +4164,7 @@ procedure thunk(g: ref Em, th: Thunk)
         store(a, Rbp, disp: -56 - 8 * k, src: Rax)
     var ints := 0
     var xmms := 0
-    var stack := 16  # the next of C's stack arguments
+    var stack := 16  { the next of C's stack arguments }
     let big := isCRecord(g, th.result) and cLayout(g, th.result, th.span).size > 16
     if big then
         ints := 1
@@ -4257,15 +4255,15 @@ procedure thunk(g: ref Em, th: Thunk)
     leave(a)
     ret(a)
 
-## The file whose visibility resolves the bound members of a type argument `t`: where it
-## became concrete (SPEC §8.2).
+{ The file whose visibility resolves the bound members of a type argument `t`: where it
+  became concrete (SPEC §8.2). }
 function siteOfArg(g: ref Em, t: Type): String
     if t = noneT() then
         return g.f.file
     return siteOf(g, t)
 
-## The type arguments of a call to a generic routine, and for each the file whose
-## visibility resolves its bound members: where it became concrete (SPEC §8.2).
+{ The type arguments of a call to a generic routine, and for each the file whose
+  visibility resolves its bound members: where it became concrete (SPEC §8.2). }
 function instance(g: ref Em, sym: ref Symbol, tparams: List[ref Symbol], s: Subst): Callee
     var targs: List[Type] := []
     var sites: Map[Integer, String] := [:]
@@ -4275,8 +4273,8 @@ function instance(g: ref Em, sym: ref Symbol, tparams: List[ref Symbol], s: Subs
         add(var targs, subT(g, t))
     return Callee(sym: sym, targs: targs, sites: sites)
 
-## The routine called by `x.area()` for `x: T` with `T: Measurable`, in this instance:
-## found where `T` became concrete (SPEC §8.2), with its own type arguments and sites.
+{ The routine called by `x.area()` for `x: T` with `T: Measurable`, in this instance:
+  found where `T` became concrete (SPEC §8.2), with its own type arguments and sites. }
 function boundMember(g: ref Em, c: Call, m: Match): Callee
     let member := m.sig.sym.get()
     var sub: Subst := [:]
@@ -4318,8 +4316,8 @@ function boundMember(g: ref Em, c: Call, m: Match): Callee
         sites[tp.id] := site
     return Callee(sym: fd.f, targs: targs, sites: sites)
 
-## Computes an argument (or a record field) into rax: the one given, or the parameter's
-## default, which belongs to the declaring unit.
+{ Computes an argument (or a record field) into rax: the one given, or the parameter's
+  default, which belongs to the declaring unit. }
 procedure argument(g: ref Em, p: PInfo, slot: Option[CArg], m: Match, file: String)
     let want := subT(g, subst(p.ty, m.s))
     case slot of
@@ -4333,8 +4331,8 @@ procedure argument(g: ref Em, p: PInfo, slot: Option[CArg], m: Match, file: Stri
     coerce(g, p.default.get(), want)
     g.f.file := outer
 
-## Calls the System routine `name` (not overloaded), instantiated for `targs`, with
-## `args` in parameter order.
+{ Calls the System routine `name` (not overloaded), instantiated for `targs`, with
+  `args` in parameter order. }
 procedure sysCall(g: ref Em, span: Span, name: String, args: List[SysArg], targs: List[Type])
     for x in args do
         coerce(g, x.e, x.ty)
@@ -4348,7 +4346,7 @@ procedure sysCall(g: ref Em, span: Span, name: String, args: List[SysArg], targs
         return
     call(g.a, lbl)
 
-## The label of System routine `name` (not overloaded) for `targs`.
+{ The label of System routine `name` (not overloaded) for `targs`. }
 function sysLabel(g: ref Em, span: Span, name: String, targs: List[Type]): String
     let sym := sys(g.env, name).get()
     var sites: Map[Integer, String] := [:]
@@ -4356,7 +4354,7 @@ function sysLabel(g: ref Em, span: Span, name: String, targs: List[Type]): Strin
         sites[tp.id] := g.f.file
     return labelOf(g, span, sym, targs, sites: sites)
 
-## `Point(x: 1, y: 2)`: the field values are pushed, then moved into a new block.
+{ `Point(x: 1, y: 2)`: the field values are pushed, then moved into a new block. }
 procedure construct(g: ref Em, c: Call, m: Match)
     let a := g.a
     let t := subT(g, subst(m.result, m.s))
@@ -4393,16 +4391,16 @@ procedure construct(g: ref Em, c: Call, m: Match)
         pop(a, Rcx)
         store(a, Rax, disp: Fields + 8 * i, src: Rcx)
 
-# ----------------------------------------------------------------------- builtins
+{ --------------------------------------------------------------------- builtins }
 
-## The first type argument of a call to a generic builtin, in this instance.
+{ The first type argument of a call to a generic builtin, in this instance. }
 function targ0(g: ref Em, m: Match): Type
     if length(m.sig.tparams) = 0 then
         return noneT()
     return subT(g, getOr(m.s, m.sig.tparams[0].id, default: noneT()))
 
-## The pieces of a `write` argument: a literal's text, an interpolation's parts, or the
-## value.
+{ The pieces of a `write` argument: a literal's text, an interpolation's parts, or the
+  value. }
 function writeParts(e: Expr): List[InterpPart]
     case e of
         StringLit(x):
@@ -4418,7 +4416,7 @@ function inScope(g: ref Em, slot: Integer): Boolean
             return true
     return false
 
-## Routines declared `extern "pst"`: implemented by the compiler.
+{ Routines declared `extern "pst"`: implemented by the compiler. }
 procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
     let a := g.a
     var args: List[Expr] := []
@@ -4462,7 +4460,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
             return
         movqToXmm(a, Xmm0, r: Rax)
         truncate(g, c.span)
-        if n = "round" then  # half away from zero: compare the dropped fraction to 1/2
+        if n = "round" then  { half away from zero: compare the dropped fraction to 1/2 }
             cvtsi2sd(a, Xmm1, r: Rax)
             realOp(a, "-", Xmm0, src: Xmm1)
             movImm64(a, Rcx, value: realBits("0.5"))
@@ -4476,7 +4474,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
             label(a, down)
             xorR(a, Rcx, Rcx)
             movqToXmm(a, Xmm1, r: Rcx)
-            realOp(a, "-", Xmm1, src: Xmm0)  # -fraction
+            realOp(a, "-", Xmm1, src: Xmm0)  { -fraction }
             movImm64(a, Rcx, value: realBits("0.5"))
             movqToXmm(a, Xmm0, r: Rcx)
             ucomisd(a, Xmm1, y: Xmm0)
@@ -4634,7 +4632,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         load(a, Rax, Rax, disp: Cell)
         testR(a, Rax, Rax)
         jcc(a, "ne", label: made)
-        newBlock(g, descriptor(g, "cell", [integerT()], name: "weak cell"))  # held by the box
+        newBlock(g, descriptor(g, "cell", [integerT()], name: "weak cell"))  { held by the box }
         load(a, Rcx, Rsp)
         store(a, Rax, disp: Target, src: Rcx)
         store(a, Rcx, disp: Cell, src: Rax)
@@ -4675,7 +4673,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         if g.bad then
             return
         load(a, Rdi, Rbp, disp: slot)
-        release(g, Rdi)  # the string of the previous time round a loop
+        release(g, Rdi)  { the string of the previous time round a loop }
         store(a, Rbp, disp: slot, src: Rax)
         if not inScope(g, slot) then
             own(g, slot)
@@ -4708,7 +4706,7 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
         callRuntime(g, "rt_from_bytes")
     else if u = "OS" and n = "argv" then
         loadGlobal(a, Rax, name: "args")
-        addImm(a, Rax, value: 8)  # past argc
+        addImm(a, Rax, value: 8)  { past argc }
     else if u = "C" and n = "addr" then
         let place := unparen(args[0])
         if isCRecord(g, typeOfExpr(g, place)) or isCPlace(g, place) then
@@ -4743,9 +4741,9 @@ procedure builtin(g: ref Em, c: Call, sym: ref Symbol, m: Match)
     else
         unsupported(g, c.span, "'{n}'")
 
-## The `Bits` operations, on the bits of `t`'s width: results wrap to the type, `shr`
-## shifts zeros in, and a shift by a count outside 0 to width - 1 gives 0.
-## `rax := rax op rcx` (`rax := op rax` for `not` and `popCount`) on the bits of `t`.
+{ The `Bits` operations, on the bits of `t`'s width: results wrap to the type, `shr`
+  shifts zeros in, and a shift by a count outside 0 to width - 1 gives 0.
+  `rax := rax op rcx` (`rax := op rax` for `not` and `popCount`) on the bits of `t`. }
 procedure bitsCore(g: ref Em, span: Span, op: String, t: Type)
     let a := g.a
     if not isInt(t) then
@@ -4768,7 +4766,7 @@ procedure bitsCore(g: ref Em, span: Span, op: String, t: Type)
         let zero := newLabel(a, "shift")
         let done := newLabel(a, "shift")
         cmpImm(a, Rcx, value: width)
-        jcc(a, "ae", label: zero)  # unsigned: negative counts too
+        jcc(a, "ae", label: zero)  { unsigned: negative counts too }
         if op = "shr" then
             extend(a, Rax, bits: width, signed: false)
             shrCl(a, Rax)
@@ -4780,8 +4778,8 @@ procedure bitsCore(g: ref Em, span: Span, op: String, t: Type)
         xor32(a, Rax, Rax)
         label(a, done)
 
-## `slice(s, start, stop)`: offsets out of range panic with `P0001` (in checked builds),
-## offsets inside a character with `P0006`.
+{ `slice(s, start, stop)`: offsets out of range panic with `P0001` (in checked builds),
+  offsets inside a character with `P0006`. }
 procedure sliceOf(g: ref Em, c: Call, args: List[Expr])
     let a := g.a
     for x in args do
@@ -4789,12 +4787,12 @@ procedure sliceOf(g: ref Em, c: Call, args: List[Expr])
         if g.bad then
             return
         save(g, typeOfExpr(g, x))
-    pop(a, Rdx)  # stop
-    pop(a, Rsi)  # start
-    load(a, Rdi, Rsp)  # the string stays on the stack until released
+    pop(a, Rdx)  { stop }
+    pop(a, Rsi)  { start }
+    load(a, Rdi, Rsp)  { the string stays on the stack until released }
     if g.checked then
         let bounds := panic(g, "P0001", "slice offsets out of bounds", span: c.span)
-        cmp(a, Rsi, Rdx)  # unsigned: a negative start is out of range too
+        cmp(a, Rsi, Rdx)  { unsigned: a negative start is out of range too }
         jcc(a, "a", label: bounds)
         load(a, Rcx, Rdi, disp: Len)
         cmp(a, Rdx, Rcx)
@@ -4804,20 +4802,20 @@ procedure sliceOf(g: ref Em, c: Call, args: List[Expr])
         let ok := newLabel(a, "ok")
         load(a, Rcx, Rdi, disp: Len)
         cmp(a, reg, Rcx)
-        jcc(a, "ae", label: ok)  # the end, or out of range in an unchecked build
+        jcc(a, "ae", label: ok)  { the end, or out of range in an unchecked build }
         mov(a, Rcx, Rdi)
         add(a, Rcx, reg)
         load8(a, Rcx, Rcx, disp: BytesAt)
         and32Imm(a, Rcx, value: $C0)
-        cmpImm(a, Rcx, value: $80)  # a continuation byte
+        cmpImm(a, Rcx, value: $80)  { a continuation byte }
         jcc(a, "e", label: inside)
         label(a, ok)
     callRuntime(g, "rt_slice")
     drop(g, 1)
 
-# ------------------------------------------------------------------------ runtime
+{ ---------------------------------------------------------------------- runtime }
 
-## Marks the runtime routine `name` as used.
+{ Marks the runtime routine `name` as used. }
 function runtime(g: ref Em, name: String): String
     if not (name in g.used) then
         g.used[name] := true
@@ -4827,7 +4825,7 @@ function runtime(g: ref Em, name: String): String
 procedure emitRuntime(g: ref Em)
     var done: Map[String, Boolean] := [:]
     var n := 0
-    while n < length(g.runtime) do  # a routine may use another
+    while n < length(g.runtime) do  { a routine may use another }
         let names := g.runtime
         for name in names do
             if not (name in done) then
@@ -4872,14 +4870,14 @@ procedure runtimeRoutine(g: ref Em, name: String)
         "rt_str_cmp": rtStrCmp(g)
         "rt_starts_with": rtStartsWith(g)
         "rt_slice": rtSlice(g)
-        else: pass  # every name is one of the above
+        else: pass  { every name is one of the above }
 
-## Calls a libc function, with the stack aligned as the C ABI requires (and al = 0 for
-## variadic ones).
-## Calls the C function `name`; `vectors` is how many xmm registers hold arguments, which
-## a variadic function reads from al.
-## Calls C function `name`, with `vectors` arguments in xmm registers. The words in
-## `spill` go on the stack; they are taken from the `args` words pushed last.
+{ Calls a libc function, with the stack aligned as the C ABI requires (and al = 0 for
+  variadic ones).
+  Calls the C function `name`; `vectors` is how many xmm registers hold arguments, which
+  a variadic function reads from al.
+  Calls C function `name`, with `vectors` arguments in xmm registers. The words in
+  `spill` go on the stack; they are taken from the `args` words pushed last. }
 procedure ccall(
     g: ref Em,
     name: String,
@@ -4905,11 +4903,11 @@ procedure ccall(
         movImm(a, Rax, value: vectors)
     callImport(a, name)
     leave(a)
-    if a.tracked then  # `leave` popped rbp
+    if a.tracked then  { `leave` popped rbp }
         removeLast(var a.stack)
 
-## Ends the program with status rdi. `exit`, not `_exit`: C code may have output waiting
-## in stdio buffers.
+{ Ends the program with status rdi. `exit`, not `_exit`: C code may have output waiting
+  in stdio buffers. }
 procedure exitProgram(g: ref Em)
     ccall(g, "exit")
 
@@ -4929,8 +4927,8 @@ function labels(a: ref Assembler, hint: String, n: Integer): List[String]
         add(var out, newLabel(a, hint))
     return out
 
-## Writes rdx bytes at rsi to file descriptor rdi, retrying partial writes. On an error
-## (a closed pipe), exits with status 1.
+{ Writes rdx bytes at rsi to file descriptor rdi, retrying partial writes. On an error
+  (a closed pipe), exits with status 1. }
 procedure rtWrite(g: ref Em)
     let a := g.a
     let l := labels(a, "w", 3)
@@ -4958,7 +4956,7 @@ procedure rtWrite(g: ref Em)
     popAll(a, saved)
     ret(a)
 
-## Writes the string rdi to file descriptor rsi (stdout or stderr) and releases it.
+{ Writes the string rdi to file descriptor rsi (stdout or stderr) and releases it. }
 procedure rtWriteStr(g: ref Em)
     let a := g.a
     push(a, Rdi)
@@ -4970,7 +4968,7 @@ procedure rtWriteStr(g: ref Em)
     drop(g, 1)
     ret(a)
 
-## Writes the message (rsi, rdx) to stderr and exits with status 70.
+{ Writes the message (rsi, rdx) to stderr and exits with status 70. }
 procedure rtPanic(g: ref Em)
     let a := g.a
     movImm(a, Rdi, value: 2)
@@ -4978,8 +4976,8 @@ procedure rtPanic(g: ref Em)
     movImm(a, Rdi, value: PanicStatus)
     exitProgram(g)
 
-## Adds a reference to the block rax (not to literals, nor to an empty slot). Preserves
-## registers.
+{ Adds a reference to the block rax (not to literals, nor to an empty slot). Preserves
+  registers. }
 procedure rtRetain(g: ref Em)
     let a := g.a
     let done := newLabel(a, "r")
@@ -4991,9 +4989,9 @@ procedure rtRetain(g: ref Em)
     label(a, done)
     ret(a)
 
-## Sets up a loop over the slots of `block`, whose descriptor is in `desc`: `count` := how
-## many, `vals` := the first, `desc` := its kind word (the next is `step` bytes on: 8 for
-## a record's fields, 0 for a list's elements).
+{ Sets up a loop over the slots of `block`, whose descriptor is in `desc`: `count` := how
+  many, `vals` := the first, `desc` := its kind word (the next is `step` bytes on: 8 for
+  a record's fields, 0 for a list's elements). }
 procedure walk(g: ref Em, block, desc, count, vals, step: Integer)
     let a := g.a
     let go := newLabel(a, "k")
@@ -5008,9 +5006,9 @@ procedure walk(g: ref Em, block, desc, count, vals, step: Integer)
     xor32(a, step, step)
     label(a, go)
 
-## Drops a reference to the block rdi (if not 0). With the last one, runs its drop
-## routine, if it has one, releases the references its fields (or elements) hold and
-## frees it. Preserves registers.
+{ Drops a reference to the block rdi (if not 0). With the last one, runs its drop
+  routine, if it has one, releases the references its fields (or elements) hold and
+  frees it. Preserves registers. }
 procedure rtRelease(g: ref Em)
     let a := g.a
     let l := labels(a, "r", 5)
@@ -5019,17 +5017,17 @@ procedure rtRelease(g: ref Em)
     let free := l[2]
     let done := l[3]
     let kept := l[4]
-    testR(a, Rdi, Rdi)  # an empty slot (toCString's, or a moved-out value)
+    testR(a, Rdi, Rdi)  { an empty slot (toCString's, or a moved-out value) }
     jcc(a, "e", label: done)
     cmpMemImm(a, Rdi, disp: Rc, value: 0)
     jcc(a, "l", label: done)
     decMem(a, Rdi, disp: Rc)
     jcc(a, "ne", label: done)
     pushAll(a, callerSaved())
-    mov(a, Rsi, Rdi)  # the block
+    mov(a, Rsi, Rdi)  { the block }
     load(a, Rdx, Rsi, disp: Desc)
     testR(a, Rdx, Rdx)
-    jcc(a, "e", label: free)  # a string
+    jcc(a, "e", label: free)  { a string }
     load(a, R11, Rdx, disp: DDrop)
     testR(a, R11, R11)
     jcc(a, "e", label: kept)
@@ -5043,7 +5041,7 @@ procedure rtRelease(g: ref Em)
     load(a, Rdx, Rsi, disp: Desc)
     label(a, kept)
     walk(g, Rsi, Rdx, Rcx, R8, R9)
-    label(a, loop)  # rcx slots left; rdx their kinds, r8 their values
+    label(a, loop)  { rcx slots left; rdx their kinds, r8 their values }
     testR(a, Rcx, Rcx)
     jcc(a, "e", label: free)
     cmpMemImm(a, Rdx, disp: 0, value: Managed)
@@ -5066,8 +5064,8 @@ procedure rtRelease(g: ref Em)
     label(a, done)
     ret(a)
 
-## The equality routine of boxes: rax := whether rdi and rsi are the same box. Like any
-## equality routine, it owns its arguments.
+{ The equality routine of boxes: rax := whether rdi and rsi are the same box. Like any
+  equality routine, it owns its arguments. }
 procedure rtRefEq(g: ref Em)
     let a := g.a
     cmp(a, Rdi, Rsi)
@@ -5078,8 +5076,8 @@ procedure rtRefEq(g: ref Em)
     call(g.a, runtime(g, "rt_release"))
     ret(a)
 
-## rax := a new block with descriptor rdi and refcount 1. Its fields are the caller's to
-## fill in.
+{ rax := a new block with descriptor rdi and refcount 1. Its fields are the caller's to
+  fill in. }
 procedure rtNew(g: ref Em)
     let a := g.a
     push(a, Rdi)
@@ -5090,8 +5088,8 @@ procedure rtNew(g: ref Em)
     store(a, Rax, disp: Desc, src: Rcx)
     ret(a)
 
-## rax := a new list block with descriptor rdi and room for rsi elements, which it holds:
-## the caller fills them in.
+{ rax := a new list block with descriptor rdi and room for rsi elements, which it holds:
+  the caller fills them in. }
 procedure rtListNew(g: ref Em)
     let a := g.a
     push(a, Rdi)
@@ -5108,9 +5106,9 @@ procedure rtListNew(g: ref Em)
     store(a, Rax, disp: Cap, src: Rsi)
     ret(a)
 
-## rdi is the address of a variable holding a list; rsi a length (not negative). Makes the
-## list unique and gives it rsi elements: dropped ones are released, new ones are 0, for
-## the caller to fill in. Growing at least doubles the capacity.
+{ rdi is the address of a variable holding a list; rsi a length (not negative). Makes the
+  list unique and gives it rsi elements: dropped ones are released, new ones are 0, for
+  the caller to fill in. Growing at least doubles the capacity. }
 procedure rtListResize(g: ref Em)
     let a := g.a
     let l := labels(a, "z", 5)
@@ -5121,10 +5119,10 @@ procedure rtListResize(g: ref Em)
     let done := l[4]
     let saved := [Rbx, R12, R13, R14]
     pushAll(a, saved)
-    mov(a, Rbx, Rdi)  # the variable
-    mov(a, R12, Rsi)  # the new length
+    mov(a, Rbx, Rdi)  { the variable }
+    mov(a, R12, Rsi)  { the new length }
     callRuntime(g, "rt_unique")
-    mov(a, R13, Rax)  # the list
+    mov(a, R13, Rax)  { the list }
     load(a, Rcx, R13, disp: Cap)
     cmp(a, R12, Rcx)
     jcc(a, "le", label: fits)
@@ -5133,7 +5131,7 @@ procedure rtListResize(g: ref Em)
     cmp(a, R14, R12)
     jcc(a, "ge", label: big)
     mov(a, R14, R12)
-    label(a, big)  # r14 := max(2 * cap, length)
+    label(a, big)  { r14 := max(2 * cap, length) }
     mov(a, Rdi, R13)
     mov(a, Rsi, R14)
     shlImm(a, Rsi, n: 3)
@@ -5155,7 +5153,7 @@ procedure rtListResize(g: ref Em)
     load(a, Rcx, R13, disp: Count)
     cmp(a, R12, Rcx)
     jcc(a, "l", label: shrink)
-    mov(a, Rdi, Rcx)  # zero the new elements
+    mov(a, Rdi, Rcx)  { zero the new elements }
     shlImm(a, Rdi, n: 3)
     add(a, Rdi, R13)
     addImm(a, Rdi, value: Elems)
@@ -5170,7 +5168,7 @@ procedure rtListResize(g: ref Em)
     cmpMemImm(a, Rdx, disp: DKinds, value: Managed)
     jcc(a, "ne", label: done)
     mov(a, R14, R12)
-    label(a, loop)  # release elements r14 up to the old count
+    label(a, loop)  { release elements r14 up to the old count }
     cmp(a, R14, Rcx)
     jcc(a, "ge", label: done)
     mov(a, Rax, R14)
@@ -5185,8 +5183,8 @@ procedure rtListResize(g: ref Em)
     popAll(a, saved)
     ret(a)
 
-## rdi is the address of a variable holding a record or list. If it is shared, the
-## variable gets a copy of its own. rax := the block, now unshared.
+{ rdi is the address of a variable holding a record or list. If it is shared, the
+  variable gets a copy of its own. rax := the block, now unshared. }
 procedure rtUnique(g: ref Em)
     let a := g.a
     let l := labels(a, "u", 6)
@@ -5203,13 +5201,13 @@ procedure rtUnique(g: ref Em)
     label(a, copy)
     let saved := [Rbx, R12, R13]
     pushAll(a, saved)
-    mov(a, Rbx, Rdi)  # the variable
-    mov(a, R12, Rax)  # the shared block
+    mov(a, Rbx, Rdi)  { the variable }
+    mov(a, R12, Rax)  { the shared block }
     load(a, Rdi, Rax, disp: Desc)
     cmpMemImm(a, Rdi, disp: DCount, value: ListCount)
     jcc(a, "e", label: lst)
     callRuntime(g, "rt_new")
-    mov(a, R13, Rax)  # the copy
+    mov(a, R13, Rax)  { the copy }
     lea(a, Rdi, R13, disp: Fields)
     lea(a, Rsi, R12, disp: Fields)
     load(a, Rdx, R12, disp: Desc)
@@ -5217,7 +5215,7 @@ procedure rtUnique(g: ref Em)
     subImm(a, Rdx, value: Fields)
     ccall(g, "memcpy")
     jmp(a, copied)
-    label(a, lst)  # the same capacity; the count and the elements
+    label(a, lst)  { the same capacity; the count and the elements }
     load(a, Rsi, R12, disp: Cap)
     callRuntime(g, "rt_list_new")
     mov(a, R13, Rax)
@@ -5230,7 +5228,7 @@ procedure rtUnique(g: ref Em)
     label(a, copied)
     load(a, Rdx, R13, disp: Desc)
     walk(g, R13, Rdx, Rcx, R8, R9)
-    label(a, loop)  # the copy holds new references to what the slots refer to
+    label(a, loop)  { the copy holds new references to what the slots refer to }
     testR(a, Rcx, Rcx)
     jcc(a, "e", label: done)
     cmpMemImm(a, Rdx, disp: 0, value: Managed)
@@ -5243,15 +5241,15 @@ procedure rtUnique(g: ref Em)
     decR(a, Rcx)
     jmp(a, loop)
     label(a, done)
-    release(g, R12)  # not the last reference: the block was shared
+    release(g, R12)  { not the last reference: the block was shared }
     store(a, Rbx, disp: 0, src: R13)
     mov(a, Rax, R13)
     popAll(a, saved)
     ret(a)
 
-## rax := whether the blocks rdi and rsi hold equal values: the same string, or records
-## (union values, lists) of the same descriptor whose slots are equal, or that its
-## equality routine says are equal.
+{ rax := whether the blocks rdi and rsi hold equal values: the same string, or records
+  (union values, lists) of the same descriptor whose slots are equal, or that its
+  equality routine says are equal. }
 procedure rtEq(g: ref Em)
     let a := g.a
     let l := labels(a, "q", 10)
@@ -5285,7 +5283,7 @@ procedure rtEq(g: ref Em)
     load(a, Rcx, Rax, disp: DEq)
     testR(a, Rcx, Rcx)
     jcc(a, "e", label: fields)
-    add(a, Rcx, Rax)  # the routine, which owns its arguments
+    add(a, Rcx, Rax)  { the routine, which owns its arguments }
     mov(a, Rax, Rdi)
     retain(g)
     mov(a, Rax, Rsi)
@@ -5298,14 +5296,14 @@ procedure rtEq(g: ref Em)
     load(a, Rcx, Rax, disp: DCount)
     cmpImm(a, Rcx, value: ListCount)
     jcc(a, "ne", label: same)
-    load(a, Rcx, Rsi, disp: Count)  # lists: the same length
+    load(a, Rcx, Rsi, disp: Count)  { lists: the same length }
     cmp(a, R14, Rcx)
     jcc(a, "ne", label: no)
     label(a, same)
-    mov(a, R12, Rbx)  # the same slot of the other block
+    mov(a, R12, Rbx)  { the same slot of the other block }
     sub(a, R12, Rdi)
     add(a, R12, Rsi)
-    label(a, loop)  # r14 slots left; r13 their kinds; rbx, r12 the two values
+    label(a, loop)  { r14 slots left; r13 their kinds; rbx, r12 the two values }
     testR(a, R14, R14)
     jcc(a, "e", label: yes)
     load(a, Rdi, Rbx)
@@ -5321,7 +5319,7 @@ procedure rtEq(g: ref Em)
     testR(a, Rax, Rax)
     jcc(a, "e", label: no)
     jmp(a, nxt)
-    label(a, single)  # kind 3, 4 or 5: a single in the low half, the high one or both
+    label(a, single)  { kind 3, 4 or 5: a single in the low half, the high one or both }
     mov(a, Rcx, Rax)
     cmpImm(a, Rcx, value: 4)
     jcc(a, "e", label: lowBits)
@@ -5344,7 +5342,7 @@ procedure rtEq(g: ref Em)
     singleToXmm(a, Xmm0, r: Rdi)
     singleToXmm(a, Xmm1, r: Rsi)
     jmp(a, compare)
-    label(a, real)  # a NaN is unequal to itself; 0.0 = -0.0
+    label(a, real)  { a NaN is unequal to itself; 0.0 = -0.0 }
     movqToXmm(a, Xmm0, r: Rdi)
     movqToXmm(a, Xmm1, r: Rsi)
     label(a, compare)
@@ -5370,9 +5368,9 @@ procedure rtEq(g: ref Em)
     popAll(a, saved)
     ret(a)
 
-## rax := a hash of the value of block rdi: FNV-1a over a string's bytes, or over a
-## record's descriptor number and fields (each field's own hash if it holds a reference).
-## Equal values hash alike.
+{ rax := a hash of the value of block rdi: FNV-1a over a string's bytes, or over a
+  record's descriptor number and fields (each field's own hash if it holds a reference).
+  Equal values hash alike. }
 procedure rtHash(g: ref Em)
     let a := g.a
     let l := labels(a, "h", 4)
@@ -5387,13 +5385,13 @@ procedure rtHash(g: ref Em)
     jcc(a, "e", label: str)
     let saved := [Rbx, R12, R13, R14, R15]
     pushAll(a, saved)
-    mov(a, Rbx, Rax)  # the hash so far
+    mov(a, Rbx, Rax)  { the hash so far }
     load(a, Rcx, Rdx, disp: DId)
     xorR(a, Rbx, Rcx)
     imul(a, Rbx, R11)
     mov(a, R13, Rdx)
     walk(g, Rdi, R13, R12, R14, R15)
-    label(a, loop)  # r12 slots left; r13 their kinds; r14 their values
+    label(a, loop)  { r12 slots left; r13 their kinds; r14 their values }
     testR(a, R12, R12)
     jcc(a, "e", label: done)
     load(a, Rax, R14)
@@ -5430,12 +5428,12 @@ procedure rtHash(g: ref Em)
     label(a, fin)
     ret(a)
 
-## rax := rax with its bits mixed (the SplitMix64 finalizer), then made non-negative: a
-## hash whose low bits are all useful to a table.
+{ rax := rax with its bits mixed (the SplitMix64 finalizer), then made non-negative: a
+  hash whose low bits are all useful to a table. }
 procedure rtMix(g: ref Em)
     let a := g.a
     let shifts := [30, 27, 31]
-    # $BF58476D1CE4E5B9 and $94D049BB133111EB, as 64-bit words
+    { $BF58476D1CE4E5B9 and $94D049BB133111EB, as 64-bit words }
     let factors := [-4658895280553007687, -7723592293110705685]
     for i := 0 to 2 do
         mov(a, Rcx, Rax)
@@ -5447,7 +5445,7 @@ procedure rtMix(g: ref Em)
     shrImm(a, Rax, n: 1)
     ret(a)
 
-## rax := the name of enum member rax, from the NUL-separated names at rsi.
+{ rax := the name of enum member rax, from the NUL-separated names at rsi. }
 procedure rtEnumName(g: ref Em)
     let a := g.a
     let loop := newLabel(a, "n")
@@ -5473,8 +5471,8 @@ procedure rtEnumName(g: ref Em)
     pop(a, Rbx)
     ret(a)
 
-## rax := malloc(rdi). Running out of memory is fatal. A checked build counts the blocks,
-## and links each into the list of live ones with the place that allocated it.
+{ rax := malloc(rdi). Running out of memory is fatal. A checked build counts the blocks,
+  and links each into the list of live ones with the place that allocated it. }
 procedure rtAlloc(g: ref Em)
     let a := g.a
     if g.checked then
@@ -5490,8 +5488,8 @@ procedure rtAlloc(g: ref Em)
         addImm(a, Rax, value: Prefix)
     ret(a)
 
-## Puts the block whose prefix is at `r` first in the list of live blocks. Uses rcx and
-## rdx.
+{ Puts the block whose prefix is at `r` first in the list of live blocks. Uses rcx and
+  rdx. }
 procedure linkBlock(g: ref Em, r: Integer)
     let a := g.a
     let alone := newLabel(a, "k")
@@ -5505,8 +5503,8 @@ procedure linkBlock(g: ref Em, r: Integer)
     label(a, alone)
     storeGlobal(a, "live", src: r)
 
-## Takes the block whose prefix is at `r` out of the list of live blocks. Uses rcx and
-## rdx.
+{ Takes the block whose prefix is at `r` out of the list of live blocks. Uses rcx and
+  rdx. }
 procedure unlinkBlock(g: ref Em, r: Integer)
     let a := g.a
     let last := newLabel(a, "k")
@@ -5518,16 +5516,16 @@ procedure unlinkBlock(g: ref Em, r: Integer)
     store(a, Rcx, disp: PrevAt, src: Rdx)
     label(a, last)
 
-## Adds `n` to the count of live blocks. Uses rcx.
+{ Adds `n` to the count of live blocks. Uses rcx. }
 procedure countBlocks(g: ref Em, n: Integer)
     let a := g.a
     loadGlobal(a, Rcx, name: "blocks")
     addImm(a, Rcx, value: n)
     storeGlobal(a, "blocks", src: Rcx)
 
-## Reports the blocks still alive at the end of the program, and exits with status 70
-## (SPEC §11): how many, then how many of each type allocated at each place, most first.
-## It doesn't return, so it keeps no register.
+{ Reports the blocks still alive at the end of the program, and exits with status 70
+  (SPEC §11): how many, then how many of each type allocated at each place, most first.
+  It doesn't return, so it keeps no register. }
 procedure rtLeak(g: ref Em)
     let a := g.a
     let l := labels(a, "lk", 12)
@@ -5537,7 +5535,7 @@ procedure rtLeak(g: ref Em)
     leaData(a, Rsi, label: cText(g, "leak: %ld blocks still alive at exit\n"))
     loadGlobal(a, Rdx, name: "blocks")
     ccall(g, "dprintf")
-    # rbx := the live blocks' (place, type name) pairs, r14 of them
+    { rbx := the live blocks' (place, type name) pairs, r14 of them }
     loadGlobal(a, Rdi, name: "blocks")
     shlImm(a, Rdi, n: 4)
     ccall(g, "malloc")
@@ -5568,19 +5566,19 @@ procedure rtLeak(g: ref Em)
     mov(a, R14, R13)
     sub(a, R14, Rbx)
     shrImm(a, R14, n: 4)
-    # Equal texts share their data, so sorting by address brings equal pairs together.
+    { Equal texts share their data, so sorting by address brings equal pairs together. }
     mov(a, Rdi, Rbx)
     mov(a, Rsi, R14)
     movImm(a, Rdx, value: 16)
     leaCode(a, Rcx, label: byKey)
     ccall(g, "qsort")
-    # r15 := the groups (count, place, type name), r13 of them
+    { r15 := the groups (count, place, type name), r13 of them }
     movImm(a, Rdi, value: 24)
     imul(a, Rdi, R14)
     ccall(g, "malloc")
     mov(a, R15, Rax)
     xor32(a, R13, R13)
-    xor32(a, R12, R12)  # the pair
+    xor32(a, R12, R12)  { the pair }
     label(a, l[6])
     cmp(a, R12, R14)
     jcc(a, "e", label: l[7])
@@ -5591,7 +5589,7 @@ procedure rtLeak(g: ref Em)
     load(a, Rdx, Rax, disp: 8)
     movImm(a, Rsi, value: 24)
     imul(a, Rsi, R13)
-    add(a, Rsi, R15)  # the next group
+    add(a, Rsi, R15)  { the next group }
     testR(a, R13, R13)
     jcc(a, "e", label: l[8])
     cmpMem(a, Rcx, Rsi, disp: 8 - 24)
@@ -5638,8 +5636,8 @@ procedure rtLeak(g: ref Em)
     label(a, l[11])
     movImm(a, Rdi, value: PanicStatus)
     exitProgram(g)
-    # qsort's comparisons, called from C: of two pairs by their addresses, and of two
-    # groups by count (most first), place and type name.
+    { qsort's comparisons, called from C: of two pairs by their addresses, and of two
+      groups by count (most first), place and type name. }
     let differ := newLabel(a, "lk")
     let above := newLabel(a, "lk")
     label(a, byKey)
@@ -5672,7 +5670,7 @@ procedure rtLeak(g: ref Em)
     push(a, Rsi)
     load(a, Rdi, Rdi, disp: 8)
     load(a, Rsi, Rsi, disp: 8)
-    ccall(g, "strverscmp")  # line 9 before line 10
+    ccall(g, "strverscmp")  { line 9 before line 10 }
     pop(a, Rsi)
     pop(a, Rdi)
     extend(a, Rax, bits: 32, signed: true)
@@ -5694,8 +5692,8 @@ procedure rtOom(g: ref Em)
     movImm(a, Rdx, value: length(message))
     jmp(a, runtime(g, "rt_panic"))
 
-## rax := a new string block of rdi bytes, refcount 1, NUL-terminated. The bytes and the
-## char count are the caller's to fill in.
+{ rax := a new string block of rdi bytes, refcount 1, NUL-terminated. The bytes and the
+  char count are the caller's to fill in. }
 procedure rtStrNew(g: ref Em)
     let a := g.a
     push(a, Rbx)
@@ -5711,7 +5709,7 @@ procedure rtStrNew(g: ref Em)
     pop(a, Rbx)
     ret(a)
 
-## rax := a new string holding the rsi UTF-8 bytes at rdi.
+{ rax := a new string holding the rsi UTF-8 bytes at rdi. }
 procedure rtStrFrom(g: ref Em)
     let a := g.a
     let loop := newLabel(a, "f")
@@ -5727,7 +5725,7 @@ procedure rtStrFrom(g: ref Em)
     mov(a, Rsi, Rbx)
     mov(a, Rdx, R12)
     ccall(g, "memcpy")
-    xor32(a, Rax, Rax)  # chars: the bytes that don't continue a character
+    xor32(a, Rax, Rax)  { chars: the bytes that don't continue a character }
     label(a, loop)
     testR(a, R12, R12)
     jcc(a, "e", label: done)
@@ -5745,9 +5743,9 @@ procedure rtStrFrom(g: ref Em)
     popAll(a, saved)
     ret(a)
 
-## rax := the length of the valid UTF-8 sequence at rdi, or 0 if there is none (no
-## overlong forms or surrogates). rsi (at least 1) bytes may be read. Uses rcx, rdx,
-## r8-r11.
+{ rax := the length of the valid UTF-8 sequence at rdi, or 0 if there is none (no
+  overlong forms or surrogates). rsi (at least 1) bytes may be read. Uses rcx, rdx,
+  r8-r11. }
 procedure rtUtf8Len(g: ref Em)
     let a := g.a
     let l := labels(a, "u8", 6)
@@ -5758,7 +5756,7 @@ procedure rtUtf8Len(g: ref Em)
     load8(a, Rcx, Rdi)
     cmpImm(a, Rcx, value: $80)
     jcc(a, "b", label: one)
-    movImm(a, R9, value: $80)  # the range of the second byte
+    movImm(a, R9, value: $80)  { the range of the second byte }
     movImm(a, R10, value: $BF)
     movImm(a, R8, value: 2)
     cmpImm(a, Rcx, value: $C2)
@@ -5772,8 +5770,8 @@ procedure rtUtf8Len(g: ref Em)
     cmpImm(a, Rcx, value: $F5)
     jcc(a, "b", label: l[2])
     jmp(a, bad)
-    # E0: overlong below A0, ED: surrogates above 9F; F0: overlong below 90, F4: above
-    # U+10FFFF above 8F
+    { E0: overlong below A0, ED: surrogates above 9F; F0: overlong below 90, F4: above
+      U+10FFFF above 8F }
     let leads := [$E0, $F0]
     let lows := [$A0, $90]
     let highs := [$9F, $8F]
@@ -5783,7 +5781,7 @@ procedure rtUtf8Len(g: ref Em)
         label(a, l[1 + i])
         cmpImm(a, Rcx, value: leads[i])
         jcc(a, "ne", label: notLow)
-        movImm(a, R9, value: lows[i])  # overlong
+        movImm(a, R9, value: lows[i])  { overlong }
         label(a, notLow)
         cmpImm(a, Rcx, value: tops[i])
         jcc(a, "ne", label: check)
@@ -5791,14 +5789,14 @@ procedure rtUtf8Len(g: ref Em)
         jmp(a, check)
     label(a, check)
     cmp(a, R8, Rsi)
-    jcc(a, "a", label: bad)  # the sequence doesn't fit
+    jcc(a, "a", label: bad)  { the sequence doesn't fit }
     load8(a, Rdx, Rdi, disp: 1)
     cmp(a, Rdx, R9)
     jcc(a, "b", label: bad)
     cmp(a, Rdx, R10)
     jcc(a, "a", label: bad)
     movImm(a, R11, value: 2)
-    label(a, cont)  # r11: the next byte
+    label(a, cont)  { r11: the next byte }
     cmp(a, R11, R8)
     jcc(a, "e", label: one)
     mov(a, Rdx, Rdi)
@@ -5809,7 +5807,7 @@ procedure rtUtf8Len(g: ref Em)
     jcc(a, "ne", label: bad)
     incR(a, R11)
     jmp(a, cont)
-    label(a, one)  # r8 = 1 isn't set for ASCII: return it here
+    label(a, one)  { r8 = 1 isn't set for ASCII: return it here }
     cmpImm(a, Rcx, value: $80)
     movImm(a, Rax, value: 1)
     let done := newLabel(a, "u8")
@@ -5821,8 +5819,8 @@ procedure rtUtf8Len(g: ref Em)
     xor32(a, Rax, Rax)
     ret(a)
 
-## rax := the code point at byte offset rsi of the string rdi (valid UTF-8, and rsi on a
-## character boundary).
+{ rax := the code point at byte offset rsi of the string rdi (valid UTF-8, and rsi on a
+  character boundary). }
 procedure rtDecodeUtf8(g: ref Em)
     let a := g.a
     let l := labels(a, "d", 4)
@@ -5834,7 +5832,7 @@ procedure rtDecodeUtf8(g: ref Em)
     load8(a, Rax, Rsi, disp: BytesAt)
     cmpImm(a, Rax, value: $80)
     jcc(a, "b", label: done)
-    movImm(a, Rdx, value: 1)  # continuation bytes
+    movImm(a, Rdx, value: 1)  { continuation bytes }
     cmpImm(a, Rax, value: $E0)
     jcc(a, "b", label: two)
     incR(a, Rdx)
@@ -5859,7 +5857,7 @@ procedure rtDecodeUtf8(g: ref Em)
     label(a, done)
     ret(a)
 
-## rax := a new string copied from the C string rdi (see rt_from_bytes).
+{ rax := a new string copied from the C string rdi (see rt_from_bytes). }
 procedure rtFromCString(g: ref Em)
     let a := g.a
     push(a, Rbx)
@@ -5870,18 +5868,18 @@ procedure rtFromCString(g: ref Em)
     pop(a, Rbx)
     jmp(a, runtime(g, "rt_from_bytes"))
 
-## rax := a new string copied from the rsi bytes at rdi. Each byte that isn't part of
-## valid UTF-8 becomes U+FFFD.
+{ rax := a new string copied from the rsi bytes at rdi. Each byte that isn't part of
+  valid UTF-8 becomes U+FFFD. }
 procedure rtFromBytes(g: ref Em)
     let a := g.a
     let saved := [Rbx, R12, R13, R14, R15]
     pushAll(a, saved)
     mov(a, Rbx, Rdi)
-    xor32(a, R12, R12)  # bytes
-    xor32(a, R13, R13)  # chars
+    xor32(a, R12, R12)  { bytes }
+    xor32(a, R13, R13)  { chars }
     mov(a, R14, Rdi)
     mov(a, R15, Rdi)
-    add(a, R15, Rsi)  # the end
+    add(a, R15, Rsi)  { the end }
     let l := labels(a, "fb", 3)
     let count := l[0]
     let invalid := l[1]
@@ -5909,7 +5907,7 @@ procedure rtFromBytes(g: ref Em)
     store(a, Rax, disp: Chars, src: R13)
     mov(a, R14, Rbx)
     mov(a, Rbx, Rax)
-    lea(a, R13, Rax, disp: BytesAt)  # where the next byte goes
+    lea(a, R13, Rax, disp: BytesAt)  { where the next byte goes }
     let m := labels(a, "fb", 4)
     let copy := m[0]
     let one := m[1]
@@ -5944,16 +5942,16 @@ procedure rtFromBytes(g: ref Em)
     popAll(a, saved)
     ret(a)
 
-## rax := the concatenation of the strings in [rdi, rsi), last to first (the stack order
-## of pushed parts). Releases the parts.
+{ rax := the concatenation of the strings in [rdi, rsi), last to first (the stack order
+  of pushed parts). Releases the parts. }
 procedure rtConcat(g: ref Em)
     let a := g.a
     let saved := [Rbx, R12, R13, R14, R15]
     pushAll(a, saved)
-    mov(a, R12, Rdi)  # first slot (the last part)
-    mov(a, R13, Rsi)  # end (just past the first part)
-    xor32(a, R14, R14)  # bytes
-    xor32(a, R15, R15)  # chars
+    mov(a, R12, Rdi)  { first slot (the last part) }
+    mov(a, R13, Rsi)  { end (just past the first part) }
+    xor32(a, R14, R14)  { bytes }
+    xor32(a, R15, R15)  { chars }
     let total := newLabel(a, "c")
     let alloc := newLabel(a, "c")
     mov(a, Rbx, R13)
@@ -5971,8 +5969,8 @@ procedure rtConcat(g: ref Em)
     mov(a, Rdi, R14)
     callRuntime(g, "rt_str_new")
     store(a, Rax, disp: Chars, src: R15)
-    mov(a, R14, Rax)  # the result
-    lea(a, R15, Rax, disp: BytesAt)  # where the next part goes
+    mov(a, R14, Rax)  { the result }
+    lea(a, R15, Rax, disp: BytesAt)  { where the next part goes }
     let copy := newLabel(a, "c")
     let done := newLabel(a, "c")
     mov(a, Rbx, R13)
@@ -5994,7 +5992,7 @@ procedure rtConcat(g: ref Em)
     popAll(a, saved)
     ret(a)
 
-## rax := the decimal string of the integer rax, signed (`%ld`) or not (`%lu`).
+{ rax := the decimal string of the integer rax, signed (`%ld`) or not (`%lu`). }
 procedure rtIntToStr(g: ref Em, fmt: String)
     let a := g.a
     subImm(a, Rsp, value: 32)
@@ -6011,14 +6009,14 @@ procedure rtIntToStr(g: ref Em, fmt: String)
     addImm(a, Rsp, value: 32)
     ret(a)
 
-## rax := the real rax as text with rsi digits after the point (`%.*f`), rsi clamped to 0
-## to 100.
+{ rax := the real rax as text with rsi digits after the point (`%.*f`), rsi clamped to 0
+  to 100. }
 procedure rtRealFixed(g: ref Em)
     let a := g.a
     let l := labels(a, "x", 2)
     let low := l[0]
     let high := l[1]
-    let size := 448  # the most digits: 309 before the point, 100 after
+    let size := 448  { the most digits: 309 before the point, 100 after }
     subImm(a, Rsp, value: size)
     mov(a, Rcx, Rsi)
     cmpImm(a, Rcx, value: 0)
@@ -6042,11 +6040,11 @@ procedure rtRealFixed(g: ref Em)
     addImm(a, Rsp, value: size)
     ret(a)
 
-## rax := the real rax (a single if `single`) as text: the fewest significant digits
-## (`%.Ng`, N up to 17, or 9 for a single) that read back as the same number; written out
-## in full below 10^16 (10^7 for a single) (`%.1f`), and with `.0` added when that shows
-## no `.` (`2.0`, `1.0e+20`), so it reads as a real literal. `inf`, `-inf` and `nan` stay
-## as they are.
+{ rax := the real rax (a single if `single`) as text: the fewest significant digits
+  (`%.Ng`, N up to 17, or 9 for a single) that read back as the same number; written out
+  in full below 10^16 (10^7 for a single) (`%.1f`), and with `.0` added when that shows
+  no `.` (`2.0`, `1.0e+20`), so it reads as a real literal. `inf`, `-inf` and `nan` stay
+  as they are. }
 procedure rtRealToStr(g: ref Em, single: Boolean)
     let a := g.a
     let l := labels(a, "f", 7)
@@ -6061,14 +6059,14 @@ procedure rtRealToStr(g: ref Em, single: Boolean)
     add(var fmt, Byte(0))
     var full := utf8("%.1f")
     add(var full, Byte(0))
-    # Enough digits to tell any two numbers apart, and below 10^exact every number with no
-    # more digits than its exponent is a whole one.
+    { Enough digits to tell any two numbers apart, and below 10^exact every number with no
+      more digits than its exponent is a whole one. }
     var digits := 17
     var exact := 16
     if single then
         digits := 9
         exact := 7
-    if single then  # printed as a double, read back as a single
+    if single then  { printed as a double, read back as a single }
         singleToXmm(a, Xmm0, r: Rax)
         movqFromXmm(a, Rax, x: Xmm0)
     else
@@ -6076,14 +6074,14 @@ procedure rtRealToStr(g: ref Em, single: Boolean)
     ucomisd(a, Xmm0, y: Xmm0)
     let number := newLabel(a, "f")
     jcc(a, "np", label: number)
-    leaData(a, Rax, label: literal(g, "nan"))  # whatever its sign bit
+    leaData(a, Rax, label: literal(g, "nan"))  { whatever its sign bit }
     ret(a)
     label(a, number)
     let saved := [Rbx, R12, R13]
     pushAll(a, saved)
     subImm(a, Rsp, value: 48)
     mov(a, Rbx, Rax)
-    movImm(a, R12, value: 1)  # the precision
+    movImm(a, R12, value: 1)  { the precision }
     label(a, loop)
     mov(a, Rdi, Rsp)
     movImm(a, Rsi, value: 40)
@@ -6091,7 +6089,7 @@ procedure rtRealToStr(g: ref Em, single: Boolean)
     mov(a, Rcx, R12)
     movqToXmm(a, Xmm0, r: Rbx)
     ccall(g, "snprintf", vectors: 1)
-    mov(a, R13, Rax)  # the length
+    mov(a, R13, Rax)  { the length }
     mov(a, Rdi, Rsp)
     xor32(a, Rsi, Rsi)
     if single then
@@ -6105,7 +6103,7 @@ procedure rtRealToStr(g: ref Em, single: Boolean)
     incR(a, R12)
     cmpImm(a, R12, value: digits)
     jcc(a, "le", label: loop)
-    label(a, scan)  # rcx: the position; r8: where `.0` goes; r9: 1 once a `.` is seen
+    label(a, scan)  { rcx: the position; r8: where `.0` goes; r9: 1 once a `.` is seen }
     mov(a, R8, R13)
     xor32(a, Rcx, Rcx)
     xor32(a, R9, R9)
@@ -6116,7 +6114,7 @@ procedure rtRealToStr(g: ref Em, single: Boolean)
     add(a, Rdx, Rcx)
     load8(a, Rax, Rdx)
     incR(a, Rcx)
-    cmpImm(a, Rax, value: ord('n'))  # inf
+    cmpImm(a, Rax, value: ord('n'))  { inf }
     jcc(a, "e", label: make)
     cmpImm(a, Rax, value: ord('e'))
     jcc(a, "e", label: exp)
@@ -6124,7 +6122,7 @@ procedure rtRealToStr(g: ref Em, single: Boolean)
     jcc(a, "ne", label: nxt)
     movImm(a, R9, value: 1)
     jmp(a, nxt)
-    label(a, exp)  # below 10^16, and so many digits that %g wrote an exponent: in full
+    label(a, exp)  { below 10^16, and so many digits that %g wrote an exponent: in full }
     lea(a, R8, Rcx, disp: -1)
     mov(a, Rdi, Rsp)
     add(a, Rdi, Rcx)
@@ -6170,18 +6168,18 @@ procedure rtRealToStr(g: ref Em, single: Boolean)
     popAll(a, saved)
     ret(a)
 
-## rax := "true" or "false".
+{ rax := "true" or "false". }
 procedure rtBoolToStr(g: ref Em)
     let a := g.a
     let done := newLabel(a, "b")
     testR(a, Rax, Rax)
-    leaData(a, Rax, label: literal(g, "false"))  # lea keeps the flags
+    leaData(a, Rax, label: literal(g, "false"))  { lea keeps the flags }
     jcc(a, "e", label: done)
     leaData(a, Rax, label: literal(g, "true"))
     label(a, done)
     ret(a)
 
-## rax := the one-character string of the code point rax (UTF-8 encoded).
+{ rax := the one-character string of the code point rax (UTF-8 encoded). }
 procedure rtCharToStr(g: ref Em)
     let a := g.a
     let sized := newLabel(a, "u")
@@ -6190,16 +6188,16 @@ procedure rtCharToStr(g: ref Em)
     let prefixes := [0, $C0, $E0]
     let limits := [$80, $800, $10000]
     for i := 0 to 2 do
-        movImm(a, Rsi, value: i + 1)  # bytes
-        movImm(a, Rdx, value: prefixes[i])  # bits of the first byte
+        movImm(a, Rsi, value: i + 1)  { bytes }
+        movImm(a, Rdx, value: prefixes[i])  { bits of the first byte }
         cmpImm(a, Rax, value: limits[i])
         jcc(a, "b", label: sized)
     movImm(a, Rsi, value: 4)
     movImm(a, Rdx, value: $F0)
     label(a, sized)
-    subImm(a, Rsp, value: 8)  # the bytes
+    subImm(a, Rsp, value: 8)  { the bytes }
     lea(a, Rcx, Rsp, disp: -1)
-    add(a, Rcx, Rsi)  # the last byte; continuation bytes are written backwards
+    add(a, Rcx, Rsi)  { the last byte; continuation bytes are written backwards }
     mov(a, Rdi, Rsi)
     label(a, loop)
     decR(a, Rdi)
@@ -6212,15 +6210,15 @@ procedure rtCharToStr(g: ref Em)
     decR(a, Rcx)
     jmp(a, loop)
     label(a, lead)
-    add(a, Rdx, Rax)  # the prefix bits and the remaining value don't overlap
+    add(a, Rdx, Rax)  { the prefix bits and the remaining value don't overlap }
     store8(a, Rcx, disp: 0, src: Rdx)
     mov(a, Rdi, Rsp)
     callRuntime(g, "rt_str_from")
     addImm(a, Rsp, value: 8)
     ret(a)
 
-## rax := -1, 0 or 1 as string rdi is before, equal to or after string rsi (bytewise,
-## which is code point order for UTF-8).
+{ rax := -1, 0 or 1 as string rdi is before, equal to or after string rsi (bytewise,
+  which is code point order for UTF-8). }
 procedure rtStrCmp(g: ref Em)
     let a := g.a
     let l := labels(a, "s", 4)
@@ -6236,14 +6234,14 @@ procedure rtStrCmp(g: ref Em)
     cmp(a, Rdx, R12)
     jcc(a, "be", label: short)
     mov(a, Rdx, R12)
-    label(a, short)  # rdx: the shorter length
+    label(a, short)  { rdx: the shorter length }
     addImm(a, Rdi, value: BytesAt)
     addImm(a, Rsi, value: BytesAt)
     ccall(g, "memcmp")
     test32(a, Rax, Rax)
     jcc(a, "s", label: less)
     jcc(a, "ne", label: more)
-    cmp(a, Rbx, R12)  # one is a prefix of the other
+    cmp(a, Rbx, R12)  { one is a prefix of the other }
     jcc(a, "b", label: less)
     jcc(a, "a", label: more)
     xor32(a, Rax, Rax)
@@ -6258,7 +6256,7 @@ procedure rtStrCmp(g: ref Em)
     pop(a, Rbx)
     ret(a)
 
-## rax := whether string rdi starts with string rsi.
+{ rax := whether string rdi starts with string rsi. }
 procedure rtStartsWith(g: ref Em)
     let a := g.a
     let no := newLabel(a, "p")
@@ -6277,8 +6275,8 @@ procedure rtStartsWith(g: ref Em)
     xor32(a, Rax, Rax)
     ret(a)
 
-## rax := the bytes [rsi, rdx) of string rdi, as a new string. The offsets are checked by
-## the caller.
+{ rax := the bytes [rsi, rdx) of string rdi, as a new string. The offsets are checked by
+  the caller. }
 procedure rtSlice(g: ref Em)
     let a := g.a
     sub(a, Rdx, Rsi)

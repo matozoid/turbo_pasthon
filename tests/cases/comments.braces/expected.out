@@ -92,10 +92,10 @@ Dedent 19:1-19:1 "" -
 EndMarker 19:1-19:11 "{ end if }" marker if -
 Newline 19:11-20:1 "\n" -
 Eof 20:1-20:1 "" -
-comment 5:1-6:12 "{ Adds one.\n  Really. }" true
-comment 8:19-8:31 "{ trailing }" true
-comment 11:1-12:26 "{ a comment\n  over { nested } lines }" true
-comment 15:11-15:21 "{ inline }" true
+comment 5:1-6:12 "{ Adds one.\n  Really. }"
+comment 8:19-8:31 "{ trailing }"
+comment 11:1-12:26 "{ a comment\n  over { nested } lines }"
+comment 15:11-15:21 "{ inline }"
 --- stderr
 $ $PST run Main.pst
 exit 0

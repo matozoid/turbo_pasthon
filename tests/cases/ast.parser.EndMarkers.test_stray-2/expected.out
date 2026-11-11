@@ -1,7 +1,7 @@
 $ $PST ast parser.EndMarkers.test_stray-2.pst
 exit 1
 --- stdout
-File 1:1-2:9 kind="program"
+File 1:1-2:11 kind="program"
   name: Ident 1:9-1:10 name="P"
-error E0010 2:1-2:9 "end marker '# end if' does not directly follow a block it can close"
+error E0010 2:1-2:11 "end marker '{ end if }' does not directly follow a block it can close"
 --- stderr

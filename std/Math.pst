@@ -1,6 +1,6 @@
 unit Math
 
-## Numeric functions.
+{ Numeric functions. }
 
 const
     export Pi = 3.141592653589793
@@ -12,11 +12,11 @@ external "libm.so.6"
     function cFloor(x: Real): Real name "floor"
     function cCeil(x: Real): Real name "ceil"
 
-## Largest integer not above `x`.
+{ Largest integer not above `x`. }
 export function floor(x: Real): Integer
     return toInt(cFloor(x))
 
-## Smallest integer not below `x`.
+{ Smallest integer not below `x`. }
 export function ceil(x: Real): Integer
     return toInt(cCeil(x))
 
@@ -26,11 +26,11 @@ export function abs(x: Integer): Integer
 export function abs(x: Real): Real
     return if x < 0.0 then -x else x
 
-## The smaller of `a` and `b`.
+{ The smaller of `a` and `b`. }
 export function min[T: Ordered](a, b: T): T
     return if b < a then b else a
 
-## The larger of `a` and `b`.
+{ The larger of `a` and `b`. }
 export function max[T: Ordered](a, b: T): T
     return if b > a then b else a
 

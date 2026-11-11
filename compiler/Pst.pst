@@ -1,8 +1,8 @@
 program Pst
 
-## The command line tool (SPEC §15): `check`, `build`, `run`, `test`, `fmt`, `lsp`, `mcp`,
-## `query`, `index`, and the `tokens` and `ast` dumps. The standard units are found in
-## `units` next to the executable.
+{ The command line tool (SPEC §15): `check`, `build`, `run`, `test`, `fmt`, `lsp`, `mcp`,
+  `query`, `index`, and the `tokens` and `ast` dumps. The standard units are found in
+  `units` next to the executable. }
 
 uses IO, OS, Strings, Source, Ast, Diagnostics, Typecheck, Emit, Fmt, Lsp, Mcp, Query, PosixPaths, LexDump, AstDump
 
@@ -17,7 +17,7 @@ type
         json: Boolean
         unchecked: Boolean
         filter: String
-        ## Seconds a test may run, or 0 for no limit.
+        { Seconds a test may run, or 0 for no limit. }
         timeout: Integer
         check: Boolean
         rest: List[String]
@@ -27,7 +27,7 @@ procedure usage(message: String)
     writelnErr("pst: error: {message}")
     exit(2)
 
-## The command line, or exits with status 2 after a usage message.
+{ The command line, or exits with status 2 after a usage message. }
 function parseArgs(a: List[String]): Options
     if length(a) = 0 then
         usage("missing command")
@@ -109,8 +109,8 @@ function parseArgs(a: List[String]): Options
         remove(var o.rest, 0)
     return o
 
-## The arguments of `pst query`: the request in `filter`, its position or path in
-## `file`. `--json` is accepted, since the output is always JSON.
+{ The arguments of `pst query`: the request in `filter`, its position or path in
+  `file`. `--json` is accepted, since the output is always JSON. }
 function queryArgs(a: List[String], o: Options): Options
     var q := o
     var words: List[String] := []
@@ -148,8 +148,8 @@ function queryArgs(a: List[String], o: Options): Options
         usage("unrecognized argument '{words[length(words) - 1]}'")
     return q
 
-## The arguments of `pst index`: the path in `file`, by default the current directory.
-## `--json` is accepted, since the output is always JSON.
+{ The arguments of `pst index`: the path in `file`, by default the current directory.
+  `--json` is accepted, since the output is always JSON. }
 function indexArgs(a: List[String], o: Options): Options
     var q := o
     for i := 1 to length(a) - 1 do
@@ -162,8 +162,8 @@ function indexArgs(a: List[String], o: Options): Options
         q.file := "."
     return q
 
-## The arguments of `pst mcp`: the project root in `file`, by default the current
-## directory.
+{ The arguments of `pst mcp`: the project root in `file`, by default the current
+  directory. }
 function mcpArgs(a: List[String], o: Options): Options
     var q := o
     q.file := "."
@@ -176,7 +176,7 @@ function mcpArgs(a: List[String], o: Options): Options
             usage("unrecognized argument '{a[i]}'")
     return q
 
-## The directory part of `path`: `.` if it has none.
+{ The directory part of `path`: `.` if it has none. }
 function dirName(path: String): String
     var parts := split(path, sep: "/")
     removeLast(var parts)
@@ -186,7 +186,7 @@ function dirName(path: String): String
         return "/"
     return join(parts, sep: "/")
 
-## The file name of `path` without its directory and extension.
+{ The file name of `path` without its directory and extension. }
 function stem(path: String): String
     let parts := split(path, sep: "/")
     let name := parts[length(parts) - 1]
@@ -213,8 +213,8 @@ procedure fatal(message: String)
     writelnErr("pst: error: {message}")
     exit(1)
 
-## Drops the type checkers that `typecheck(..., keep: true)` kept: they refer to the
-## environment, a cycle.
+{ Drops the type checkers that `typecheck(..., keep: true)` kept: they refer to the
+  environment, a cycle. }
 procedure forget(result: Checked)
     case result.env of
         Some(env):
@@ -223,8 +223,8 @@ procedure forget(result: Checked)
         None:
             return
 
-## Checks and compiles `path` into the executable `out`, and prints the diagnostics.
-## Whether it succeeded.
+{ Checks and compiles `path` into the executable `out`, and prints the diagnostics.
+  Whether it succeeded. }
 function buildTo(
     path: String,
     stdDir: String,
@@ -249,7 +249,7 @@ function buildTo(
         None:
             return false
 
-## Writes the executable `exe` to `out`, with mode $1ED (octal 755).
+{ Writes the executable `exe` to `out`, with mode $1ED (octal 755). }
 procedure writeExe(out: String, exe: List[Byte])
     case create(out, mode: $1ED) of
         Ok(f):
@@ -261,7 +261,7 @@ procedure writeExe(out: String, exe: List[Byte])
         Err(e):
             fatal(e.error)
 
-## The test blocks of a file.
+{ The test blocks of a file. }
 function testsOf(file: SourceFile): List[TestBlock]
     var tests: List[TestBlock] := []
     for item in file.items do
@@ -282,7 +282,7 @@ type
         failed: Integer
         built: Boolean
 
-## Builds and runs the tests of one file (SPEC §13) in directory `tmp`.
+{ Builds and runs the tests of one file (SPEC §13) in directory `tmp`. }
 function testFile(path: String, stdDir: String, o: Options, tmp: String): Tally
     var tally := Tally(passed: 0, failed: 0, built: false)
     let result := typecheck(path, stdDir: stdDir, keep: true)
@@ -340,7 +340,7 @@ function testFile(path: String, stdDir: String, o: Options, tmp: String): Tally
     _ := removeFile(exe)
     return tally
 
-## `path`, or the `.pst` files in it if it's a directory, sorted.
+{ `path`, or the `.pst` files in it if it's a directory, sorted. }
 function sourceFiles(path: String): List[String]
     case pstFiles(path) of
         Ok(files):
@@ -349,7 +349,7 @@ function sourceFiles(path: String): List[String]
             fatal(e.error)
             return []
 
-## The text of the file at `path`.
+{ The text of the file at `path`. }
 function readSource(path: String): String
     var text := ""
     case open(path) of
@@ -364,8 +364,8 @@ function readSource(path: String): String
             fatal(e.error)
     return text
 
-## Formats the files of `o.file` in place, or with `--check` only lists those that would
-## change (SPEC §15.3). The changed files are listed.
+{ Formats the files of `o.file` in place, or with `--check` only lists those that would
+  change (SPEC §15.3). The changed files are listed. }
 procedure fmtCommand(o: Options)
     var changed := false
     var failed := false

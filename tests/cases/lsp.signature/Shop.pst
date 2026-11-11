@@ -5,6 +5,6 @@ type
         export name: String
         export qty: Integer
 
-## The price of `n` items.
+{ The price of `n` items. }
 export function price(n: Integer, discount: Integer := 0): Integer
     return n * 2 - discount

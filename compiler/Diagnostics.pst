@@ -1,13 +1,13 @@
 unit Diagnostics
 
-## Diagnostics with stable error codes and machine-applicable fixes (SPEC §15.1).
+{ Diagnostics with stable error codes and machine-applicable fixes (SPEC §15.1). }
 
 uses Source, Strings
 
 type
     export Severity = (Error, Warning)
 
-    ## Replaces the text at `span` with `text`.
+    { Replaces the text at `span` with `text`. }
     export Edit = record
         export span: Span
         export text: String
@@ -24,7 +24,7 @@ type
         export message: String
         export fixes: List[Fix]
 
-## `error` or `warning`.
+{ `error` or `warning`. }
 export function name(s: Severity): String
     case s of
         Severity.Error:
@@ -32,11 +32,11 @@ export function name(s: Severity): String
         Severity.Warning:
             return "warning"
 
-## The human form: `Main.pst:12:5: error E0502: result of 'restock' is ignored`.
+{ The human form: `Main.pst:12:5: error E0502: result of 'restock' is ignored`. }
 export function human(d: Diagnostic): String
     return "{d.file}:{d.span.line}:{d.span.col}: {name(d.severity)} {d.code}: {d.message}"
 
-## The digits of `n` in base 16, lowercase, at least four.
+{ The digits of `n` in base 16, lowercase, at least four. }
 function hex4(n: Integer): String
     let digits := ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f']
     var cs: List[String] := []
@@ -46,7 +46,7 @@ function hex4(n: Integer): String
         m := m div 16
     return join(cs)
 
-## `s` as a JSON string, ASCII only, as Python's `json.dumps` writes it.
+{ `s` as a JSON string, ASCII only, as Python's `json.dumps` writes it. }
 export function jsonString(s: String): String
     var parts: List[String] := ["\""]
     for c in s do
@@ -75,11 +75,11 @@ export function jsonString(s: String): String
     add(var parts, "\"")
     return join(parts)
 
-## The position fields of a JSON object (SPEC §15.1), without braces.
+{ The position fields of a JSON object (SPEC §15.1), without braces. }
 export function jsonSpan(s: Span): String
     return "\"line\": {s.line}, \"col\": {s.col}, \"endLine\": {s.endLine}, \"endCol\": {s.endCol}"
 
-## The JSON form (SPEC §15.1) on one line, as Python's `json.dumps` writes it.
+{ The JSON form (SPEC §15.1) on one line, as Python's `json.dumps` writes it. }
 export function json(d: Diagnostic): String
     var fixes: List[String] := []
     for f in d.fixes do

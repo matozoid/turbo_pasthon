@@ -54,8 +54,9 @@ Non-goals:
 ### 2.3 Comments
 - `{ ... }`, which may span lines and nest: `{ a { b } c }` is one comment. An unclosed
   `{` is error `E0011`.
-- `#` to end of line, until the next release, when `{ }` becomes the only comment style.
-- Doc comments: a `{ }` comment or `##` lines directly above a declaration; attached to it
+- There is no other comment style: `#` is `E0006`, as is any character outside the
+  language.
+- Doc comments: a `{ }` comment directly above a declaration; attached to it
   by tooling. The text of a `{ }` doc comment drops the braces, and each line after the
   first drops up to two leading spaces, so lines can be aligned under the first:
 
@@ -72,24 +73,22 @@ A comment of the exact form
 { end <keyword> [<name>] }
 ```
 
-(or `# end <keyword> [<name>]`, until the next release)
-
 placed on its own line, at the indentation of a block header, immediately after
 that block's last line, is an **end marker**. The compiler verifies that it
 matches the block just closed:
 
 | Block | Marker |
 |---|---|
-| `if` / `else if` / `else` chain | `# end if` |
-| `while` | `# end while` |
-| `for` | `# end for` |
+| `if` / `else if` / `else` chain | `{ end if }` |
+| `while` | `{ end while }` |
+| `for` | `{ end for }` |
 | `repeat ... until` | not allowed (`until` already closes it) |
-| `case` | `# end case` |
-| `function f` / `procedure p` | `# end function f` / `# end procedure p` (name optional) |
-| `record` / `trait` type `T` | `# end record T` / `# end trait T` (name optional) |
-| `test "..."` | `# end test` |
-| `defer` block | `# end defer` |
-| `external` block | `# end external` |
+| `case` | `{ end case }` |
+| `function f` / `procedure p` | `{ end function f }` / `{ end procedure p }` (name optional) |
+| `record` / `trait` type `T` | `{ end record T }` / `{ end trait T }` (name optional) |
+| `test "..."` | `{ end test }` |
+| `defer` block | `{ end defer }` |
+| `external` block | `{ end external }` |
 
 A mismatch is error `E0010`. Markers are never required.
 
@@ -148,7 +147,7 @@ string concatenation operator: building a string has exactly one form.
 
 ```pascal
 let msg := "{item.name}: {item.qty} left"
-let json := "\{\"name\": \"{name}\"}"     # \{ is a literal brace
+let json := "\{\"name\": \"{name}\"}"     { a backslash makes a literal brace }
 ```
 
 - `{expr}` inserts any expression whose type satisfies `Printable` (§4.10).
@@ -199,8 +198,8 @@ previous line.
 Each file is exactly one of:
 
 ```pascal
-program Name          # produces an executable; may contain top-level statements
-unit Name             # library; declarations only
+program Name          { produces an executable; may contain top-level statements }
+unit Name             { library; declarations only }
 ```
 
 The name must match the file name (`Name.pst`).
@@ -280,7 +279,7 @@ allowed only in standard units (`E0106`):
 
 ```pascal
 external "pst"
-    ## Number of elements.
+    { Number of elements. }
     export function length[T](xs: List[T]): Integer
 ```
 
@@ -312,9 +311,9 @@ and the value fits.
 
 ```pascal
 type
-    Meters = Real                 # alias: fully interchangeable with Real
-    Percent = 0..100              # subrange of Integer
-    Digit = '0'..'9'              # subrange of Char
+    Meters = Real                 { alias: fully interchangeable with Real }
+    Percent = 0..100              { subrange of Integer }
+    Digit = '0'..'9'              { subrange of Char }
 ```
 
 Subrange assignments are range-checked at runtime in checked builds (panic `P0003`).
@@ -337,7 +336,7 @@ type
     Point = record
         x: Real
         y: Real
-        label: String := ""      # field default
+        label: String := ""      { field default }
 ```
 
 - **Value type.** Assignment copies.
@@ -353,8 +352,8 @@ type
 ```pascal
 type
     export SortedList = record
-        export count: Integer        # readable and writable from other units
-        items: List[Integer]         # only this unit's functions can touch it
+        export count: Integer        { readable and writable from other units }
+        items: List[Integer]         { only this unit's functions can touch it }
 ```
 
 - Outside the unit, private fields can't be read, written, or named.
@@ -632,7 +631,7 @@ checking.
 ### 4.14 Iterators
 ```pascal
 type
-    Iterator[T] = trait                       # in System
+    Iterator[T] = trait                       { in System }
         function next(var this): Option[T]
 ```
 
@@ -642,11 +641,11 @@ type
   `Iterator[T]`. Every iterator is iterable as itself.
 - `for x in e do <body>` means:
   ```pascal
-  var it := iter(e)          # or a copy of e, if e is already an Iterator
+  var it := iter(e)          { or a copy of e, if e is already an Iterator }
   while true do
       case next(var it) of
           Some(s):
-              let x := s.value   # x is a fresh let binding
+              let x := s.value   { x is a fresh let binding }
               <body>
           None:    break
   ```
@@ -669,8 +668,8 @@ type
 ```pascal
 type
     CharIter = record
-        text: String        # refcounted copy, O(1)
-        pos: Integer        # byte offset
+        text: String        { refcounted copy, O(1) }
+        pos: Integer        { byte offset }
 
 function iter(s: String): CharIter
     return CharIter(text: s, pos: 0)
@@ -726,9 +725,9 @@ The value must be computable at compile time. The type is inferred.
 
 ### 5.2 Local variables
 ```pascal
-var count := 0               # mutable, type inferred
-var total: Real := 0.0       # mutable, explicit type
-let name := "bob"            # immutable binding
+var count := 0               { mutable, type inferred }
+var total: Real := 0.0       { mutable, explicit type }
+let name := "bob"            { immutable binding }
 ```
 - Every variable **must** be initialized at declaration (`E0201`).
 - `let` bindings can't be reassigned or passed as `var` arguments.
@@ -745,8 +744,8 @@ let name := "bob"            # immutable binding
 ### 6.1 Syntax
 ```pascal
 function name[TypeParams](params): ReturnType
-    requires <bool-expr>          # zero or more, first lines of body
-    ensures <bool-expr>           # zero or more, after requires
+    requires <bool-expr>          { zero or more, first lines of body }
+    ensures <bool-expr>           { zero or more, after requires }
     <statements>
 
 procedure name[TypeParams](params)
@@ -808,11 +807,11 @@ Every call that may mutate an argument shows `var` at that argument.
 
   ```pascal
   procedure copyFile(src: String, dst: String)
-  copyFile("a.txt", dst: "b.txt")     # ok
-  copyFile("a.txt", "b.txt")          # E0530: 'dst' has the same type as 'src'; name it
+  copyFile("a.txt", dst: "b.txt")     { ok }
+  copyFile("a.txt", "b.txt")          { E0530: 'dst' has the same type as 'src'; name it }
 
   function max[T: Ordered](a, b: T): T
-  max(x, y)                           # ok: a and b are grouped, so interchangeable
+  max(x, y)                           { ok: a and b are grouped, so interchangeable }
   ```
 - "Same type" is decided on the declared parameter types, before generic substitution.
   The first argument of a dot call (§6.6) counts as positional.
@@ -865,7 +864,7 @@ else
 ```
 - Bodies always start on a new line.
 - `else if` on one line continues the same chain. It does not open a nested `if` block,
-  so the chain stays flat and a single `# end if` closes it. Writing `else` followed by an
+  so the chain stays flat and a single `{ end if }` closes it. Writing `else` followed by an
   indented `if` on the next line is a nested `if`, and the formatter rewrites it to `else if`.
 
 ### 7.3 while
@@ -886,13 +885,13 @@ use variables declared in the body. So `continue` isn't allowed in a `repeat` bo
 
 ### 7.5 for
 ```pascal
-for i := 0 to n - 1 do        # inclusive bounds, step +1
+for i := 0 to n - 1 do        { inclusive bounds, step +1 }
     ...
-for i := n - 1 downto 0 do    # inclusive bounds, step -1
+for i := n - 1 downto 0 do    { inclusive bounds, step -1 }
     ...
-for item in items do          # any iterable (§4.14)
+for item in items do          { any iterable (§4.14) }
     ...
-for key, value in map do      # Map only
+for key, value in map do      { Map only }
     ...
 ```
 - The loop variable is a fresh `let` binding scoped to the body. `for ... in` is defined by
@@ -1014,8 +1013,8 @@ type
 export function totalArea[T: Measurable](xs: List[T]): Real
     var sum := 0.0
     for x in xs do
-        sum := sum + x.area()     # bound member: resolved where totalArea[T] is instantiated
-    return round2(sum)            # not a bound member: resolved here, in Geometry
+        sum := sum + x.area()     { bound member: resolved where totalArea[T] is instantiated }
+    return round2(sum)            { not a bound member: resolved here, in Geometry }
 
 function round2(x: Real): Real
     return toReal(round(x * 100.0)) / 100.0
@@ -1031,7 +1030,7 @@ type
         r: Real
 
 function area(c: Circle): Real
-    return Pi * c.r * c.r         # visible here, so Circle satisfies Measurable here
+    return Pi * c.r * c.r         { visible here, so Circle satisfies Measurable here }
 
 writeln("{totalArea([Circle(r: 1.0), Circle(r: 2.0)])}")
 ```
@@ -2086,8 +2085,7 @@ knew them, std and the compiler moved over, and `0x`/`0b` are gone.
    `["a": 1, "b": 2]`, and `[:]` for an empty map. Two releases: first the bracket forms,
    then `{ }` comments. Done (§2.3, §2.4, §2.7): the bracket forms, which std and the
    compiler use, and `{ }` comments and `{ end if }` markers. The brace literals are gone.
-   Left for after the next seed release: std and the compiler move to `{ }` comments and
-   markers, and `#` goes.
+   Finished: std and the compiler use `{ }` comments and markers, and `#` is gone.
 
 ---
 

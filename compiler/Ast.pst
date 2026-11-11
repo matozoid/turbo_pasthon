@@ -1,35 +1,35 @@
 unit Ast
 
-## Abstract syntax tree (SPEC §16).
-##
-## Every node has a `span` covering its source text (SPEC §15.6). Declarations carry their
-## `##` doc comment in `doc`; nodes that can be closed by an end marker (SPEC §2.4) record
-## its span in `endMarker`.
-##
-## The parser never stops at an error. Broken statements and expressions become
-## `ErrorStmt` / `ErrorExpr` nodes, so the tree is always complete.
-##
-## Expressions and arguments carry an `id`, unique within a parse, that later stages use
-## to attach facts (types, chosen overloads) to them.
+{ Abstract syntax tree (SPEC §16).
+
+  Every node has a `span` covering its source text (SPEC §15.6). Declarations carry their
+  doc comment in `doc`; nodes that can be closed by an end marker (SPEC §2.4) record
+  its span in `endMarker`.
+
+  The parser never stops at an error. Broken statements and expressions become
+  `ErrorStmt` / `ErrorExpr` nodes, so the tree is always complete.
+
+  Expressions and arguments carry an `id`, unique within a parse, that later stages use
+  to attach facts (types, chosen overloads) to them. }
 
 uses Source
 
 type
-    # ---------------------------------------------------------------- names, types
+    { -------------------------------------------------------------- names, types }
 
     export Ident = record
         export span: Span
         export name: String
 
-    ## `Integer`, `List[T]`, `Geometry.Shape`, `Array[T, N * 2]`.
-    ##
-    ## `args` holds type expressions, or plain expressions for constant arguments. A bare
-    ## name may also turn out to be a constant (`N` in `Array[T, N]`); the checker decides.
+    { `Integer`, `List[T]`, `Geometry.Shape`, `Array[T, N * 2]`.
+
+      `args` holds type expressions, or plain expressions for constant arguments. A bare
+      name may also turn out to be a constant (`N` in `Array[T, N]`); the checker decides. }
     export TypeName = record
         export span: Span
         export parts: List[String]
         export args: List[TypeOrExpr]
-        ## One per part.
+        { One per part. }
         export partSpans: List[Span]
 
     export RefType = record
@@ -44,16 +44,16 @@ type
 
     export TypeExpr = TypeName | RefType | FuncType
 
-    ## A type argument or index item: a type, or an expression.
+    { A type argument or index item: a type, or an expression. }
     export TypeOrExpr = TypeExpr | Expr
 
     export TypeParam = record
         export span: Span
         export name: Ident
-        ## Traits, or the type of a constant parameter (`N: Integer`).
+        { Traits, or the type of a constant parameter (`N: Integer`). }
         export bounds: List[TypeExpr]
 
-    # ----------------------------------------------------------------- expressions
+    { --------------------------------------------------------------- expressions }
 
     export Name = record
         export span: Span
@@ -65,7 +65,7 @@ type
         export id: Integer
         export value: UInt64
 
-    ## The value is kept as its digits, without `_`.
+    { The value is kept as its digits, without `_`. }
     export RealLit = record
         export span: Span
         export id: Integer
@@ -86,12 +86,12 @@ type
         export id: Integer
         export value: String
 
-    ## The text between placeholders.
+    { The text between placeholders. }
     export TextPart = record
         export text: String
 
-    ## A placeholder with a field width, and for a real the digits after the point:
-    ## `\{x:8}`, `\{x:0:2}`.
+    { A placeholder with a field width, and for a real the digits after the point:
+      `{x:8}`, `{x:0:2}`. }
     export FormatPart = record
         export value: Expr
         export width: Expr
@@ -99,7 +99,7 @@ type
 
     export InterpPart = TextPart | Expr | FormatPart
 
-    ## A string with placeholders: text parts and expressions, in order.
+    { A string with placeholders: text parts and expressions, in order. }
     export InterpString = record
         export span: Span
         export id: Integer
@@ -128,14 +128,14 @@ type
     export Unary = record
         export span: Span
         export id: Integer
-        ## `-`, `not`, `try`.
+        { `-`, `not`, `try`. }
         export op: String
         export operand: Expr
 
     export Binary = record
         export span: Span
         export id: Integer
-        ## `+`, `div`, `and`, `<=`, `in`, ...
+        { `+`, `div`, `and`, `<=`, `in`, ... }
         export op: String
         export left: Expr
         export right: Expr
@@ -144,9 +144,9 @@ type
     export Arg = record
         export span: Span
         export id: Integer
-        ## A named argument.
+        { A named argument. }
         export name: Option[Ident]
-        ## `var x` at the call site.
+        { `var x` at the call site. }
         export isVar: Boolean
         export value: Expr
 
@@ -156,8 +156,8 @@ type
         export callee: Expr
         export args: List[Arg]
 
-    ## `a[i]` or `f[Integer]`: indexing and explicit instantiation look the same, so the
-    ## checker decides (SPEC §16). Items may be type expressions.
+    { `a[i]` or `f[Integer]`: indexing and explicit instantiation look the same, so the
+      checker decides (SPEC §16). Items may be type expressions. }
     export Index = record
         export span: Span
         export id: Integer
@@ -186,17 +186,17 @@ type
         export branches: List[CondExpr]
         export elseValue: Expr
 
-    ## `for x in xs do e`: the list of the values of `e` (SPEC §9.4). The parser writes it
-    ## as the loops that build it: `for` statements, one per clause, each the only
-    ## statement of the one before, and in the innermost a `ForValue`, or for `continue`
-    ## and `break` branches an `If` statement of `ForValue`s and `Continue`s.
+    { `for x in xs do e`: the list of the values of `e` (SPEC §9.4). The parser writes it
+      as the loops that build it: `for` statements, one per clause, each the only
+      statement of the one before, and in the innermost a `ForValue`, or for `continue`
+      and `break` branches an `If` statement of `ForValue`s and `Continue`s. }
     export ForExpr = record
         export span: Span
         export id: Integer
         export loop: Stmt
 
-    ## `x => e`, `(a, b) => e`: a function value whose parameter types come from the
-    ## function type expected where it is written (SPEC §4.11).
+    { `x => e`, `(a, b) => e`: a function value whose parameter types come from the
+      function type expected where it is written (SPEC §4.11). }
     export Lambda = record
         export span: Span
         export id: Integer
@@ -207,9 +207,9 @@ type
         export span: Span
         export id: Integer
 
-    # ----------------------------------------------------------------- case labels
+    { --------------------------------------------------------------- case labels }
 
-    ## A constant, or a bare name: an enum member or a variant without binding.
+    { A constant, or a bare name: an enum member or a variant without binding. }
     export ValueLabel = record
         export span: Span
         export value: Expr
@@ -219,18 +219,18 @@ type
         export low: Expr
         export high: Expr
 
-    ## `Circle(c)` / `Circle(_)`: a union variant with a binding.
+    { `Circle(c)` / `Circle(_)`: a union variant with a binding. }
     export VariantLabel = record
         export span: Span
         export variant: TypeName
-        ## The name starts with `_` for a discard.
+        { The name starts with `_` for a discard. }
         export binding: Ident
 
     export Label = ValueLabel | RangeLabel | VariantLabel
 
     export CaseExprArm = record
         export span: Span
-        ## Empty for `else`.
+        { Empty for `else`. }
         export labels: List[Label]
         export value: Expr
 
@@ -242,7 +242,7 @@ type
 
     export Expr = Name | IntLit | RealLit | CharLit | BoolLit | StringLit | InterpString | ListLit | MapLit | Paren | Unary | Binary | Call | Index | FieldAccess | Deref | IfExpr | CaseExpr | ForExpr | Lambda | ErrorExpr
 
-    # ------------------------------------------------------------------ statements
+    { ---------------------------------------------------------------- statements }
 
     export Block = record
         export span: Span
@@ -250,7 +250,7 @@ type
 
     export VarDecl = record
         export span: Span
-        ## `var` or `let`.
+        { `var` or `let`. }
         export mutable: Boolean
         export name: Ident
         export declType: Option[TypeExpr]
@@ -263,7 +263,7 @@ type
 
     export Discard = record
         export span: Span
-        ## `_` or `_name`.
+        { `_` or `_name`. }
         export name: String
         export value: Expr
 
@@ -278,7 +278,7 @@ type
 
     export If = record
         export span: Span
-        ## `if` and every `else if`.
+        { `if` and every `else if`. }
         export branches: List[CondBlock]
         export elseBody: Option[Block]
         export endMarker: Option[Span]
@@ -305,18 +305,18 @@ type
 
     export ForIn = record
         export span: Span
-        ## One, or key and value for maps; names may be discards.
+        { One, or key and value for maps; names may be discards. }
         export vars: List[Ident]
         export iterable: Expr
         export body: Block
         export endMarker: Option[Span]
 
-    ## An indented block, or one statement on the arm's line.
+    { An indented block, or one statement on the arm's line. }
     export ArmBody = Block | Stmt
 
     export CaseArm = record
         export span: Span
-        ## Empty for `else`.
+        { Empty for `else`. }
         export labels: List[Label]
         export body: ArmBody
 
@@ -337,7 +337,7 @@ type
     export Continue = record
         export span: Span
 
-    ## Does nothing: the body of a block or case arm with nothing to do.
+    { Does nothing: the body of a block or case arm with nothing to do. }
     export Pass = record
         export span: Span
 
@@ -353,15 +353,15 @@ type
     export ErrorStmt = record
         export span: Span
 
-    ## In a `for` expression (`ForExpr`): adds `value` to its list, or with none (`break`)
-    ## ends it.
+    { In a `for` expression (`ForExpr`): adds `value` to its list, or with none (`break`)
+      ends it. }
     export ForValue = record
         export span: Span
         export value: Option[Expr]
 
     export Stmt = VarDecl | Assign | Discard | ExprStmt | If | While | Repeat | ForRange | ForIn | Case | Defer | Break | Continue | Pass | Return | Assert | ForValue | ErrorStmt
 
-    # ---------------------------------------------------------------- declarations
+    { -------------------------------------------------------------- declarations }
 
     export FieldDecl = record
         export span: Span
@@ -371,13 +371,13 @@ type
         export default: Option[Expr]
         export doc: Option[String]
 
-    ## One parameter group: `a, b: T`, `var x: T := d`, `this`, `var this`, or `...`.
+    { One parameter group: `a, b: T`, `var x: T := d`, `this`, `var this`, or `...`. }
     export Param = record
         export span: Span
         export isVar: Boolean
-        ## Several for a group; `this` for a `this` parameter.
+        { Several for a group; `this` for a `this` parameter. }
         export names: List[Ident]
-        ## None for `this` and `...`.
+        { None for `this` and `...`. }
         export declType: Option[TypeExpr]
         export default: Option[Expr]
         export isThis: Boolean
@@ -408,7 +408,7 @@ type
     export RecordType = record
         export span: Span
         export fields: List[FieldDecl]
-        ## Declared in an extern block: a C record (SPEC §10.5).
+        { Declared in an extern block: a C record (SPEC §10.5). }
         export c: Boolean
 
     export TraitType = record
@@ -447,9 +447,9 @@ type
         export exported: Boolean
         export isUnsafe: Boolean
         export sig: Signature
-        ## `requires` clauses.
+        { `requires` clauses. }
         export pre: List[Expr]
-        ## `ensures` clauses.
+        { `ensures` clauses. }
         export post: List[Expr]
         export body: Block
         export doc: Option[String]
@@ -460,11 +460,11 @@ type
         export id: Integer
         export exported: Boolean
         export sig: Signature
-        ## `as "symbol"`.
+        { `as "symbol"`. }
         export symbol: Option[String]
         export doc: Option[String]
 
-    ## Type sections in an extern block declare C records.
+    { Type sections in an extern block declare C records. }
     export ExternItem = ExternDecl | TypeSection
 
     export ExternBlock = record
@@ -481,19 +481,19 @@ type
 
     export Decl = TypeSection | ConstSection | Routine | ExternBlock | TestBlock
 
-    ## Statements appear only in programs.
+    { Statements appear only in programs. }
     export TopItem = Decl | Stmt
 
     export SourceFile = record
         export span: Span
-        ## `program` or `unit`.
+        { `program` or `unit`. }
         export kind: String
         export name: Ident
         export units: List[Ident]
-        ## In source order.
+        { In source order. }
         export items: List[TopItem]
 
-# ---------------------------------------------------------------------- spans
+{ -------------------------------------------------------------------- spans }
 
 export function exprSpan(e: Expr): Span
     case e of
@@ -546,7 +546,7 @@ export function typeSpan(t: TypeExpr): Span
         RefType(x): return x.span
         FuncType(x): return x.span
 
-## The id of an expression, unique within a parse.
+{ The id of an expression, unique within a parse. }
 export function exprId(e: Expr): Integer
     case e of
         Name(x): return x.id
@@ -571,10 +571,10 @@ export function exprId(e: Expr): Integer
         Lambda(x): return x.id
         ErrorExpr(x): return x.id
 
-# ------------------------------------------------------------------------ walkers
+{ ---------------------------------------------------------------------- walkers }
 
-## The expressions directly inside `e`, in source order. Types and lambda bodies are
-## skipped.
+{ The expressions directly inside `e`, in source order. Types and lambda bodies are
+  skipped. }
 export function exprKids(e: Expr): List[Expr]
     var out: List[Expr] := []
     case e of
@@ -636,7 +636,7 @@ export function exprKids(e: Expr): List[Expr]
             pass
     return out
 
-## The expressions in the statements a `for` expression is written as (`ForExpr`).
+{ The expressions in the statements a `for` expression is written as (`ForExpr`). }
 export procedure loopExprs(var out: List[Expr], s: Stmt)
     case s of
         ForRange(x):

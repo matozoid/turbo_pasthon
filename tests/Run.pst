@@ -1,18 +1,18 @@
 program Run
 
-## Runs the cases in `tests/cases`. Each directory holds source files and a `case` file of
-## shell command lines, which run in a copy of the directory, one after the other. `$PST`
-## is the compiler (`$PST` of the runner's environment, else `build/pst`), `$VALGRIND` runs
-## a program under valgrind (empty if it isn't installed), `$ROOT` is the repository,
-## `$STD` the standard units and `$TOOLS` a directory with the dump programs of `compiler/`.
-##
-## The transcript of the runs (the command, its exit status, standard output and standard
-## error, with the paths of the copy, the standard units and the repository made relative)
-## must match `expected.out`. A case that doesn't match writes `actual.out` next to it.
-##
-## Usage, from the repository's root: `build/pst run tests/Run.pst [-- [--update] NAME...]`.
-## With names, only the cases whose names start with one of them run. With `--update`, the
-## transcripts are written to `expected.out` instead.
+{ Runs the cases in `tests/cases`. Each directory holds source files and a `case` file of
+  shell command lines, which run in a copy of the directory, one after the other. `$PST`
+  is the compiler (`$PST` of the runner's environment, else `build/pst`), `$VALGRIND` runs
+  a program under valgrind (empty if it isn't installed), `$ROOT` is the repository,
+  `$STD` the standard units and `$TOOLS` a directory with the dump programs of `compiler/`.
+
+  The transcript of the runs (the command, its exit status, standard output and standard
+  error, with the paths of the copy, the standard units and the repository made relative)
+  must match `expected.out`. A case that doesn't match writes `actual.out` next to it.
+
+  Usage, from the repository's root: `build/pst run tests/Run.pst [-- [--update] NAME...]`.
+  With names, only the cases whose names start with one of them run. With `--update`, the
+  transcripts are written to `expected.out` instead. }
 
 uses IO, OS, Strings
 
@@ -20,11 +20,11 @@ procedure fatal(message: String)
     writelnErr("Run: error: {message}")
     exit(2)
 
-## `s` in single quotes, for the shell.
+{ `s` in single quotes, for the shell. }
 function quote(s: String): String
     return "'{replace(s, target: "'", replacement: "'\\''")}'"
 
-## The text of the file at `path`; invalid UTF-8 is replaced with U+FFFD.
+{ The text of the file at `path`; invalid UTF-8 is replaced with U+FFFD. }
 function readText(path: String): String
     case open(path) of
         Ok(f):
@@ -50,8 +50,8 @@ procedure writeText(path: String, text: String)
         Err(e):
             fatal("{path}: {e.error}")
 
-## Runs `command` with the shell in `dir`, with its output in the file `output` and its
-## errors in the file `errors`. The result is its exit status.
+{ Runs `command` with the shell in `dir`, with its output in the file `output` and its
+  errors in the file `errors`. The result is its exit status. }
 function sh(command: String, dir: String, output: String, errors: String): Integer
     case run(
         "/bin/sh",
@@ -72,7 +72,7 @@ function section(name: String, text: String): String
         return "--- {name}\n{text}\n(no newline at the end)\n"
     return "--- {name}\n{text}"
 
-## The transcript of running the case `name`, in the directory `tmp`.
+{ The transcript of running the case `name`, in the directory `tmp`. }
 function runCase(name: String, tmp: String, real: String, setup: String): String
     let out := "{tmp}/stdout"
     let err := "{tmp}/stderr"
@@ -101,7 +101,7 @@ function runCase(name: String, tmp: String, real: String, setup: String): String
     text := replace(text, target: "{root}/std/", replacement: "std/")
     return replace(text, target: "{root}/", replacement: "")
 
-## The first line where `actual` and `expected` differ, for the report.
+{ The first line where `actual` and `expected` differ, for the report. }
 function firstDifference(actual: String, expected: String): String
     let a := split(actual, sep: "\n")
     let e := split(expected, sep: "\n")
@@ -116,7 +116,7 @@ function firstDifference(actual: String, expected: String): String
         want := e[i]
     return "line {i + 1}:\n        actual:   {got}\n        expected: {want}"
 
-## Whether the case `name` runs: `only` is empty, or `name` starts with one of them.
+{ Whether the case `name` runs: `only` is empty, or `name` starts with one of them. }
 function selected(name: String, only: List[String]): Boolean
     for o in only do
         if startsWith(name, prefix: o) then

@@ -13,7 +13,7 @@ KwReturn 2:5-2:11 "return" -
 IntLit 2:12-2:13 "1" int 1
 Newline 2:13-3:1 "\n" -
 Dedent 3:1-3:1 "" -
-EndMarker 3:1-3:17 "# end function f" marker function f
-Newline 3:17-4:1 "\n" -
-Eof 4:1-4:1 "" -
+EndMarker 3:1-3:19 "{ end function f }" marker function f
+Newline 3:19-3:19 "" -
+Eof 3:19-3:19 "" -
 --- stderr

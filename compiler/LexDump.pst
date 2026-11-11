@@ -1,11 +1,11 @@
 unit LexDump
 
-## The `pst tokens` command: prints the tokens, comments and diagnostics of a source
-## file in a canonical form, which the cases in tests/cases compare.
+{ The `pst tokens` command: prints the tokens, comments and diagnostics of a source
+  file in a canonical form, which the cases in tests/cases compare. }
 
 uses IO, OS, Strings, Source, Tokens, Diagnostics, Lexer
 
-## `n` in hexadecimal, upper case.
+{ `n` in hexadecimal, upper case. }
 function hex(n: Integer): String
     let digits := "0123456789ABCDEF"
     var out := slice(digits, n mod 16, n mod 16 + 1)
@@ -15,7 +15,7 @@ function hex(n: Integer): String
         v := v div 16
     return out
 
-## `s` in double quotes, with `\`, `"` and control characters escaped.
+{ `s` in double quotes, with `\`, `"` and control characters escaped. }
 function quote(s: String): String
     var parts: List[String] := ["\""]
     for c in s do
@@ -54,13 +54,13 @@ function valueOf(v: TokenValue): String
                 None:
                     return "marker {m.keyword} -"
 
-## Prints the dump of source `text`, from `file`. Whether it has errors.
+{ Prints the dump of source `text`, from `file`. Whether it has errors. }
 export function dumpTokens(text: String, file: String): Boolean
     let r := lex(text, file: file)
     for t in r.tokens do
         writeln("{t.kind} {where(t.span)} {quote(t.text)} {valueOf(t.value)}")
     for c in r.comments do
-        writeln("comment {where(c.span)} {quote(c.text)} {c.isDoc}")
+        writeln("comment {where(c.span)} {quote(c.text)}")
     for d in r.diagnostics do
         writeln("{name(d.severity)} {d.code} {where(d.span)} {quote(d.message)}")
         for f in d.fixes do

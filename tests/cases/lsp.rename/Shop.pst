@@ -1,6 +1,6 @@
 unit Shop
 
-## The price of `n` items.
+{ The price of `n` items. }
 export function price(n: Integer): Integer
     let each := 2
     return n * each

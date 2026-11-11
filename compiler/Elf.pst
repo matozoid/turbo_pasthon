@@ -1,21 +1,21 @@
 unit Elf
 
-## Writes Linux x86-64 ELF executables (SPEC §15.2 step 5).
-##
-## The executable is dynamically linked against libc, which the runtime uses for memory,
-## copying, comparing, number formatting and I/O, and against the libraries named by the
-## program's extern blocks (SPEC §10.1), each a `DT_NEEDED` entry.
-## File layout, loaded at `Base`:
-##
-##     ELF header, program headers        \
-##     code, read-only data                 |  read + execute segment
-##     interpreter path, dynamic symbols    /
-##     dynamic section, GOT, globals        -- read + write segment
-##
-## Imported functions are called through the GOT: `call [rip + slot]`. Each slot has an
-## `R_X86_64_GLOB_DAT` relocation, which the dynamic loader fills in at startup, so there is
-## no PLT and no lazy binding. The globals are zeroed words the runtime writes (the address
-## of the command line arguments).
+{ Writes Linux x86-64 ELF executables (SPEC §15.2 step 5).
+
+  The executable is dynamically linked against libc, which the runtime uses for memory,
+  copying, comparing, number formatting and I/O, and against the libraries named by the
+  program's extern blocks (SPEC §10.1), each a `DT_NEEDED` entry.
+  File layout, loaded at `Base`:
+
+      ELF header, program headers        \
+      code, read-only data                 |  read + execute segment
+      interpreter path, dynamic symbols    /
+      dynamic section, GOT, globals        -- read + write segment
+
+  Imported functions are called through the GOT: `call [rip + slot]`. Each slot has an
+  `R_X86_64_GLOB_DAT` relocation, which the dynamic loader fills in at startup, so there is
+  no PLT and no lazy binding. The globals are zeroed words the runtime writes (the address
+  of the command line arguments). }
 
 uses Strings, X86
 
@@ -24,9 +24,9 @@ const
     Page = $1000
     Ehdr = 64
     Phdr = 56
-    ## PT_PHDR, PT_INTERP, PT_LOAD (rx), PT_LOAD (rw), PT_DYNAMIC, PT_GNU_STACK
+    { PT_PHDR, PT_INTERP, PT_LOAD (rx), PT_LOAD (rw), PT_DYNAMIC, PT_GNU_STACK }
     Segments = 6
-    ## The file offset (and offset from `Base`) of the code.
+    { The file offset (and offset from `Base`) of the code. }
     export CodeOffset = 64 + 56 * 6
     Interp = "/lib64/ld-linux-x86-64.so.2"
     export Libc = "libc.so.6"
@@ -49,13 +49,13 @@ const
     DtStrsz = 10
     DtSyment = 11
     DtDebug = 21
-    ## Plus one NEEDED per library.
+    { Plus one NEEDED per library. }
     DynamicEntries = 10
     RX8664GlobDat = 6
 
 type
-    ## File offsets of every part. The read+write segment is mapped one page above its
-    ## file offset, so it never shares a page with the read+execute one.
+    { File offsets of every part. The read+write segment is mapped one page above its
+      file offset, so it never shares a page with the read+execute one. }
     Layout = record
         codeLen: Integer
         rodata: Integer
@@ -106,21 +106,21 @@ function layout(
         end: got + 8 * (n + globals),
     )
 
-## The address a file offset is loaded at.
+{ The address a file offset is loaded at. }
 function addr(lay: Layout, offset: Integer): Integer
     if offset >= lay.dynamic then
         return Base + offset + Page
     return Base + offset
 
-## The distance from the start of the code to what's at `offset`.
+{ The distance from the start of the code to what's at `offset`. }
 function fromCode(lay: Layout, offset: Integer): Integer
     return addr(lay, offset) - (Base + CodeOffset)
 
-## Where the read-only data goes, counted from the start of the code.
+{ Where the read-only data goes, counted from the start of the code. }
 export function rodataOffset(codeLen: Integer): Integer
     return align(codeLen, 16)
 
-## Where the GOT is, counted from the start of the code (in memory).
+{ Where the GOT is, counted from the start of the code (in memory). }
 export function gotOffset(codeLen, rodataLen: Integer, imports, needed: List[String]): Integer
     let lay := layout(codeLen, rodataLen, imports, needed: needed, globals: 0)
     return fromCode(lay, lay.got)
@@ -142,25 +142,25 @@ procedure put(var out: List[Byte], offset: Integer, data: List[Byte])
     for i := 0 to length(data) - 1 do
         out[offset + i] := data[i]
 
-## Writes `v` as `n` little-endian bytes at `offset`.
+{ Writes `v` as `n` little-endian bytes at `offset`. }
 procedure putInt(var out: List[Byte], offset, v, n: Integer)
     setLE(var out, offset, v, n: n)
 
-## Program header `i`; `h` is its type, flags, offset, address, size and alignment.
+{ Program header `i`; `h` is its type, flags, offset, address, size and alignment. }
 procedure programHeader(var out: List[Byte], i: Integer, h: List[Integer])
     let at := Ehdr + i * Phdr
     putInt(var out, at, h[0], n: 4)
     putInt(var out, at + 4, h[1], n: 4)
     putInt(var out, at + 8, h[2], n: 8)
-    putInt(var out, at + 16, h[3], n: 8)  # virtual and physical address
+    putInt(var out, at + 16, h[3], n: 8)  { virtual and physical address }
     putInt(var out, at + 24, h[3], n: 8)
-    putInt(var out, at + 32, h[4], n: 8)  # size in the file and in memory
+    putInt(var out, at + 32, h[4], n: 8)  { size in the file and in memory }
     putInt(var out, at + 40, h[4], n: 8)
     putInt(var out, at + 48, h[5], n: 8)
 
-## An executable whose code starts at `CodeOffset`; `entry` is an offset into `code`.
-## `imports` are the C functions the code calls through the GOT, found in the `needed`
-## libraries. `globals` zeroed words follow the GOT.
+{ An executable whose code starts at `CodeOffset`; `entry` is an offset into `code`.
+  `imports` are the C functions the code calls through the GOT, found in the `needed`
+  libraries. `globals` zeroed words follow the GOT. }
 export function executable(
     code,
     rodata: List[Byte],
@@ -174,13 +174,13 @@ export function executable(
     var out: List[Byte] := []
     for i := 1 to lay.end do
         add(var out, Byte(0))
-    put(var out, 0, data: [Byte($7F), Byte(69), Byte(76), Byte(70), Byte(2), Byte(1), Byte(1)])  # 64-bit, little-endian, version 1, System V ABI
-    putInt(var out, 16, 2, n: 2)  # ET_EXEC
-    putInt(var out, 18, $3E, n: 2)  # x86-64
+    put(var out, 0, data: [Byte($7F), Byte(69), Byte(76), Byte(70), Byte(2), Byte(1), Byte(1)])  { 64-bit, little-endian, version 1, System V ABI }
+    putInt(var out, 16, 2, n: 2)  { ET_EXEC }
+    putInt(var out, 18, $3E, n: 2)  { x86-64 }
     putInt(var out, 20, 1, n: 4)
     putInt(var out, 24, Base + CodeOffset + entry, n: 8)
-    putInt(var out, 32, Ehdr, n: 8)  # program headers right after this header
-    putInt(var out, 40, 0, n: 8)  # no section headers
+    putInt(var out, 32, Ehdr, n: 8)  { program headers right after this header }
+    putInt(var out, 40, 0, n: 8)  { no section headers }
     putInt(var out, 48, 0, n: 4)
     putInt(var out, 52, Ehdr, n: 2)
     putInt(var out, 54, Phdr, n: 2)
@@ -209,7 +209,7 @@ export function executable(
     programHeader(var out, 5, h: [PtGnuStack, PfR + PfW, 0, 0, 0, 16])
 
     put(var out, CodeOffset, data: code)
-    for i := CodeOffset + length(code) to lay.rodata - 1 do  # int3 padding
+    for i := CodeOffset + length(code) to lay.rodata - 1 do  { int3 padding }
         out[i] := Byte($CC)
     put(var out, lay.rodata, data: rodata)
     var interp: List[Byte] := []
@@ -222,15 +222,15 @@ export function executable(
     for lib in needed do
         add(var libs, name)
         name := name + length(bytes(lib)) + 1
-    for i := 0 to n - 1 do  # symbol 0 is the null symbol
+    for i := 0 to n - 1 do  { symbol 0 is the null symbol }
         let sym := lay.dynsym + 24 * (i + 1)
         putInt(var out, sym, name, n: 4)
-        putInt(var out, sym + 4, $12, n: 1)  # global function, undefined
+        putInt(var out, sym + 4, $12, n: 1)  { global function, undefined }
         name := name + length(bytes(imports[i])) + 1
         let rela := lay.rela + 24 * i
         putInt(var out, rela, addr(lay, lay.got + 8 * i), n: 8)
         putInt(var out, rela + 8, (i + 1) * 4294967296 + RX8664GlobDat, n: 8)
-    # A hash table with one empty bucket: the executable defines no symbols.
+    { A hash table with one empty bucket: the executable defines no symbols. }
     putInt(var out, lay.hash, 1, n: 4)
     putInt(var out, lay.hash + 4, n + 1, n: 4)
     var dyn: List[Pair[Integer, Integer]] := []

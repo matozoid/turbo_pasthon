@@ -1,89 +1,89 @@
 unit Lsp
 
-## The language server (SPEC §15.4): JSON-RPC over standard input and output, LSP 3.17.
-## Documents are synchronized whole. After every change, each open document is checked
-## with the open documents' texts in place of their files, and its diagnostics pushed.
-## Requests about a position check the document again, and answer from its symbol index.
+{ The language server (SPEC §15.4): JSON-RPC over standard input and output, LSP 3.17.
+  Documents are synchronized whole. After every change, each open document is checked
+  with the open documents' texts in place of their files, and its diagnostics pushed.
+  Requests about a position check the document again, and answer from its symbol index. }
 
 uses IO, OS, Strings, Source, Tokens, Lexer, Diagnostics, Ast, Symbols, Resolve, Types, Typecheck, Fmt, Json
 
 type
     export Server = record
         export stdDir: String
-        ## The open documents' texts and URIs, by path.
+        { The open documents' texts and URIs, by path. }
         export texts: Map[String, String]
         export uris: Map[String, String]
-        ## Whether `shutdown` came; `exit` then ends with status 0.
+        { Whether `shutdown` came; `exit` then ends with status 0. }
         export down: Boolean
 
-    ## A check of one open document, with the decoded texts of the units it loaded.
+    { A check of one open document, with the decoded texts of the units it loaded. }
     export Analysis = record
         export checked: Checked
         export texts: Map[String, Text]
 
-    ## The definition and uses of a symbol, and the decoded texts of their files.
+    { The definition and uses of a symbol, and the decoded texts of their files. }
     export Occurrences = record
         export sym: Option[ref Symbol]
-        ## The symbol is in a standard unit.
+        { The symbol is in a standard unit. }
         export std: Boolean
         export refs: List[Ref]
         export texts: Map[String, Text]
-        ## The errors in the open documents.
+        { The errors in the open documents. }
         export errors: Integer
 
-    ## A rename's edits: the uses to replace in each file, and the changed files' texts.
+    { A rename's edits: the uses to replace in each file, and the changed files' texts. }
     export Renaming = record
         export byFile: Map[String, List[Ref]]
         export texts: Map[String, String]
 
-    ## A completion item: a name, or a keyword (`kind` "keyword", no `detail`).
+    { A completion item: a name, or a keyword (`kind` "keyword", no `detail`). }
     export Candidate = record
         export label: String
-        ## The symbol kind's name, or "keyword".
+        { The symbol kind's name, or "keyword". }
         export kind: String
         lspKind: Integer
-        ## The hover's first line.
+        { The hover's first line. }
         export detail: String
         sortText: String
 
-    ## The completion items found so far, for names starting with `prefix`.
+    { The completion items found so far, for names starting with `prefix`. }
     Completions = record
         prefix: String
         seen: Map[String, Boolean]
         items: List[Candidate]
 
-    ## Symbols found across checks, with the decoded texts of their files.
+    { Symbols found across checks, with the decoded texts of their files. }
     export Places = record
         export syms: List[ref Symbol]
         export texts: Map[String, Text]
 
-    ## Calls between routines: the calls in (or of) `sym`, or in the unit level of `file`
-    ## when `sym` is None, at `spans`, found by the check `analysis`.
+    { Calls between routines: the calls in (or of) `sym`, or in the unit level of `file`
+      when `sym` is None, at `spans`, found by the check `analysis`. }
     export Calls = record
         export sym: Option[ref Symbol]
         export file: String
         export spans: List[Span]
         export analysis: Analysis
 
-    ## A token to color (semantic tokens).
+    { A token to color (semantic tokens). }
     Semantic = record
         start: Integer
         span: Span
         kind: Integer
         mods: Integer
 
-    ## A call around a position (signature help).
+    { A call around a position (signature help). }
     CallSite = record
         callee: Token
-        ## The argument's position, counting the receiver of `a.f(...)`.
+        { The argument's position, counting the receiver of `a.f(...)`. }
         index: Integer
-        ## The argument's name, if it is named.
+        { The argument's name, if it is named. }
         named: String
 
-# ------------------------------------------------------------------------- messages
+{ ----------------------------------------------------------------------- messages }
 
-## The next message's body, or `None` at the end of the input. Headers other than
-## Content-Length are ignored.
+{ The next message's body, or `None` at the end of the input. Headers other than
+  Content-Length are ignored. }
 function receive(): Option[String]
     var frameSize := -1
     while true do
@@ -114,7 +114,7 @@ procedure respondError(id: JValue, code: Integer, message: String)
 procedure notify(method: String, params: String)
     send("\{\"jsonrpc\":\"2.0\",\"method\":{quote(method)},\"params\":{params}}")
 
-# ------------------------------------------------------------------------- URIs and positions
+{ ----------------------------------------------------------------------- URIs and positions }
 
 function hexValue(c: Char): Integer
     if c >= '0' and c <= '9' then
@@ -125,7 +125,7 @@ function hexValue(c: Char): Integer
         return ord(c) - ord('A') + 10
     return -1
 
-## The path of a `file:` URI, with `%XX` escapes decoded.
+{ The path of a `file:` URI, with `%XX` escapes decoded. }
 function pathOf(uri: String): String
     var s := uri
     if startsWith(s, prefix: "file://") then
@@ -134,7 +134,7 @@ function pathOf(uri: String): String
     var out: List[Byte] := []
     var i := 0
     while i < length(b) do
-        if b[i] = 37 and i + 2 < length(b) then  # '%'
+        if b[i] = 37 and i + 2 < length(b) then  { '%' }
             let high := hexValue(Char(Integer(b[i + 1])))
             let low := hexValue(Char(Integer(b[i + 2])))
             if high >= 0 and low >= 0 then
@@ -145,8 +145,8 @@ function pathOf(uri: String): String
         i := i + 1
     return fromBytes(out)
 
-## The 0-based UTF-16 offset of the 1-based column `col` (in code points) on the 1-based
-## line `line`.
+{ The 0-based UTF-16 offset of the 1-based column `col` (in code points) on the 1-based
+  line `line`. }
 function utf16(t: Text, line: Integer, col: Integer): Integer
     if line - 1 >= length(t.lineStarts) then
         return 0
@@ -161,8 +161,8 @@ function utf16(t: Text, line: Integer, col: Integer): Integer
         i := i + 1
     return n
 
-## The 1-based column (in code points) of the 0-based UTF-16 offset `character` on the
-## 1-based line `line`.
+{ The 1-based column (in code points) of the 0-based UTF-16 offset `character` on the
+  1-based line `line`. }
 function column(t: Text, line: Integer, character: Integer): Integer
     if line < 1 or line - 1 >= length(t.lineStarts) then
         return 1
@@ -177,7 +177,7 @@ function column(t: Text, line: Integer, character: Integer): Integer
         i := i + 1
     return i - start + 1
 
-## Whether `c` stands for itself in a URI's path: an ASCII letter or digit, or `/._~-`.
+{ Whether `c` stands for itself in a URI's path: an ASCII letter or digit, or `/._~-`. }
 function unescaped(c: Char): Boolean
     return (
         (c >= 'a' and c <= 'z')
@@ -186,7 +186,7 @@ function unescaped(c: Char): Boolean
         or c in ['/', '.', '_', '~', '-']
     )
 
-## The `file:` URI of `path`, with the other bytes escaped.
+{ The `file:` URI of `path`, with the other bytes escaped. }
 function uriOf(path: String): String
     let hex := "0123456789ABCDEF"
     var out := "file://"
@@ -205,13 +205,13 @@ function position(t: Text, line: Integer, col: Integer): String
 function range(t: Text, s: Span): String
     return "\{\"start\":{position(t, s.line, col: s.col)},\"end\":{position(t, s.endLine, col: s.endCol)}}"
 
-## The range of the whole text.
+{ The range of the whole text. }
 function wholeRange(t: Text): String
     let last := length(t.lineStarts)
     let col := length(t.chars) - t.lineStarts[last - 1] + 1
     return "\{\"start\":\{\"line\":0,\"character\":0},\"end\":{position(t, last, col: col)}}"
 
-# ------------------------------------------------------------------------- diagnostics
+{ ----------------------------------------------------------------------- diagnostics }
 
 function diagnostic(t: Text, d: Diagnostic): String
     var severity := 1
@@ -219,7 +219,7 @@ function diagnostic(t: Text, d: Diagnostic): String
         severity := 2
     return "\{\"range\":{range(t, d.span)},\"severity\":{severity},\"code\":{quote(d.code)},\"source\":\"pst\",\"message\":{quote(d.message)}}"
 
-## Checks every open document and pushes its diagnostics.
+{ Checks every open document and pushes its diagnostics. }
 procedure checkAll(s: Server)
     for path, text in s.texts do
         let checked := typecheck(path, stdDir: s.stdDir, overlay: s.texts)
@@ -234,12 +234,12 @@ procedure checkAll(s: Server)
             params: "\{\"uri\":{uri},\"diagnostics\":[{join(parts, sep: ",")}]}",
         )
 
-# ------------------------------------------------------------------------- symbols
+{ ----------------------------------------------------------------------- symbols }
 
 export function analyze(s: Server, path: String): Analysis
     return analyzeWith(s, path, texts: s.texts)
 
-## A check of `path` with `texts` in place of the files.
+{ A check of `path` with `texts` in place of the files. }
 function analyzeWith(s: Server, path: String, texts: Map[String, String]): Analysis
     let checked := typecheck(path, stdDir: s.stdDir, overlay: texts)
     var srcs: Map[String, Text] := [:]
@@ -247,7 +247,7 @@ function analyzeWith(s: Server, path: String, texts: Map[String, String]): Analy
         srcs[u.path] := u.src
     return Analysis(checked: checked, texts: srcs)
 
-## The reference at the request's position: on the name, or just after it.
+{ The reference at the request's position: on the name, or just after it. }
 function refAt(a: Analysis, path: String, params: JValue): Option[Ref]
     case get(a.texts, path) of
         Some(t):
@@ -262,7 +262,7 @@ function refAt(a: Analysis, path: String, params: JValue): Option[Ref]
         None:
             return None
 
-## The reference at `line` and `col` (in code points): on the name, or just after it.
+{ The reference at `line` and `col` (in code points): on the name, or just after it. }
 export function refAtLine(a: Analysis, path: String, line, col: Integer): Option[Ref]
     let ix := a.checked.resolved.checker.index
     let found := at(ix, path, line, col: col)
@@ -270,14 +270,14 @@ export function refAtLine(a: Analysis, path: String, line, col: Integer): Option
         return found
     return at(ix, path, line, col: col - 1)
 
-## The URI of `path`: the client's, if the document is open.
+{ The URI of `path`: the client's, if the document is open. }
 function uriFor(s: Server, path: String): String
     return get(s.uris, path).getOr(uriOf(path))
 
 function location(s: Server, t: Text, file: String, span: Span): String
     return "\{\"uri\":{quote(uriFor(s, file))},\"range\":{range(t, span)}}"
 
-## The first line of a declaration, from `span`, without `export`.
+{ The first line of a declaration, from `span`, without `export`. }
 function firstLine(a: Analysis, file: String, span: Span): String
     case get(a.texts, file) of
         Some(t):
@@ -291,7 +291,7 @@ function firstLine(a: Analysis, file: String, span: Span): String
         None:
             return ""
 
-## A symbol's declaration, in short.
+{ A symbol's declaration, in short. }
 export function headOf(a: Analysis, sym: ref Symbol): String
     var kind := name(sym.kind)
     if sym.kind = Kind.UnitSym then
@@ -329,7 +329,7 @@ export function headOf(a: Analysis, sym: ref Symbol): String
                     pass
     return head
 
-## How hover shows a symbol: its declaration, then its documentation.
+{ How hover shows a symbol: its declaration, then its documentation. }
 function hoverText(a: Analysis, sym: ref Symbol): String
     var text := "```pst\n{headOf(a, sym)}\n```"
     case docOf(sym) of
@@ -351,7 +351,7 @@ function hover(s: Server, path: String, params: JValue): String
         None:
             return "null"
 
-## Where the symbols at the position are defined: several for an overloaded name.
+{ Where the symbols at the position are defined: several for an overloaded name. }
 function definition(s: Server, path: String, params: JValue): String
     let a := analyze(s, path)
     var parts: List[String] := []
@@ -369,8 +369,8 @@ function definition(s: Server, path: String, params: JValue): String
             pass
     return "[{join(parts, sep: ",")}]"
 
-## The type of a value the symbol names: a local's, a constant's, a field's, an enum
-## member's, or what a function returns.
+{ The type of a value the symbol names: a local's, a constant's, a field's, an enum
+  member's, or what a function returns. }
 export function typeOfSym(env: ref Env, sym: ref Symbol): Option[Type]
     if isLocal(sym.kind) then
         return get(env.symTypes, sym.id)
@@ -390,7 +390,7 @@ export function typeOfSym(env: ref Env, sym: ref Symbol): Option[Type]
             pass
     return None
 
-## The declared types a type is made of: `ref Item` and `List[Item]` lead to `Item`.
+{ The declared types a type is made of: `ref Item` and `List[Item]` lead to `Item`. }
 export procedure typeSyms(t: Type, var out: List[ref Symbol])
     case t of
         NamedT(n):
@@ -445,14 +445,14 @@ function errorCount(a: Analysis): Integer
             n := n + 1
     return n
 
-## Every definition and use of the symbol at the position, in the open documents and the
-## units they use, once each.
+{ Every definition and use of the symbol at the position, in the open documents and the
+  units they use, once each. }
 function occurrences(s: Server, path: String, params: JValue): Occurrences
     let first := analyze(s, path)
     return occurrencesOf(s, first, found: refAt(first, path, params: params))
 
-## Every definition and use of the symbol `found` refers to, `first` being the analysis
-## it was found in.
+{ Every definition and use of the symbol `found` refers to, `first` being the analysis
+  it was found in. }
 export function occurrencesOf(s: Server, first: Analysis, found: Option[Ref]): Occurrences
     var o := Occurrences(sym: None, std: false, refs: [], texts: [:], errors: 0)
     case found of
@@ -495,8 +495,8 @@ function referencesTo(s: Server, path: String, params: JValue): String
             add(var parts, location(s, o.texts[r.file], file: r.file, span: r.span))
     return "[{join(parts, sep: ",")}]"
 
-## Whether `n` is a name for a symbol of kind `k`: ASCII letters and digits, starting
-## with a capital letter for UpperCamel kinds and a small one for lowerCamel ones.
+{ Whether `n` is a name for a symbol of kind `k`: ASCII letters and digits, starting
+  with a capital letter for UpperCamel kinds and a small one for lowerCamel ones. }
 function validName(n: String, k: Kind): Boolean
     var first := true
     for c in n do
@@ -509,7 +509,7 @@ function validName(n: String, k: Kind): Boolean
         first := false
     return not first
 
-## The text of `t` with the names at `refs` replaced by `name`.
+{ The text of `t` with the names at `refs` replaced by `name`. }
 function renamed(t: Text, refs: List[Ref], name: String): String
     var ends: Map[Integer, Integer] := [:]
     var starts: List[Integer] := []
@@ -524,9 +524,9 @@ function renamed(t: Text, refs: List[Ref], name: String): String
         done := ends[start]
     return "{out}{sub(t, done, end: length(t.chars))}"
 
-## The uses that renaming the symbol `o` is about replaces in each file, and the files'
-## new texts, or why it can't be renamed: it is in a standard unit, the name doesn't suit
-## it, or the open documents would get errors.
+{ The uses that renaming the symbol `o` is about replaces in each file, and the files'
+  new texts, or why it can't be renamed: it is in a standard unit, the name doesn't suit
+  it, or the open documents would get errors. }
 export function renamingOf(s: Server, o: Occurrences, newName: String): Result[Renaming, String]
     if o.sym.isNone() then
         return Err("there is nothing to rename here")
@@ -557,7 +557,7 @@ export function renamingOf(s: Server, o: Occurrences, newName: String): Result[R
         return Err("renaming {describe(sym)} to '{newName}' would cause errors")
     return Ok(Renaming(byFile: byFile, texts: changed))
 
-## The edits that rename the symbol at the position, or why it can't be renamed.
+{ The edits that rename the symbol at the position, or why it can't be renamed. }
 function rename(s: Server, path: String, params: JValue): Result[String, String]
     let newName := asString(field(params, key: "newName")).getOr("")
     let o := occurrences(s, path, params: params)
@@ -574,10 +574,10 @@ function rename(s: Server, path: String, params: JValue): Result[String, String]
         Err(e):
             return Err(e.error)
 
-# ------------------------------------------------------------------------- signature help
+{ ----------------------------------------------------------------------- signature help }
 
-## The call whose argument list holds the position: the callee's name token, and which
-## argument the position is in, by position (counting a receiver) or by name.
+{ The call whose argument list holds the position: the callee's name token, and which
+  argument the position is in, by position (counting a receiver) or by name. }
 function callAt(tokens: List[Token], offset: Integer): Option[CallSite]
     var opens: List[Integer] := []
     var commas: List[Integer] := []
@@ -612,8 +612,8 @@ function callAt(tokens: List[Token], offset: Integer): Option[CallSite]
         named := tokens[st].text
     return Some(CallSite(callee: tokens[o - 1], index: index, named: named))
 
-## The routines (or record) a callee's name may mean: from the symbol index, or, when the
-## call didn't parse, the routines of that name declared in the document's units.
+{ The routines (or record) a callee's name may mean: from the symbol index, or, when the
+  call didn't parse, the routines of that name declared in the document's units. }
 function callees(a: Analysis, path: String, callee: Token): List[ref Symbol]
     let ix := a.checked.resolved.checker.index
     case at(ix, path, callee.span.line, col: callee.span.col) of
@@ -631,7 +631,7 @@ function callees(a: Analysis, path: String, callee: Token): List[ref Symbol]
                 add(var out, sym)
     return out
 
-## The documentation of a declaration, if it has any.
+{ The documentation of a declaration, if it has any. }
 export function docOf(sym: ref Symbol): Option[String]
     case sym.node of
         Routine(r):
@@ -649,7 +649,7 @@ export function docOf(sym: ref Symbol): Option[String]
         else:
             return None
 
-## The signature of calling a routine or constructing a record.
+{ The signature of calling a routine or constructing a record. }
 function callSig(env: ref Env, sym: ref Symbol): Option[Sig]
     if isRoutine(sym.kind) then
         return Some(sig(env, sym))
@@ -657,7 +657,7 @@ function callSig(env: ref Env, sym: ref Symbol): Option[Sig]
         return Some(recordSig(env, sym))
     return None
 
-## One signature: its label, the offsets of each parameter in it, and its documentation.
+{ One signature: its label, the offsets of each parameter in it, and its documentation. }
 function signatureInfo(a: Analysis, env: ref Env, sym: ref Symbol): Option[String]
     let found := callSig(env, sym)
     if found.isNone() then
@@ -700,7 +700,7 @@ function signatureInfo(a: Analysis, env: ref Env, sym: ref Symbol): Option[Strin
             pass
     return Some("{info}}")
 
-## The parameter an argument goes to: by name, or by position.
+{ The parameter an argument goes to: by name, or by position. }
 function activeParameter(env: ref Env, sym: ref Symbol, call: CallSite): Integer
     if call.named <> "" then
         case callSig(env, sym) of
@@ -743,9 +743,9 @@ function signatureHelp(s: Server, path: String, params: JValue): String
         None:
             return "null"
 
-# ------------------------------------------------------------------------- completion
+{ ----------------------------------------------------------------------- completion }
 
-## The LSP `CompletionItemKind` of a symbol.
+{ The LSP `CompletionItemKind` of a symbol. }
 function itemKind(sym: ref Symbol): Integer
     case sym.kind of
         Kind.UnitSym:
@@ -779,7 +779,7 @@ procedure offer(var c: Completions, a: Analysis, sym: ref Symbol, rank: String)
         sortText: "{rank}{sym.name}",
     ))
 
-## The units whose exported names the document sees: those it uses, and System.
+{ The units whose exported names the document sees: those it uses, and System. }
 function usedUnits(a: Analysis, path: String): List[ref Unit]
     var out: List[ref Unit] := []
     for u in a.checked.resolved.units do
@@ -792,7 +792,7 @@ function usedUnits(a: Analysis, path: String): List[ref Unit]
                         pass
     return out
 
-## The routines the document sees: its own, and those its units export.
+{ The routines the document sees: its own, and those its units export. }
 function visibleRoutines(a: Analysis, path: String): List[ref Symbol]
     var out: List[ref Symbol] := []
     for u in a.checked.resolved.units do
@@ -808,8 +808,8 @@ function visibleRoutines(a: Analysis, path: String): List[ref Symbol]
                     add(var out, sym)
     return out
 
-## The routines `path` sees whose first parameter takes a `ty`: what `x.` can call on a
-## value of that type (§6.6).
+{ The routines `path` sees whose first parameter takes a `ty`: what `x.` can call on a
+  value of that type (§6.6). }
 export function acceptorsOf(a: Analysis, path: String, ty: Type): List[ref Symbol]
     var out: List[ref Symbol] := []
     if a.checked.env.isNone() then
@@ -826,8 +826,8 @@ export function acceptorsOf(a: Analysis, path: String, ty: Type): List[ref Symbo
                 add(var out, sym)
     return out
 
-## The type of the values a symbol names: what a type name stands for (any instance of a
-## generic one), else the type of a value as in `typeOfSym`.
+{ The type of the values a symbol names: what a type name stands for (any instance of a
+  generic one), else the type of a value as in `typeOfSym`. }
 export function valueTypeOf(env: ref Env, sym: ref Symbol): Option[Type]
     if sym.kind = Kind.TypeSym then
         let d := decl(env, sym)
@@ -846,7 +846,7 @@ export function valueTypeOf(env: ref Env, sym: ref Symbol): Option[Type]
         return Some(builtin(sym.name, args))
     return typeOfSym(env, sym)
 
-## The routine of this file whose declaration holds `offset`, as a span; None outside any.
+{ The routine of this file whose declaration holds `offset`, as a span; None outside any. }
 function enclosingRoutine(a: Analysis, path: String, offset: Integer): Option[Span]
     for r in a.checked.resolved.checker.index.refs do
         if r.isDef and r.file = path and length(r.targets) = 1 and isRoutine(r.targets[0].kind) then
@@ -855,8 +855,8 @@ function enclosingRoutine(a: Analysis, path: String, offset: Integer): Option[Sp
                 return Some(sp)
     return None
 
-## Names after `receiver.`: a unit's exports, an enum's members, or the fields of a value's
-## record type and the routines that take it first (UFCS), fields first.
+{ Names after `receiver.`: a unit's exports, an enum's members, or the fields of a value's
+  record type and the routines that take it first (UFCS), fields first. }
 procedure members(var c: Completions, a: Analysis, path: String, receiver: ref Symbol)
     if a.checked.env.isNone() then
         return
@@ -888,9 +888,9 @@ procedure members(var c: Completions, a: Analysis, path: String, receiver: ref S
     for sym in acceptorsOf(a, path, ty: ty) do
         offer(var c, a, sym: sym, rank: "1")
 
-## Names at the position: the locals declared before it in the same routine (or main
-## body), the document's own top-level names, the exports of the units it uses, and
-## keywords.
+{ Names at the position: the locals declared before it in the same routine (or main
+  body), the document's own top-level names, the exports of the units it uses, and
+  keywords. }
 procedure names(var c: Completions, a: Analysis, path: String, offset: Integer)
     let inside := enclosingRoutine(a, path, offset: offset)
     var locals: List[ref Symbol] := []
@@ -949,7 +949,7 @@ function completion(s: Server, path: String, params: JValue): String
         add(var items, "\{\"label\":{quote(c.label)},{rest}}")
     return "\{\"isIncomplete\":false,\"items\":[{join(items, sep: ",")}]}"
 
-## The completion items at `line` and `col` (in code points) of the open document `path`.
+{ The completion items at `line` and `col` (in code points) of the open document `path`. }
 export function completionsAt(s: Server, path: String, line, col: Integer): List[Candidate]
     let text := get(s.texts, path)
     if text.isNone() or line > length(textOf(text.get()).lineStarts) then
@@ -958,7 +958,7 @@ export function completionsAt(s: Server, path: String, line, col: Integer): List
     let offset := t.lineStarts[line - 1] + col - 1
     if offset > length(t.chars) then
         return []
-    # The word being typed, and the `.` before it.
+    { The word being typed, and the `.` before it. }
     var start := offset
     while start > 0 and isWordChar(t.chars[start - 1]) do
         start := start - 1
@@ -975,7 +975,7 @@ export function completionsAt(s: Server, path: String, line, col: Integer): List
             begin := begin - 1
         if begin = end then
             return []
-        # Check the text without the `.` and the word, which the parser may not take.
+        { Check the text without the `.` and the word, which the parser may not take. }
         var stop := offset
         while stop < length(t.chars) and isWordChar(t.chars[stop]) do
             stop := stop + 1
@@ -990,7 +990,7 @@ export function completionsAt(s: Server, path: String, line, col: Integer): List
             col: receiverSpan.col,
         )
         if r.isNone() then
-            # Still no parse: keep only the receiver of the line, as a statement of its own.
+            { Still no parse: keep only the receiver of the line, as a statement of its own. }
             let lineStart := t.lineStarts[receiverSpan.line - 1]
             var lineEnd := lineStart
             while lineEnd < length(t.chars) and t.chars[lineEnd] <> '\n' do
@@ -1018,11 +1018,11 @@ export function completionsAt(s: Server, path: String, line, col: Integer): List
         names(var c, analyze(s, path), path: path, offset: offset)
     return c.items
 
-## Whether `c` can be part of a name.
+{ Whether `c` can be part of a name. }
 function isWordChar(c: Char): Boolean
     return (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z') or (c >= '0' and c <= '9') or c = '_'
 
-## The whole declaration of a symbol declared in source.
+{ The whole declaration of a symbol declared in source. }
 export function declSpan(sym: ref Symbol): Span
     case sym.node of
         Routine(r):
@@ -1040,7 +1040,7 @@ export function declSpan(sym: ref Symbol): Span
         else:
             return sym.span.get()
 
-## The LSP `SymbolKind` of a symbol.
+{ The LSP `SymbolKind` of a symbol. }
 function symbolKind(sym: ref Symbol): Integer
     case sym.kind of
         Kind.FieldSym:
@@ -1078,7 +1078,7 @@ function documentSymbol(t: Text, sym: ref Symbol): String
     let ranges := "\"range\":{range(t, declSpan(sym))},\"selectionRange\":{range(t, sym.span.get())}"
     return "\{\"name\":{quote(sym.name)},\"kind\":{symbolKind(sym)},{ranges},\"children\":[{join(children, sep: ",")}]}"
 
-## The types, routines and constants declared in the document, with their members.
+{ The types, routines and constants declared in the document, with their members. }
 function documentSymbols(s: Server, path: String): String
     let a := analyze(s, path)
     let t := get(a.texts, path)
@@ -1099,11 +1099,11 @@ function documentSymbols(s: Server, path: String): String
             add(var parts, documentSymbol(t.get(), sym))
     return "[{join(parts, sep: ",")}]"
 
-# ------------------------------------------------------------------------- inlay hints
+{ ----------------------------------------------------------------------- inlay hints }
 
-## The inferred types of the `let` and `var` variables and loop variables declared in the
-## requested lines without a type, shown after their names, and the inferred type
-## arguments of generic routines called there, shown after the routine's name.
+{ The inferred types of the `let` and `var` variables and loop variables declared in the
+  requested lines without a type, shown after their names, and the inferred type
+  arguments of generic routines called there, shown after the routine's name. }
 function inlayHints(s: Server, path: String, params: JValue): String
     let a := analyze(s, path)
     let text := get(a.texts, path)
@@ -1124,7 +1124,7 @@ function inlayHints(s: Server, path: String, params: JValue): String
         let sym := r.targets[0]
         if not (sym.kind in [Kind.LetSym, Kind.VarSym, Kind.LoopVar]) then
             continue
-        # A declared type follows the name: `let x: T`.
+        { A declared type follows the name: `let x: T`. }
         var i := r.span.end
         while i < length(t.chars) and t.chars[i] = ' ' do
             i := i + 1
@@ -1138,39 +1138,39 @@ function inlayHints(s: Server, path: String, params: JValue): String
                     add(var parts, "\{\"position\":{at},\"label\":{quote(": {shown}")},\"kind\":1}")
             None:
                 pass
-    # Inferred type arguments follow the routine's name: `largest[Integer](xs)`.
+    { Inferred type arguments follow the routine's name: `largest[Integer](xs)`. }
     var seen: Map[Integer, Boolean] := [:]
     for c in instancesIn(env) do
         let sp := c.span
         if length(c.args) = 0 or c.file <> path or sp.line < first or sp.line > last or sp.start in seen then
             continue
         if sp.end <= sp.start or sp.end > length(t.chars) or not isNameChar(t.chars[sp.end - 1]) then
-            continue  # not at a name
+            continue  { not at a name }
         if sp.end < length(t.chars) and t.chars[sp.end] = '[' then
-            continue  # written: `f[T](...)`
+            continue  { written: `f[T](...)` }
         var shown: List[String] := []
         for x in c.args do
             add(var shown, show(x))
         let label := "[{join(shown, sep: ", ")}]"
         if pos(label, sub: "<").isSome() then
-            continue  # an error or an unsolved parameter
+            continue  { an error or an unsolved parameter }
         seen[sp.start] := true
         let at := position(t, sp.endLine, col: sp.endCol)
         add(var parts, "\{\"position\":{at},\"label\":{quote(label)},\"kind\":1}")
     return "[{join(parts, sep: ",")}]"
 
-## Whether `c` may end a name.
+{ Whether `c` may end a name. }
 function isNameChar(c: Char): Boolean
     return c = '_' or ('a' <= c and c <= 'z') or ('A' <= c and c <= 'Z') or ('0' <= c and c <= '9')
 
-# ------------------------------------------------------------------------- semantic tokens
+{ ----------------------------------------------------------------------- semantic tokens }
 
-## The token types and modifiers of `semanticTokens`, by index in these lists.
+{ The token types and modifiers of `semanticTokens`, by index in these lists. }
 function legend(): String
     let types := "[\"namespace\",\"type\",\"enum\",\"interface\",\"struct\",\"typeParameter\",\"parameter\",\"variable\",\"property\",\"enumMember\",\"function\",\"keyword\",\"comment\",\"string\",\"number\"]"
     return "\{\"tokenTypes\":{types},\"tokenModifiers\":[\"declaration\",\"readonly\",\"defaultLibrary\"]}"
 
-## The semantic token type of a name that means `sym` (an index into the legend).
+{ The semantic token type of a name that means `sym` (an index into the legend). }
 function semType(env: ref Env, sym: ref Symbol): Integer
     case sym.kind of
         Kind.UnitSym:
@@ -1202,8 +1202,8 @@ function semType(env: ref Env, sym: ref Symbol): Integer
 function semBefore(a, b: Semantic): Boolean
     return a.start < b.start
 
-## The document's names, by what they mean, and its keywords, literals and comments, as
-## LSP's relative encoding: five numbers per token.
+{ The document's names, by what they mean, and its keywords, literals and comments, as
+  LSP's relative encoding: five numbers per token. }
 function semanticTokens(s: Server, path: String): String
     let a := analyze(s, path)
     let text := get(a.texts, path)
@@ -1271,10 +1271,10 @@ function semanticTokens(s: Server, path: String): String
         char := from
     return "\{\"data\":[{join(data, sep: ",")}]}"
 
-# ------------------------------------------------------------------------- implementation
+{ ----------------------------------------------------------------------- implementation }
 
-## The types that satisfy the trait at the position, or for a trait routine, the routines
-## that provide it; in the open documents and the units they use, apart from standard units.
+{ The types that satisfy the trait at the position, or for a trait routine, the routines
+  that provide it; in the open documents and the units they use, apart from standard units. }
 function implementations(s: Server, path: String, params: JValue): String
     let first := analyze(s, path)
     var parts: List[String] := []
@@ -1293,9 +1293,9 @@ function implementations(s: Server, path: String, params: JValue): String
             pass
     return "[{join(parts, sep: ",")}]"
 
-## The types that satisfy the trait `sym`, or the routines that provide the trait routine
-## `sym` for them, in the open documents and the units they use, apart from standard
-## units. `first` is the check that found `sym`.
+{ The types that satisfy the trait `sym`, or the routines that provide the trait routine
+  `sym` for them, in the open documents and the units they use, apart from standard
+  units. `first` is the check that found `sym`. }
 export function implementationsOf(s: Server, first: Analysis, sym: ref Symbol): Places
     var out := Places(syms: [], texts: [:])
     var target: Option[ref Symbol] := None
@@ -1359,19 +1359,19 @@ export function implementationsOf(s: Server, first: Analysis, sym: ref Symbol): 
                         out.texts[at.file] := a.texts[at.file]
                 None:
                     pass
-        # The checker refers to the environment, which keeps it: drop it, as the check does.
+        { The checker refers to the environment, which keeps it: drop it, as the check does. }
         env.checkers := [:]
     return out
 
-# ------------------------------------------------------------------------- call hierarchy
+{ ----------------------------------------------------------------------- call hierarchy }
 
-## A `CallHierarchyItem` for a routine.
+{ A `CallHierarchyItem` for a routine. }
 function callItem(s: Server, a: Analysis, sym: ref Symbol): String
     let t := a.texts[sym.file]
     let where := "\"uri\":{quote(uriFor(s, sym.file))},\"range\":{range(t, declSpan(sym))},\"selectionRange\":{range(t, sym.span.get())}"
     return "\{\"name\":{quote(sym.name)},\"kind\":{symbolKind(sym)},\"detail\":{quote(headOf(a, sym))},{where}}"
 
-## A `CallHierarchyItem` for the main body or unit level of a file.
+{ A `CallHierarchyItem` for the main body or unit level of a file. }
 function fileItem(s: Server, a: Analysis, file: String): String
     var name := file
     for u in a.checked.resolved.units do
@@ -1381,7 +1381,7 @@ function fileItem(s: Server, a: Analysis, file: String): String
     let whole := wholeRange(t)
     return "\{\"name\":{quote(name)},\"kind\":2,\"uri\":{quote(uriFor(s, file))},\"range\":{whole},\"selectionRange\":{whole}}"
 
-## Whether the symbol is a routine declared in source.
+{ Whether the symbol is a routine declared in source. }
 export function isCallable(a: Analysis, sym: ref Symbol): Boolean
     return isRoutine(sym.kind) and sym.span.isSome() and sym.file in a.texts
 
@@ -1399,7 +1399,7 @@ function prepareCallHierarchy(s: Server, path: String, params: JValue): String
         return "null"
     return "[{join(parts, sep: ",")}]"
 
-## The routine an item of `prepareCallHierarchy` names, and the check that found it.
+{ The routine an item of `prepareCallHierarchy` names, and the check that found it. }
 function itemSym(s: Server, params: JValue): Option[Pair[Analysis, ref Symbol]]
     let item := field(params, key: "item")
     let path := pathOf(asString(field(item, key: "uri")).getOr(""))
@@ -1418,8 +1418,8 @@ function itemSym(s: Server, params: JValue): Option[Pair[Analysis, ref Symbol]]
             pass
     return None
 
-## The routine of the check whose declaration holds the place, innermost first; None at
-## the unit level.
+{ The routine of the check whose declaration holds the place, innermost first; None at
+  the unit level. }
 function callerAt(a: Analysis, file: String, offset: Integer): Option[ref Symbol]
     var best: Option[ref Symbol] := None
     var bestStart := -1
@@ -1431,8 +1431,8 @@ function callerAt(a: Analysis, file: String, offset: Integer): Option[ref Symbol
                 bestStart := sp.start
     return best
 
-## The calls of the item's routine in the open documents and the units they use, grouped by
-## the routine (or main body) they are in.
+{ The calls of the item's routine in the open documents and the units they use, grouped by
+  the routine (or main body) they are in. }
 function incomingCalls(s: Server, params: JValue): String
     var parts: List[String] := []
     case itemSym(s, params) of
@@ -1453,8 +1453,8 @@ function incomingCalls(s: Server, params: JValue): String
             pass
     return "[{join(parts, sep: ",")}]"
 
-## The instances of the generic `target` that the open documents and the units they use
-## create (SPEC §8.1), each once.
+{ The instances of the generic `target` that the open documents and the units they use
+  create (SPEC §8.1), each once. }
 export function instancesOf(s: Server, target: ref Symbol): List[Instance]
     var out: List[Instance] := []
     var seen: Map[String, Boolean] := [:]
@@ -1482,8 +1482,8 @@ function earlier(a, b: Instance): Boolean
         return a.file < b.file
     return a.span.start < b.span.start
 
-## The uses of the routine `target` in the open documents and the units they use, grouped
-## by the routine (or unit level) they are in.
+{ The uses of the routine `target` in the open documents and the units they use, grouped
+  by the routine (or unit level) they are in. }
 export function callersOf(s: Server, target: ref Symbol): List[Calls]
     var out: List[Calls] := []
     var slot: Map[String, Integer] := [:]
@@ -1511,7 +1511,7 @@ export function callersOf(s: Server, target: ref Symbol): List[Calls]
                 pass
     return out
 
-## The routines the item's routine calls, each with the places it calls them.
+{ The routines the item's routine calls, each with the places it calls them. }
 function outgoingCalls(s: Server, params: JValue): String
     var parts: List[String] := []
     case itemSym(s, params) of
@@ -1527,8 +1527,8 @@ function outgoingCalls(s: Server, params: JValue): String
             pass
     return "[{join(parts, sep: ",")}]"
 
-## The routines declared in source that `caller` names in its declaration, each with the
-## places, in the check `a`.
+{ The routines declared in source that `caller` names in its declaration, each with the
+  places, in the check `a`. }
 export function calleesOf(a: Analysis, caller: ref Symbol): List[Calls]
     let body := declSpan(caller)
     var out: List[Calls] := []
@@ -1545,13 +1545,13 @@ export function calleesOf(a: Analysis, caller: ref Symbol): List[Calls]
         add(var out[slot[callee.id]].spans, r.span)
     return out
 
-## `c` in lower case, for ASCII letters.
+{ `c` in lower case, for ASCII letters. }
 function lowerChar(c: Char): Char
     if c >= 'A' and c <= 'Z' then
         return Char(ord(c) + 32)
     return c
 
-## Whether the letters of `query` appear in `name` in order, ignoring case.
+{ Whether the letters of `query` appear in `name` in order, ignoring case. }
 export function matches(name, query: String): Boolean
     var want: List[Char] := []
     for c in query do
@@ -1562,8 +1562,8 @@ export function matches(name, query: String): Boolean
             i := i + 1
     return i = length(want)
 
-## The types, constants, routines, fields and enum members declared in the open documents
-## and the units they use, apart from the standard units, whose names match `query`.
+{ The types, constants, routines, fields and enum members declared in the open documents
+  and the units they use, apart from the standard units, whose names match `query`. }
 function workspaceSymbols(s: Server, query: String): String
     var parts: List[String] := []
     var seen: Map[String, Boolean] := [:]
@@ -1609,7 +1609,7 @@ function workspaceSymbols(s: Server, query: String): String
                 )
     return "[{join(parts, sep: ",")}]"
 
-## A fold for each line followed by more deeply indented lines, up to the last of them.
+{ A fold for each line followed by more deeply indented lines, up to the last of them. }
 function foldingRanges(s: Server, path: String): String
     let text := get(s.texts, path)
     if text.isNone() then
@@ -1640,7 +1640,7 @@ function foldingRanges(s: Server, path: String): String
             add(var parts, "\{\"startLine\":{i},\"endLine\":{last}}")
     return "[{join(parts, sep: ",")}]"
 
-## Quick fixes from the diagnostics of the document that touch the request's range.
+{ Quick fixes from the diagnostics of the document that touch the request's range. }
 function codeActions(s: Server, path: String, params: JValue): String
     let a := analyze(s, path)
     let t := get(a.texts, path)
@@ -1666,12 +1666,12 @@ function codeActions(s: Server, path: String, params: JValue): String
             )
     return "[{join(parts, sep: ",")}]"
 
-# ------------------------------------------------------------------------- requests
+{ ----------------------------------------------------------------------- requests }
 
 function capabilities(): String
     return "\{\"capabilities\":\{\"textDocumentSync\":1,\"documentFormattingProvider\":true,\"hoverProvider\":true,\"definitionProvider\":true,\"typeDefinitionProvider\":true,\"implementationProvider\":true,\"referencesProvider\":true,\"codeActionProvider\":true,\"documentSymbolProvider\":true,\"workspaceSymbolProvider\":true,\"callHierarchyProvider\":true,\"inlayHintProvider\":true,\"semanticTokensProvider\":\{\"legend\":{legend()},\"full\":true},\"foldingRangeProvider\":true,\"renameProvider\":true,\"completionProvider\":\{\"triggerCharacters\":[\".\"]},\"signatureHelpProvider\":\{\"triggerCharacters\":[\"(\",\",\"]}},\"serverInfo\":\{\"name\":\"pst\"}}"
 
-## The edits that format the document at `uri`: none if it is formatted, or can't be.
+{ The edits that format the document at `uri`: none if it is formatted, or can't be. }
 function formatting(s: Server, uri: String): String
     let path := pathOf(uri)
     case get(s.texts, path) of
@@ -1687,7 +1687,7 @@ function formatting(s: Server, uri: String): String
         None:
             return "[]"
 
-## Handles one message.
+{ Handles one message. }
 procedure handle(var s: Server, m: JValue)
     let method := asString(field(m, key: "method")).getOr("")
     let id := field(m, key: "id")
@@ -1768,7 +1768,7 @@ procedure handle(var s: Server, m: JValue)
     else if not isNull(id) then
         respondError(id, code: -32601, message: "unsupported method '{method}'")
 
-## Serves one client on standard input and output, until `exit` or the end of the input.
+{ Serves one client on standard input and output, until `exit` or the end of the input. }
 export procedure serve(stdDir: String)
     var s := Server(stdDir: stdDir, texts: [:], uris: [:], down: false)
     while true do

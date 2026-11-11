@@ -1,15 +1,15 @@
 unit Resolve
 
-## Unit loading and name resolution: checker stage 1 (SPEC §3, §5.2, §15.2).
-##
-## `resolve(path)` parses a file and every unit it uses, collects the top-level
-## declarations of each unit (the declaration pass), then resolves every name and builds
-## the symbol index. The type checker runs after every unit is resolved.
-##
-## What is resolved here: plain names, type names, qualified names (`Strings.split`,
-## `Color.Red`), type parameters, `this`, and `result` / `old` in `ensures`. Names that need
-## types are left for the type checker without an error: field access and dot calls
-## (`p.x`, `xs.length()`), named arguments, and bare names in `case` labels.
+{ Unit loading and name resolution: checker stage 1 (SPEC §3, §5.2, §15.2).
+
+  `resolve(path)` parses a file and every unit it uses, collects the top-level
+  declarations of each unit (the declaration pass), then resolves every name and builds
+  the symbol index. The type checker runs after every unit is resolved.
+
+  What is resolved here: plain names, type names, qualified names (`Strings.split`,
+  `Color.Red`), type parameters, `this`, and `result` / `old` in `ensures`. Names that need
+  types are left for the type checker without an error: field access and dot calls
+  (`p.x`, `xs.length()`), named arguments, and bare names in `case` labels. }
 
 uses IO, OS, Strings, Source, Diagnostics, Ast, Parser, Symbols, PosixPaths, Difflib
 
@@ -22,22 +22,22 @@ type
         export parsed: ParseResult
         export symbol: ref Symbol
         export top: Map[String, List[ref Symbol]]
-        ## Explicit `uses`, then System. Weak, since units can use each other (an
-        ## error, E0107); the checker's `units` own them.
+        { Explicit `uses`, then System. Weak, since units can use each other (an
+          error, E0107); the checker's `units` own them. }
         export used: List[Weak[Unit]]
-        ## The normalized source, for fixes that rewrite code.
+        { The normalized source, for fixes that rewrite code. }
         export text: String
-        ## The same, decoded.
+        { The same, decoded. }
         export src: Text
 
     export Checker = record
         export stdDir: String
-        ## Texts by absolute path, read instead of the files (an editor's unsaved buffers).
+        { Texts by absolute path, read instead of the files (an editor's unsaved buffers). }
         overlay: Map[String, String]
-        ## By unit name; programs are not entered.
+        { By unit name; programs are not entered. }
         export units: Map[String, ref Unit]
         missing: Map[String, Boolean]
-        ## Found, but not units.
+        { Found, but not units. }
         programs: Map[String, Boolean]
         export index: ref SymbolIndex
         export diagnostics: List[Diagnostic]
@@ -46,17 +46,17 @@ type
 
     export Resolved = record
         export main: Option[ref Unit]
-        ## The main unit first, then every unit it uses, directly or not.
+        { The main unit first, then every unit it uses, directly or not. }
         export units: List[ref Unit]
         export checker: ref Checker
 
     Lookup = record
         symbols: List[ref Symbol]
-        ## Units that export clashing names.
+        { Units that export clashing names. }
         ambiguous: List[ref Unit]
 
-    ## The state of resolving one unit. A context is a routine body, a test block, or the
-    ## program's main body; outside one, `hasCtx` is false.
+    { The state of resolving one unit. A context is a routine body, a test block, or the
+      program's main body; outside one, `hasCtx` is false. }
     export Resolver = record
         c: ref Checker
         cur: ref Unit
@@ -66,13 +66,13 @@ type
         scopes: List[Map[String, ref Symbol]]
         locals: List[ref Symbol]
         inEnsures: Boolean
-        ## Type parameters and bound members.
+        { Type parameters and bound members. }
         typeScopes: List[Map[String, ref Symbol]]
         inTrait: Boolean
         mainLocals: Map[String, ref Symbol]
         unitNames: Map[String, ref Unit]
 
-# ------------------------------------------------------------------------- helpers
+{ ----------------------------------------------------------------------- helpers }
 
 function isDiscard(name: String): Boolean
     return startsWith(name, prefix: "_")
@@ -89,7 +89,7 @@ function containsUnit(xs: List[ref Unit], u: ref Unit): Boolean
             return true
     return false
 
-## The units `u` uses: explicit `uses`, then System.
+{ The units `u` uses: explicit `uses`, then System. }
 export function usedUnits(u: ref Unit): List[ref Unit]
     var out: List[ref Unit] := []
     for w in u.used do
@@ -176,7 +176,7 @@ export function newSymbol(
         unusedFix: None,
     ))
 
-## The symbols named `name` that `u` exports.
+{ The symbols named `name` that `u` exports. }
 export function exports(u: ref Unit, name: String): List[ref Symbol]
     var out: List[ref Symbol] := []
     for s in getOr(u.top, name, default: []) do
@@ -184,7 +184,7 @@ export function exports(u: ref Unit, name: String): List[ref Symbol]
             add(var out, s)
     return out
 
-# ------------------------------------------------------------------- reading files
+{ ----------------------------------------------------------------- reading files }
 
 function hexByte(b: Byte): String
     let digits := "0123456789ABCDEF"
@@ -194,8 +194,8 @@ function hexByte(b: Byte): String
 function isCont(b: List[Byte], i: Integer, low: Integer := $80, high: Integer := $BF): Boolean
     return i < length(b) and Integer(b[i]) >= low and Integer(b[i]) <= high
 
-## The offset of the first byte that starts invalid UTF-8, as Python's strict decoder
-## finds it: no overlong forms, surrogates, or code points above U+10FFFF.
+{ The offset of the first byte that starts invalid UTF-8, as Python's strict decoder
+  finds it: no overlong forms, surrogates, or code points above U+10FFFF. }
 function invalidUtf8(b: List[Byte]): Option[Integer]
     var i := 0
     while i < length(b) do
@@ -229,7 +229,7 @@ function invalidUtf8(b: List[Byte]): Option[Integer]
         i := i + n
     return None
 
-## The text of the file at `path`, or why it can't be read.
+{ The text of the file at `path`, or why it can't be read. }
 function readSource(path: String): Result[String, String]
     case open(path) of
         Ok(f):
@@ -248,15 +248,15 @@ function readSource(path: String): Result[String, String]
                 return Err(slice(e.error, byteLen(prefix), byteLen(e.error)))
             return Err(e.error)
 
-# ------------------------------------------------------------------------- loading
+{ ----------------------------------------------------------------------- loading }
 
-## Parses the file at `path` and every unit it uses, and resolves every name.
+{ Parses the file at `path` and every unit it uses, and resolves every name. }
 export function resolve(path: String, stdDir: String, overlay: Map[String, String] := [:]): Resolved
     let r := resolveUnits(path, stdDir: stdDir, overlay: overlay)
     r.checker.diagnostics := sortedDiagnostics(r.checker.diagnostics, mainFile: mainFile(r))
     return r
 
-## The path of the main file, or "" if it couldn't be read.
+{ The path of the main file, or "" if it couldn't be read. }
 export function mainFile(r: Resolved): String
     case r.main of
         Some(m):
@@ -264,8 +264,8 @@ export function mainFile(r: Resolved): String
         None:
             return ""
 
-## Like `resolve`, but leaves the diagnostics in the order they were found, for the type
-## checker to add to.
+{ Like `resolve`, but leaves the diagnostics in the order they were found, for the type
+  checker to add to. }
 export function resolveUnits(
     path: String,
     stdDir: String,
@@ -297,13 +297,13 @@ export function resolveUnits(
             runResolver(c, u)
     return Resolved(main: main, units: order, checker: c)
 
-## Whether `a` goes before `b`: by file, then by position.
+{ Whether `a` goes before `b`: by file, then by position. }
 function before(a, b: Diagnostic): Boolean
     if a.file <> b.file then
         return a.file < b.file
     return a.span.start < b.span.start
 
-## The diagnostics of the main file first, then by file and position.
+{ The diagnostics of the main file first, then by file and position. }
 export function sortedDiagnostics(ds: List[Diagnostic], mainFile: String): List[Diagnostic]
     var main: List[Diagnostic] := []
     var others: List[Diagnostic] := []
@@ -316,7 +316,7 @@ export function sortedDiagnostics(ds: List[Diagnostic], mainFile: String): List[
     sort(var others, less: before)
     return concat(main, b: others)
 
-## Whether `stem` can be a unit name: an ASCII letter, then ASCII letters, digits, `_`.
+{ Whether `stem` can be a unit name: an ASCII letter, then ASCII letters, digits, `_`. }
 function isPlainName(stem: String): Boolean
     var first := true
     for ch in stem do
@@ -484,7 +484,7 @@ function findUnit(
     return None
 
 procedure checkCycles(c: ref Checker, main: ref Unit)
-    ## Unit id -> 1 while visiting, 2 when done.
+    { Unit id -> 1 while visiting, 2 when done. }
     var state: Map[Integer, Integer] := [:]
     var stack: List[ref Unit] := []
     visit(c, main, state: var state, stack: var stack)
@@ -524,7 +524,7 @@ procedure visit(
     removeLast(var stack)
     state[u.id] := 2
 
-# --------------------------------------------------------------- declaration pass
+{ ------------------------------------------------------------- declaration pass }
 
 const
     SystemTypes = [
@@ -548,7 +548,7 @@ const
     CTypes = ["CString", "Ptr", "Pointer"]
     SystemTraits = ["Equatable", "Ordered", "Hashable", "Sendable"]
 
-## Collects the top-level names of one unit (SPEC §15.2 step 2).
+{ Collects the top-level names of one unit (SPEC §15.2 step 2). }
 procedure collect(c: ref Checker, u: ref Unit)
     if u.std then
         var types: List[String] := []
@@ -629,7 +629,7 @@ procedure declaration(c: ref Checker, u: ref Unit, d: Decl)
         TestBlock(_):
             return
 
-## A new symbol for a declaration in `u`, entered in the index.
+{ A new symbol for a declaration in `u`, entered in the index. }
 function declare(
     c: ref Checker,
     u: ref Unit,
@@ -666,7 +666,7 @@ procedure addTop(c: ref Checker, u: ref Unit, sym: ref Symbol)
     add(var existing, sym)
     u.top[sym.name] := existing
 
-## Enters `sym`, just declared, as a member of `owner`.
+{ Enters `sym`, just declared, as a member of `owner`. }
 procedure member(c: ref Checker, u: ref Unit, owner, sym: ref Symbol)
     case get(owner.members, sym.name) of
         Some(prev):
@@ -725,12 +725,12 @@ procedure typeDecl(c: ref Checker, u: ref Unit, d: TypeDecl)
             kind := Kind.TypeSym
     addTop(c, u, sym)
 
-# --------------------------------------------------------------------- resolution
+{ ------------------------------------------------------------------- resolution }
 
 procedure runResolver(c: ref Checker, u: ref Unit)
     run(newResolver(c, u))
 
-## A resolver for `u`, outside any routine: what `unitLookup` uses.
+{ A resolver for `u`, outside any routine: what `unitLookup` uses. }
 export function newResolver(c: ref Checker, u: ref Unit): ref Resolver
     var names: Map[String, ref Unit] := [:]
     for v in usedUnits(u) do
@@ -771,7 +771,7 @@ procedure endCtx(r: ref Resolver)
 
 procedure run(r: ref Resolver)
     let items := r.cur.parsed.file.items
-    # Main first, so E0103 knows every top-level local.
+    { Main first, so E0103 knows every top-level local. }
     startCtx(r, isMain: true)
     for item in items do
         case item of
@@ -818,7 +818,7 @@ procedure resolveDecl(r: ref Resolver, d: Decl)
             stmts(r, t.body.stmts)
             endCtx(r)
 
-# ------------------------------------------------------------------------- lookup
+{ ----------------------------------------------------------------------- lookup }
 
 function lookup(r: ref Resolver, name: String): Lookup
     if r.hasCtx then
@@ -866,11 +866,11 @@ function lookup(r: ref Resolver, name: String): Lookup
                 break
     return Lookup(symbols: [], ambiguous: units)
 
-## The symbols `name` refers to in a declaration of the resolver's unit.
+{ The symbols `name` refers to in a declaration of the resolver's unit. }
 export function unitLookup(r: ref Resolver, name: String): List[ref Symbol]
     return lookup(r, name).symbols
 
-## Every name visible here, in order.
+{ Every name visible here, in order. }
 function visibleNames(r: ref Resolver): List[String]
     var names: Map[String, Boolean] := [:]
     for n, _ in r.cur.top do
@@ -911,7 +911,7 @@ procedure unknown(r: ref Resolver, name: String, span: Span)
     let matches := closeMatches(name, visibleNames(r), 3, num: 3, den: 4)
     var fixes: List[Fix] := []
     if length(matches) > 0 then
-        # Probably a typo for this: don't also call the intended variable unused.
+        { Probably a typo for this: don't also call the intended variable unused. }
         for sym in lookup(r, matches[0]).symbols do
             sym.reads := sym.reads + 1
     for m in matches do
@@ -1016,8 +1016,8 @@ function isEnum(s: ref Symbol): Boolean
 function isStatic(s: ref Symbol): Boolean
     return s.kind = Kind.UnitSym or isEnum(s)
 
-## Resolves `e` as the left side of a dot. Returns the unit or enum it names, if it names
-## one; otherwise resolves it as an ordinary expression and returns None.
+{ Resolves `e` as the left side of a dot. Returns the unit or enum it names, if it names
+  one; otherwise resolves it as an ordinary expression and returns None. }
 function staticTarget(r: ref Resolver, e: Expr): Option[ref Symbol]
     case e of
         Name(n):
@@ -1044,7 +1044,7 @@ function staticTarget(r: ref Resolver, e: Expr): Option[ref Symbol]
     expr(r, e)
     return None
 
-# ------------------------------------------------------------------------- scopes
+{ ----------------------------------------------------------------------- scopes }
 
 procedure push(r: ref Resolver)
     add(var r.scopes, [:])
@@ -1135,7 +1135,7 @@ procedure pushTypeParams(r: ref Resolver, params: List[TypeParam])
             scope[p.name.name] := sym
         note(r, p.name.span, targets: [sym], isDef: true)
     add(var r.typeScopes, scope)
-    # Bound members (SPEC §8.2): routines required by a bound resolve to the trait.
+    { Bound members (SPEC §8.2): routines required by a bound resolve to the trait. }
     var members: Map[String, ref Symbol] := [:]
     for p in params do
         for b in p.bounds do
@@ -1152,7 +1152,7 @@ procedure pushTypeParams(r: ref Resolver, params: List[TypeParam])
 procedure popTypeParams(r: ref Resolver)
     removeLast(var r.typeScopes)
 
-# -------------------------------------------------------------------------- types
+{ ------------------------------------------------------------------------ types }
 
 function typeExpr(r: ref Resolver, t: TypeExpr): List[ref Symbol]
     case t of
@@ -1191,7 +1191,7 @@ function typeName(r: ref Resolver, t: TypeName): List[ref Symbol]
     var i := 1
     while i < length(t.parts) and i < length(spans) do
         if length(syms) <> 1 or syms[0].kind <> Kind.UnitSym then
-            return []  # `Enum.Member` and the like: the type checker reports it
+            return []  { `Enum.Member` and the like: the type checker reports it }
         syms := unitMember(r, syms[0], Ident(span: spans[i], name: t.parts[i]))
         i := i + 1
     return syms
@@ -1229,7 +1229,7 @@ procedure typeDecl(r: ref Resolver, d: TypeDecl)
             pass
     popTypeParams(r)
 
-# ----------------------------------------------------------------------- routines
+{ --------------------------------------------------------------------- routines }
 
 procedure paramTypes(r: ref Resolver, p: Param)
     case p.declType of
@@ -1250,7 +1250,7 @@ procedure resultType(r: ref Resolver, sig: Signature)
         None:
             pass
 
-## Resolves a signature without a body (extern, trait member).
+{ Resolves a signature without a body (extern, trait member). }
 procedure signature(r: ref Resolver, sig: Signature)
     pushTypeParams(r, sig.typeParams)
     for p in sig.params do
@@ -1293,7 +1293,7 @@ procedure routine(r: ref Resolver, rt: Routine)
     endCtx(r)
     popTypeParams(r)
 
-# --------------------------------------------------------------------- statements
+{ ------------------------------------------------------------------- statements }
 
 procedure stmts(r: ref Resolver, ss: List[Stmt])
     for s in ss do
@@ -1359,7 +1359,7 @@ procedure stmt(r: ref Resolver, s: Stmt)
             expr(r, w.cond)
             block(r, w.body)
         Repeat(rp):
-            push(r)  # the condition sees the body's variables
+            push(r)  { the condition sees the body's variables }
             stmts(r, rp.body.stmts)
             expr(r, rp.cond)
             pop(r)
@@ -1400,7 +1400,7 @@ procedure labels(r: ref Resolver, ls: List[Label])
     for label in ls do
         case label of
             ValueLabel(v):
-                if not isName(v.value) then  # bare names need the subject's type
+                if not isName(v.value) then  { bare names need the subject's type }
                     expr(r, v.value)
             RangeLabel(rl):
                 if not isName(rl.low) then
@@ -1411,7 +1411,7 @@ procedure labels(r: ref Resolver, ls: List[Label])
                 _ := typeName(r, vl.variant)
                 define(r, Kind.Binding, vl.binding, node: vl, unusedFix: Some(vl.binding.span))
 
-# -------------------------------------------------------------------- expressions
+{ ------------------------------------------------------------------ expressions }
 
 procedure name(r: ref Resolver, e: Name, read: Boolean := true)
     if e.name = "This" then
@@ -1498,9 +1498,9 @@ procedure expr(r: ref Resolver, e: Expr)
         else:
             pass
 
-# ------------------------------------------------------------------------- naming
+{ ----------------------------------------------------------------------- naming }
 
-## E0020 (SPEC §2.5), with a fix that renames the definition and its uses here.
+{ E0020 (SPEC §2.5), with a fix that renames the definition and its uses here. }
 procedure checkCasing(r: ref Resolver)
     var defs: List[Ref] := []
     for d in r.c.index.refs do

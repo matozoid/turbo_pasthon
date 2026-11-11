@@ -12,8 +12,8 @@ unsafe function compare(a: Pointer, b: Pointer): CInt
     let y := deref(cast[Ptr[CInt]](b))
     return if x < y then -1 else if x > y then 1 else 0
 
-## Sorts five numbers with C's `qsort`, descending if `desc`; with `capture`, the
-## comparison captures `desc`, which C can't call.
+{ Sorts five numbers with C's `qsort`, descending if `desc`; with `capture`, the
+  comparison captures `desc`, which C can't call. }
 unsafe procedure demo(desc, capture: Boolean)
     let p := cast[Ptr[CInt]](malloc(20))
     for i := 0 to 4 do

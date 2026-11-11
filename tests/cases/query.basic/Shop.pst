@@ -1,14 +1,14 @@
 unit Shop
 
 type
-    ## Something to sell.
+    { Something to sell. }
     export Item = record
         export name: String
         export qty: Integer
 
     export Size = (Small, Large)
 
-## The price of `n` items.
+{ The price of `n` items. }
 export function price(n: Integer): Integer
     let each := 2
     return n * each

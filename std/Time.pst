@@ -1,15 +1,15 @@
 unit Time
 
-## Dates, times and durations, modeled on Joda-Time: immutable values with nanosecond
-## precision, read from and written as ISO-8601 text. Dates use the proleptic Gregorian
-## calendar, with years from -999_999 to 999_999. The clock comes from libc.
+{ Dates, times and durations, modeled on Joda-Time: immutable values with nanosecond
+  precision, read from and written as ISO-8601 text. Dates use the proleptic Gregorian
+  calendar, with years from -999_999 to 999_999. The clock comes from libc. }
 
 uses C, Strings, IO, OS
 
 external "libc.so.6"
     function clockGettime(clock: CInt, ts: Ptr[Timespec]): CInt name "clock_gettime"
     type
-        ## glibc's `struct timespec` on x86-64.
+        { glibc's `struct timespec` on x86-64. }
         Timespec = record
             sec: Int64
             nsec: Int64
@@ -17,58 +17,58 @@ external "libc.so.6"
 const
     NanosPerSecond = 1_000_000_000
     SecondsPerDay = 86_400
-    ## Days from 0000-03-01 to 1970-01-01.
+    { Days from 0000-03-01 to 1970-01-01. }
     DaysTo1970 = 719_468
     MaxYear = 999_999
 
 type
-    ## A point on the time line: seconds since 1970-01-01T00:00:00Z, plus nanoseconds.
+    { A point on the time line: seconds since 1970-01-01T00:00:00Z, plus nanoseconds. }
     export Instant = record
         secs: Integer
         ns: Integer
 
-    ## An amount of time in seconds and nanoseconds. The nanoseconds are always 0 to
-    ## 999_999_999, so -0.5 seconds is -1 second plus 500_000_000 nanoseconds.
+    { An amount of time in seconds and nanoseconds. The nanoseconds are always 0 to
+      999_999_999, so -0.5 seconds is -1 second plus 500_000_000 nanoseconds. }
     export Duration = record
         secs: Integer
         ns: Integer
 
-    ## A date without a time or a time zone, such as 2026-11-10.
+    { A date without a time or a time zone, such as 2026-11-10. }
     export LocalDate = record
         yr: Integer
         mon: Integer
         dom: Integer
 
-    ## A time of day without a date or a time zone, such as 09:30:00.
+    { A time of day without a date or a time zone, such as 09:30:00. }
     export LocalTime = record
         hr: Integer
         mins: Integer
         sec: Integer
         ns: Integer
 
-    ## A date and a time of day without a time zone, such as 2026-11-10T09:30:00.
+    { A date and a time of day without a time zone, such as 2026-11-10T09:30:00. }
     export LocalDateTime = record
         ld: LocalDate
         lt: LocalTime
 
     export Weekday = (Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday)
 
-    ## A time zone: the UTC offsets and abbreviations a region used over time, from an IANA
-    ## tzdata (TZif) file, or a fixed offset.
+    { A time zone: the UTC offsets and abbreviations a region used over time, from an IANA
+      tzdata (TZif) file, or a fixed offset. }
     export Zone = record
         zid: String
-        ## The instants (seconds since 1970) where the offset changes, ascending.
+        { The instants (seconds since 1970) where the offset changes, ascending. }
         times: List[Integer]
-        ## The index into `offsets`, `dsts` and `abbrevs` from each of `times` on.
+        { The index into `offsets`, `dsts` and `abbrevs` from each of `times` on. }
         kinds: List[Integer]
         offsets: List[Integer]
         dsts: List[Boolean]
         abbrevs: List[String]
-        ## The POSIX TZ rule for instants after the last of `times`.
+        { The POSIX TZ rule for instants after the last of `times`. }
         rule: Option[Rule]
 
-    ## A POSIX TZ rule: standard time, and daylight saving time between two days of each
-    ## year when `dstAbbr` isn't empty. Offsets are in seconds east of UTC.
+    { A POSIX TZ rule: standard time, and daylight saving time between two days of each
+      year when `dstAbbr` isn't empty. Offsets are in seconds east of UTC. }
     Rule = record
         stdAbbr: String
         stdOffset: Integer
@@ -77,59 +77,59 @@ type
         begins: DayRule
         ends: DayRule
 
-    ## A day of the year in a POSIX TZ rule and the local time on it, in seconds.
+    { A day of the year in a POSIX TZ rule and the local time on it, in seconds. }
     DayRule = record
-        ## 'J' (day `n`, 1 to 365, never counting February 29), 'n' (day `n`, 0 to 365) or
-        ## 'M' (weekday `wd`, 0 being Sunday, of week `week`, 5 being the last, of month
-        ## `n`).
+        { 'J' (day `n`, 1 to 365, never counting February 29), 'n' (day `n`, 0 to 365) or
+          'M' (weekday `wd`, 0 being Sunday, of week `week`, 5 being the last, of month
+          `n`). }
         kind: Char
         n: Integer
         week: Integer
         wd: Integer
         at: Integer
 
-    ## An amount of calendar time in years, months and days, such as P1Y2M3D. Each part
-    ## may be negative.
+    { An amount of calendar time in years, months and days, such as P1Y2M3D. Each part
+      may be negative. }
     export Period = record
         ys: Integer
         ms: Integer
         ds: Integer
 
-    ## The instants from `lo` up to, not including, `hi`.
+    { The instants from `lo` up to, not including, `hi`. }
     export Interval = record
         lo: Instant
         hi: Instant
 
-    ## An instant in a time zone, such as 2026-11-10T09:30:00+01:00[Europe/Amsterdam].
+    { An instant in a time zone, such as 2026-11-10T09:30:00+01:00[Europe/Amsterdam]. }
     export DateTime = record
         inst: Instant
         tz: Zone
 
-    ## The parser's state: the text's characters and the position in them.
+    { The parser's state: the text's characters and the position in them. }
     Reader = record
         cs: List[Char]
         pos: Integer
 
-# ----------------------------------------------------------------------- arithmetic
+{ --------------------------------------------------------------------- arithmetic }
 
-## `a div b` rounded down rather than toward zero. `b` must be positive.
+{ `a div b` rounded down rather than toward zero. `b` must be positive. }
 function floorDiv(a, b: Integer): Integer
     let q := a div b
     return if a mod b < 0 then q - 1 else q
 
-## `a mod b` in `0 ..< b`. `b` must be positive.
+{ `a mod b` in `0 ..< b`. `b` must be positive. }
 function floorMod(a, b: Integer): Integer
     let r := a mod b
     return if r < 0 then r + b else r
 
-## -1, 0 or 1 as `a` is below, equal to or above `b`.
+{ -1, 0 or 1 as `a` is below, equal to or above `b`. }
 function sign(a, b: Integer): Integer
     return if a < b then -1 else if a > b then 1 else 0
 
-# ------------------------------------------------------------------------- durations
+{ ----------------------------------------------------------------------- durations }
 
-## A duration of `seconds` plus `nanos` (which may be any value; it is carried into the
-## seconds).
+{ A duration of `seconds` plus `nanos` (which may be any value; it is carried into the
+  seconds). }
 export function ofSeconds(seconds: Integer, nanos: Integer := 0): Duration
     return Duration(
         secs: seconds + floorDiv(nanos, NanosPerSecond),
@@ -151,19 +151,19 @@ export function ofMillis(millis: Integer): Duration
 export function ofNanos(nanos: Integer): Duration
     return ofSeconds(0, nanos: nanos)
 
-## The whole seconds of `d`, rounded down: -0.5 seconds gives -1.
+{ The whole seconds of `d`, rounded down: -0.5 seconds gives -1. }
 export function seconds(d: Duration): Integer
     return d.secs
 
-## The nanoseconds of `d` within its second, 0 to 999_999_999.
+{ The nanoseconds of `d` within its second, 0 to 999_999_999. }
 export function nanos(d: Duration): Integer
     return d.ns
 
-## `d` in whole milliseconds, rounded down.
+{ `d` in whole milliseconds, rounded down. }
 export function toMillis(d: Duration): Integer
     return d.secs * 1000 + d.ns div 1_000_000
 
-## `d` in nanoseconds. Overflows beyond about 292 years.
+{ `d` in nanoseconds. Overflows beyond about 292 years. }
 export function toNanos(d: Duration): Integer
     return d.secs * NanosPerSecond + d.ns
 
@@ -185,7 +185,7 @@ export function negated(d: Duration): Duration
 export function abs(d: Duration): Duration
     return if isNegative(d) then negated(d) else d
 
-## `d` multiplied by `n`.
+{ `d` multiplied by `n`. }
 export function times(d: Duration, n: Integer): Duration
     return ofSeconds(d.secs * n, nanos: d.ns * n)
 
@@ -199,8 +199,8 @@ export function isLonger(a, b: Duration): Boolean
 export function isShorter(a, b: Duration): Boolean
     return compare(a, b) < 0
 
-## ISO-8601 text in hours, minutes and seconds, such as `PT8H6M12.345S`, `PT0S`, or
-## `-PT1.5S` for a negative duration.
+{ ISO-8601 text in hours, minutes and seconds, such as `PT8H6M12.345S`, `PT0S`, or
+  `-PT1.5S` for a negative duration. }
 export function toString(d: Duration): String
     if isZero(d) then
         return "PT0S"
@@ -217,16 +217,16 @@ export function toString(d: Duration): String
         add(var parts, "{s}{fraction(a.ns)}S")
     return join(parts)
 
-# -------------------------------------------------------------------------- instants
+{ ------------------------------------------------------------------------ instants }
 
-## The current time from the system's real-time clock.
+{ The current time from the system's real-time clock. }
 export unsafe function now(): Instant
     var ts := Timespec(sec: 0, nsec: 0)
     _ := clockGettime(0, ts: addr(var ts))
     return Instant(secs: Integer(ts.sec), ns: Integer(ts.nsec))
 
-## The instant `seconds` after 1970-01-01T00:00:00Z, plus `nanos` (which may be any
-## value; it is carried into the seconds).
+{ The instant `seconds` after 1970-01-01T00:00:00Z, plus `nanos` (which may be any
+  value; it is carried into the seconds). }
 export function ofEpochSecond(seconds: Integer, nanos: Integer := 0): Instant
     let d := ofSeconds(seconds, nanos: nanos)
     return Instant(secs: d.secs, ns: d.ns)
@@ -234,15 +234,15 @@ export function ofEpochSecond(seconds: Integer, nanos: Integer := 0): Instant
 export function ofEpochMilli(millis: Integer): Instant
     return ofEpochSecond(0, nanos: millis * 1_000_000)
 
-## Whole seconds since 1970-01-01T00:00:00Z, rounded down.
+{ Whole seconds since 1970-01-01T00:00:00Z, rounded down. }
 export function epochSecond(i: Instant): Integer
     return i.secs
 
-## The nanoseconds of `i` within its second, 0 to 999_999_999.
+{ The nanoseconds of `i` within its second, 0 to 999_999_999. }
 export function nano(i: Instant): Integer
     return i.ns
 
-## Milliseconds since 1970-01-01T00:00:00Z, rounded down.
+{ Milliseconds since 1970-01-01T00:00:00Z, rounded down. }
 export function toEpochMilli(i: Instant): Integer
     return i.secs * 1000 + i.ns div 1_000_000
 
@@ -252,7 +252,7 @@ export function plus(i: Instant, d: Duration): Instant
 export function minus(i: Instant, d: Duration): Instant
     return ofEpochSecond(i.secs - d.secs, nanos: i.ns - d.ns)
 
-## The duration from `a` to `b`, negative if `b` is before `a`.
+{ The duration from `a` to `b`, negative if `b` is before `a`. }
 export function between(a, b: Instant): Duration
     return ofSeconds(b.secs - a.secs, nanos: b.ns - a.ns)
 
@@ -266,24 +266,24 @@ export function isBefore(a, b: Instant): Boolean
 export function isAfter(a, b: Instant): Boolean
     return compare(a, b) > 0
 
-## The date and time at `i` in the time zone `offsetSeconds` east of UTC.
+{ The date and time at `i` in the time zone `offsetSeconds` east of UTC. }
 export function toLocalDateTime(i: Instant, offsetSeconds: Integer := 0): LocalDateTime
     let s := i.secs + offsetSeconds
     let date := ofEpochDay(floorDiv(s, SecondsPerDay))
     let time := ofNanoOfDay(floorMod(s, SecondsPerDay) * NanosPerSecond + i.ns)
     return LocalDateTime(ld: date, lt: time)
 
-## ISO-8601 text in UTC, such as `2026-11-10T09:30:00Z` or `2026-11-10T09:30:00.250Z`.
+{ ISO-8601 text in UTC, such as `2026-11-10T09:30:00Z` or `2026-11-10T09:30:00.250Z`. }
 export function toString(i: Instant): String
     return "{toLocalDateTime(i)}Z"
 
-# ----------------------------------------------------------------------------- dates
+{ --------------------------------------------------------------------------- dates }
 
-## Whether `year` has a February 29.
+{ Whether `year` has a February 29. }
 export function isLeapYear(year: Integer): Boolean
     return year mod 4 = 0 and (year mod 100 <> 0 or year mod 400 = 0)
 
-## The number of days in `month` (1 to 12) of `year`.
+{ The number of days in `month` (1 to 12) of `year`. }
 export function monthLength(year, month: Integer): Integer
     if month = 2 then
         return if isLeapYear(year) then 29 else 28
@@ -291,13 +291,13 @@ export function monthLength(year, month: Integer): Integer
         return 30
     return 31
 
-## Whether `year`, `month` and `day` name a date.
+{ Whether `year`, `month` and `day` name a date. }
 export function isValidDate(year, month, day: Integer): Boolean
     if year < -MaxYear or year > MaxYear or month < 1 or month > 12 then
         return false
     return day >= 1 and day <= monthLength(year, month: month)
 
-## The date `day` of `month` (1 to 12) of `year`.
+{ The date `day` of `month` (1 to 12) of `year`. }
 export function date(year, month, day: Integer): LocalDate
     requires isValidDate(year, month, day)
     return LocalDate(yr: year, mon: month, dom: day)
@@ -305,15 +305,15 @@ export function date(year, month, day: Integer): LocalDate
 export function year(d: LocalDate): Integer
     return d.yr
 
-## The month, 1 to 12.
+{ The month, 1 to 12. }
 export function month(d: LocalDate): Integer
     return d.mon
 
-## The day of the month, from 1.
+{ The day of the month, from 1. }
 export function day(d: LocalDate): Integer
     return d.dom
 
-## The day of the year, 1 to 366.
+{ The day of the year, 1 to 366. }
 export function dayOfYear(d: LocalDate): Integer
     return toEpochDay(d) - toEpochDay(date(d.yr, 1, 1)) + 1
 
@@ -327,10 +327,10 @@ export function weekday(d: LocalDate): Weekday
         Weekday.Saturday,
         Weekday.Sunday,
     ]
-    # 1970-01-01 was a Thursday.
+    { 1970-01-01 was a Thursday. }
     return days[floorMod(toEpochDay(d) + 3, 7)]
 
-## Days since 1970-01-01, negative before it. After Howard Hinnant's `days_from_civil`.
+{ Days since 1970-01-01, negative before it. After Howard Hinnant's `days_from_civil`. }
 export function toEpochDay(d: LocalDate): Integer
     let y := if d.mon <= 2 then d.yr - 1 else d.yr
     let era := floorDiv(y, 400)
@@ -340,7 +340,7 @@ export function toEpochDay(d: LocalDate): Integer
     let doe := yoe * 365 + yoe div 4 - yoe div 100 + doy
     return era * 146_097 + doe - DaysTo1970
 
-## The date `days` after 1970-01-01. After Howard Hinnant's `civil_from_days`.
+{ The date `days` after 1970-01-01. After Howard Hinnant's `civil_from_days`. }
 export function ofEpochDay(days: Integer): LocalDate
     let z := days + DaysTo1970
     let era := floorDiv(z, 146_097)
@@ -356,8 +356,8 @@ export function ofEpochDay(days: Integer): LocalDate
 export function plusDays(d: LocalDate, days: Integer): LocalDate
     return ofEpochDay(toEpochDay(d) + days)
 
-## `d` moved by `months`. A day past the end of the new month becomes its last day, so
-## 2024-01-31 plus one month is 2024-02-29.
+{ `d` moved by `months`. A day past the end of the new month becomes its last day, so
+  2024-01-31 plus one month is 2024-02-29. }
 export function plusMonths(d: LocalDate, months: Integer): LocalDate
     let m := d.yr * 12 + d.mon - 1 + months
     let year := floorDiv(m, 12)
@@ -368,7 +368,7 @@ export function plusMonths(d: LocalDate, months: Integer): LocalDate
 export function plusYears(d: LocalDate, years: Integer): LocalDate
     return plusMonths(d, months: years * 12)
 
-## The days from `a` to `b`, negative if `b` is before `a`.
+{ The days from `a` to `b`, negative if `b` is before `a`. }
 export function daysBetween(a, b: LocalDate): Integer
     return toEpochDay(b) - toEpochDay(a)
 
@@ -381,11 +381,11 @@ export function isBefore(a, b: LocalDate): Boolean
 export function isAfter(a, b: LocalDate): Boolean
     return compare(a, b) > 0
 
-## The date at midnight.
+{ The date at midnight. }
 export function atStartOfDay(d: LocalDate): LocalDateTime
     return LocalDateTime(ld: d, lt: midnight())
 
-## ISO-8601 text such as `2026-11-10`. Years beyond 9999 get a `+`, years before 0 a `-`.
+{ ISO-8601 text such as `2026-11-10`. Years beyond 9999 get a `+`, years before 0 a `-`. }
 export function toString(d: LocalDate): String
     var y := pad(d.yr, 4)
     if d.yr < 0 then
@@ -394,14 +394,14 @@ export function toString(d: LocalDate): String
         y := "+{d.yr}"
     return "{y}-{pad(d.mon, 2)}-{pad(d.dom, 2)}"
 
-# ----------------------------------------------------------------------------- times
+{ --------------------------------------------------------------------------- times }
 
-## Whether the parts name a time of day.
+{ Whether the parts name a time of day. }
 export function isValidTime(hour, minute, second, nano: Integer): Boolean
     let hm := hour >= 0 and hour < 24 and minute >= 0 and minute < 60
     return hm and second >= 0 and second < 60 and nano >= 0 and nano < NanosPerSecond
 
-## The time of day `hour:minute:second` plus `nano` nanoseconds.
+{ The time of day `hour:minute:second` plus `nano` nanoseconds. }
 export function time(hour, minute: Integer, second: Integer := 0, nano: Integer := 0): LocalTime
     requires isValidTime(hour, minute, second, nano)
     return LocalTime(hr: hour, mins: minute, sec: second, ns: nano)
@@ -421,21 +421,21 @@ export function minute(t: LocalTime): Integer
 export function second(t: LocalTime): Integer
     return t.sec
 
-## The nanoseconds within the second, 0 to 999_999_999.
+{ The nanoseconds within the second, 0 to 999_999_999. }
 export function nano(t: LocalTime): Integer
     return t.ns
 
-## Nanoseconds since midnight.
+{ Nanoseconds since midnight. }
 export function toNanoOfDay(t: LocalTime): Integer
     return ((t.hr * 60 + t.mins) * 60 + t.sec) * NanosPerSecond + t.ns
 
-## The time `nanos` after midnight, wrapping around at 24 hours.
+{ The time `nanos` after midnight, wrapping around at 24 hours. }
 export function ofNanoOfDay(nanos: Integer): LocalTime
     let n := floorMod(nanos, SecondsPerDay * NanosPerSecond)
     let s := n div NanosPerSecond
     return time(s div 3600, s mod 3600 div 60, second: s mod 60, nano: n mod NanosPerSecond)
 
-## `t` moved by `d`, wrapping around midnight.
+{ `t` moved by `d`, wrapping around midnight. }
 export function plus(t: LocalTime, d: Duration): LocalTime
     return ofNanoOfDay(
         toNanoOfDay(t) + floorMod(d.secs, SecondsPerDay) * NanosPerSecond + d.ns,
@@ -453,12 +453,12 @@ export function isBefore(a, b: LocalTime): Boolean
 export function isAfter(a, b: LocalTime): Boolean
     return compare(a, b) > 0
 
-## ISO-8601 text such as `09:30:00`, with a fraction of 3, 6 or 9 digits when there are
-## nanoseconds: `09:30:00.250`.
+{ ISO-8601 text such as `09:30:00`, with a fraction of 3, 6 or 9 digits when there are
+  nanoseconds: `09:30:00.250`. }
 export function toString(t: LocalTime): String
     return "{pad(t.hr, 2)}:{pad(t.mins, 2)}:{pad(t.sec, 2)}{fraction(t.ns)}"
 
-# ------------------------------------------------------------------------ date-times
+{ ---------------------------------------------------------------------- date-times }
 
 export function dateTime(date: LocalDate, time: LocalTime): LocalDateTime
     return LocalDateTime(ld: date, lt: time)
@@ -469,7 +469,7 @@ export function date(dt: LocalDateTime): LocalDate
 export function time(dt: LocalDateTime): LocalTime
     return dt.lt
 
-## The instant at `dt` in the time zone `offsetSeconds` east of UTC.
+{ The instant at `dt` in the time zone `offsetSeconds` east of UTC. }
 export function toInstant(dt: LocalDateTime, offsetSeconds: Integer := 0): Instant
     let s := toEpochDay(dt.ld) * SecondsPerDay + toNanoOfDay(dt.lt) div NanosPerSecond
     return Instant(secs: s - offsetSeconds, ns: dt.lt.ns)
@@ -499,20 +499,20 @@ export function isBefore(a, b: LocalDateTime): Boolean
 export function isAfter(a, b: LocalDateTime): Boolean
     return compare(a, b) > 0
 
-## ISO-8601 text such as `2026-11-10T09:30:00`.
+{ ISO-8601 text such as `2026-11-10T09:30:00`. }
 export function toString(dt: LocalDateTime): String
     return "{dt.ld}T{dt.lt}"
 
-# --------------------------------------------------------------------------- writing
+{ ------------------------------------------------------------------------- writing }
 
-## `n` (not negative) in decimal, with zeros in front up to `width` digits.
+{ `n` (not negative) in decimal, with zeros in front up to `width` digits. }
 function pad(n, width: Integer): String
     var s := toString(n)
     while byteLen(s) < width do
         s := "0{s}"
     return s
 
-## `.` and the nanoseconds in 3, 6 or 9 digits, or nothing for 0.
+{ `.` and the nanoseconds in 3, 6 or 9 digits, or nothing for 0. }
 function fraction(nanos: Integer): String
     if nanos = 0 then
         return ""
@@ -522,7 +522,7 @@ function fraction(nanos: Integer): String
         return ".{pad(nanos div 1000, 6)}"
     return ".{pad(nanos, 9)}"
 
-# --------------------------------------------------------------------------- reading
+{ ------------------------------------------------------------------------- reading }
 
 function reader(s: String): Reader
     var cs: List[Char] := []
@@ -546,14 +546,14 @@ function failure(r: Reader, what: String): String
 function isDigit(c: Char): Boolean
     return c >= '0' and c <= '9'
 
-## Reads `c`.
+{ Reads `c`. }
 function expect(var r: Reader, c: Char): Result[Integer, String]
     if peek(r) <> c then
         return Err(failure(r, "expected '{c}'"))
     r.pos := r.pos + 1
     return Ok(0)
 
-## Reads exactly `count` digits.
+{ Reads exactly `count` digits. }
 function digits(var r: Reader, count: Integer): Result[Integer, String]
     var n := 0
     for k := 1 to count do
@@ -563,7 +563,7 @@ function digits(var r: Reader, count: Integer): Result[Integer, String]
         r.pos := r.pos + 1
     return Ok(n)
 
-## Reads one or more digits, at most 18.
+{ Reads one or more digits, at most 18. }
 function number(var r: Reader): Result[Integer, String]
     let start := r.pos
     var n := 0
@@ -576,7 +576,7 @@ function number(var r: Reader): Result[Integer, String]
         return Err(failure(r, "expected a digit"))
     return Ok(n)
 
-## `n`, read from `start`, or an error there if it is above `high`.
+{ `n`, read from `start`, or an error there if it is above `high`. }
 function check(
     var r: Reader,
     start: Integer,
@@ -589,7 +589,7 @@ function check(
         return Err(failure(r, "{what} out of range"))
     return Ok(n)
 
-## Reads a `.` and 1 to 9 digits, if there, as nanoseconds.
+{ Reads a `.` and 1 to 9 digits, if there, as nanoseconds. }
 function nanosPart(var r: Reader): Result[Integer, String]
     if peek(r) <> '.' and peek(r) <> ',' then
         return Ok(0)
@@ -637,7 +637,7 @@ function readDate(var r: Reader): Result[LocalDate, String]
         return Err(failure(r, "day out of range"))
     return Ok(date(year, month, day))
 
-## Reads `hh:mm`, then `:ss` and a fraction if there.
+{ Reads `hh:mm`, then `:ss` and a fraction if there. }
 function readTime(var r: Reader): Result[LocalTime, String]
     let hourAt := r.pos
     let hour := try digits(var r, count: 2)
@@ -661,7 +661,7 @@ function readDateTime(var r: Reader): Result[LocalDateTime, String]
     let t := try readTime(var r)
     return Ok(dateTime(d, time: t))
 
-## Reads `Z` or an offset `+hh:mm` / `-hh:mm`, as seconds east of UTC.
+{ Reads `Z` or an offset `+hh:mm` / `-hh:mm`, as seconds east of UTC. }
 function readOffset(var r: Reader): Result[Integer, String]
     if peek(r) = 'Z' then
         r.pos := r.pos + 1
@@ -685,29 +685,29 @@ function finish(r: Reader): Result[Integer, String]
         return Err(failure(r, "unexpected text"))
     return Ok(0)
 
-## Reads ISO-8601 text such as `2026-11-10`.
+{ Reads ISO-8601 text such as `2026-11-10`. }
 export function parseDate(s: String): Result[LocalDate, String]
     var r := reader(s)
     let d := try readDate(var r)
     _ := try finish(r)
     return Ok(d)
 
-## Reads ISO-8601 text such as `09:30`, `09:30:15` or `09:30:15.250`.
+{ Reads ISO-8601 text such as `09:30`, `09:30:15` or `09:30:15.250`. }
 export function parseTime(s: String): Result[LocalTime, String]
     var r := reader(s)
     let t := try readTime(var r)
     _ := try finish(r)
     return Ok(t)
 
-## Reads ISO-8601 text such as `2026-11-10T09:30:15`.
+{ Reads ISO-8601 text such as `2026-11-10T09:30:15`. }
 export function parseDateTime(s: String): Result[LocalDateTime, String]
     var r := reader(s)
     let dt := try readDateTime(var r)
     _ := try finish(r)
     return Ok(dt)
 
-## Reads ISO-8601 text with a `Z` or an offset, such as `2026-11-10T09:30:15Z` or
-## `2026-11-10T10:30:15+01:00`.
+{ Reads ISO-8601 text with a `Z` or an offset, such as `2026-11-10T09:30:15Z` or
+  `2026-11-10T10:30:15+01:00`. }
 export function parseInstant(s: String): Result[Instant, String]
     var r := reader(s)
     let dt := try readDateTime(var r)
@@ -715,8 +715,8 @@ export function parseInstant(s: String): Result[Instant, String]
     _ := try finish(r)
     return Ok(toInstant(dt, offsetSeconds: offset))
 
-## Reads an ISO-8601 duration of days, hours, minutes and seconds, such as `PT8H6M12.5S`,
-## `P2DT3H` or `-PT1S`. A day is 24 hours.
+{ Reads an ISO-8601 duration of days, hours, minutes and seconds, such as `PT8H6M12.5S`,
+  `P2DT3H` or `-PT1S`. A day is 24 hours. }
 export function parseDuration(s: String): Result[Duration, String]
     var r := reader(s)
     let negative := peek(r) = '-'
@@ -757,9 +757,9 @@ export function parseDuration(s: String): Result[Duration, String]
     _ := try finish(r)
     return Ok(if negative then negated(total) else total)
 
-# ---------------------------------------------------------------------- time zones
+{ -------------------------------------------------------------------- time zones }
 
-## The directory with the tzdata files: `TZDIR`, or `/usr/share/zoneinfo`.
+{ The directory with the tzdata files: `TZDIR`, or `/usr/share/zoneinfo`. }
 function zoneDir(): String
     case env("TZDIR") of
         Some(d):
@@ -769,7 +769,7 @@ function zoneDir(): String
             pass
     return "/usr/share/zoneinfo"
 
-## Coordinated Universal Time.
+{ Coordinated Universal Time. }
 export function utc(): Zone
     return Zone(
         zid: "UTC",
@@ -781,7 +781,7 @@ export function utc(): Zone
         rule: None,
     )
 
-## A zone that is always `offsetSeconds` east of UTC. Its name is empty.
+{ A zone that is always `offsetSeconds` east of UTC. Its name is empty. }
 export function fixedZone(offsetSeconds: Integer): Zone
     requires offsetSeconds > -SecondsPerDay and offsetSeconds < SecondsPerDay
     return Zone(
@@ -794,14 +794,14 @@ export function fixedZone(offsetSeconds: Integer): Zone
         rule: None,
     )
 
-## The IANA time zone `name`, such as `Europe/Amsterdam`, read from the tzdata files.
+{ The IANA time zone `name`, such as `Europe/Amsterdam`, read from the tzdata files. }
 export unsafe function zone(name: String): Result[Zone, String]
     if byteLen(name) = 0 or startsWith(name, prefix: "/") or pos(name, sub: "..").isSome() then
         return Err("invalid time zone name '{name}'")
     return readZone("{zoneDir()}/{name}", name: name)
 
-## The system's time zone: the one `TZ` names (a tzdata name, a file, or a POSIX TZ rule),
-## or else the one `/etc/localtime` links to.
+{ The system's time zone: the one `TZ` names (a tzdata name, a file, or a POSIX TZ rule),
+  or else the one `/etc/localtime` links to. }
 export unsafe function systemZone(): Result[Zone, String]
     var tz := getOr(env("TZ"), default: "")
     if startsWith(tz, prefix: ":") then
@@ -827,7 +827,7 @@ export unsafe function systemZone(): Result[Zone, String]
     let path := getOr(realPath("/etc/localtime"), default: "/etc/localtime")
     return readZone(path, name: nameFromPath(path))
 
-## The zone name in a path under a `zoneinfo` directory, or the path itself.
+{ The zone name in a path under a `zoneinfo` directory, or the path itself. }
 function nameFromPath(path: String): String
     case pos(path, sub: "/zoneinfo/") of
         Some(at):
@@ -844,15 +844,15 @@ unsafe function readZone(path: String, name: String): Result[Zone, String]
         Err(e):
             return Err("{path}: {e.error}")
 
-## The zone's name, such as `Europe/Amsterdam`; empty for a fixed offset.
+{ The zone's name, such as `Europe/Amsterdam`; empty for a fixed offset. }
 export function name(z: Zone): String
     return z.zid
 
-## The zone's name, or for a fixed offset the offset, such as `+05:30`.
+{ The zone's name, or for a fixed offset the offset, such as `+05:30`. }
 export function toString(z: Zone): String
     return if byteLen(z.zid) > 0 then z.zid else offsetText(z.offsets[0])
 
-## The offset of `z` from UTC at `i`, in seconds east.
+{ The offset of `z` from UTC at `i`, in seconds east. }
 export function offsetAt(z: Zone, i: Instant): Integer
     let k := kindAt(z, seconds: i.secs)
     if k >= 0 then
@@ -860,12 +860,12 @@ export function offsetAt(z: Zone, i: Instant): Integer
     let rule := z.rule.get()
     return if ruleIsDst(rule, seconds: i.secs) then rule.dstOffset else rule.stdOffset
 
-## Whether `z` is on daylight saving time at `i`.
+{ Whether `z` is on daylight saving time at `i`. }
 export function isDstAt(z: Zone, i: Instant): Boolean
     let k := kindAt(z, seconds: i.secs)
     return if k >= 0 then z.dsts[k] else ruleIsDst(z.rule.get(), seconds: i.secs)
 
-## The abbreviation `z` uses at `i`, such as `CET` or `-03`.
+{ The abbreviation `z` uses at `i`, such as `CET` or `-03`. }
 export function abbreviationAt(z: Zone, i: Instant): String
     let k := kindAt(z, seconds: i.secs)
     if k >= 0 then
@@ -873,7 +873,7 @@ export function abbreviationAt(z: Zone, i: Instant): String
     let rule := z.rule.get()
     return if ruleIsDst(rule, seconds: i.secs) then rule.dstAbbr else rule.stdAbbr
 
-## The time type in effect at `seconds`, or -1 when the POSIX rule decides.
+{ The time type in effect at `seconds`, or -1 when the POSIX rule decides. }
 function kindAt(z: Zone, seconds: Integer): Integer
     let n := length(z.times)
     if n = 0 or seconds >= z.times[n - 1] then
@@ -881,7 +881,7 @@ function kindAt(z: Zone, seconds: Integer): Integer
             return -1
     if n = 0 or seconds < z.times[0] then
         return 0
-    # The last transition at or before `seconds`.
+    { The last transition at or before `seconds`. }
     var lo := 0
     var hi := n - 1
     while lo < hi do
@@ -892,9 +892,9 @@ function kindAt(z: Zone, seconds: Integer): Integer
             hi := mid - 1
     return z.kinds[lo]
 
-# ------------------------------------------------------------------------ TZif files
+{ ---------------------------------------------------------------------- TZif files }
 
-## The signed big-endian integer in the `size` bytes at `at`.
+{ The signed big-endian integer in the `size` bytes at `at`. }
 function bigEndian(bs: List[Byte], at, size: Integer): Integer
     var n := Integer(bs[at])
     if n >= 128 then
@@ -903,7 +903,7 @@ function bigEndian(bs: List[Byte], at, size: Integer): Integer
         n := n * 256 + Integer(bs[at + k])
     return n
 
-## The bytes from `at` up to a NUL or `stop`, as text.
+{ The bytes from `at` up to a NUL or `stop`, as text. }
 unsafe function textAt(bs: List[Byte], at, stop: Integer): String
     var part: List[Byte] := []
     var k := at
@@ -912,14 +912,14 @@ unsafe function textAt(bs: List[Byte], at, stop: Integer): String
         k := k + 1
     return fromBytes(part)
 
-## Reads a TZif file (RFC 8536), version 1 to 4. Leap second records are ignored.
+{ Reads a TZif file (RFC 8536), version 1 to 4. Leap second records are ignored. }
 unsafe function parseTzif(bs: List[Byte], name: String): Result[Zone, String]
     if length(bs) < 44 or textAt(bs, 0, stop: 4) <> "TZif" then
         return Err("not a TZif file")
     var at := 0
     var size := 4
     if bs[4] >= $32 then
-        # Skip the version 1 data, which has 32-bit times.
+        { Skip the version 1 data, which has 32-bit times. }
         at := 44 + blockSize(bs, at: 0, size: 4)
         size := 8
         if length(bs) < at + 44 or textAt(bs, at, stop: at + 4) <> "TZif" then
@@ -955,7 +955,7 @@ unsafe function parseTzif(bs: List[Byte], name: String): Result[Zone, String]
             z.rule := Some(rule)
     return Ok(z)
 
-## The size of the data block after the header at `at`, with `size`-byte times.
+{ The size of the data block after the header at `at`, with `size`-byte times. }
 function blockSize(bs: List[Byte], at, size: Integer): Integer
     let isUtCount := bigEndian(bs, at + 20, size: 4)
     let isStdCount := bigEndian(bs, at + 24, size: 4)
@@ -966,9 +966,9 @@ function blockSize(bs: List[Byte], at, size: Integer): Integer
     let leaps := leapCount * (size + 4)
     return timeCount * (size + 1) + typeCount * 6 + charCount + leaps + isStdCount + isUtCount
 
-# ------------------------------------------------------------------- POSIX TZ rules
+{ ----------------------------------------------------------------- POSIX TZ rules }
 
-## Reads a POSIX TZ rule such as `CET-1CEST,M3.5.0,M10.5.0/3` or `<-03>3`.
+{ Reads a POSIX TZ rule such as `CET-1CEST,M3.5.0,M10.5.0/3` or `<-03>3`. }
 function parseRule(s: String): Result[Rule, String]
     var r := reader(s)
     let stdAbbr := try readAbbr(var r)
@@ -1001,7 +1001,7 @@ function parseRule(s: String): Result[Rule, String]
     rule.ends := ends
     return Ok(rule)
 
-## Reads an abbreviation: three or more letters, or anything between `<` and `>`.
+{ Reads an abbreviation: three or more letters, or anything between `<` and `>`. }
 function readAbbr(var r: Reader): Result[String, String]
     let start := r.pos
     var parts: List[String] := []
@@ -1020,7 +1020,7 @@ function readAbbr(var r: Reader): Result[String, String]
         return Err(failure(r, "expected a time zone abbreviation"))
     return Ok(join(parts))
 
-## Reads `[+-]hh[:mm[:ss]]` with at most `maxHours` hours, as seconds.
+{ Reads `[+-]hh[:mm[:ss]]` with at most `maxHours` hours, as seconds. }
 function readHms(var r: Reader, maxHours: Integer): Result[Integer, String]
     let negative := peek(r) = '-'
     if negative or peek(r) = '+' then
@@ -1043,7 +1043,7 @@ function readHms(var r: Reader, maxHours: Integer): Result[Integer, String]
             s := s + seconds
     return Ok(if negative then -s else s)
 
-## Reads `Jn`, `n` or `Mm.w.d`, then `/time` if there.
+{ Reads `Jn`, `n` or `Mm.w.d`, then `/time` if there. }
 function readDayRule(var r: Reader): Result[DayRule, String]
     var d := DayRule(kind: 'n', n: 0, week: 0, wd: 0, at: 7200)
     let start := r.pos
@@ -1075,7 +1075,7 @@ function readDayRule(var r: Reader): Result[DayRule, String]
         d.at := at
     return Ok(d)
 
-## The day of `year` that `d` names, as days since 1970-01-01.
+{ The day of `year` that `d` names, as days since 1970-01-01. }
 function ruleDay(d: DayRule, year: Integer): Integer
     let jan1 := toEpochDay(date(year, 1, 1))
     if d.kind = 'J' then
@@ -1088,7 +1088,7 @@ function ruleDay(d: DayRule, year: Integer): Integer
         day := day - 7
     return toEpochDay(date(year, d.n, day))
 
-## Whether `rule` has daylight saving time at `seconds` since 1970.
+{ Whether `rule` has daylight saving time at `seconds` since 1970. }
 function ruleIsDst(rule: Rule, seconds: Integer): Boolean
     if byteLen(rule.dstAbbr) = 0 then
         return false
@@ -1099,19 +1099,19 @@ function ruleIsDst(rule: Rule, seconds: Integer): Boolean
         return seconds >= begins and seconds < ends
     return seconds < ends or seconds >= begins
 
-# ------------------------------------------------------------------------- date-times
+{ ----------------------------------------------------------------------- date-times }
 
-## `i` in zone `z`.
+{ `i` in zone `z`. }
 export function inZone(i: Instant, z: Zone): DateTime
     return DateTime(inst: i, tz: z)
 
-## The current time in zone `z`.
+{ The current time in zone `z`. }
 export unsafe function now(z: Zone): DateTime
     return DateTime(inst: now(), tz: z)
 
-## `dt` in zone `z`. In a gap (when clocks go forward) the time moves forward by the gap's
-## length; in an overlap (when clocks go back) the earlier of the two instants is taken.
-## Assumes a zone's offset changes at most once within a day of `dt`.
+{ `dt` in zone `z`. In a gap (when clocks go forward) the time moves forward by the gap's
+  length; in an overlap (when clocks go back) the earlier of the two instants is taken.
+  Assumes a zone's offset changes at most once within a day of `dt`. }
 export function atZone(dt: LocalDateTime, z: Zone): DateTime
     let local := toInstant(dt)
     let before := offsetAt(z, i: minus(local, d: ofDays(1)))
@@ -1128,7 +1128,7 @@ export function toInstant(dt: DateTime): Instant
 export function zone(dt: DateTime): Zone
     return dt.tz
 
-## The offset from UTC at `dt`, in seconds east.
+{ The offset from UTC at `dt`, in seconds east. }
 export function offset(dt: DateTime): Integer
     return offsetAt(dt.tz, i: dt.inst)
 
@@ -1141,15 +1141,15 @@ export function date(dt: DateTime): LocalDate
 export function time(dt: DateTime): LocalTime
     return toLocalDateTime(dt).lt
 
-## `dt` moved by an exact `d`, so across a change to summer time 24 hours may be 25 on
-## the clock.
+{ `dt` moved by an exact `d`, so across a change to summer time 24 hours may be 25 on
+  the clock. }
 export function plus(dt: DateTime, d: Duration): DateTime
     return DateTime(inst: plus(dt.inst, d: d), tz: dt.tz)
 
 export function minus(dt: DateTime, d: Duration): DateTime
     return DateTime(inst: minus(dt.inst, d: d), tz: dt.tz)
 
-## `dt` moved by calendar days, keeping the local time where it exists (see `atZone`).
+{ `dt` moved by calendar days, keeping the local time where it exists (see `atZone`). }
 export function plusDays(dt: DateTime, days: Integer): DateTime
     return atZone(plusDays(toLocalDateTime(dt), days: days), z: dt.tz)
 
@@ -1159,7 +1159,7 @@ export function plusMonths(dt: DateTime, months: Integer): DateTime
 export function plusYears(dt: DateTime, years: Integer): DateTime
     return atZone(plusYears(toLocalDateTime(dt), years: years), z: dt.tz)
 
-## Compares the instants, whatever the zones.
+{ Compares the instants, whatever the zones. }
 export function compare(a, b: DateTime): Integer
     return compare(a.inst, b: b.inst)
 
@@ -1169,7 +1169,7 @@ export function isBefore(a, b: DateTime): Boolean
 export function isAfter(a, b: DateTime): Boolean
     return compare(a, b) > 0
 
-## `Z` for 0, else `+hh:mm`, or `+hh:mm:ss` when there are seconds.
+{ `Z` for 0, else `+hh:mm`, or `+hh:mm:ss` when there are seconds. }
 function offsetText(offsetSeconds: Integer): String
     if offsetSeconds = 0 then
         return "Z"
@@ -1179,15 +1179,15 @@ function offsetText(offsetSeconds: Integer): String
     let hm := "{sign}{pad(a div 3600, 2)}:{pad(a mod 3600 div 60, 2)}"
     return if s = 0 then hm else "{hm}:{pad(s, 2)}"
 
-## ISO-8601 text with the offset and, for a named zone, the name in brackets:
-## `2026-11-10T09:30:00+01:00[Europe/Amsterdam]`.
+{ ISO-8601 text with the offset and, for a named zone, the name in brackets:
+  `2026-11-10T09:30:00+01:00[Europe/Amsterdam]`. }
 export function toString(dt: DateTime): String
     let text := "{toLocalDateTime(dt)}{offsetText(offset(dt))}"
     return if byteLen(dt.tz.zid) > 0 then "{text}[{dt.tz.zid}]" else text
 
-## Reads ISO-8601 text with an offset and an optional zone name in brackets, such as
-## `2026-11-10T09:30:00+01:00[Europe/Amsterdam]`. Without a name the zone is the fixed
-## offset. With one, the instant comes from the offset, and the zone is read with `zone`.
+{ Reads ISO-8601 text with an offset and an optional zone name in brackets, such as
+  `2026-11-10T09:30:00+01:00[Europe/Amsterdam]`. Without a name the zone is the fixed
+  offset. With one, the instant comes from the offset, and the zone is read with `zone`. }
 export unsafe function parseZoned(s: String): Result[DateTime, String]
     var r := reader(s)
     let dt := try readDateTime(var r)
@@ -1205,7 +1205,7 @@ export unsafe function parseZoned(s: String): Result[DateTime, String]
     let z := try zone(join(parts))
     return Ok(DateTime(inst: i, tz: z))
 
-# --------------------------------------------------------------------------- periods
+{ ------------------------------------------------------------------------- periods }
 
 export function period(years: Integer := 0, months: Integer := 0, days: Integer := 0): Period
     return Period(ys: years, ms: months, ds: days)
@@ -1228,14 +1228,14 @@ export function plus(a, b: Period): Period
 export function negated(p: Period): Period
     return Period(ys: -p.ys, ms: -p.ms, ds: -p.ds)
 
-## `p` with whole years taken out of the months, so P1Y14M becomes P2Y2M. The years and
-## months keep the same sign; the days don't change.
+{ `p` with whole years taken out of the months, so P1Y14M becomes P2Y2M. The years and
+  months keep the same sign; the days don't change. }
 export function normalized(p: Period): Period
     let total := p.ys * 12 + p.ms
     return Period(ys: total div 12, ms: total mod 12, ds: p.ds)
 
-## `d` moved by the years and months of `p` (a day past the new month's end becomes its
-## last day), then by its days.
+{ `d` moved by the years and months of `p` (a day past the new month's end becomes its
+  last day), then by its days. }
 export function plus(d: LocalDate, p: Period): LocalDate
     return plusDays(plusMonths(d, months: p.ys * 12 + p.ms), days: p.ds)
 
@@ -1248,17 +1248,17 @@ export function plus(dt: LocalDateTime, p: Period): LocalDateTime
 export function minus(dt: LocalDateTime, p: Period): LocalDateTime
     return plus(dt, p: negated(p))
 
-## `dt` moved by `p` on the calendar, keeping the local time where it exists (see
-## `atZone`).
+{ `dt` moved by `p` on the calendar, keeping the local time where it exists (see
+  `atZone`). }
 export function plus(dt: DateTime, p: Period): DateTime
     return atZone(plus(toLocalDateTime(dt), p: p), z: dt.tz)
 
 export function minus(dt: DateTime, p: Period): DateTime
     return plus(dt, p: negated(p))
 
-## The years, months and days from `a` to `b`, all negative if `b` is before `a`. When `b`
-## isn't before `a`, adding it to `a` gives `b`; going back, a month's end can be clamped
-## (2024-03-31 minus P1M is 2024-02-29).
+{ The years, months and days from `a` to `b`, all negative if `b` is before `a`. When `b`
+  isn't before `a`, adding it to `a` gives `b`; going back, a month's end can be clamped
+  (2024-03-31 minus P1M is 2024-02-29). }
 export function between(a, b: LocalDate): Period
     var total := b.yr * 12 + b.mon - (a.yr * 12 + a.mon)
     var days := b.dom - a.dom
@@ -1270,7 +1270,7 @@ export function between(a, b: LocalDate): Period
         days := days - monthLength(b.yr, month: b.mon)
     return Period(ys: total div 12, ms: total mod 12, ds: days)
 
-## ISO-8601 text such as `P1Y2M3D`, leaving out zero parts; `P0D` when all are zero.
+{ ISO-8601 text such as `P1Y2M3D`, leaving out zero parts; `P0D` when all are zero. }
 export function toString(p: Period): String
     if isZero(p) then
         return "P0D"
@@ -1283,9 +1283,9 @@ export function toString(p: Period): String
         add(var parts, "{p.ds}D")
     return join(parts)
 
-## Reads an ISO-8601 period of years, months, weeks and days, such as `P1Y2M3D`, `P2W`
-## or `-P1M` (which negates every part). A part may have its own sign: `P1Y-2M`. A week
-## is 7 days.
+{ Reads an ISO-8601 period of years, months, weeks and days, such as `P1Y2M3D`, `P2W`
+  or `-P1M` (which negates every part). A part may have its own sign: `P1Y-2M`. A week
+  is 7 days. }
 export function parsePeriod(s: String): Result[Period, String]
     var r := reader(s)
     let negative := peek(r) = '-'
@@ -1318,40 +1318,40 @@ export function parsePeriod(s: String): Result[Period, String]
         return Err(failure(r, "expected a digit"))
     return Ok(if negative then negated(p) else p)
 
-# ------------------------------------------------------------------------- intervals
+{ ----------------------------------------------------------------------- intervals }
 
-## The instants from `start` up to, not including, `end`.
+{ The instants from `start` up to, not including, `end`. }
 export function interval(start, end: Instant): Interval
     requires not isAfter(start, b: end)
     return Interval(lo: start, hi: end)
 
-## The interval of length `d` from `start`.
+{ The interval of length `d` from `start`. }
 export function interval(start: Instant, d: Duration): Interval
     return interval(start, end: plus(start, d: d))
 
 export function start(iv: Interval): Instant
     return iv.lo
 
-## The first instant after the interval.
+{ The first instant after the interval. }
 export function end(iv: Interval): Instant
     return iv.hi
 
 export function duration(iv: Interval): Duration
     return between(iv.lo, b: iv.hi)
 
-## Whether `i` is in `iv`: at or after its start and before its end.
+{ Whether `i` is in `iv`: at or after its start and before its end. }
 export function contains(iv: Interval, i: Instant): Boolean
     return not isBefore(i, b: iv.lo) and isBefore(i, b: iv.hi)
 
-## Whether `a` and `b` share an instant.
+{ Whether `a` and `b` share an instant. }
 export function overlaps(a, b: Interval): Boolean
     return isBefore(a.lo, b: b.hi) and isBefore(b.lo, b: a.hi)
 
-## Whether one ends where the other starts.
+{ Whether one ends where the other starts. }
 export function abuts(a, b: Interval): Boolean
     return a.hi = b.lo or b.hi = a.lo
 
-## The instants in both `a` and `b`, if they overlap.
+{ The instants in both `a` and `b`, if they overlap. }
 export function overlap(a, b: Interval): Option[Interval]
     if not overlaps(a, b) then
         return None
@@ -1359,7 +1359,7 @@ export function overlap(a, b: Interval): Option[Interval]
     let hi := if isBefore(a.hi, b: b.hi) then a.hi else b.hi
     return Some(Interval(lo: lo, hi: hi))
 
-## The instants between `a` and `b`, if they neither overlap nor abut.
+{ The instants between `a` and `b`, if they neither overlap nor abut. }
 export function gap(a, b: Interval): Option[Interval]
     if isBefore(a.hi, b: b.lo) then
         return Some(Interval(lo: a.hi, hi: b.lo))
@@ -1367,13 +1367,13 @@ export function gap(a, b: Interval): Option[Interval]
         return Some(Interval(lo: b.hi, hi: a.lo))
     return None
 
-## ISO-8601 text: the start and the end, such as
-## `2026-11-10T09:00:00Z/2026-11-10T17:00:00Z`.
+{ ISO-8601 text: the start and the end, such as
+  `2026-11-10T09:00:00Z/2026-11-10T17:00:00Z`. }
 export function toString(iv: Interval): String
     return "{iv.lo}/{iv.hi}"
 
-## Reads an ISO-8601 interval: `start/end`, `start/duration` or `duration/end`, with
-## the instants as `parseInstant` reads them and the durations as `parseDuration`.
+{ Reads an ISO-8601 interval: `start/end`, `start/duration` or `duration/end`, with
+  the instants as `parseInstant` reads them and the durations as `parseDuration`. }
 export function parseInterval(s: String): Result[Interval, String]
     let parts := split(s, sep: "/")
     if length(parts) <> 2 then
@@ -1401,8 +1401,8 @@ export function parseInterval(s: String): Result[Interval, String]
         return Err("the end is before the start")
     return Ok(Interval(lo: lo, hi: hi))
 
-## `r`, with `offset` added to the offset in its error. With `partEnd`, an error at the
-## end of the text is at that offset instead.
+{ `r`, with `offset` added to the offset in its error. With `partEnd`, an error at the
+  end of the text is at that offset instead. }
 function located[T](
     r: Result[T, String],
     offset: Integer,
@@ -1421,7 +1421,7 @@ function located[T](
                 return Err("{words[0]} at offset {n + offset}")
             return Err(e.error)
 
-# ----------------------------------------------------------------------------- tests
+{ --------------------------------------------------------------------------- tests }
 
 test "durations"
     assert toString(ofSeconds(29_166, nanos: 345_000_000)) = "PT8H6M6.345S"
@@ -1505,7 +1505,7 @@ test "parsing"
 test "POSIX TZ rules"
     let us := parseRule("EST5EDT,M3.2.0,M11.1.0").get()
     assert us.stdOffset = -18_000 and us.dstOffset = -14_400 and us.dstAbbr = "EDT"
-    # 2026-03-08 07:00Z is 02:00 EST, when summer time begins; 2026-11-01 06:00Z ends it.
+    { 2026-03-08 07:00Z is 02:00 EST, when summer time begins; 2026-11-01 06:00Z ends it. }
     assert not ruleIsDst(us, seconds: 1_772_953_199) and ruleIsDst(us, seconds: 1_772_953_200)
     assert ruleIsDst(us, seconds: 1_793_512_799) and not ruleIsDst(us, seconds: 1_793_512_800)
     let south := parseRule("<+1030>-10:30<+11>-11,M10.1.0,M4.1.0").get()
@@ -1530,7 +1530,7 @@ test "tzdata zones"
     assert offsetAt(ams, i: future) = 7200 and abbreviationAt(ams, i: future) = "CEST"
     let syd := zone("Australia/Sydney").get()
     assert offsetAt(syd, i: winter) = 39_600 and offsetAt(syd, i: summer) = 36_000
-    # Past the last transition the rule takes over; it must agree with the transitions.
+    { Past the last transition the rule takes over; it must agree with the transitions. }
     let ny := zone("America/New_York").get()
     for z in [ams, ny, syd] do
         let rule := z.rule.get()

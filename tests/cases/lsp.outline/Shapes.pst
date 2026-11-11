@@ -15,7 +15,7 @@ type
 
     Size = 1 .. 10
 
-## The area of `b`.
+{ The area of `b`. }
 function area(b: Box): Integer
     if b.width > 0 then
         return b.width * b.width

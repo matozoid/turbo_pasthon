@@ -1,13 +1,13 @@
 unit Difflib
 
-## Close matches for "did you mean" suggestions, as Python's `difflib.get_close_matches`
-## finds them, so that the port suggests the same names.
-##
-## The similarity of `a` and `b` is `2 * M / T`: `M` counts the characters in matching
-## blocks, `T` is the total length. Blocks are found as `SequenceMatcher` finds them: the
-## longest common substring (the earliest in `a`, then in `b`), then the same on each
-## side of it. Without junk heuristics, which only apply to strings of 200 or more
-## characters. Ratios are compared as fractions, without floating point.
+{ Close matches for "did you mean" suggestions, as Python's `difflib.get_close_matches`
+  finds them, so that the port suggests the same names.
+
+  The similarity of `a` and `b` is `2 * M / T`: `M` counts the characters in matching
+  blocks, `T` is the total length. Blocks are found as `SequenceMatcher` finds them: the
+  longest common substring (the earliest in `a`, then in `b`), then the same on each
+  side of it. Without junk heuristics, which only apply to strings of 200 or more
+  characters. Ratios are compared as fractions, without floating point. }
 
 type
     Score = record
@@ -15,7 +15,7 @@ type
         matched: Integer
         total: Integer
 
-## The number of characters in the matching blocks of `a[alo..ahi)` and `b[blo..bhi)`.
+{ The number of characters in the matching blocks of `a[alo..ahi)` and `b[blo..bhi)`. }
 function matching(a, b: List[Char], alo, ahi, blo, bhi: Integer): Integer
     var besti := alo
     var bestj := blo
@@ -53,13 +53,13 @@ function charsOf(s: String): List[Char]
         add(var out, c)
     return out
 
-## Whether `x` ranks above `y`: a higher ratio, then the later name.
+{ Whether `x` ranks above `y`: a higher ratio, then the later name. }
 function above(x, y: Score): Boolean
     let l := x.matched * y.total
     let r := y.matched * x.total
     return l > r or (l = r and x.name > y.name)
 
-## Up to `n` of `candidates` whose ratio to `word` is at least `num / den`, best first.
+{ Up to `n` of `candidates` whose ratio to `word` is at least `num / den`, best first. }
 export function closeMatches(
     word: String,
     candidates: List[String],

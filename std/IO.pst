@@ -1,24 +1,24 @@
 unit IO
 
-## Console and file input/output, on libc.
+{ Console and file input/output, on libc. }
 
 uses C, Strings
 
 type
-    ## An open file. Closed automatically when the last reference goes away.
+    { An open file. Closed automatically when the last reference goes away. }
     export File = record
         fd: Integer
 
 external "pst"
-    ## Writes the text form of `value` to standard output.
+    { Writes the text form of `value` to standard output. }
     export procedure write[T: Printable](value: T)
-    ## Writes the text form of `value` and a newline to standard output.
+    { Writes the text form of `value` and a newline to standard output. }
     export procedure writeln[T: Printable](value: T)
-    ## Writes a newline to standard output.
+    { Writes a newline to standard output. }
     export procedure writeln()
-    ## Writes the text form of `value` to standard error.
+    { Writes the text form of `value` to standard error. }
     export procedure writeErr[T: Printable](value: T)
-    ## Writes the text form of `value` and a newline to standard error.
+    { Writes the text form of `value` and a newline to standard error. }
     export procedure writelnErr[T: Printable](value: T)
 
 external "libc.so.6"
@@ -43,7 +43,7 @@ procedure destroy(var f: File)
     if f.fd >= 0 then
         _ := cClose(CInt(f.fd))
 
-## The message for C's `errno`.
+{ The message for C's `errno`. }
 unsafe function lastError(): String
     return fromCString(strerror(deref(errnoLocation())))
 
@@ -53,16 +53,16 @@ unsafe function openWith(path: String, flags: Integer, mode: Integer): Result[re
         return Err("{path}: {lastError()}")
     return Ok(new(File(fd: Integer(fd))))
 
-## Opens the file at `path` for reading.
+{ Opens the file at `path` for reading. }
 export function open(path: String): Result[ref File, String]
     return openWith(path, ReadOnly, mode: 0)
 
-## Creates the file at `path` for writing, or empties it if it exists. A new file gets the
-## permissions `mode` (less the process's umask): `$1ED` (octal 755) for an executable.
+{ Creates the file at `path` for writing, or empties it if it exists. A new file gets the
+  permissions `mode` (less the process's umask): `$1ED` (octal 755) for an executable. }
 export function create(path: String, mode: Integer := $1A4): Result[ref File, String]
     return openWith(path, WriteOnly + Create + Truncate, mode: mode)
 
-## Closes the file now, instead of when the last reference goes away.
+{ Closes the file now, instead of when the last reference goes away. }
 export unsafe function close(f: ref File): Result[Integer, String]
     if f.fd < 0 then
         return Err("the file is already closed")
@@ -72,8 +72,8 @@ export unsafe function close(f: ref File): Result[Integer, String]
         return Err(lastError())
     return Ok(0)
 
-## Reads the rest of file descriptor `fd` into a buffer from `malloc`, to be freed by the
-## caller, and sets `n` to the number of bytes read.
+{ Reads the rest of file descriptor `fd` into a buffer from `malloc`, to be freed by the
+  caller, and sets `n` to the number of bytes read. }
 unsafe function readFd(fd: Integer, var n: Integer): Result[Ptr[Byte], String]
     var size := 4096
     var buf: Ptr[Byte] := cast[Ptr[Byte]](malloc(CSize(size)))
@@ -91,7 +91,7 @@ unsafe function readFd(fd: Integer, var n: Integer): Result[Ptr[Byte], String]
             return Ok(buf)
         n := n + Integer(got)
 
-## Writes the `n` bytes at `p` to file descriptor `fd`.
+{ Writes the `n` bytes at `p` to file descriptor `fd`. }
 unsafe function writeFd(fd: Integer, p: Ptr[Byte], n: Integer): Result[Integer, String]
     var done := 0
     while done < n do
@@ -101,7 +101,7 @@ unsafe function writeFd(fd: Integer, p: Ptr[Byte], n: Integer): Result[Integer, 
         done := done + Integer(w)
     return Ok(n)
 
-## The rest of the file as text. Invalid UTF-8 is replaced with U+FFFD.
+{ The rest of the file as text. Invalid UTF-8 is replaced with U+FFFD. }
 export unsafe function readAll(f: ref File): Result[String, String]
     var n := 0
     let buf := try readFd(f.fd, n: var n)
@@ -109,7 +109,7 @@ export unsafe function readAll(f: ref File): Result[String, String]
     free(cast[Pointer](buf))
     return Ok(text)
 
-## The rest of the file as bytes.
+{ The rest of the file as bytes. }
 export unsafe function readBytes(f: ref File): Result[List[Byte], String]
     var n := 0
     let buf := try readFd(f.fd, n: var n)
@@ -121,11 +121,11 @@ export unsafe function readBytes(f: ref File): Result[List[Byte], String]
     free(cast[Pointer](buf))
     return Ok(bytes)
 
-## Writes `text` to the file. The result is the number of bytes written.
+{ Writes `text` to the file. The result is the number of bytes written. }
 export unsafe function writeAll(f: ref File, text: String): Result[Integer, String]
     return writeFd(f.fd, cast[Ptr[Byte]](toCString(text)), n: byteLen(text))
 
-## Writes `data` to the file. The result is the number of bytes written.
+{ Writes `data` to the file. The result is the number of bytes written. }
 export unsafe function writeBytes(f: ref File, data: List[Byte]): Result[Integer, String]
     let n := length(data)
     let buf := cast[Ptr[Byte]](malloc(CSize(n + 1)))
@@ -137,7 +137,7 @@ export unsafe function writeBytes(f: ref File, data: List[Byte]): Result[Integer
     free(cast[Pointer](buf))
     return r
 
-## Reads one line from standard input, without the newline. `None` at end of input.
+{ Reads one line from standard input, without the newline. `None` at end of input. }
 export unsafe function readln(): Option[String]
     var size := 128
     var buf: Ptr[Byte] := cast[Ptr[Byte]](malloc(CSize(size)))
@@ -160,9 +160,9 @@ export unsafe function readln(): Option[String]
     free(cast[Pointer](buf))
     return Some(line)
 
-## Reads `count` bytes from standard input, as text: invalid UTF-8 is replaced with U+FFFD.
-## `None` if the input ends first. With `readln`, it reads a protocol of header lines and
-## sized bodies, such as the language server's.
+{ Reads `count` bytes from standard input, as text: invalid UTF-8 is replaced with U+FFFD.
+  `None` if the input ends first. With `readln`, it reads a protocol of header lines and
+  sized bodies, such as the language server's. }
 export unsafe function read(count: Integer): Option[String]
     let buf := cast[Ptr[Byte]](malloc(CSize(count + 1)))
     var n := 0

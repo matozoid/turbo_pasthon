@@ -22,5 +22,5 @@ writeln(length(b.items))
 let r := new(Bag(items: []))
 for i := 1 to 100000 do
     add(var r.items, i)
-addSeen(var r.items, r)  # `r` can see `r.items`, so it is copied
+addSeen(var r.items, r)  { `r` can see `r.items`, so it is copied }
 writeln("{length(r.items)} {r.items[100000]}")

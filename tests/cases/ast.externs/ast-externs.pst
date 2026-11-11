@@ -1,6 +1,6 @@
 program P
 external "libc.so.6"
-    ## Writes.
+    { Writes. }
     export function write(fd: Integer, buf: Pointer, n: Integer): Integer name "write"
     procedure exit(code: Integer)
     x := 1

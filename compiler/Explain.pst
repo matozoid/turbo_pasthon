@@ -1,8 +1,8 @@
 unit Explain
 
-## The error and panic codes of SPEC §2.9, §12 and §16, for `pst explain`: what each
-## means, and the section that lists it. Keep in step with the SPEC's tables; the case
-## explain.spec checks that with ExplainCheck.
+{ The error and panic codes of SPEC §2.9, §12 and §16, for `pst explain`: what each
+  means, and the section that lists it. Keep in step with the SPEC's tables; the case
+  explain.spec checks that with ExplainCheck. }
 
 type
     export Explanation = record
@@ -11,7 +11,7 @@ type
         export title: String
         export meaning: String
 
-## Every code, in the order the SPEC lists them.
+{ Every code, in the order the SPEC lists them. }
 export function explanations(): List[Explanation]
     return [
         Explanation(
@@ -661,7 +661,7 @@ export function explanations(): List[Explanation]
         ),
     ]
 
-## The explanation of `code`, or None if there is no such code.
+{ The explanation of `code`, or None if there is no such code. }
 export function explain(code: String): Option[Explanation]
     for e in explanations() do
         if e.code = code then

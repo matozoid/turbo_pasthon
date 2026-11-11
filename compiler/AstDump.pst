@@ -1,13 +1,13 @@
 unit AstDump
 
-## The `pst ast` command: prints the syntax tree and diagnostics of a source file in a
-## canonical form, which the cases in tests/cases compare.
-##
-## One node per line, indented by depth: `label Kind where scalars`.
+{ The `pst ast` command: prints the syntax tree and diagnostics of a source file in a
+  canonical form, which the cases in tests/cases compare.
+
+  One node per line, indented by depth: `label Kind where scalars`. }
 
 uses IO, OS, Strings, Source, Diagnostics, Ast, Parser
 
-## `n` in hexadecimal, upper case.
+{ `n` in hexadecimal, upper case. }
 function hex(n: Integer): String
     let digits := "0123456789ABCDEF"
     var out := slice(digits, n mod 16, n mod 16 + 1)
@@ -17,7 +17,7 @@ function hex(n: Integer): String
         v := v div 16
     return out
 
-## `s` in double quotes, with `\`, `"` and control characters escaped.
+{ `s` in double quotes, with `\`, `"` and control characters escaped. }
 function quote(s: String): String
     var parts: List[String] := ["\""]
     for c in s do
@@ -37,7 +37,7 @@ function quote(s: String): String
 function where(s: Span): String
     return "{s.line}:{s.col}-{s.endLine}:{s.endCol}"
 
-# ------------------------------------------------------------------------- scalars
+{ ----------------------------------------------------------------------- scalars }
 
 function str(field, value: String): String
     return " {field}={quote(value)}"
@@ -70,7 +70,7 @@ function item(field: String, i: Integer): String
 function one(field: String): String
     return "{field}: "
 
-# ----------------------------------------------------------------- names and types
+{ --------------------------------------------------------------- names and types }
 
 procedure ident(x: Ident, d: Integer, label: String)
     line(d, label, kind: "Ident", span: x.span, scalars: str("name", value: x.name))
@@ -130,7 +130,7 @@ procedure typeParams(ps: List[TypeParam], d: Integer, field: String)
         ident(p.name, d + 1, label: one("name"))
         typeExprs(p.bounds, d + 1, field: "bounds")
 
-# --------------------------------------------------------------------- expressions
+{ ------------------------------------------------------------------- expressions }
 
 procedure exprs(es: List[Expr], d: Integer, field: String)
     for i := 0 to length(es) - 1 do
@@ -268,7 +268,7 @@ procedure labels(ls: List[Label], d: Integer)
                 typeName(x.variant, d + 1, label: one("variant"))
                 ident(x.binding, d + 1, label: one("binding"))
 
-# ---------------------------------------------------------------------- statements
+{ -------------------------------------------------------------------- statements }
 
 procedure block(b: Block, d: Integer, label: String)
     line(d, label, kind: "Block", span: b.span, scalars: "")
@@ -389,7 +389,7 @@ procedure stmt(s: Stmt, d: Integer, label: String)
             optExpr(x.value, c, label: one("value"))
         ErrorStmt(x): line(d, label, kind: "ErrorStmt", span: x.span, scalars: "")
 
-# -------------------------------------------------------------------- declarations
+{ ------------------------------------------------------------------ declarations }
 
 procedure fieldDecls(fs: List[FieldDecl], d: Integer)
     for i := 0 to length(fs) - 1 do
@@ -483,7 +483,7 @@ procedure decl(x: Decl, d: Integer, label: String)
             line(d, label, kind: "TestBlock", span: t.span, scalars: scalars)
             block(t.body, c, label: one("body"))
 
-## Prints the dump of source `text`, from `file`. Whether it has errors.
+{ Prints the dump of source `text`, from `file`. Whether it has errors. }
 export function dumpAst(text: String, file: String): Boolean
     let r := parse(text, file: file)
     let f := r.file

@@ -3,7 +3,7 @@ f(a,
 g(c,
 x.y := 1
 h(d,
-# comment
+{ comment }
 
 return 2
 k(e,

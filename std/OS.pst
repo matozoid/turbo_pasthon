@@ -1,6 +1,6 @@
 unit OS
 
-## The process environment, on libc.
+{ The process environment, on libc. }
 
 uses C
 
@@ -32,8 +32,8 @@ external "libc.so.6"
     function closedir(dir: Pointer): CInt
     function strerror(code: CInt): CString
     type
-        ## glibc's `struct stat` on x86-64: 144 bytes; `st_mode` is the low half of
-        ## `w3`.
+        { glibc's `struct stat` on x86-64: 144 bytes; `st_mode` is the low half of
+          `w3`. }
         Stat = record
             w0: UInt64
             w1: UInt64
@@ -55,11 +55,11 @@ external "libc.so.6"
             w17: UInt64
 
 external "pst"
-    ## The program's `argv`: a pointer to C strings, the program name first, ending with a
-    ## null pointer.
+    { The program's `argv`: a pointer to C strings, the program name first, ending with a
+      null pointer. }
     function argv(): Ptr[CString]
 
-## Command line arguments, without the program name.
+{ Command line arguments, without the program name. }
 export unsafe function args(): List[String]
     var r: List[String] := []
     var p := argv() + 1
@@ -68,18 +68,18 @@ export unsafe function args(): List[String]
         p := p + 1
     return r
 
-## The value of environment variable `name`.
+{ The value of environment variable `name`. }
 export function env(name: String): Option[String]
     let p := getenv(toCString(name))
     if isNull(p) then
         return None
     return Some(fromCString(p))
 
-## Exits with status `code`, like `halt`.
+{ Exits with status `code`, like `halt`. }
 export procedure exit(code: Integer)
     halt(code)
 
-## The current working directory.
+{ The current working directory. }
 export unsafe function currentDir(): String
     let p := getcwd(cast[Pointer](0), CSize(0))
     if isNull(p) then
@@ -88,10 +88,10 @@ export unsafe function currentDir(): String
     free(p)
     return dir
 
-## The absolute path of `path`, with symbolic links, `.` and `..` resolved.
+{ The absolute path of `path`, with symbolic links, `.` and `..` resolved. }
 export unsafe function realPath(path: String): Result[String, String]
-    ## A buffer of PATH_MAX bytes: the unversioned symbol is glibc's first `realpath`,
-    ## which doesn't allocate one.
+    { A buffer of PATH_MAX bytes: the unversioned symbol is glibc's first `realpath`,
+      which doesn't allocate one. }
     let buf := malloc(CSize(4096))
     if isNull(realpath(toCString(path), buf)) then
         let message := "{path}: {lastError()}"
@@ -101,7 +101,7 @@ export unsafe function realPath(path: String): Result[String, String]
     freeMemory(buf)
     return Ok(real)
 
-## The file type bits of `path` (following symbolic links), or -1 if it doesn't exist.
+{ The file type bits of `path` (following symbolic links), or -1 if it doesn't exist. }
 unsafe function fileType(path: String): Integer
     var st := Stat(
         w0: 0,
@@ -127,16 +127,16 @@ unsafe function fileType(path: String): Integer
         return -1
     return Integer(st.w3 and $F000)
 
-## Whether `path` names a regular file (following symbolic links).
+{ Whether `path` names a regular file (following symbolic links). }
 export function isFile(path: String): Boolean
     return fileType(path) = $8000
 
-## Whether `path` names a directory (following symbolic links).
+{ Whether `path` names a directory (following symbolic links). }
 export function isDir(path: String): Boolean
     return fileType(path) = $4000
 
-## The names of the entries of directory `path`, without `.` and `..`, in no particular
-## order.
+{ The names of the entries of directory `path`, without `.` and `..`, in no particular
+  order. }
 export unsafe function listDir(path: String): Result[List[String], String]
     let dir := opendir(toCString(path))
     if isNull(dir) then
@@ -146,17 +146,17 @@ export unsafe function listDir(path: String): Result[List[String], String]
         let entry := readdir(dir)
         if isNull(entry) then
             break
-        let name := fromCString(cast[CString](entry + 19))  # glibc's `d_name`
+        let name := fromCString(cast[CString](entry + 19))  { glibc's `d_name` }
         if name <> "." and name <> ".." then
             add(var names, name)
     _ := closedir(dir)
     return Ok(names)
 
-## The message for C's `errno`.
+{ The message for C's `errno`. }
 unsafe function lastError(): String
     return fromCString(strerror(deref(errnoLocation())))
 
-## The path of the running executable, from `/proc/self/exe`.
+{ The path of the running executable, from `/proc/self/exe`. }
 export unsafe function programPath(): String
     let size := 4096
     let buf := malloc(CSize(size))
@@ -167,8 +167,8 @@ export unsafe function programPath(): String
     freeMemory(buf)
     return path
 
-## Creates a new directory, readable only by the user, under `TMPDIR` (or `/tmp`) and
-## returns its path.
+{ Creates a new directory, readable only by the user, under `TMPDIR` (or `/tmp`) and
+  returns its path. }
 export unsafe function tempDir(): Result[String, String]
     var base := env("TMPDIR").getOr("")
     if base = "" then
@@ -182,37 +182,37 @@ export unsafe function tempDir(): Result[String, String]
     free(template)
     return Ok(dir)
 
-## Makes `path` the current directory.
+{ Makes `path` the current directory. }
 export unsafe function changeDir(path: String): Result[Integer, String]
     if chdir(toCString(path)) <> 0 then
         return Err("{path}: {lastError()}")
     return Ok(0)
 
-## Deletes the file at `path`.
+{ Deletes the file at `path`. }
 export unsafe function removeFile(path: String): Result[Integer, String]
     if unlink(toCString(path)) <> 0 then
         return Err("{path}: {lastError()}")
     return Ok(0)
 
-## Creates the directory `path`, with permissions `mode` less the umask.
+{ Creates the directory `path`, with permissions `mode` less the umask. }
 export unsafe function makeDir(path: String, mode: Integer := $1ED): Result[Integer, String]
     if mkdir(toCString(path), CInt(mode)) <> 0 then
         return Err("{path}: {lastError()}")
     return Ok(0)
 
-## Deletes the empty directory at `path`.
+{ Deletes the empty directory at `path`. }
 export unsafe function removeDir(path: String): Result[Integer, String]
     if rmdir(toCString(path)) <> 0 then
         return Err("{path}: {lastError()}")
     return Ok(0)
 
-## Runs the executable at `path` with arguments `args` and waits for it to finish. The
-## result is its exit status, or minus the signal that ended it. If the program can't be
-## started, the child process exits with status 127. With `output`, the program's standard
-## output goes to that file, created or emptied, and so does its standard error unless
-## `errors` names another file for it. With `input`, the program reads that file as its
-## standard input. With `dir`, it runs in that directory; the paths of the files are
-## relative to the current directory, not to `dir`.
+{ Runs the executable at `path` with arguments `args` and waits for it to finish. The
+  result is its exit status, or minus the signal that ended it. If the program can't be
+  started, the child process exits with status 127. With `output`, the program's standard
+  output goes to that file, created or emptied, and so does its standard error unless
+  `errors` names another file for it. With `input`, the program reads that file as its
+  standard input. With `dir`, it runs in that directory; the paths of the files are
+  relative to the current directory, not to `dir`. }
 export function run(
     path: String,
     args: List[String],
@@ -223,8 +223,8 @@ export function run(
 ): Result[Integer, String]
     return launch(path, args, files: [output, errors, input, dir], timeout: 0)
 
-## Runs a program like `run`, in the current directory, and ends it with the signal
-## SIGALRM (14) if it is still running after `timeout` seconds.
+{ Runs a program like `run`, in the current directory, and ends it with the signal
+  SIGALRM (14) if it is still running after `timeout` seconds. }
 export function runFor(
     path: String,
     args: List[String],
@@ -235,8 +235,8 @@ export function runFor(
 ): Result[Integer, String]
     return launch(path, args, files: [output, errors, input, ""], timeout: timeout)
 
-## `run`, with its `output`, `errors`, `input` and `dir` in `files`, and the alarm after
-## `timeout` seconds unless it is 0.
+{ `run`, with its `output`, `errors`, `input` and `dir` in `files`, and the alarm after
+  `timeout` seconds unless it is 0. }
 unsafe function launch(
     path: String,
     args: List[String],

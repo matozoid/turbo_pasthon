@@ -1,6 +1,6 @@
 if a then
 
-# top comment
+{ top comment }
     b
-        # deep comment
+        { deep comment }
     c

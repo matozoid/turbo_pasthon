@@ -10,9 +10,9 @@ type
 const
     Limit = 10
 
-## The area of `b`.
+{ The area of `b`. }
 function area(b: Box): Integer
-    return b.side * b.side  # square
+    return b.side * b.side  { square }
 
 let b := Box(side: 2)
 writeln("area {area(b)} of {Size.Small}, limit {Limit}")

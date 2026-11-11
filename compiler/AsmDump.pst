@@ -1,13 +1,13 @@
 program AsmDump
 
-## Runs an assembler script and prints the finished code, the read-only data and the
-## executable in hex, which the cases in tests/cases compare.
-##
-## Usage: `AsmDump SCRIPT`. Each line of the script is an assembler call: its name in
-## snake case, then its arguments, separated by spaces. Integers are decimal, Booleans
-## `true` or `false`. `data NAME ALIGN BYTES` and `new_label NAME HINT` bind NAME to the
-## label they return (BYTES is comma-separated, or `-` for none); a later argument NAME
-## stands for it. `track` and `untrack` start and stop tracking the stack.
+{ Runs an assembler script and prints the finished code, the read-only data and the
+  executable in hex, which the cases in tests/cases compare.
+
+  Usage: `AsmDump SCRIPT`. Each line of the script is an assembler call: its name in
+  snake case, then its arguments, separated by spaces. Integers are decimal, Booleans
+  `true` or `false`. `data NAME ALIGN BYTES` and `new_label NAME HINT` bind NAME to the
+  label they return (BYTES is comma-separated, or `-` for none); a later argument NAME
+  stands for it. `track` and `untrack` start and stop tracking the stack. }
 
 uses IO, OS, Strings, X86, Elf
 
@@ -56,7 +56,7 @@ procedure run(a: ref Assembler, var names: Map[String, String], w: List[String])
                 add(var args, n.value)
             None:
                 add(var args, w[i])
-    var x: List[Integer] := []  # the arguments as integers; 0 for the others
+    var x: List[Integer] := []  { the arguments as integers; 0 for the others }
     for s in args do
         if s = "true" then
             add(var x, 1)
@@ -76,7 +76,7 @@ procedure run(a: ref Assembler, var names: Map[String, String], w: List[String])
     else if op = "untrack" then
         a.tracked := false
         a.stack := []
-    else if op = "own" then  # marks the top word as an owned reference
+    else if op = "own" then  { marks the top word as an owned reference }
         a.stack[length(a.stack) - 1] := true
     else if op = "label" then
         label(a, args[0])

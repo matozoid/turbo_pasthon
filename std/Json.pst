@@ -1,7 +1,7 @@
 unit Json
 
-## JSON (RFC 8259): parse text into a `JValue`, write one back, and read its parts.
-## A number keeps its text, since `Real` has no code generation yet; `asInteger` reads it.
+{ JSON (RFC 8259): parse text into a `JValue`, write one back, and read its parts.
+  A number keeps its text, since `Real` has no code generation yet; `asInteger` reads it. }
 
 uses Strings
 
@@ -11,7 +11,7 @@ type
     export JBool = record
         export value: Boolean
 
-    ## A number, as written: `-12`, `3.5e2`.
+    { A number, as written: `-12`, `3.5e2`. }
     export JNumber = record
         export text: String
 
@@ -25,21 +25,21 @@ type
         export key: String
         export value: JValue
 
-    ## An object's members, in their order. A key may appear more than once.
+    { An object's members, in their order. A key may appear more than once. }
     export JObject = record
         export members: List[Member]
 
     export JValue = JNull | JBool | JNumber | JString | JArray | JObject
 
-    ## The parser's state: the text's characters and the position in them.
+    { The parser's state: the text's characters and the position in them. }
     Reader = record
         cs: List[Char]
         pos: Integer
 
-# ------------------------------------------------------------------------- reading
+{ ----------------------------------------------------------------------- reading }
 
-## The value of the member `key` of an object, or `JNull` if `j` isn't an object or has no
-## such member. With a key that appears more than once, the last one counts.
+{ The value of the member `key` of an object, or `JNull` if `j` isn't an object or has no
+  such member. With a key that appears more than once, the last one counts. }
 export function field(j: JValue, key: String): JValue
     var result: JValue := JNull()
     case j of
@@ -51,7 +51,7 @@ export function field(j: JValue, key: String): JValue
             pass
     return result
 
-## Whether `j` is `null` (or a missing member, through `field`).
+{ Whether `j` is `null` (or a missing member, through `field`). }
 export function isNull(j: JValue): Boolean
     case j of
         JNull(_):
@@ -59,7 +59,7 @@ export function isNull(j: JValue): Boolean
         else:
             return false
 
-## The string, or `None` if `j` isn't one.
+{ The string, or `None` if `j` isn't one. }
 export function asString(j: JValue): Option[String]
     case j of
         JString(s):
@@ -67,7 +67,7 @@ export function asString(j: JValue): Option[String]
         else:
             return None
 
-## The Boolean, or `None` if `j` isn't one.
+{ The Boolean, or `None` if `j` isn't one. }
 export function asBoolean(j: JValue): Option[Boolean]
     case j of
         JBool(b):
@@ -75,7 +75,7 @@ export function asBoolean(j: JValue): Option[Boolean]
         else:
             return None
 
-## The integer, or `None` if `j` isn't a number without fraction or exponent that fits.
+{ The integer, or `None` if `j` isn't a number without fraction or exponent that fits. }
 export function asInteger(j: JValue): Option[Integer]
     case j of
         JNumber(n):
@@ -87,7 +87,7 @@ export function asInteger(j: JValue): Option[Integer]
         else:
             return None
 
-## The items of an array; empty if `j` isn't one.
+{ The items of an array; empty if `j` isn't one. }
 export function items(j: JValue): List[JValue]
     case j of
         JArray(a):
@@ -95,15 +95,15 @@ export function items(j: JValue): List[JValue]
         else:
             return []
 
-# ------------------------------------------------------------------------- writing
+{ ----------------------------------------------------------------------- writing }
 
 function hexDigit(n: Integer): Char
     if n < 10 then
         return Char(ord('0') + n)
     return Char(ord('a') + n - 10)
 
-## `s` as a JSON string. Quotes, backslashes and control characters are escaped; other
-## characters are written as they are.
+{ `s` as a JSON string. Quotes, backslashes and control characters are escaped; other
+  characters are written as they are. }
 export function quote(s: String): String
     var parts: List[String] := ["\""]
     for c in s do
@@ -124,7 +124,7 @@ export function quote(s: String): String
     add(var parts, "\"")
     return join(parts)
 
-## `j` as JSON text on one line, without spaces.
+{ `j` as JSON text on one line, without spaces. }
 export function toText(j: JValue): String
     case j of
         JNull(_):
@@ -148,9 +148,9 @@ export function toText(j: JValue): String
                 add(var parts, "{quote(m.key)}:{toText(m.value)}")
             return "\{{join(parts, sep: ",")}}"
 
-# ------------------------------------------------------------------------- parsing
+{ ----------------------------------------------------------------------- parsing }
 
-## The character at the reader's position, or NUL at the end.
+{ The character at the reader's position, or NUL at the end. }
 function peek(r: Reader): Char
     if r.pos < length(r.cs) then
         return r.cs[r.pos]
@@ -183,7 +183,7 @@ function hexValue(c: Char): Integer
         return ord(c) - ord('A') + 10
     return -1
 
-## Reads `word` (`true`, `false` or `null`).
+{ Reads `word` (`true`, `false` or `null`). }
 function literal(var r: Reader, word: String): Result[Integer, String]
     for c in word do
         if peek(r) <> c then
@@ -219,7 +219,7 @@ function number(var r: Reader): Result[JValue, String]
         add(var parts, toString(r.cs[i]))
     return Ok(JNumber(text: join(parts)))
 
-## Reads the four hex digits of a `\u` escape.
+{ Reads the four hex digits of a `\u` escape. }
 function hex4(var r: Reader): Result[Integer, String]
     var n := 0
     for k := 1 to 4 do
@@ -230,7 +230,7 @@ function hex4(var r: Reader): Result[Integer, String]
         r.pos := r.pos + 1
     return Ok(n)
 
-## Reads a string, from its opening quote.
+{ Reads a string, from its opening quote. }
 function text(var r: Reader): Result[String, String]
     r.pos := r.pos + 1
     var parts: List[String] := []
@@ -264,7 +264,7 @@ function text(var r: Reader): Result[String, String]
         else if e = 'u' then
             var code := try hex4(var r)
             if code >= $D800 and code < $DC00 and peek(r) = '\\' then
-                # A surrogate pair: the low half follows as another escape.
+                { A surrogate pair: the low half follows as another escape. }
                 let back := r.pos
                 r.pos := r.pos + 1
                 if peek(r) = 'u' then
@@ -350,8 +350,8 @@ function value(var r: Reader): Result[JValue, String]
         return number(var r)
     return Err(failure(r, "expected a value"))
 
-## The value in `s`, which must hold one JSON value and nothing else but white space. The
-## error says what was wrong and at which character offset.
+{ The value in `s`, which must hold one JSON value and nothing else but white space. The
+  error says what was wrong and at which character offset. }
 export function parse(s: String): Result[JValue, String]
     var cs: List[Char] := []
     for c in s do
@@ -363,9 +363,9 @@ export function parse(s: String): Result[JValue, String]
         return Err(failure(r, "unexpected text after the value"))
     return Ok(j)
 
-# ------------------------------------------------------------------------- tests
+{ ----------------------------------------------------------------------- tests }
 
-## `s` parsed and written back, or the error.
+{ `s` parsed and written back, or the error. }
 function roundTrip(s: String): String
     case parse(s) of
         Ok(j):

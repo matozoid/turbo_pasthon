@@ -2,4 +2,4 @@ program P
 type
     Box = record
         v: Int
-    # end record Box
+    { end record Box }

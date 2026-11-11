@@ -1,4 +1,4 @@
 program P
 if a then
     f()
-# end while
+{ end while }
