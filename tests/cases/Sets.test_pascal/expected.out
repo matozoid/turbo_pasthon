@@ -1,0 +1,13 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main
+exit 0
+--- stdout
+[Red, Green, Blue] [Red] [Green] [Red, Green, Blue]
+true false true true true
+[Green, Blue, Cyan] [] true
+[0, 1, 2, 3, 7] false true
+[-3, -2, -1, 0, 1, 2, 100] 256
+--- stderr

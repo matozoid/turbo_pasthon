@@ -2760,7 +2760,8 @@ procedure eMapLit(g: ref Em, x: MapLit, e: Expr)
         call(a, put)
     pop(a, Rax)
 
-## A set `t` of `items`: an empty set, then `include` for each element.
+## A set `t` of `items`: an empty set, then `include` for each element and
+## `includeRange` for each `low..high`.
 procedure setItems(g: ref Em, span: Span, items: List[Expr], t: Type)
     let a := g.a
     let targs := argsOf(t)
@@ -2771,7 +2772,27 @@ procedure setItems(g: ref Em, span: Span, items: List[Expr], t: Type)
     let include := sysLabel(g, span, "include", targs)
     if g.bad then
         return
+    let includeRange := sysLabel(g, span, "includeRange", targs)
+    if g.bad then
+        return
     for it in items do
+        case it of
+            Binary(r):
+                if r.op = ".." then
+                    coerce(g, r.left, targs[0])
+                    if g.bad then
+                        return
+                    save(g, targs[0])
+                    coerce(g, r.right, targs[0])
+                    if g.bad then
+                        return
+                    mov(a, Rdx, Rax)
+                    pop(a, Rsi)
+                    mov(a, Rdi, Rsp)
+                    call(a, includeRange)
+                    continue
+            else:
+                pass
         coerce(g, it, targs[0])
         if g.bad then
             return
@@ -3254,7 +3275,26 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
     if isPtr(typeOfExpr(g, x.left)) and (op = "+" or op = "-") then
         pointerArith(g, x)
         return
-    var t := typeOfExpr(g, x.left)
+    let lt := typeOfExpr(g, x.left)
+    if isSet(g.env, lt) and op <> "=" and op <> "<>" then
+        var name := "subset"
+        if op = "+" then
+            name := "union"
+        else if op = "-" then
+            name := "difference"
+        else if op = "*" then
+            name := "intersection"
+        else if op = ">=" then
+            name := "superset"
+        sysCall(
+            g,
+            x.span,
+            name,
+            [SysArg(e: x.left, ty: lt), SysArg(e: x.right, ty: lt)],
+            targs: argsOf(lt),
+        )
+        return
+    var t := lt
     if kind(g, typeOfExpr(g, x.right)) = "union" then
         t := typeOfExpr(g, x.right)  # comparing a variant with a union
     coerce(g, x.left, t)

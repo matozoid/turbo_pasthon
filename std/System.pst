@@ -503,6 +503,17 @@ export function difference[T](a, b: Set[T]): Set[T]
         s.words[i] := a.words[i] and not b.words[i]
     return s
 
+## `a <= b`: whether every element of `a` is in `b`.
+function subset[T](a, b: Set[T]): Boolean
+    for i := 0 to 3 do
+        if (a.words[i] and not b.words[i]) <> 0 then
+            return false
+    return true
+
+## `a >= b`: whether every element of `b` is in `a`.
+function superset[T](a, b: Set[T]): Boolean
+    return subset(b, a)
+
 ## The elements as `[a, b]`, in `ord` order, each by its `toString`.
 export function toString[T: Printable](s: Set[T]): String
     var out := "["
@@ -520,6 +531,11 @@ function emptySet[T](): Set[T]
 procedure include[T](var s: Set[T], x: T)
     let b := bitOf(x)
     s.words[b div 64] := s.words[b div 64] or (1 shl (b mod 64))
+
+## `[low..high]` as a set adds the elements from `low` to `high` with this.
+procedure includeRange[T](var s: Set[T], low, high: T)
+    for b := bitOf(low) to bitOf(high) do
+        s.words[b div 64] := s.words[b div 64] or (1 shl (b mod 64))
 
 ## `x in s`.
 function includes[T](x: T, s: Set[T]): Boolean

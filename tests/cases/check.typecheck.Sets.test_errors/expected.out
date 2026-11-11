@@ -1,0 +1,11 @@
+$ $PST check Main.pst
+exit 1
+--- stdout
+--- stderr
+Main.pst:8:28: error E0100: unknown name 'Purple'
+Main.pst:10:13: error E0305: a range 'a..b' works only in a set literal
+Main.pst:12:11: error E0305: '<' doesn't work on sets; use '+', '-' and '*' for union, difference and intersection, '<=' and '>=' for subset and superset
+Main.pst:13:11: error E0305: '+' can't combine Set[Color] and Set[Byte]
+Main.pst:14:11: error E0305: '/' doesn't work on sets; use '+', '-' and '*' for union, difference and intersection, '<=' and '>=' for subset and superset
+Main.pst:15:9: error E0100: unknown name 'Red'
+Main.pst:16:15: error E0700: Char can't be a Set element: it needs an ordinal type with at most 256 values (Boolean, Byte, an enum, or a subrange)

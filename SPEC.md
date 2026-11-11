@@ -425,11 +425,19 @@ else is Pasthon in System. `Map(...)` can't be written outside System (`E0306`).
 A `Set` is a record in System holding 256 bits, one per possible element: Boolean, Byte,
 Int8, an enum, or a subrange with at most 256 values (`Set[Char]` and `Set[Integer]` are
 `E0700`; use a subrange like `'a'..'z'`, or a `Map`). Element `x` is bit `ord(x)` minus
-the `ord` of the type's first value. The compiler provides the `[a, b]` and `[]` set literals,
-`x in s`, and the element-to-bit mapping; the rest is Pasthon in System, on `Bits`.
+the `ord` of the type's first value. The compiler provides the set literals, `x in s`, the
+operators below, and the element-to-bit mapping; the rest is Pasthon in System.
 
+- A literal lists elements and ranges, as in Pascal: `[]`, `[Color.Red, Color.Blue]`,
+  `['0'..'9', '_']`; `[5..3]` is empty. Where a `Set[Color]` is expected, a bare name that
+  isn't otherwise visible is a member of `Color`: `[Red, Green..Blue]`. A literal with a
+  range is a set even with nothing expected: `d in ['0'..'4']` is `Set[Digit]` for a `d:
+  Digit`; elsewhere, `a..b` is `E0305`.
+- `a + b` (union), `a - b` (in `a`, not in `b`), `a * b` (intersection), `a <= b` (`a` is a
+  subset of `b`), `a >= b` (superset), `=`, `<>`; both sides of one set type. `<`, `>`,
+  `/`, `div` and `mod` on sets are `E0305`.
 - `add(var s, x)`, `remove(var s, x)` (no-op if absent), `length(s)`, `x in s`.
-- `union(a, b)`, `intersection(a, b)`, `difference(a, b)` (in `a`, not in `b`).
+- `union(a, b)`, `intersection(a, b)`, `difference(a, b)`: the operators as functions.
 - Iterating gives the elements in `ord` order. `Set(...)` can't be written outside System
   (`E0306`).
 
@@ -1055,7 +1063,7 @@ function largest[T: Ordered](xs: List[T]): Option[T]
 | 2 | `and` | Boolean, or integers (bitwise) |
 | 3 | `not` | Boolean, or an integer (bitwise) |
 | 4 | `=` `<>` `<` `<=` `>` `>=` `in` | non-associative: `a < b < c` is an error |
-| 5 | `+` `-` | numeric only (strings: §2.8; lists: `add`, `concat`) |
+| 5 | `+` `-` | numeric, or sets (§4.6) (strings: §2.8; lists: `add`, `concat`) |
 | 6 | `*` `/` `div` `mod` `shl` `shr` | |
 | 7 | unary `-`, `try` | |
 | 8 | postfix: call `()`, index `[]`, field `.` | |

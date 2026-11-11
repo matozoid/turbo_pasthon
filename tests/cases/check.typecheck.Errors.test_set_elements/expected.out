@@ -84,5 +84,5 @@ use Main.pst 16:78-16:79
 Main.pst error E0700 12:8-12:17 "Real can't be a Set element: it needs an ordinal type with at most 256 values (Boolean, Byte, an enum, or a subrange)"
 Main.pst error E0700 13:8-13:17 "Char can't be a Set element: it needs an ordinal type with at most 256 values (Boolean, Byte, an enum, or a subrange)"
 Main.pst error E0700 14:8-14:16 "Big can't be a Set element: it needs an ordinal type with at most 256 values (Boolean, Byte, an enum, or a subrange)"
-Main.pst error E0306 15:24-15:27 "'Set' values are written as literals: '{a, b}', or '{}' where the type is known"
+Main.pst error E0306 15:24-15:27 "'Set' values are written as literals: '[a, b]', or '[]' where the type is known"
 --- stderr

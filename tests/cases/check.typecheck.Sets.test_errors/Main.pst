@@ -1,0 +1,17 @@
+program Main
+
+uses IO
+
+type
+    Color = (Red, Green)
+
+let a: Set[Color] := [Red, Purple]
+let c: Set[Byte] := [1]
+let xs := [1..3]
+let ch := 'x'
+writeln(a < a)
+writeln(a + c)
+writeln(a / a)
+writeln(Red in a)
+writeln(ch in ['a'..'z'])
+writeln(xs)

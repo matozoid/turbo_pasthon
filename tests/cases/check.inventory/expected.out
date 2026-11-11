@@ -291,7 +291,7 @@ use Inventory.pst 46:44-46:50
 use Inventory.pst 47:28-47:34
   parameter 'amount' @ Inventory.pst:19:34
 use Inventory.pst 47:39-47:44
-  function 'isErr' @ std/System.pst:552:17
+  function 'isErr' @ std/System.pst:568:17
 use Inventory.pst 48:15-48:18
   field 'qty' @ Inventory.pst:10:9
 use Inventory.pst 51:10-51:14

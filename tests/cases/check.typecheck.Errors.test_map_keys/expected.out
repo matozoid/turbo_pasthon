@@ -56,5 +56,5 @@ use Main.pst 5:36-5:43
   type 'Integer' @ std/System.pst:13:12
 Main.pst error E0700 5:24-5:33 "K doesn't satisfy Hashable, required by 'Map'"
 Main.pst error E0700 8:8-8:26 "Real doesn't satisfy Hashable, required by 'Map'"
-Main.pst error E0306 10:32-10:35 "'Map' values are written as literals: '{k: v}', or '{}' where the type is known"
+Main.pst error E0306 10:32-10:35 "'Map' values are written as literals: '[k: v]', or '[:]' where the type is known"
 --- stderr

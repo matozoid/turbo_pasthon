@@ -357,96 +357,102 @@ def std/System.pst 493:17-493:29
   function 'intersection' @ std/System.pst:493:17
 def std/System.pst 500:17-500:27
   function 'difference' @ std/System.pst:500:17
-def std/System.pst 507:17-507:25
-  function 'toString' @ std/System.pst:507:17
-def std/System.pst 516:10-516:18
-  function 'emptySet' @ std/System.pst:516:10
-def std/System.pst 520:11-520:18
-  procedure 'include' @ std/System.pst:520:11
-def std/System.pst 525:10-525:18
-  function 'includes' @ std/System.pst:525:10
-def std/System.pst 532:17-532:20
-  function 'get' @ std/System.pst:532:17
-def std/System.pst 539:17-539:23
-  function 'isSome' @ std/System.pst:539:17
-def std/System.pst 544:17-544:23
-  function 'isNone' @ std/System.pst:544:17
-def std/System.pst 547:17-547:21
-  function 'isOk' @ std/System.pst:547:17
-def std/System.pst 552:17-552:22
-  function 'isErr' @ std/System.pst:552:17
-def std/System.pst 556:17-556:20
-  function 'get' @ std/System.pst:556:17
-def std/System.pst 562:17-562:20
-  function 'get' @ std/System.pst:562:17
+def std/System.pst 507:10-507:16
+  function 'subset' @ std/System.pst:507:10
+def std/System.pst 514:10-514:18
+  function 'superset' @ std/System.pst:514:10
+def std/System.pst 518:17-518:25
+  function 'toString' @ std/System.pst:518:17
+def std/System.pst 527:10-527:18
+  function 'emptySet' @ std/System.pst:527:10
+def std/System.pst 531:11-531:18
+  procedure 'include' @ std/System.pst:531:11
+def std/System.pst 536:11-536:23
+  procedure 'includeRange' @ std/System.pst:536:11
+def std/System.pst 541:10-541:18
+  function 'includes' @ std/System.pst:541:10
+def std/System.pst 548:17-548:20
+  function 'get' @ std/System.pst:548:17
+def std/System.pst 555:17-555:23
+  function 'isSome' @ std/System.pst:555:17
+def std/System.pst 560:17-560:23
+  function 'isNone' @ std/System.pst:560:17
+def std/System.pst 563:17-563:21
+  function 'isOk' @ std/System.pst:563:17
 def std/System.pst 568:17-568:22
-  function 'getOr' @ std/System.pst:568:17
-def std/System.pst 574:17-574:22
-  function 'getOr' @ std/System.pst:574:17
-def std/System.pst 581:17-581:21
-  function 'iter' @ std/System.pst:581:17
-def std/System.pst 584:17-584:21
-  function 'next' @ std/System.pst:584:17
-def std/System.pst 591:17-591:21
-  function 'iter' @ std/System.pst:591:17
-def std/System.pst 594:17-594:21
-  function 'next' @ std/System.pst:594:17
-def std/System.pst 602:17-602:21
-  function 'iter' @ std/System.pst:602:17
-def std/System.pst 605:17-605:21
-  function 'next' @ std/System.pst:605:17
-def std/System.pst 614:17-614:21
-  function 'iter' @ std/System.pst:614:17
-def std/System.pst 617:17-617:21
-  function 'next' @ std/System.pst:617:17
-def std/System.pst 625:17-625:24
-  function 'entries' @ std/System.pst:625:17
-def std/System.pst 628:17-628:21
-  function 'next' @ std/System.pst:628:17
-def std/System.pst 637:17-637:22
-  function 'chars' @ std/System.pst:637:17
-def std/System.pst 640:17-640:21
-  function 'iter' @ std/System.pst:640:17
-def std/System.pst 643:17-643:21
-  function 'next' @ std/System.pst:643:17
-def std/System.pst 651:17-651:21
-  function 'take' @ std/System.pst:651:17
-def std/System.pst 654:17-654:21
-  function 'next' @ std/System.pst:654:17
-def std/System.pst 661:17-661:21
-  function 'skip' @ std/System.pst:661:17
-def std/System.pst 664:17-664:21
-  function 'next' @ std/System.pst:664:17
-def std/System.pst 672:17-672:20
-  function 'zip' @ std/System.pst:672:17
-def std/System.pst 675:17-675:21
-  function 'next' @ std/System.pst:675:17
-def std/System.pst 685:17-685:26
-  function 'enumerate' @ std/System.pst:685:17
-def std/System.pst 688:17-688:21
-  function 'next' @ std/System.pst:688:17
-def std/System.pst 698:17-698:24
-  function 'collect' @ std/System.pst:698:17
-def std/System.pst 705:17-705:22
-  function 'count' @ std/System.pst:705:17
-def std/System.pst 712:17-712:20
-  function 'sum' @ std/System.pst:712:17
-def std/System.pst 718:17-718:20
-  function 'sum' @ std/System.pst:718:17
-def std/System.pst 725:17-725:20
-  function 'any' @ std/System.pst:725:17
-def std/System.pst 732:17-732:20
-  function 'all' @ std/System.pst:732:17
-def std/System.pst 739:17-739:21
-  function 'find' @ std/System.pst:739:17
-def std/System.pst 745:10-745:20
-  function 'lessByTens' @ std/System.pst:745:10
-def std/System.pst 748:10-748:17
-  function 'negated' @ std/System.pst:748:10
-def std/System.pst 751:10-751:14
-  function 'tens' @ std/System.pst:751:10
-def std/System.pst 754:10-754:16
-  function 'isEven' @ std/System.pst:754:10
+  function 'isErr' @ std/System.pst:568:17
+def std/System.pst 572:17-572:20
+  function 'get' @ std/System.pst:572:17
+def std/System.pst 578:17-578:20
+  function 'get' @ std/System.pst:578:17
+def std/System.pst 584:17-584:22
+  function 'getOr' @ std/System.pst:584:17
+def std/System.pst 590:17-590:22
+  function 'getOr' @ std/System.pst:590:17
+def std/System.pst 597:17-597:21
+  function 'iter' @ std/System.pst:597:17
+def std/System.pst 600:17-600:21
+  function 'next' @ std/System.pst:600:17
+def std/System.pst 607:17-607:21
+  function 'iter' @ std/System.pst:607:17
+def std/System.pst 610:17-610:21
+  function 'next' @ std/System.pst:610:17
+def std/System.pst 618:17-618:21
+  function 'iter' @ std/System.pst:618:17
+def std/System.pst 621:17-621:21
+  function 'next' @ std/System.pst:621:17
+def std/System.pst 630:17-630:21
+  function 'iter' @ std/System.pst:630:17
+def std/System.pst 633:17-633:21
+  function 'next' @ std/System.pst:633:17
+def std/System.pst 641:17-641:24
+  function 'entries' @ std/System.pst:641:17
+def std/System.pst 644:17-644:21
+  function 'next' @ std/System.pst:644:17
+def std/System.pst 653:17-653:22
+  function 'chars' @ std/System.pst:653:17
+def std/System.pst 656:17-656:21
+  function 'iter' @ std/System.pst:656:17
+def std/System.pst 659:17-659:21
+  function 'next' @ std/System.pst:659:17
+def std/System.pst 667:17-667:21
+  function 'take' @ std/System.pst:667:17
+def std/System.pst 670:17-670:21
+  function 'next' @ std/System.pst:670:17
+def std/System.pst 677:17-677:21
+  function 'skip' @ std/System.pst:677:17
+def std/System.pst 680:17-680:21
+  function 'next' @ std/System.pst:680:17
+def std/System.pst 688:17-688:20
+  function 'zip' @ std/System.pst:688:17
+def std/System.pst 691:17-691:21
+  function 'next' @ std/System.pst:691:17
+def std/System.pst 701:17-701:26
+  function 'enumerate' @ std/System.pst:701:17
+def std/System.pst 704:17-704:21
+  function 'next' @ std/System.pst:704:17
+def std/System.pst 714:17-714:24
+  function 'collect' @ std/System.pst:714:17
+def std/System.pst 721:17-721:22
+  function 'count' @ std/System.pst:721:17
+def std/System.pst 728:17-728:20
+  function 'sum' @ std/System.pst:728:17
+def std/System.pst 734:17-734:20
+  function 'sum' @ std/System.pst:734:17
+def std/System.pst 741:17-741:20
+  function 'any' @ std/System.pst:741:17
+def std/System.pst 748:17-748:20
+  function 'all' @ std/System.pst:748:17
+def std/System.pst 755:17-755:21
+  function 'find' @ std/System.pst:755:17
+def std/System.pst 761:10-761:20
+  function 'lessByTens' @ std/System.pst:761:10
+def std/System.pst 764:10-764:17
+  function 'negated' @ std/System.pst:764:10
+def std/System.pst 767:10-767:14
+  function 'tens' @ std/System.pst:767:10
+def std/System.pst 770:10-770:16
+  function 'isEven' @ std/System.pst:770:10
 use std/Strings.pst 5:6-5:7
   unit 'C' @ std/C.pst:1:6
 use std/Strings.pst 9:34-9:40
@@ -3531,7 +3537,7 @@ use std/System.pst 346:60-346:66
   type 'Option' @ std/System.pst:23:12
 use std/System.pst 347:14-347:18
   function 'find' @ std/System.pst:395:10
-  function 'find' @ std/System.pst:739:17
+  function 'find' @ std/System.pst:755:17
 use std/System.pst 347:19-347:20
   parameter 'm' @ std/System.pst:346:37
 use std/System.pst 347:22-347:25
@@ -3574,7 +3580,7 @@ use std/System.pst 353:74-353:75
   type parameter 'V' @ std/System.pst:353:36
 use std/System.pst 354:14-354:18
   function 'find' @ std/System.pst:395:10
-  function 'find' @ std/System.pst:739:17
+  function 'find' @ std/System.pst:755:17
 use std/System.pst 354:19-354:20
   parameter 'm' @ std/System.pst:353:39
 use std/System.pst 354:22-354:25
@@ -3659,7 +3665,7 @@ def std/System.pst 373:59-373:62
   parameter 'key' @ std/System.pst:373:59
 use std/System.pst 374:14-374:18
   function 'find' @ std/System.pst:395:10
-  function 'find' @ std/System.pst:739:17
+  function 'find' @ std/System.pst:755:17
 use std/System.pst 374:19-374:20
   parameter 'm' @ std/System.pst:373:45
 use std/System.pst 374:22-374:25
@@ -3757,7 +3763,7 @@ use std/System.pst 391:61-391:68
   builtin type 'Boolean' @ built into unit System
 use std/System.pst 392:12-392:16
   function 'find' @ std/System.pst:395:10
-  function 'find' @ std/System.pst:739:17
+  function 'find' @ std/System.pst:755:17
 use std/System.pst 392:17-392:18
   parameter 'm' @ std/System.pst:391:46
 use std/System.pst 392:20-392:23
@@ -4175,7 +4181,7 @@ use std/System.pst 461:21-461:22
   loop variable 'e' @ std/System.pst:460:9
 use std/System.pst 462:22-462:26
   function 'find' @ std/System.pst:395:10
-  function 'find' @ std/System.pst:739:17
+  function 'find' @ std/System.pst:755:17
 use std/System.pst 462:27-462:28
   parameter 'b' @ std/System.pst:457:50
 use std/System.pst 462:30-462:31
@@ -4233,7 +4239,7 @@ use std/System.pst 477:43-477:44
 def std/System.pst 477:40-477:41
   parameter 'x' @ std/System.pst:477:40
 use std/System.pst 478:5-478:12
-  procedure 'include' @ std/System.pst:520:11
+  procedure 'include' @ std/System.pst:531:11
 use std/System.pst 478:17-478:18
   parameter 's' @ std/System.pst:477:29
 use std/System.pst 478:20-478:21
@@ -4368,1613 +4374,1687 @@ use std/System.pst 503:50-503:51
   loop variable 'i' @ std/System.pst:502:9
 use std/System.pst 504:12-504:13
   var 's' @ std/System.pst:501:9
-def std/System.pst 507:26-507:27
-  type parameter 'T' @ std/System.pst:507:26
-use std/System.pst 507:29-507:38
+def std/System.pst 507:17-507:18
+  type parameter 'T' @ std/System.pst:507:17
+use std/System.pst 507:30-507:31
+  type parameter 'T' @ std/System.pst:507:17
+use std/System.pst 507:26-507:29
+  type 'Set' @ std/System.pst:70:12
+def std/System.pst 507:20-507:21
+  parameter 'a' @ std/System.pst:507:20
+def std/System.pst 507:23-507:24
+  parameter 'b' @ std/System.pst:507:23
+use std/System.pst 507:35-507:42
+  builtin type 'Boolean' @ built into unit System
+def std/System.pst 508:9-508:10
+  loop variable 'i' @ std/System.pst:508:9
+use std/System.pst 509:13-509:14
+  parameter 'a' @ std/System.pst:507:20
+use std/System.pst 509:21-509:22
+  loop variable 'i' @ std/System.pst:508:9
+use std/System.pst 509:32-509:33
+  parameter 'b' @ std/System.pst:507:23
+use std/System.pst 509:40-509:41
+  loop variable 'i' @ std/System.pst:508:9
+def std/System.pst 514:19-514:20
+  type parameter 'T' @ std/System.pst:514:19
+use std/System.pst 514:32-514:33
+  type parameter 'T' @ std/System.pst:514:19
+use std/System.pst 514:28-514:31
+  type 'Set' @ std/System.pst:70:12
+def std/System.pst 514:22-514:23
+  parameter 'a' @ std/System.pst:514:22
+def std/System.pst 514:25-514:26
+  parameter 'b' @ std/System.pst:514:25
+use std/System.pst 514:37-514:44
+  builtin type 'Boolean' @ built into unit System
+use std/System.pst 515:12-515:18
+  function 'subset' @ std/System.pst:507:10
+use std/System.pst 515:19-515:20
+  parameter 'b' @ std/System.pst:514:25
+use std/System.pst 515:22-515:23
+  parameter 'a' @ std/System.pst:514:22
+def std/System.pst 518:26-518:27
+  type parameter 'T' @ std/System.pst:518:26
+use std/System.pst 518:29-518:38
   trait 'Printable' @ std/System.pst:34:12
-use std/System.pst 507:47-507:48
-  type parameter 'T' @ std/System.pst:507:26
-use std/System.pst 507:43-507:46
+use std/System.pst 518:47-518:48
+  type parameter 'T' @ std/System.pst:518:26
+use std/System.pst 518:43-518:46
   type 'Set' @ std/System.pst:70:12
-def std/System.pst 507:40-507:41
-  parameter 's' @ std/System.pst:507:40
-use std/System.pst 507:52-507:58
+def std/System.pst 518:40-518:41
+  parameter 's' @ std/System.pst:518:40
+use std/System.pst 518:52-518:58
   builtin type 'String' @ built into unit System
-def std/System.pst 508:9-508:12
-  var 'out' @ std/System.pst:508:9
-use std/System.pst 509:14-509:15
-  parameter 's' @ std/System.pst:507:40
-def std/System.pst 509:9-509:10
-  loop variable 'x' @ std/System.pst:509:9
-use std/System.pst 510:12-510:15
-  var 'out' @ std/System.pst:508:9
-use std/System.pst 511:13-511:16
-  var 'out' @ std/System.pst:508:9
-use std/System.pst 511:22-511:25
-  var 'out' @ std/System.pst:508:9
-use std/System.pst 512:9-512:12
-  var 'out' @ std/System.pst:508:9
-use std/System.pst 512:18-512:21
-  var 'out' @ std/System.pst:508:9
-use std/System.pst 512:23-512:24
-  loop variable 'x' @ std/System.pst:509:9
-use std/System.pst 513:14-513:17
-  var 'out' @ std/System.pst:508:9
-def std/System.pst 516:19-516:20
-  type parameter 'T' @ std/System.pst:516:19
-use std/System.pst 516:29-516:30
-  type parameter 'T' @ std/System.pst:516:19
-use std/System.pst 516:25-516:28
+def std/System.pst 519:9-519:12
+  var 'out' @ std/System.pst:519:9
+use std/System.pst 520:14-520:15
+  parameter 's' @ std/System.pst:518:40
+def std/System.pst 520:9-520:10
+  loop variable 'x' @ std/System.pst:520:9
+use std/System.pst 521:12-521:15
+  var 'out' @ std/System.pst:519:9
+use std/System.pst 522:13-522:16
+  var 'out' @ std/System.pst:519:9
+use std/System.pst 522:22-522:25
+  var 'out' @ std/System.pst:519:9
+use std/System.pst 523:9-523:12
+  var 'out' @ std/System.pst:519:9
+use std/System.pst 523:18-523:21
+  var 'out' @ std/System.pst:519:9
+use std/System.pst 523:23-523:24
+  loop variable 'x' @ std/System.pst:520:9
+use std/System.pst 524:14-524:17
+  var 'out' @ std/System.pst:519:9
+def std/System.pst 527:19-527:20
+  type parameter 'T' @ std/System.pst:527:19
+use std/System.pst 527:29-527:30
+  type parameter 'T' @ std/System.pst:527:19
+use std/System.pst 527:25-527:28
   type 'Set' @ std/System.pst:70:12
-use std/System.pst 517:12-517:15
+use std/System.pst 528:12-528:15
   type 'Set' @ std/System.pst:70:12
-def std/System.pst 520:19-520:20
-  type parameter 'T' @ std/System.pst:520:19
-use std/System.pst 520:33-520:34
-  type parameter 'T' @ std/System.pst:520:19
-use std/System.pst 520:29-520:32
+def std/System.pst 531:19-531:20
+  type parameter 'T' @ std/System.pst:531:19
+use std/System.pst 531:33-531:34
+  type parameter 'T' @ std/System.pst:531:19
+use std/System.pst 531:29-531:32
   type 'Set' @ std/System.pst:70:12
-def std/System.pst 520:26-520:27
-  parameter 's' @ std/System.pst:520:26
-use std/System.pst 520:40-520:41
-  type parameter 'T' @ std/System.pst:520:19
-def std/System.pst 520:37-520:38
-  parameter 'x' @ std/System.pst:520:37
-use std/System.pst 521:14-521:19
+def std/System.pst 531:26-531:27
+  parameter 's' @ std/System.pst:531:26
+use std/System.pst 531:40-531:41
+  type parameter 'T' @ std/System.pst:531:19
+def std/System.pst 531:37-531:38
+  parameter 'x' @ std/System.pst:531:37
+use std/System.pst 532:14-532:19
   function 'bitOf' @ std/System.pst:163:14
-use std/System.pst 521:20-521:21
-  parameter 'x' @ std/System.pst:520:37
-def std/System.pst 521:9-521:10
-  let 'b' @ std/System.pst:521:9
-use std/System.pst 522:5-522:6
-  parameter 's' @ std/System.pst:520:26
-use std/System.pst 522:13-522:14
-  let 'b' @ std/System.pst:521:9
-use std/System.pst 522:26-522:27
-  parameter 's' @ std/System.pst:520:26
-use std/System.pst 522:34-522:35
-  let 'b' @ std/System.pst:521:9
-use std/System.pst 522:55-522:56
-  let 'b' @ std/System.pst:521:9
-def std/System.pst 525:19-525:20
-  type parameter 'T' @ std/System.pst:525:19
-use std/System.pst 525:25-525:26
-  type parameter 'T' @ std/System.pst:525:19
-def std/System.pst 525:22-525:23
-  parameter 'x' @ std/System.pst:525:22
-use std/System.pst 525:35-525:36
-  type parameter 'T' @ std/System.pst:525:19
-use std/System.pst 525:31-525:34
+use std/System.pst 532:20-532:21
+  parameter 'x' @ std/System.pst:531:37
+def std/System.pst 532:9-532:10
+  let 'b' @ std/System.pst:532:9
+use std/System.pst 533:5-533:6
+  parameter 's' @ std/System.pst:531:26
+use std/System.pst 533:13-533:14
+  let 'b' @ std/System.pst:532:9
+use std/System.pst 533:26-533:27
+  parameter 's' @ std/System.pst:531:26
+use std/System.pst 533:34-533:35
+  let 'b' @ std/System.pst:532:9
+use std/System.pst 533:55-533:56
+  let 'b' @ std/System.pst:532:9
+def std/System.pst 536:24-536:25
+  type parameter 'T' @ std/System.pst:536:24
+use std/System.pst 536:38-536:39
+  type parameter 'T' @ std/System.pst:536:24
+use std/System.pst 536:34-536:37
   type 'Set' @ std/System.pst:70:12
-def std/System.pst 525:28-525:29
-  parameter 's' @ std/System.pst:525:28
-use std/System.pst 525:40-525:47
+def std/System.pst 536:31-536:32
+  parameter 's' @ std/System.pst:536:31
+use std/System.pst 536:53-536:54
+  type parameter 'T' @ std/System.pst:536:24
+def std/System.pst 536:42-536:45
+  parameter 'low' @ std/System.pst:536:42
+def std/System.pst 536:47-536:51
+  parameter 'high' @ std/System.pst:536:47
+use std/System.pst 537:14-537:19
+  function 'bitOf' @ std/System.pst:163:14
+use std/System.pst 537:20-537:23
+  parameter 'low' @ std/System.pst:536:42
+use std/System.pst 537:28-537:33
+  function 'bitOf' @ std/System.pst:163:14
+use std/System.pst 537:34-537:38
+  parameter 'high' @ std/System.pst:536:47
+def std/System.pst 537:9-537:10
+  loop variable 'b' @ std/System.pst:537:9
+use std/System.pst 538:9-538:10
+  parameter 's' @ std/System.pst:536:31
+use std/System.pst 538:17-538:18
+  loop variable 'b' @ std/System.pst:537:9
+use std/System.pst 538:30-538:31
+  parameter 's' @ std/System.pst:536:31
+use std/System.pst 538:38-538:39
+  loop variable 'b' @ std/System.pst:537:9
+use std/System.pst 538:59-538:60
+  loop variable 'b' @ std/System.pst:537:9
+def std/System.pst 541:19-541:20
+  type parameter 'T' @ std/System.pst:541:19
+use std/System.pst 541:25-541:26
+  type parameter 'T' @ std/System.pst:541:19
+def std/System.pst 541:22-541:23
+  parameter 'x' @ std/System.pst:541:22
+use std/System.pst 541:35-541:36
+  type parameter 'T' @ std/System.pst:541:19
+use std/System.pst 541:31-541:34
+  type 'Set' @ std/System.pst:70:12
+def std/System.pst 541:28-541:29
+  parameter 's' @ std/System.pst:541:28
+use std/System.pst 541:40-541:47
   builtin type 'Boolean' @ built into unit System
-use std/System.pst 526:14-526:19
+use std/System.pst 542:14-542:19
   function 'bitOf' @ std/System.pst:163:14
-use std/System.pst 526:20-526:21
-  parameter 'x' @ std/System.pst:525:22
-def std/System.pst 526:9-526:10
-  let 'b' @ std/System.pst:526:9
-use std/System.pst 527:13-527:14
-  parameter 's' @ std/System.pst:525:28
-use std/System.pst 527:21-527:22
-  let 'b' @ std/System.pst:526:9
-use std/System.pst 527:43-527:44
-  let 'b' @ std/System.pst:526:9
-def std/System.pst 532:21-532:22
-  type parameter 'T' @ std/System.pst:532:21
-use std/System.pst 532:32-532:33
-  type parameter 'T' @ std/System.pst:532:21
-use std/System.pst 532:27-532:31
+use std/System.pst 542:20-542:21
+  parameter 'x' @ std/System.pst:541:22
+def std/System.pst 542:9-542:10
+  let 'b' @ std/System.pst:542:9
+use std/System.pst 543:13-543:14
+  parameter 's' @ std/System.pst:541:28
+use std/System.pst 543:21-543:22
+  let 'b' @ std/System.pst:542:9
+use std/System.pst 543:43-543:44
+  let 'b' @ std/System.pst:542:9
+def std/System.pst 548:21-548:22
+  type parameter 'T' @ std/System.pst:548:21
+use std/System.pst 548:32-548:33
+  type parameter 'T' @ std/System.pst:548:21
+use std/System.pst 548:27-548:31
   builtin type 'Weak' @ built into unit System
-def std/System.pst 532:24-532:25
-  parameter 'w' @ std/System.pst:532:24
-use std/System.pst 532:48-532:49
-  type parameter 'T' @ std/System.pst:532:21
-use std/System.pst 532:37-532:43
+def std/System.pst 548:24-548:25
+  parameter 'w' @ std/System.pst:548:24
+use std/System.pst 548:48-548:49
+  type parameter 'T' @ std/System.pst:548:21
+use std/System.pst 548:37-548:43
   type 'Option' @ std/System.pst:23:12
-use std/System.pst 533:8-533:13
+use std/System.pst 549:8-549:13
   function 'alive' @ std/System.pst:169:14
-use std/System.pst 533:14-533:15
-  parameter 'w' @ std/System.pst:532:24
-use std/System.pst 534:16-534:20
+use std/System.pst 549:14-549:15
+  parameter 'w' @ std/System.pst:548:24
+use std/System.pst 550:16-550:20
   type 'Some' @ std/System.pst:19:12
-use std/System.pst 534:21-534:27
+use std/System.pst 550:21-550:27
   function 'target' @ std/System.pst:171:14
-use std/System.pst 534:28-534:29
-  parameter 'w' @ std/System.pst:532:24
-use std/System.pst 535:12-535:16
+use std/System.pst 550:28-550:29
+  parameter 'w' @ std/System.pst:548:24
+use std/System.pst 551:12-551:16
   type 'None' @ std/System.pst:22:12
-def std/System.pst 539:24-539:25
-  type parameter 'T' @ std/System.pst:539:24
-use std/System.pst 539:37-539:38
-  type parameter 'T' @ std/System.pst:539:24
-use std/System.pst 539:30-539:36
+def std/System.pst 555:24-555:25
+  type parameter 'T' @ std/System.pst:555:24
+use std/System.pst 555:37-555:38
+  type parameter 'T' @ std/System.pst:555:24
+use std/System.pst 555:30-555:36
   type 'Option' @ std/System.pst:23:12
-def std/System.pst 539:27-539:28
-  parameter 'o' @ std/System.pst:539:27
-use std/System.pst 539:42-539:49
+def std/System.pst 555:27-555:28
+  parameter 'o' @ std/System.pst:555:27
+use std/System.pst 555:42-555:49
   builtin type 'Boolean' @ built into unit System
-use std/System.pst 540:17-540:18
-  parameter 'o' @ std/System.pst:539:27
-use std/System.pst 541:9-541:13
+use std/System.pst 556:17-556:18
+  parameter 'o' @ std/System.pst:555:27
+use std/System.pst 557:9-557:13
   type 'Some' @ std/System.pst:19:12
-def std/System.pst 544:24-544:25
-  type parameter 'T' @ std/System.pst:544:24
-use std/System.pst 544:37-544:38
-  type parameter 'T' @ std/System.pst:544:24
-use std/System.pst 544:30-544:36
+def std/System.pst 560:24-560:25
+  type parameter 'T' @ std/System.pst:560:24
+use std/System.pst 560:37-560:38
+  type parameter 'T' @ std/System.pst:560:24
+use std/System.pst 560:30-560:36
   type 'Option' @ std/System.pst:23:12
-def std/System.pst 544:27-544:28
-  parameter 'o' @ std/System.pst:544:27
-use std/System.pst 544:42-544:49
+def std/System.pst 560:27-560:28
+  parameter 'o' @ std/System.pst:560:27
+use std/System.pst 560:42-560:49
   builtin type 'Boolean' @ built into unit System
-use std/System.pst 545:16-545:22
-  function 'isSome' @ std/System.pst:539:17
-use std/System.pst 545:23-545:24
-  parameter 'o' @ std/System.pst:544:27
-def std/System.pst 547:22-547:23
-  type parameter 'T' @ std/System.pst:547:22
-def std/System.pst 547:25-547:26
-  type parameter 'E' @ std/System.pst:547:25
-use std/System.pst 547:38-547:39
-  type parameter 'T' @ std/System.pst:547:22
-use std/System.pst 547:41-547:42
-  type parameter 'E' @ std/System.pst:547:25
-use std/System.pst 547:31-547:37
+use std/System.pst 561:16-561:22
+  function 'isSome' @ std/System.pst:555:17
+use std/System.pst 561:23-561:24
+  parameter 'o' @ std/System.pst:560:27
+def std/System.pst 563:22-563:23
+  type parameter 'T' @ std/System.pst:563:22
+def std/System.pst 563:25-563:26
+  type parameter 'E' @ std/System.pst:563:25
+use std/System.pst 563:38-563:39
+  type parameter 'T' @ std/System.pst:563:22
+use std/System.pst 563:41-563:42
+  type parameter 'E' @ std/System.pst:563:25
+use std/System.pst 563:31-563:37
   type 'Result' @ std/System.pst:31:12
-def std/System.pst 547:28-547:29
-  parameter 'r' @ std/System.pst:547:28
-use std/System.pst 547:46-547:53
+def std/System.pst 563:28-563:29
+  parameter 'r' @ std/System.pst:563:28
+use std/System.pst 563:46-563:53
   builtin type 'Boolean' @ built into unit System
-use std/System.pst 548:17-548:18
-  parameter 'r' @ std/System.pst:547:28
-use std/System.pst 549:9-549:11
+use std/System.pst 564:17-564:18
+  parameter 'r' @ std/System.pst:563:28
+use std/System.pst 565:9-565:11
   type 'Ok' @ std/System.pst:26:12
-use std/System.pst 550:9-550:12
+use std/System.pst 566:9-566:12
   type 'Err' @ std/System.pst:29:12
-def std/System.pst 552:23-552:24
-  type parameter 'T' @ std/System.pst:552:23
-def std/System.pst 552:26-552:27
-  type parameter 'E' @ std/System.pst:552:26
-use std/System.pst 552:39-552:40
-  type parameter 'T' @ std/System.pst:552:23
-use std/System.pst 552:42-552:43
-  type parameter 'E' @ std/System.pst:552:26
-use std/System.pst 552:32-552:38
-  type 'Result' @ std/System.pst:31:12
-def std/System.pst 552:29-552:30
-  parameter 'r' @ std/System.pst:552:29
-use std/System.pst 552:47-552:54
-  builtin type 'Boolean' @ built into unit System
-use std/System.pst 553:16-553:20
-  function 'isOk' @ std/System.pst:547:17
-use std/System.pst 553:21-553:22
-  parameter 'r' @ std/System.pst:552:29
-def std/System.pst 556:21-556:22
-  type parameter 'T' @ std/System.pst:556:21
-use std/System.pst 556:34-556:35
-  type parameter 'T' @ std/System.pst:556:21
-use std/System.pst 556:27-556:33
-  type 'Option' @ std/System.pst:23:12
-def std/System.pst 556:24-556:25
-  parameter 'o' @ std/System.pst:556:24
-use std/System.pst 556:39-556:40
-  type parameter 'T' @ std/System.pst:556:21
-use std/System.pst 557:17-557:18
-  parameter 'o' @ std/System.pst:556:24
-use std/System.pst 558:9-558:13
-  type 'Some' @ std/System.pst:19:12
-def std/System.pst 558:14-558:15
-  case binding 's' @ std/System.pst:558:14
-use std/System.pst 558:18-558:19
-  case binding 's' @ std/System.pst:558:14
-use std/System.pst 559:15-559:19
-  function 'fail' @ std/System.pst:150:14
-use std/System.pst 559:20-559:21
-  type parameter 'T' @ std/System.pst:556:21
-def std/System.pst 562:21-562:22
-  type parameter 'T' @ std/System.pst:562:21
-def std/System.pst 562:24-562:25
-  type parameter 'E' @ std/System.pst:562:24
-use std/System.pst 562:37-562:38
-  type parameter 'T' @ std/System.pst:562:21
-use std/System.pst 562:40-562:41
-  type parameter 'E' @ std/System.pst:562:24
-use std/System.pst 562:30-562:36
-  type 'Result' @ std/System.pst:31:12
-def std/System.pst 562:27-562:28
-  parameter 'r' @ std/System.pst:562:27
-use std/System.pst 562:45-562:46
-  type parameter 'T' @ std/System.pst:562:21
-use std/System.pst 563:17-563:18
-  parameter 'r' @ std/System.pst:562:27
-use std/System.pst 564:9-564:11
-  type 'Ok' @ std/System.pst:26:12
-def std/System.pst 564:12-564:13
-  case binding 'v' @ std/System.pst:564:12
-use std/System.pst 564:16-564:17
-  case binding 'v' @ std/System.pst:564:12
-use std/System.pst 565:9-565:12
-  type 'Err' @ std/System.pst:29:12
-use std/System.pst 565:17-565:21
-  function 'fail' @ std/System.pst:150:14
-use std/System.pst 565:22-565:23
-  type parameter 'T' @ std/System.pst:562:21
 def std/System.pst 568:23-568:24
   type parameter 'T' @ std/System.pst:568:23
-use std/System.pst 568:36-568:37
-  type parameter 'T' @ std/System.pst:568:23
-use std/System.pst 568:29-568:35
-  type 'Option' @ std/System.pst:23:12
 def std/System.pst 568:26-568:27
-  parameter 'o' @ std/System.pst:568:26
-use std/System.pst 568:49-568:50
+  type parameter 'E' @ std/System.pst:568:26
+use std/System.pst 568:39-568:40
   type parameter 'T' @ std/System.pst:568:23
-def std/System.pst 568:40-568:47
-  parameter 'default' @ std/System.pst:568:40
-use std/System.pst 568:53-568:54
-  type parameter 'T' @ std/System.pst:568:23
-use std/System.pst 569:17-569:18
-  parameter 'o' @ std/System.pst:568:26
-use std/System.pst 570:9-570:13
-  type 'Some' @ std/System.pst:19:12
-def std/System.pst 570:14-570:15
-  case binding 's' @ std/System.pst:570:14
-use std/System.pst 570:18-570:19
-  case binding 's' @ std/System.pst:570:14
-use std/System.pst 571:15-571:22
-  parameter 'default' @ std/System.pst:568:40
-def std/System.pst 574:23-574:24
-  type parameter 'T' @ std/System.pst:574:23
-def std/System.pst 574:26-574:27
-  type parameter 'E' @ std/System.pst:574:26
-use std/System.pst 574:39-574:40
-  type parameter 'T' @ std/System.pst:574:23
-use std/System.pst 574:42-574:43
-  type parameter 'E' @ std/System.pst:574:26
-use std/System.pst 574:32-574:38
+use std/System.pst 568:42-568:43
+  type parameter 'E' @ std/System.pst:568:26
+use std/System.pst 568:32-568:38
   type 'Result' @ std/System.pst:31:12
-def std/System.pst 574:29-574:30
-  parameter 'r' @ std/System.pst:574:29
-use std/System.pst 574:55-574:56
-  type parameter 'T' @ std/System.pst:574:23
-def std/System.pst 574:46-574:53
-  parameter 'default' @ std/System.pst:574:46
-use std/System.pst 574:59-574:60
-  type parameter 'T' @ std/System.pst:574:23
-use std/System.pst 575:17-575:18
-  parameter 'r' @ std/System.pst:574:29
-use std/System.pst 576:9-576:11
-  type 'Ok' @ std/System.pst:26:12
-def std/System.pst 576:12-576:13
-  case binding 'v' @ std/System.pst:576:12
-use std/System.pst 576:16-576:17
-  case binding 'v' @ std/System.pst:576:12
-use std/System.pst 577:9-577:12
-  type 'Err' @ std/System.pst:29:12
-use std/System.pst 577:17-577:24
-  parameter 'default' @ std/System.pst:574:46
-def std/System.pst 581:22-581:23
-  type parameter 'T' @ std/System.pst:581:22
-use std/System.pst 581:34-581:35
-  type parameter 'T' @ std/System.pst:581:22
-use std/System.pst 581:29-581:33
-  builtin type 'List' @ built into unit System
-def std/System.pst 581:25-581:27
-  parameter 'xs' @ std/System.pst:581:25
-use std/System.pst 581:48-581:49
-  type parameter 'T' @ std/System.pst:581:22
-use std/System.pst 581:39-581:47
-  type 'ListIter' @ std/System.pst:85:12
-use std/System.pst 582:12-582:20
-  type 'ListIter' @ std/System.pst:85:12
-use std/System.pst 582:28-582:30
-  parameter 'xs' @ std/System.pst:581:25
-def std/System.pst 584:22-584:23
-  type parameter 'T' @ std/System.pst:584:22
-use std/System.pst 584:42-584:43
-  type parameter 'T' @ std/System.pst:584:22
-use std/System.pst 584:33-584:41
-  type 'ListIter' @ std/System.pst:85:12
-def std/System.pst 584:29-584:31
-  parameter 'it' @ std/System.pst:584:29
-use std/System.pst 584:54-584:55
-  type parameter 'T' @ std/System.pst:584:22
-use std/System.pst 584:47-584:53
+def std/System.pst 568:29-568:30
+  parameter 'r' @ std/System.pst:568:29
+use std/System.pst 568:47-568:54
+  builtin type 'Boolean' @ built into unit System
+use std/System.pst 569:16-569:20
+  function 'isOk' @ std/System.pst:563:17
+use std/System.pst 569:21-569:22
+  parameter 'r' @ std/System.pst:568:29
+def std/System.pst 572:21-572:22
+  type parameter 'T' @ std/System.pst:572:21
+use std/System.pst 572:34-572:35
+  type parameter 'T' @ std/System.pst:572:21
+use std/System.pst 572:27-572:33
   type 'Option' @ std/System.pst:23:12
-use std/System.pst 585:8-585:10
-  parameter 'it' @ std/System.pst:584:29
-use std/System.pst 585:18-585:24
+def std/System.pst 572:24-572:25
+  parameter 'o' @ std/System.pst:572:24
+use std/System.pst 572:39-572:40
+  type parameter 'T' @ std/System.pst:572:21
+use std/System.pst 573:17-573:18
+  parameter 'o' @ std/System.pst:572:24
+use std/System.pst 574:9-574:13
+  type 'Some' @ std/System.pst:19:12
+def std/System.pst 574:14-574:15
+  case binding 's' @ std/System.pst:574:14
+use std/System.pst 574:18-574:19
+  case binding 's' @ std/System.pst:574:14
+use std/System.pst 575:15-575:19
+  function 'fail' @ std/System.pst:150:14
+use std/System.pst 575:20-575:21
+  type parameter 'T' @ std/System.pst:572:21
+def std/System.pst 578:21-578:22
+  type parameter 'T' @ std/System.pst:578:21
+def std/System.pst 578:24-578:25
+  type parameter 'E' @ std/System.pst:578:24
+use std/System.pst 578:37-578:38
+  type parameter 'T' @ std/System.pst:578:21
+use std/System.pst 578:40-578:41
+  type parameter 'E' @ std/System.pst:578:24
+use std/System.pst 578:30-578:36
+  type 'Result' @ std/System.pst:31:12
+def std/System.pst 578:27-578:28
+  parameter 'r' @ std/System.pst:578:27
+use std/System.pst 578:45-578:46
+  type parameter 'T' @ std/System.pst:578:21
+use std/System.pst 579:17-579:18
+  parameter 'r' @ std/System.pst:578:27
+use std/System.pst 580:9-580:11
+  type 'Ok' @ std/System.pst:26:12
+def std/System.pst 580:12-580:13
+  case binding 'v' @ std/System.pst:580:12
+use std/System.pst 580:16-580:17
+  case binding 'v' @ std/System.pst:580:12
+use std/System.pst 581:9-581:12
+  type 'Err' @ std/System.pst:29:12
+use std/System.pst 581:17-581:21
+  function 'fail' @ std/System.pst:150:14
+use std/System.pst 581:22-581:23
+  type parameter 'T' @ std/System.pst:578:21
+def std/System.pst 584:23-584:24
+  type parameter 'T' @ std/System.pst:584:23
+use std/System.pst 584:36-584:37
+  type parameter 'T' @ std/System.pst:584:23
+use std/System.pst 584:29-584:35
+  type 'Option' @ std/System.pst:23:12
+def std/System.pst 584:26-584:27
+  parameter 'o' @ std/System.pst:584:26
+use std/System.pst 584:49-584:50
+  type parameter 'T' @ std/System.pst:584:23
+def std/System.pst 584:40-584:47
+  parameter 'default' @ std/System.pst:584:40
+use std/System.pst 584:53-584:54
+  type parameter 'T' @ std/System.pst:584:23
+use std/System.pst 585:17-585:18
+  parameter 'o' @ std/System.pst:584:26
+use std/System.pst 586:9-586:13
+  type 'Some' @ std/System.pst:19:12
+def std/System.pst 586:14-586:15
+  case binding 's' @ std/System.pst:586:14
+use std/System.pst 586:18-586:19
+  case binding 's' @ std/System.pst:586:14
+use std/System.pst 587:15-587:22
+  parameter 'default' @ std/System.pst:584:40
+def std/System.pst 590:23-590:24
+  type parameter 'T' @ std/System.pst:590:23
+def std/System.pst 590:26-590:27
+  type parameter 'E' @ std/System.pst:590:26
+use std/System.pst 590:39-590:40
+  type parameter 'T' @ std/System.pst:590:23
+use std/System.pst 590:42-590:43
+  type parameter 'E' @ std/System.pst:590:26
+use std/System.pst 590:32-590:38
+  type 'Result' @ std/System.pst:31:12
+def std/System.pst 590:29-590:30
+  parameter 'r' @ std/System.pst:590:29
+use std/System.pst 590:55-590:56
+  type parameter 'T' @ std/System.pst:590:23
+def std/System.pst 590:46-590:53
+  parameter 'default' @ std/System.pst:590:46
+use std/System.pst 590:59-590:60
+  type parameter 'T' @ std/System.pst:590:23
+use std/System.pst 591:17-591:18
+  parameter 'r' @ std/System.pst:590:29
+use std/System.pst 592:9-592:11
+  type 'Ok' @ std/System.pst:26:12
+def std/System.pst 592:12-592:13
+  case binding 'v' @ std/System.pst:592:12
+use std/System.pst 592:16-592:17
+  case binding 'v' @ std/System.pst:592:12
+use std/System.pst 593:9-593:12
+  type 'Err' @ std/System.pst:29:12
+use std/System.pst 593:17-593:24
+  parameter 'default' @ std/System.pst:590:46
+def std/System.pst 597:22-597:23
+  type parameter 'T' @ std/System.pst:597:22
+use std/System.pst 597:34-597:35
+  type parameter 'T' @ std/System.pst:597:22
+use std/System.pst 597:29-597:33
+  builtin type 'List' @ built into unit System
+def std/System.pst 597:25-597:27
+  parameter 'xs' @ std/System.pst:597:25
+use std/System.pst 597:48-597:49
+  type parameter 'T' @ std/System.pst:597:22
+use std/System.pst 597:39-597:47
+  type 'ListIter' @ std/System.pst:85:12
+use std/System.pst 598:12-598:20
+  type 'ListIter' @ std/System.pst:85:12
+use std/System.pst 598:28-598:30
+  parameter 'xs' @ std/System.pst:597:25
+def std/System.pst 600:22-600:23
+  type parameter 'T' @ std/System.pst:600:22
+use std/System.pst 600:42-600:43
+  type parameter 'T' @ std/System.pst:600:22
+use std/System.pst 600:33-600:41
+  type 'ListIter' @ std/System.pst:85:12
+def std/System.pst 600:29-600:31
+  parameter 'it' @ std/System.pst:600:29
+use std/System.pst 600:54-600:55
+  type parameter 'T' @ std/System.pst:600:22
+use std/System.pst 600:47-600:53
+  type 'Option' @ std/System.pst:23:12
+use std/System.pst 601:8-601:10
+  parameter 'it' @ std/System.pst:600:29
+use std/System.pst 601:18-601:24
   function 'length' @ std/System.pst:115:21
   function 'length' @ std/System.pst:116:21
   function 'length' @ std/System.pst:342:17
   function 'length' @ std/System.pst:470:17
-use std/System.pst 585:25-585:27
-  parameter 'it' @ std/System.pst:584:29
-use std/System.pst 586:16-586:20
+use std/System.pst 601:25-601:27
+  parameter 'it' @ std/System.pst:600:29
+use std/System.pst 602:16-602:20
   type 'None' @ std/System.pst:22:12
-use std/System.pst 587:14-587:16
-  parameter 'it' @ std/System.pst:584:29
-use std/System.pst 587:23-587:25
-  parameter 'it' @ std/System.pst:584:29
-def std/System.pst 587:9-587:10
-  let 'x' @ std/System.pst:587:9
-use std/System.pst 588:5-588:8
+use std/System.pst 603:14-603:16
+  parameter 'it' @ std/System.pst:600:29
+use std/System.pst 603:23-603:25
+  parameter 'it' @ std/System.pst:600:29
+def std/System.pst 603:9-603:10
+  let 'x' @ std/System.pst:603:9
+use std/System.pst 604:5-604:8
   procedure 'inc' @ std/System.pst:119:22
   procedure 'inc' @ std/System.pst:120:22
-use std/System.pst 588:13-588:15
-  parameter 'it' @ std/System.pst:584:29
-use std/System.pst 589:12-589:16
+use std/System.pst 604:13-604:15
+  parameter 'it' @ std/System.pst:600:29
+use std/System.pst 605:12-605:16
   type 'Some' @ std/System.pst:19:12
-use std/System.pst 589:17-589:18
-  let 'x' @ std/System.pst:587:9
-def std/System.pst 591:22-591:23
-  type parameter 'T' @ std/System.pst:591:22
-def std/System.pst 591:25-591:26
-  type parameter 'N' @ std/System.pst:591:25
-use std/System.pst 591:28-591:35
+use std/System.pst 605:17-605:18
+  let 'x' @ std/System.pst:603:9
+def std/System.pst 607:22-607:23
+  type parameter 'T' @ std/System.pst:607:22
+def std/System.pst 607:25-607:26
+  type parameter 'N' @ std/System.pst:607:25
+use std/System.pst 607:28-607:35
   type 'Integer' @ std/System.pst:13:12
-use std/System.pst 591:47-591:48
-  type parameter 'T' @ std/System.pst:591:22
-use std/System.pst 591:50-591:51
-  type parameter 'N' @ std/System.pst:591:25
-use std/System.pst 591:41-591:46
+use std/System.pst 607:47-607:48
+  type parameter 'T' @ std/System.pst:607:22
+use std/System.pst 607:50-607:51
+  type parameter 'N' @ std/System.pst:607:25
+use std/System.pst 607:41-607:46
   builtin type 'Array' @ built into unit System
-def std/System.pst 591:37-591:39
-  parameter 'xs' @ std/System.pst:591:37
-use std/System.pst 591:65-591:66
-  type parameter 'T' @ std/System.pst:591:22
-use std/System.pst 591:68-591:69
-  type parameter 'N' @ std/System.pst:591:25
-use std/System.pst 591:55-591:64
+def std/System.pst 607:37-607:39
+  parameter 'xs' @ std/System.pst:607:37
+use std/System.pst 607:65-607:66
+  type parameter 'T' @ std/System.pst:607:22
+use std/System.pst 607:68-607:69
+  type parameter 'N' @ std/System.pst:607:25
+use std/System.pst 607:55-607:64
   type 'ArrayIter' @ std/System.pst:89:12
-use std/System.pst 592:12-592:21
+use std/System.pst 608:12-608:21
   type 'ArrayIter' @ std/System.pst:89:12
-use std/System.pst 592:29-592:31
-  parameter 'xs' @ std/System.pst:591:37
-def std/System.pst 594:22-594:23
-  type parameter 'T' @ std/System.pst:594:22
-def std/System.pst 594:25-594:26
-  type parameter 'N' @ std/System.pst:594:25
-use std/System.pst 594:28-594:35
+use std/System.pst 608:29-608:31
+  parameter 'xs' @ std/System.pst:607:37
+def std/System.pst 610:22-610:23
+  type parameter 'T' @ std/System.pst:610:22
+def std/System.pst 610:25-610:26
+  type parameter 'N' @ std/System.pst:610:25
+use std/System.pst 610:28-610:35
   type 'Integer' @ std/System.pst:13:12
-use std/System.pst 594:55-594:56
-  type parameter 'T' @ std/System.pst:594:22
-use std/System.pst 594:58-594:59
-  type parameter 'N' @ std/System.pst:594:25
-use std/System.pst 594:45-594:54
+use std/System.pst 610:55-610:56
+  type parameter 'T' @ std/System.pst:610:22
+use std/System.pst 610:58-610:59
+  type parameter 'N' @ std/System.pst:610:25
+use std/System.pst 610:45-610:54
   type 'ArrayIter' @ std/System.pst:89:12
-def std/System.pst 594:41-594:43
-  parameter 'it' @ std/System.pst:594:41
-use std/System.pst 594:70-594:71
-  type parameter 'T' @ std/System.pst:594:22
-use std/System.pst 594:63-594:69
+def std/System.pst 610:41-610:43
+  parameter 'it' @ std/System.pst:610:41
+use std/System.pst 610:70-610:71
+  type parameter 'T' @ std/System.pst:610:22
+use std/System.pst 610:63-610:69
   type 'Option' @ std/System.pst:23:12
-use std/System.pst 595:8-595:10
-  parameter 'it' @ std/System.pst:594:41
-use std/System.pst 595:18-595:24
+use std/System.pst 611:8-611:10
+  parameter 'it' @ std/System.pst:610:41
+use std/System.pst 611:18-611:24
   function 'length' @ std/System.pst:115:21
   function 'length' @ std/System.pst:116:21
   function 'length' @ std/System.pst:342:17
   function 'length' @ std/System.pst:470:17
-use std/System.pst 595:25-595:27
-  parameter 'it' @ std/System.pst:594:41
-use std/System.pst 596:16-596:20
+use std/System.pst 611:25-611:27
+  parameter 'it' @ std/System.pst:610:41
+use std/System.pst 612:16-612:20
   type 'None' @ std/System.pst:22:12
-use std/System.pst 597:14-597:16
-  parameter 'it' @ std/System.pst:594:41
-use std/System.pst 597:23-597:25
-  parameter 'it' @ std/System.pst:594:41
-def std/System.pst 597:9-597:10
-  let 'x' @ std/System.pst:597:9
-use std/System.pst 598:5-598:8
+use std/System.pst 613:14-613:16
+  parameter 'it' @ std/System.pst:610:41
+use std/System.pst 613:23-613:25
+  parameter 'it' @ std/System.pst:610:41
+def std/System.pst 613:9-613:10
+  let 'x' @ std/System.pst:613:9
+use std/System.pst 614:5-614:8
   procedure 'inc' @ std/System.pst:119:22
   procedure 'inc' @ std/System.pst:120:22
-use std/System.pst 598:13-598:15
-  parameter 'it' @ std/System.pst:594:41
-use std/System.pst 599:12-599:16
+use std/System.pst 614:13-614:15
+  parameter 'it' @ std/System.pst:610:41
+use std/System.pst 615:12-615:16
   type 'Some' @ std/System.pst:19:12
-use std/System.pst 599:17-599:18
-  let 'x' @ std/System.pst:597:9
-def std/System.pst 602:22-602:23
-  type parameter 'T' @ std/System.pst:602:22
-use std/System.pst 602:32-602:33
-  type parameter 'T' @ std/System.pst:602:22
-use std/System.pst 602:28-602:31
+use std/System.pst 615:17-615:18
+  let 'x' @ std/System.pst:613:9
+def std/System.pst 618:22-618:23
+  type parameter 'T' @ std/System.pst:618:22
+use std/System.pst 618:32-618:33
+  type parameter 'T' @ std/System.pst:618:22
+use std/System.pst 618:28-618:31
   type 'Set' @ std/System.pst:70:12
-def std/System.pst 602:25-602:26
-  parameter 's' @ std/System.pst:602:25
-use std/System.pst 602:45-602:46
-  type parameter 'T' @ std/System.pst:602:22
-use std/System.pst 602:37-602:44
+def std/System.pst 618:25-618:26
+  parameter 's' @ std/System.pst:618:25
+use std/System.pst 618:45-618:46
+  type parameter 'T' @ std/System.pst:618:22
+use std/System.pst 618:37-618:44
   type 'SetIter' @ std/System.pst:73:12
-use std/System.pst 603:12-603:19
+use std/System.pst 619:12-619:19
   type 'SetIter' @ std/System.pst:73:12
-use std/System.pst 603:28-603:29
-  parameter 's' @ std/System.pst:602:25
-def std/System.pst 605:22-605:23
-  type parameter 'T' @ std/System.pst:605:22
-use std/System.pst 605:41-605:42
-  type parameter 'T' @ std/System.pst:605:22
-use std/System.pst 605:33-605:40
+use std/System.pst 619:28-619:29
+  parameter 's' @ std/System.pst:618:25
+def std/System.pst 621:22-621:23
+  type parameter 'T' @ std/System.pst:621:22
+use std/System.pst 621:41-621:42
+  type parameter 'T' @ std/System.pst:621:22
+use std/System.pst 621:33-621:40
   type 'SetIter' @ std/System.pst:73:12
-def std/System.pst 605:29-605:31
-  parameter 'it' @ std/System.pst:605:29
-use std/System.pst 605:53-605:54
-  type parameter 'T' @ std/System.pst:605:22
-use std/System.pst 605:46-605:52
+def std/System.pst 621:29-621:31
+  parameter 'it' @ std/System.pst:621:29
+use std/System.pst 621:53-621:54
+  type parameter 'T' @ std/System.pst:621:22
+use std/System.pst 621:46-621:52
   type 'Option' @ std/System.pst:23:12
-use std/System.pst 606:11-606:13
-  parameter 'it' @ std/System.pst:605:29
-use std/System.pst 607:9-607:12
+use std/System.pst 622:11-622:13
+  parameter 'it' @ std/System.pst:621:29
+use std/System.pst 623:9-623:12
   procedure 'inc' @ std/System.pst:119:22
   procedure 'inc' @ std/System.pst:120:22
-use std/System.pst 607:17-607:19
-  parameter 'it' @ std/System.pst:605:29
-use std/System.pst 608:18-608:20
-  parameter 'it' @ std/System.pst:605:29
-def std/System.pst 608:13-608:14
-  let 'b' @ std/System.pst:608:13
-use std/System.pst 609:13-609:15
-  parameter 'it' @ std/System.pst:605:29
-use std/System.pst 609:29-609:30
-  let 'b' @ std/System.pst:608:13
-use std/System.pst 609:51-609:52
-  let 'b' @ std/System.pst:608:13
-use std/System.pst 610:20-610:24
-  type 'Some' @ std/System.pst:19:12
-use std/System.pst 610:25-610:30
-  function 'ofBit' @ std/System.pst:165:14
-use std/System.pst 610:31-610:32
-  type parameter 'T' @ std/System.pst:605:22
-use std/System.pst 610:34-610:35
-  let 'b' @ std/System.pst:608:13
-use std/System.pst 611:12-611:16
-  type 'None' @ std/System.pst:22:12
-def std/System.pst 614:22-614:23
-  type parameter 'K' @ std/System.pst:614:22
-def std/System.pst 614:35-614:36
-  type parameter 'V' @ std/System.pst:614:35
-use std/System.pst 614:25-614:33
-  builtin trait 'Hashable' @ built into unit System
-use std/System.pst 614:45-614:46
-  type parameter 'K' @ std/System.pst:614:22
-use std/System.pst 614:48-614:49
-  type parameter 'V' @ std/System.pst:614:35
-use std/System.pst 614:41-614:44
-  type 'Map' @ std/System.pst:61:12
-def std/System.pst 614:38-614:39
-  parameter 'm' @ std/System.pst:614:38
-use std/System.pst 614:61-614:62
-  type parameter 'K' @ std/System.pst:614:22
-use std/System.pst 614:64-614:65
-  type parameter 'V' @ std/System.pst:614:35
-use std/System.pst 614:53-614:60
-  type 'KeyIter' @ std/System.pst:77:12
-use std/System.pst 615:12-615:19
-  type 'KeyIter' @ std/System.pst:77:12
-use std/System.pst 615:28-615:29
-  parameter 'm' @ std/System.pst:614:38
-def std/System.pst 617:22-617:23
-  type parameter 'K' @ std/System.pst:617:22
-def std/System.pst 617:35-617:36
-  type parameter 'V' @ std/System.pst:617:35
-use std/System.pst 617:25-617:33
-  builtin trait 'Hashable' @ built into unit System
-use std/System.pst 617:54-617:55
-  type parameter 'K' @ std/System.pst:617:22
-use std/System.pst 617:57-617:58
-  type parameter 'V' @ std/System.pst:617:35
-use std/System.pst 617:46-617:53
-  type 'KeyIter' @ std/System.pst:77:12
-def std/System.pst 617:42-617:44
-  parameter 'it' @ std/System.pst:617:42
-use std/System.pst 617:69-617:70
-  type parameter 'K' @ std/System.pst:617:22
-use std/System.pst 617:62-617:68
-  type 'Option' @ std/System.pst:23:12
-use std/System.pst 618:11-618:13
-  parameter 'it' @ std/System.pst:617:42
-use std/System.pst 618:20-618:26
-  function 'length' @ std/System.pst:115:21
-  function 'length' @ std/System.pst:116:21
-  function 'length' @ std/System.pst:342:17
-  function 'length' @ std/System.pst:470:17
-use std/System.pst 618:27-618:29
-  parameter 'it' @ std/System.pst:617:42
-use std/System.pst 619:9-619:12
-  procedure 'inc' @ std/System.pst:119:22
-  procedure 'inc' @ std/System.pst:120:22
-use std/System.pst 619:17-619:19
-  parameter 'it' @ std/System.pst:617:42
-use std/System.pst 620:12-620:14
-  parameter 'it' @ std/System.pst:617:42
-use std/System.pst 620:29-620:31
-  parameter 'it' @ std/System.pst:617:42
-use std/System.pst 621:20-621:24
-  type 'Some' @ std/System.pst:19:12
-use std/System.pst 621:25-621:27
-  parameter 'it' @ std/System.pst:617:42
-use std/System.pst 621:40-621:42
-  parameter 'it' @ std/System.pst:617:42
-use std/System.pst 622:12-622:16
-  type 'None' @ std/System.pst:22:12
-def std/System.pst 625:25-625:26
-  type parameter 'K' @ std/System.pst:625:25
-def std/System.pst 625:38-625:39
-  type parameter 'V' @ std/System.pst:625:38
-use std/System.pst 625:28-625:36
-  builtin trait 'Hashable' @ built into unit System
-use std/System.pst 625:48-625:49
-  type parameter 'K' @ std/System.pst:625:25
+use std/System.pst 623:17-623:19
+  parameter 'it' @ std/System.pst:621:29
+use std/System.pst 624:18-624:20
+  parameter 'it' @ std/System.pst:621:29
+def std/System.pst 624:13-624:14
+  let 'b' @ std/System.pst:624:13
+use std/System.pst 625:13-625:15
+  parameter 'it' @ std/System.pst:621:29
+use std/System.pst 625:29-625:30
+  let 'b' @ std/System.pst:624:13
 use std/System.pst 625:51-625:52
-  type parameter 'V' @ std/System.pst:625:38
-use std/System.pst 625:44-625:47
-  type 'Map' @ std/System.pst:61:12
-def std/System.pst 625:41-625:42
-  parameter 'm' @ std/System.pst:625:41
-use std/System.pst 625:66-625:67
-  type parameter 'K' @ std/System.pst:625:25
-use std/System.pst 625:69-625:70
-  type parameter 'V' @ std/System.pst:625:38
-use std/System.pst 625:56-625:65
-  type 'EntryIter' @ std/System.pst:81:12
-use std/System.pst 626:12-626:21
-  type 'EntryIter' @ std/System.pst:81:12
-use std/System.pst 626:30-626:31
-  parameter 'm' @ std/System.pst:625:41
-def std/System.pst 628:22-628:23
-  type parameter 'K' @ std/System.pst:628:22
-def std/System.pst 628:35-628:36
-  type parameter 'V' @ std/System.pst:628:35
-use std/System.pst 628:25-628:33
+  let 'b' @ std/System.pst:624:13
+use std/System.pst 626:20-626:24
+  type 'Some' @ std/System.pst:19:12
+use std/System.pst 626:25-626:30
+  function 'ofBit' @ std/System.pst:165:14
+use std/System.pst 626:31-626:32
+  type parameter 'T' @ std/System.pst:621:22
+use std/System.pst 626:34-626:35
+  let 'b' @ std/System.pst:624:13
+use std/System.pst 627:12-627:16
+  type 'None' @ std/System.pst:22:12
+def std/System.pst 630:22-630:23
+  type parameter 'K' @ std/System.pst:630:22
+def std/System.pst 630:35-630:36
+  type parameter 'V' @ std/System.pst:630:35
+use std/System.pst 630:25-630:33
   builtin trait 'Hashable' @ built into unit System
-use std/System.pst 628:56-628:57
-  type parameter 'K' @ std/System.pst:628:22
-use std/System.pst 628:59-628:60
-  type parameter 'V' @ std/System.pst:628:35
-use std/System.pst 628:46-628:55
-  type 'EntryIter' @ std/System.pst:81:12
-def std/System.pst 628:42-628:44
-  parameter 'it' @ std/System.pst:628:42
-use std/System.pst 628:77-628:78
-  type parameter 'K' @ std/System.pst:628:22
-use std/System.pst 628:80-628:81
-  type parameter 'V' @ std/System.pst:628:35
-use std/System.pst 628:71-628:76
-  type 'Entry' @ std/System.pst:52:12
-use std/System.pst 628:64-628:70
-  type 'Option' @ std/System.pst:23:12
-use std/System.pst 629:11-629:13
-  parameter 'it' @ std/System.pst:628:42
-use std/System.pst 629:20-629:26
-  function 'length' @ std/System.pst:115:21
-  function 'length' @ std/System.pst:116:21
-  function 'length' @ std/System.pst:342:17
-  function 'length' @ std/System.pst:470:17
-use std/System.pst 629:27-629:29
-  parameter 'it' @ std/System.pst:628:42
-use std/System.pst 630:9-630:12
-  procedure 'inc' @ std/System.pst:119:22
-  procedure 'inc' @ std/System.pst:120:22
-use std/System.pst 630:17-630:19
-  parameter 'it' @ std/System.pst:628:42
-use std/System.pst 631:18-631:20
-  parameter 'it' @ std/System.pst:628:42
-def std/System.pst 631:13-631:14
-  let 'e' @ std/System.pst:631:13
-use std/System.pst 632:12-632:14
-  parameter 'it' @ std/System.pst:628:42
-use std/System.pst 632:29-632:30
-  let 'e' @ std/System.pst:631:13
-use std/System.pst 633:20-633:24
-  type 'Some' @ std/System.pst:19:12
-use std/System.pst 633:25-633:30
-  type 'Entry' @ std/System.pst:52:12
-use std/System.pst 633:36-633:38
-  parameter 'it' @ std/System.pst:628:42
-use std/System.pst 633:51-633:52
-  let 'e' @ std/System.pst:631:13
-use std/System.pst 633:62-633:64
-  parameter 'it' @ std/System.pst:628:42
-use std/System.pst 633:79-633:80
-  let 'e' @ std/System.pst:631:13
-use std/System.pst 634:12-634:16
-  type 'None' @ std/System.pst:22:12
-use std/System.pst 637:26-637:32
-  builtin type 'String' @ built into unit System
-def std/System.pst 637:23-637:24
-  parameter 's' @ std/System.pst:637:23
-use std/System.pst 637:35-637:43
-  type 'CharIter' @ std/System.pst:93:12
-use std/System.pst 638:12-638:20
-  type 'CharIter' @ std/System.pst:93:12
-use std/System.pst 638:27-638:28
-  parameter 's' @ std/System.pst:637:23
-use std/System.pst 640:25-640:31
-  builtin type 'String' @ built into unit System
-def std/System.pst 640:22-640:23
-  parameter 's' @ std/System.pst:640:22
-use std/System.pst 640:34-640:42
-  type 'CharIter' @ std/System.pst:93:12
-use std/System.pst 641:12-641:17
-  function 'chars' @ std/System.pst:637:17
-use std/System.pst 641:18-641:19
-  parameter 's' @ std/System.pst:640:22
-use std/System.pst 643:30-643:38
-  type 'CharIter' @ std/System.pst:93:12
-def std/System.pst 643:26-643:28
-  parameter 'it' @ std/System.pst:643:26
-use std/System.pst 643:48-643:52
-  builtin type 'Char' @ built into unit System
-use std/System.pst 643:41-643:47
-  type 'Option' @ std/System.pst:23:12
-use std/System.pst 644:8-644:10
-  parameter 'it' @ std/System.pst:643:26
-use std/System.pst 644:18-644:25
-  function 'byteLen' @ std/System.pst:151:14
-use std/System.pst 644:26-644:28
-  parameter 'it' @ std/System.pst:643:26
-use std/System.pst 645:16-645:20
-  type 'None' @ std/System.pst:22:12
-use std/System.pst 646:14-646:26
-  function 'decodeUtf8At' @ std/System.pst:153:14
-use std/System.pst 646:27-646:29
-  parameter 'it' @ std/System.pst:643:26
-use std/System.pst 646:36-646:38
-  parameter 'it' @ std/System.pst:643:26
-def std/System.pst 646:9-646:10
-  let 'c' @ std/System.pst:646:9
-use std/System.pst 647:5-647:7
-  parameter 'it' @ std/System.pst:643:26
-use std/System.pst 647:15-647:17
-  parameter 'it' @ std/System.pst:643:26
-use std/System.pst 647:24-647:33
-  function 'utf8Width' @ std/System.pst:154:14
-use std/System.pst 647:34-647:35
-  let 'c' @ std/System.pst:646:9
-use std/System.pst 648:12-648:16
-  type 'Some' @ std/System.pst:19:12
-use std/System.pst 648:17-648:18
-  let 'c' @ std/System.pst:646:9
-def std/System.pst 651:22-651:23
-  type parameter 'T' @ std/System.pst:651:22
-def std/System.pst 651:25-651:26
-  type parameter 'I' @ std/System.pst:651:25
-use std/System.pst 651:37-651:38
-  type parameter 'T' @ std/System.pst:651:22
-use std/System.pst 651:28-651:36
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 651:45-651:46
-  type parameter 'I' @ std/System.pst:651:25
-def std/System.pst 651:41-651:43
-  parameter 'it' @ std/System.pst:651:41
-use std/System.pst 651:51-651:58
-  type 'Integer' @ std/System.pst:13:12
-def std/System.pst 651:48-651:49
-  parameter 'n' @ std/System.pst:651:48
-use std/System.pst 651:70-651:71
-  type parameter 'I' @ std/System.pst:651:25
-use std/System.pst 651:61-651:69
-  type 'TakeIter' @ std/System.pst:97:12
-use std/System.pst 652:12-652:20
-  type 'TakeIter' @ std/System.pst:97:12
-use std/System.pst 652:29-652:31
-  parameter 'it' @ std/System.pst:651:41
-use std/System.pst 652:39-652:40
-  parameter 'n' @ std/System.pst:651:48
-def std/System.pst 654:22-654:23
-  type parameter 'T' @ std/System.pst:654:22
-def std/System.pst 654:25-654:26
-  type parameter 'I' @ std/System.pst:654:25
-use std/System.pst 654:37-654:38
-  type parameter 'T' @ std/System.pst:654:22
-use std/System.pst 654:28-654:36
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 654:58-654:59
-  type parameter 'I' @ std/System.pst:654:25
-use std/System.pst 654:49-654:57
-  type 'TakeIter' @ std/System.pst:97:12
-def std/System.pst 654:45-654:47
-  parameter 'it' @ std/System.pst:654:45
-use std/System.pst 654:70-654:71
-  type parameter 'T' @ std/System.pst:654:22
-use std/System.pst 654:63-654:69
-  type 'Option' @ std/System.pst:23:12
-use std/System.pst 655:8-655:10
-  parameter 'it' @ std/System.pst:654:45
-use std/System.pst 656:16-656:20
-  type 'None' @ std/System.pst:22:12
-use std/System.pst 657:5-657:8
-  procedure 'dec' @ std/System.pst:122:22
-  procedure 'dec' @ std/System.pst:123:22
-use std/System.pst 657:13-657:15
-  parameter 'it' @ std/System.pst:654:45
-use std/System.pst 658:12-658:16
-  function 'next' @ std/System.pst:39:18
-use std/System.pst 658:21-658:23
-  parameter 'it' @ std/System.pst:654:45
-def std/System.pst 661:22-661:23
-  type parameter 'T' @ std/System.pst:661:22
-def std/System.pst 661:25-661:26
-  type parameter 'I' @ std/System.pst:661:25
-use std/System.pst 661:37-661:38
-  type parameter 'T' @ std/System.pst:661:22
-use std/System.pst 661:28-661:36
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 661:45-661:46
-  type parameter 'I' @ std/System.pst:661:25
-def std/System.pst 661:41-661:43
-  parameter 'it' @ std/System.pst:661:41
-use std/System.pst 661:51-661:58
-  type 'Integer' @ std/System.pst:13:12
-def std/System.pst 661:48-661:49
-  parameter 'n' @ std/System.pst:661:48
-use std/System.pst 661:70-661:71
-  type parameter 'I' @ std/System.pst:661:25
-use std/System.pst 661:61-661:69
-  type 'SkipIter' @ std/System.pst:101:12
-use std/System.pst 662:12-662:20
-  type 'SkipIter' @ std/System.pst:101:12
-use std/System.pst 662:29-662:31
-  parameter 'it' @ std/System.pst:661:41
-use std/System.pst 662:39-662:40
-  parameter 'n' @ std/System.pst:661:48
-def std/System.pst 664:22-664:23
-  type parameter 'T' @ std/System.pst:664:22
-def std/System.pst 664:25-664:26
-  type parameter 'I' @ std/System.pst:664:25
-use std/System.pst 664:37-664:38
-  type parameter 'T' @ std/System.pst:664:22
-use std/System.pst 664:28-664:36
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 664:58-664:59
-  type parameter 'I' @ std/System.pst:664:25
-use std/System.pst 664:49-664:57
-  type 'SkipIter' @ std/System.pst:101:12
-def std/System.pst 664:45-664:47
-  parameter 'it' @ std/System.pst:664:45
-use std/System.pst 664:70-664:71
-  type parameter 'T' @ std/System.pst:664:22
-use std/System.pst 664:63-664:69
-  type 'Option' @ std/System.pst:23:12
-use std/System.pst 665:11-665:13
-  parameter 'it' @ std/System.pst:664:45
-use std/System.pst 666:9-666:12
-  procedure 'dec' @ std/System.pst:122:22
-  procedure 'dec' @ std/System.pst:123:22
-use std/System.pst 666:17-666:19
-  parameter 'it' @ std/System.pst:664:45
-use std/System.pst 667:12-667:18
-  function 'isNone' @ std/System.pst:544:17
-use std/System.pst 667:19-667:23
-  function 'next' @ std/System.pst:39:18
-use std/System.pst 667:28-667:30
-  parameter 'it' @ std/System.pst:664:45
-use std/System.pst 668:20-668:24
-  type 'None' @ std/System.pst:22:12
-use std/System.pst 669:12-669:16
-  function 'next' @ std/System.pst:39:18
-use std/System.pst 669:21-669:23
-  parameter 'it' @ std/System.pst:664:45
-def std/System.pst 672:21-672:22
-  type parameter 'A' @ std/System.pst:672:21
-def std/System.pst 672:24-672:25
-  type parameter 'B' @ std/System.pst:672:24
-def std/System.pst 672:27-672:28
-  type parameter 'I' @ std/System.pst:672:27
-def std/System.pst 672:43-672:44
-  type parameter 'J' @ std/System.pst:672:43
-use std/System.pst 672:39-672:40
-  type parameter 'A' @ std/System.pst:672:21
-use std/System.pst 672:30-672:38
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 672:55-672:56
-  type parameter 'B' @ std/System.pst:672:24
-use std/System.pst 672:46-672:54
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 672:62-672:63
-  type parameter 'I' @ std/System.pst:672:27
-def std/System.pst 672:59-672:60
-  parameter 'a' @ std/System.pst:672:59
-use std/System.pst 672:68-672:69
-  type parameter 'J' @ std/System.pst:672:43
-def std/System.pst 672:65-672:66
-  parameter 'b' @ std/System.pst:672:65
-use std/System.pst 672:80-672:81
-  type parameter 'I' @ std/System.pst:672:27
-use std/System.pst 672:83-672:84
-  type parameter 'J' @ std/System.pst:672:43
-use std/System.pst 672:72-672:79
-  type 'ZipIter' @ std/System.pst:105:12
-use std/System.pst 673:12-673:19
-  type 'ZipIter' @ std/System.pst:105:12
-use std/System.pst 673:23-673:24
-  parameter 'a' @ std/System.pst:672:59
-use std/System.pst 673:29-673:30
-  parameter 'b' @ std/System.pst:672:65
-def std/System.pst 675:22-675:23
-  type parameter 'A' @ std/System.pst:675:22
-def std/System.pst 675:25-675:26
-  type parameter 'B' @ std/System.pst:675:25
-def std/System.pst 675:28-675:29
-  type parameter 'I' @ std/System.pst:675:28
-def std/System.pst 675:44-675:45
-  type parameter 'J' @ std/System.pst:675:44
-use std/System.pst 675:40-675:41
-  type parameter 'A' @ std/System.pst:675:22
-use std/System.pst 675:31-675:39
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 675:56-675:57
-  type parameter 'B' @ std/System.pst:675:25
-use std/System.pst 675:47-675:55
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 676:21-676:22
-  type parameter 'I' @ std/System.pst:675:28
-use std/System.pst 676:24-676:25
-  type parameter 'J' @ std/System.pst:675:44
-use std/System.pst 676:13-676:20
-  type 'ZipIter' @ std/System.pst:105:12
-def std/System.pst 676:9-676:11
-  parameter 'it' @ std/System.pst:676:9
-use std/System.pst 677:16-677:17
-  type parameter 'A' @ std/System.pst:675:22
-use std/System.pst 677:19-677:20
-  type parameter 'B' @ std/System.pst:675:25
-use std/System.pst 677:11-677:15
-  type 'Pair' @ std/System.pst:42:12
-use std/System.pst 677:4-677:10
-  type 'Option' @ std/System.pst:23:12
-use std/System.pst 678:14-678:18
-  function 'next' @ std/System.pst:39:18
-use std/System.pst 678:23-678:25
-  parameter 'it' @ std/System.pst:676:9
-def std/System.pst 678:9-678:10
-  let 'x' @ std/System.pst:678:9
-use std/System.pst 679:14-679:18
-  function 'next' @ std/System.pst:39:18
-use std/System.pst 679:23-679:25
-  parameter 'it' @ std/System.pst:676:9
-def std/System.pst 679:9-679:10
-  let 'y' @ std/System.pst:679:9
-use std/System.pst 680:8-680:14
-  function 'isNone' @ std/System.pst:544:17
-use std/System.pst 680:15-680:16
-  let 'x' @ std/System.pst:678:9
-use std/System.pst 680:21-680:27
-  function 'isNone' @ std/System.pst:544:17
-use std/System.pst 680:28-680:29
-  let 'y' @ std/System.pst:679:9
-use std/System.pst 681:16-681:20
-  type 'None' @ std/System.pst:22:12
-use std/System.pst 682:12-682:16
-  type 'Some' @ std/System.pst:19:12
-use std/System.pst 682:17-682:21
-  type 'Pair' @ std/System.pst:42:12
-use std/System.pst 682:29-682:32
-  function 'get' @ std/System.pst:346:17
-  function 'get' @ std/System.pst:532:17
-  function 'get' @ std/System.pst:556:17
-  function 'get' @ std/System.pst:562:17
-use std/System.pst 682:33-682:34
-  let 'x' @ std/System.pst:678:9
-use std/System.pst 682:45-682:48
-  function 'get' @ std/System.pst:346:17
-  function 'get' @ std/System.pst:532:17
-  function 'get' @ std/System.pst:556:17
-  function 'get' @ std/System.pst:562:17
-use std/System.pst 682:49-682:50
-  let 'y' @ std/System.pst:679:9
-def std/System.pst 685:27-685:28
-  type parameter 'T' @ std/System.pst:685:27
-def std/System.pst 685:30-685:31
-  type parameter 'I' @ std/System.pst:685:30
-use std/System.pst 685:42-685:43
-  type parameter 'T' @ std/System.pst:685:27
-use std/System.pst 685:33-685:41
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 685:50-685:51
-  type parameter 'I' @ std/System.pst:685:30
-def std/System.pst 685:46-685:48
-  parameter 'it' @ std/System.pst:685:46
-use std/System.pst 685:68-685:69
-  type parameter 'I' @ std/System.pst:685:30
-use std/System.pst 685:54-685:67
-  type 'EnumerateIter' @ std/System.pst:109:12
-use std/System.pst 686:12-686:25
-  type 'EnumerateIter' @ std/System.pst:109:12
-use std/System.pst 686:34-686:36
-  parameter 'it' @ std/System.pst:685:46
-def std/System.pst 688:22-688:23
-  type parameter 'T' @ std/System.pst:688:22
-def std/System.pst 688:25-688:26
-  type parameter 'I' @ std/System.pst:688:25
-use std/System.pst 688:37-688:38
-  type parameter 'T' @ std/System.pst:688:22
-use std/System.pst 688:28-688:36
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 688:63-688:64
-  type parameter 'I' @ std/System.pst:688:25
-use std/System.pst 688:49-688:62
-  type 'EnumerateIter' @ std/System.pst:109:12
-def std/System.pst 688:45-688:47
-  parameter 'it' @ std/System.pst:688:45
-use std/System.pst 688:83-688:84
-  type parameter 'T' @ std/System.pst:688:22
-use std/System.pst 688:75-688:82
-  type 'Indexed' @ std/System.pst:47:12
-use std/System.pst 688:68-688:74
-  type 'Option' @ std/System.pst:23:12
-use std/System.pst 689:10-689:14
-  function 'next' @ std/System.pst:39:18
-use std/System.pst 689:19-689:21
-  parameter 'it' @ std/System.pst:688:45
-use std/System.pst 690:9-690:13
-  type 'Some' @ std/System.pst:19:12
-def std/System.pst 690:14-690:15
-  case binding 's' @ std/System.pst:690:14
-use std/System.pst 691:13-691:16
-  procedure 'inc' @ std/System.pst:119:22
-  procedure 'inc' @ std/System.pst:120:22
-use std/System.pst 691:21-691:23
-  parameter 'it' @ std/System.pst:688:45
-use std/System.pst 692:20-692:24
-  type 'Some' @ std/System.pst:19:12
-use std/System.pst 692:25-692:32
-  type 'Indexed' @ std/System.pst:47:12
-use std/System.pst 692:40-692:42
-  parameter 'it' @ std/System.pst:688:45
-use std/System.pst 692:61-692:62
-  case binding 's' @ std/System.pst:690:14
-use std/System.pst 693:22-693:26
-  type 'None' @ std/System.pst:22:12
-def std/System.pst 698:25-698:26
-  type parameter 'T' @ std/System.pst:698:25
-def std/System.pst 698:28-698:29
-  type parameter 'I' @ std/System.pst:698:28
-use std/System.pst 698:40-698:41
-  type parameter 'T' @ std/System.pst:698:25
-use std/System.pst 698:31-698:39
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 698:48-698:49
-  type parameter 'I' @ std/System.pst:698:28
-def std/System.pst 698:44-698:46
-  parameter 'it' @ std/System.pst:698:44
-use std/System.pst 698:57-698:58
-  type parameter 'T' @ std/System.pst:698:25
-use std/System.pst 698:52-698:56
-  builtin type 'List' @ built into unit System
-use std/System.pst 699:19-699:20
-  type parameter 'T' @ std/System.pst:698:25
-use std/System.pst 699:14-699:18
-  builtin type 'List' @ built into unit System
-def std/System.pst 699:9-699:12
-  var 'out' @ std/System.pst:699:9
-use std/System.pst 700:14-700:16
-  parameter 'it' @ std/System.pst:698:44
-def std/System.pst 700:9-700:10
-  loop variable 'x' @ std/System.pst:700:9
-use std/System.pst 701:9-701:12
-  procedure 'add' @ std/System.pst:176:18
-  procedure 'add' @ std/System.pst:477:18
-use std/System.pst 701:17-701:20
-  var 'out' @ std/System.pst:699:9
-use std/System.pst 701:22-701:23
-  loop variable 'x' @ std/System.pst:700:9
-use std/System.pst 702:12-702:15
-  var 'out' @ std/System.pst:699:9
-def std/System.pst 705:23-705:24
-  type parameter 'T' @ std/System.pst:705:23
-def std/System.pst 705:26-705:27
-  type parameter 'I' @ std/System.pst:705:26
-use std/System.pst 705:38-705:39
-  type parameter 'T' @ std/System.pst:705:23
-use std/System.pst 705:29-705:37
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 705:46-705:47
-  type parameter 'I' @ std/System.pst:705:26
-def std/System.pst 705:42-705:44
-  parameter 'it' @ std/System.pst:705:42
-use std/System.pst 705:50-705:57
-  type 'Integer' @ std/System.pst:13:12
-def std/System.pst 706:9-706:10
-  var 'n' @ std/System.pst:706:9
-use std/System.pst 707:14-707:16
-  parameter 'it' @ std/System.pst:705:42
-use std/System.pst 708:9-708:12
-  procedure 'inc' @ std/System.pst:119:22
-  procedure 'inc' @ std/System.pst:120:22
-use std/System.pst 708:17-708:18
-  var 'n' @ std/System.pst:706:9
-use std/System.pst 709:12-709:13
-  var 'n' @ std/System.pst:706:9
-def std/System.pst 712:21-712:22
-  type parameter 'I' @ std/System.pst:712:21
-use std/System.pst 712:33-712:40
-  type 'Integer' @ std/System.pst:13:12
-use std/System.pst 712:24-712:32
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 712:47-712:48
-  type parameter 'I' @ std/System.pst:712:21
-def std/System.pst 712:43-712:45
-  parameter 'it' @ std/System.pst:712:43
-use std/System.pst 712:51-712:58
-  type 'Integer' @ std/System.pst:13:12
-def std/System.pst 713:9-713:14
-  var 'total' @ std/System.pst:713:9
-use std/System.pst 714:14-714:16
-  parameter 'it' @ std/System.pst:712:43
-def std/System.pst 714:9-714:10
-  loop variable 'x' @ std/System.pst:714:9
-use std/System.pst 715:9-715:14
-  var 'total' @ std/System.pst:713:9
-use std/System.pst 715:18-715:23
-  var 'total' @ std/System.pst:713:9
-use std/System.pst 715:26-715:27
-  loop variable 'x' @ std/System.pst:714:9
-use std/System.pst 716:12-716:17
-  var 'total' @ std/System.pst:713:9
-def std/System.pst 718:21-718:22
-  type parameter 'I' @ std/System.pst:718:21
-use std/System.pst 718:33-718:37
-  type 'Real' @ std/System.pst:15:12
-use std/System.pst 718:24-718:32
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 718:44-718:45
-  type parameter 'I' @ std/System.pst:718:21
-def std/System.pst 718:40-718:42
-  parameter 'it' @ std/System.pst:718:40
-use std/System.pst 718:48-718:52
-  type 'Real' @ std/System.pst:15:12
-def std/System.pst 719:9-719:14
-  var 'total' @ std/System.pst:719:9
-use std/System.pst 720:14-720:16
-  parameter 'it' @ std/System.pst:718:40
-def std/System.pst 720:9-720:10
-  loop variable 'x' @ std/System.pst:720:9
-use std/System.pst 721:9-721:14
-  var 'total' @ std/System.pst:719:9
-use std/System.pst 721:18-721:23
-  var 'total' @ std/System.pst:719:9
-use std/System.pst 721:26-721:27
-  loop variable 'x' @ std/System.pst:720:9
-use std/System.pst 722:12-722:17
-  var 'total' @ std/System.pst:719:9
-def std/System.pst 725:21-725:22
-  type parameter 'T' @ std/System.pst:725:21
-def std/System.pst 725:24-725:25
-  type parameter 'I' @ std/System.pst:725:24
-use std/System.pst 725:36-725:37
-  type parameter 'T' @ std/System.pst:725:21
-use std/System.pst 725:27-725:35
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 725:44-725:45
-  type parameter 'I' @ std/System.pst:725:24
-def std/System.pst 725:40-725:42
-  parameter 'it' @ std/System.pst:725:40
-use std/System.pst 725:62-725:63
-  type parameter 'T' @ std/System.pst:725:21
-use std/System.pst 725:66-725:73
-  builtin type 'Boolean' @ built into unit System
-def std/System.pst 725:47-725:51
-  parameter 'pred' @ std/System.pst:725:47
-use std/System.pst 725:76-725:83
-  builtin type 'Boolean' @ built into unit System
-use std/System.pst 726:14-726:16
-  parameter 'it' @ std/System.pst:725:40
-def std/System.pst 726:9-726:10
-  loop variable 'x' @ std/System.pst:726:9
-use std/System.pst 727:12-727:16
-  parameter 'pred' @ std/System.pst:725:47
-use std/System.pst 727:17-727:18
-  loop variable 'x' @ std/System.pst:726:9
-def std/System.pst 732:21-732:22
-  type parameter 'T' @ std/System.pst:732:21
-def std/System.pst 732:24-732:25
-  type parameter 'I' @ std/System.pst:732:24
-use std/System.pst 732:36-732:37
-  type parameter 'T' @ std/System.pst:732:21
-use std/System.pst 732:27-732:35
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 732:44-732:45
-  type parameter 'I' @ std/System.pst:732:24
-def std/System.pst 732:40-732:42
-  parameter 'it' @ std/System.pst:732:40
-use std/System.pst 732:62-732:63
-  type parameter 'T' @ std/System.pst:732:21
-use std/System.pst 732:66-732:73
-  builtin type 'Boolean' @ built into unit System
-def std/System.pst 732:47-732:51
-  parameter 'pred' @ std/System.pst:732:47
-use std/System.pst 732:76-732:83
-  builtin type 'Boolean' @ built into unit System
-use std/System.pst 733:14-733:16
-  parameter 'it' @ std/System.pst:732:40
-def std/System.pst 733:9-733:10
-  loop variable 'x' @ std/System.pst:733:9
-use std/System.pst 734:16-734:20
-  parameter 'pred' @ std/System.pst:732:47
-use std/System.pst 734:21-734:22
-  loop variable 'x' @ std/System.pst:733:9
-def std/System.pst 739:22-739:23
-  type parameter 'T' @ std/System.pst:739:22
-def std/System.pst 739:25-739:26
-  type parameter 'I' @ std/System.pst:739:25
-use std/System.pst 739:37-739:38
-  type parameter 'T' @ std/System.pst:739:22
-use std/System.pst 739:28-739:36
-  trait 'Iterator' @ std/System.pst:38:12
-use std/System.pst 739:45-739:46
-  type parameter 'I' @ std/System.pst:739:25
-def std/System.pst 739:41-739:43
-  parameter 'it' @ std/System.pst:739:41
-use std/System.pst 739:63-739:64
-  type parameter 'T' @ std/System.pst:739:22
-use std/System.pst 739:67-739:74
-  builtin type 'Boolean' @ built into unit System
-def std/System.pst 739:48-739:52
-  parameter 'pred' @ std/System.pst:739:48
-use std/System.pst 739:84-739:85
-  type parameter 'T' @ std/System.pst:739:22
-use std/System.pst 739:77-739:83
-  type 'Option' @ std/System.pst:23:12
-use std/System.pst 740:14-740:16
-  parameter 'it' @ std/System.pst:739:41
-def std/System.pst 740:9-740:10
-  loop variable 'x' @ std/System.pst:740:9
-use std/System.pst 741:12-741:16
-  parameter 'pred' @ std/System.pst:739:48
-use std/System.pst 741:17-741:18
-  loop variable 'x' @ std/System.pst:740:9
-use std/System.pst 742:20-742:24
-  type 'Some' @ std/System.pst:19:12
-use std/System.pst 742:25-742:26
-  loop variable 'x' @ std/System.pst:740:9
-use std/System.pst 743:12-743:16
-  type 'None' @ std/System.pst:22:12
-use std/System.pst 745:27-745:34
-  type 'Integer' @ std/System.pst:13:12
-def std/System.pst 745:21-745:22
-  parameter 'a' @ std/System.pst:745:21
-def std/System.pst 745:24-745:25
-  parameter 'b' @ std/System.pst:745:24
-use std/System.pst 745:37-745:44
-  builtin type 'Boolean' @ built into unit System
-use std/System.pst 746:12-746:13
-  parameter 'a' @ std/System.pst:745:21
-use std/System.pst 746:23-746:24
-  parameter 'b' @ std/System.pst:745:24
-use std/System.pst 748:21-748:28
-  type 'Integer' @ std/System.pst:13:12
-def std/System.pst 748:18-748:19
-  parameter 'x' @ std/System.pst:748:18
-use std/System.pst 748:31-748:38
-  type 'Integer' @ std/System.pst:13:12
-use std/System.pst 749:13-749:14
-  parameter 'x' @ std/System.pst:748:18
-use std/System.pst 751:18-751:25
-  type 'Integer' @ std/System.pst:13:12
-def std/System.pst 751:15-751:16
-  parameter 'x' @ std/System.pst:751:15
-use std/System.pst 751:28-751:35
-  type 'Integer' @ std/System.pst:13:12
-use std/System.pst 752:12-752:13
-  parameter 'x' @ std/System.pst:751:15
-use std/System.pst 754:20-754:27
-  type 'Integer' @ std/System.pst:13:12
-def std/System.pst 754:17-754:18
-  parameter 'x' @ std/System.pst:754:17
-use std/System.pst 754:30-754:37
-  builtin type 'Boolean' @ built into unit System
-use std/System.pst 755:12-755:13
-  parameter 'x' @ std/System.pst:754:17
-def std/System.pst 758:9-758:11
-  var 'xs' @ std/System.pst:758:9
-use std/System.pst 759:5-759:8
-  procedure 'add' @ std/System.pst:176:18
-  procedure 'add' @ std/System.pst:477:18
-use std/System.pst 759:13-759:15
-  var 'xs' @ std/System.pst:758:9
-use std/System.pst 760:5-760:11
-  procedure 'remove' @ std/System.pst:182:18
-  procedure 'remove' @ std/System.pst:373:18
-  procedure 'remove' @ std/System.pst:481:18
-use std/System.pst 760:16-760:18
-  var 'xs' @ std/System.pst:758:9
-use std/System.pst 761:12-761:14
-  var 'xs' @ std/System.pst:758:9
-use std/System.pst 762:5-762:11
-  procedure 'insert' @ std/System.pst:197:18
-use std/System.pst 762:16-762:18
-  var 'xs' @ std/System.pst:758:9
-use std/System.pst 763:5-763:11
-  procedure 'insert' @ std/System.pst:197:18
-use std/System.pst 763:16-763:18
-  var 'xs' @ std/System.pst:758:9
-use std/System.pst 764:12-764:14
-  var 'xs' @ std/System.pst:758:9
-use std/System.pst 765:5-765:15
-  procedure 'removeLast' @ std/System.pst:190:18
-use std/System.pst 765:20-765:22
-  var 'xs' @ std/System.pst:758:9
-use std/System.pst 766:12-766:14
-  var 'xs' @ std/System.pst:758:9
-use std/System.pst 767:12-767:18
-  function 'concat' @ std/System.pst:302:17
-use std/System.pst 767:19-767:21
-  var 'xs' @ std/System.pst:758:9
-use std/System.pst 768:17-768:19
-  var 'xs' @ std/System.pst:758:9
-use std/System.pst 768:34-768:36
-  var 'xs' @ std/System.pst:758:9
-def std/System.pst 771:9-771:11
-  var 'xs' @ std/System.pst:771:9
-use std/System.pst 772:5-772:9
-  procedure 'sort' @ std/System.pst:208:18
-  procedure 'sort' @ std/System.pst:235:18
-  procedure 'sort' @ std/System.pst:263:18
-use std/System.pst 772:14-772:16
-  var 'xs' @ std/System.pst:771:9
-use std/System.pst 773:12-773:14
-  var 'xs' @ std/System.pst:771:9
-def std/System.pst 774:9-774:11
-  var 'ys' @ std/System.pst:774:9
-use std/System.pst 775:5-775:9
-  procedure 'sort' @ std/System.pst:208:18
-  procedure 'sort' @ std/System.pst:235:18
-  procedure 'sort' @ std/System.pst:263:18
-use std/System.pst 775:14-775:16
-  var 'ys' @ std/System.pst:774:9
-use std/System.pst 775:24-775:34
-  function 'lessByTens' @ std/System.pst:745:10
-use std/System.pst 776:12-776:14
-  var 'ys' @ std/System.pst:774:9
-def std/System.pst 777:9-777:11
-  var 'zs' @ std/System.pst:777:9
-use std/System.pst 778:5-778:9
-  procedure 'sort' @ std/System.pst:208:18
-  procedure 'sort' @ std/System.pst:235:18
-  procedure 'sort' @ std/System.pst:263:18
-use std/System.pst 778:14-778:16
-  var 'zs' @ std/System.pst:777:9
-use std/System.pst 778:23-778:27
-  function 'tens' @ std/System.pst:751:10
-use std/System.pst 779:12-779:14
-  var 'zs' @ std/System.pst:777:9
-use std/System.pst 780:5-780:9
-  procedure 'sort' @ std/System.pst:208:18
-  procedure 'sort' @ std/System.pst:235:18
-  procedure 'sort' @ std/System.pst:263:18
-use std/System.pst 780:14-780:16
-  var 'zs' @ std/System.pst:777:9
-use std/System.pst 780:23-780:30
-  function 'negated' @ std/System.pst:748:10
-use std/System.pst 781:12-781:14
-  var 'zs' @ std/System.pst:777:9
-use std/System.pst 782:21-782:28
-  type 'Integer' @ std/System.pst:13:12
-use std/System.pst 782:16-782:20
-  builtin type 'List' @ built into unit System
-def std/System.pst 782:9-782:14
-  var 'empty' @ std/System.pst:782:9
-use std/System.pst 783:5-783:9
-  procedure 'sort' @ std/System.pst:208:18
-  procedure 'sort' @ std/System.pst:235:18
-  procedure 'sort' @ std/System.pst:263:18
-use std/System.pst 783:14-783:19
-  var 'empty' @ std/System.pst:782:9
-use std/System.pst 784:5-784:9
-  procedure 'sort' @ std/System.pst:208:18
-  procedure 'sort' @ std/System.pst:235:18
-  procedure 'sort' @ std/System.pst:263:18
-use std/System.pst 784:14-784:19
-  var 'empty' @ std/System.pst:782:9
-use std/System.pst 784:26-784:30
-  function 'tens' @ std/System.pst:751:10
-use std/System.pst 785:12-785:18
-  function 'length' @ std/System.pst:115:21
-  function 'length' @ std/System.pst:116:21
-  function 'length' @ std/System.pst:342:17
-  function 'length' @ std/System.pst:470:17
-use std/System.pst 785:19-785:24
-  var 'empty' @ std/System.pst:782:9
-use std/System.pst 788:16-788:22
-  builtin type 'String' @ built into unit System
-use std/System.pst 788:24-788:31
-  type 'Integer' @ std/System.pst:13:12
-use std/System.pst 788:12-788:15
+use std/System.pst 630:45-630:46
+  type parameter 'K' @ std/System.pst:630:22
+use std/System.pst 630:48-630:49
+  type parameter 'V' @ std/System.pst:630:35
+use std/System.pst 630:41-630:44
   type 'Map' @ std/System.pst:61:12
-def std/System.pst 788:9-788:10
-  var 'm' @ std/System.pst:788:9
-use std/System.pst 789:5-789:6
-  var 'm' @ std/System.pst:788:9
-use std/System.pst 790:5-790:6
-  var 'm' @ std/System.pst:788:9
-use std/System.pst 791:12-791:18
-  function 'length' @ std/System.pst:115:21
-  function 'length' @ std/System.pst:116:21
-  function 'length' @ std/System.pst:342:17
-  function 'length' @ std/System.pst:470:17
-use std/System.pst 791:19-791:20
-  var 'm' @ std/System.pst:788:9
-use std/System.pst 792:12-792:15
-  function 'get' @ std/System.pst:346:17
-  function 'get' @ std/System.pst:532:17
-  function 'get' @ std/System.pst:556:17
-  function 'get' @ std/System.pst:562:17
-use std/System.pst 792:16-792:17
-  var 'm' @ std/System.pst:788:9
-use std/System.pst 792:26-792:30
-  type 'Some' @ std/System.pst:19:12
-use std/System.pst 793:12-793:15
-  function 'get' @ std/System.pst:346:17
-  function 'get' @ std/System.pst:532:17
-  function 'get' @ std/System.pst:556:17
-  function 'get' @ std/System.pst:562:17
-use std/System.pst 793:16-793:17
-  var 'm' @ std/System.pst:788:9
-use std/System.pst 794:12-794:17
-  function 'getOr' @ std/System.pst:353:17
-  function 'getOr' @ std/System.pst:568:17
-  function 'getOr' @ std/System.pst:574:17
-use std/System.pst 794:18-794:19
-  var 'm' @ std/System.pst:788:9
-use std/System.pst 795:5-795:11
-  procedure 'remove' @ std/System.pst:182:18
-  procedure 'remove' @ std/System.pst:373:18
-  procedure 'remove' @ std/System.pst:481:18
-use std/System.pst 795:16-795:17
-  var 'm' @ std/System.pst:788:9
-use std/System.pst 796:5-796:11
-  procedure 'remove' @ std/System.pst:182:18
-  procedure 'remove' @ std/System.pst:373:18
-  procedure 'remove' @ std/System.pst:481:18
-use std/System.pst 796:16-796:17
-  var 'm' @ std/System.pst:788:9
-use std/System.pst 797:12-797:18
-  function 'length' @ std/System.pst:115:21
-  function 'length' @ std/System.pst:116:21
-  function 'length' @ std/System.pst:342:17
-  function 'length' @ std/System.pst:470:17
-use std/System.pst 797:19-797:20
-  var 'm' @ std/System.pst:788:9
-use std/System.pst 797:42-797:43
-  var 'm' @ std/System.pst:788:9
-use std/System.pst 800:16-800:20
-  type 'Byte' @ std/System.pst:16:12
-use std/System.pst 800:12-800:15
-  type 'Set' @ std/System.pst:70:12
-def std/System.pst 800:9-800:10
-  var 's' @ std/System.pst:800:9
-use std/System.pst 801:5-801:8
-  procedure 'add' @ std/System.pst:176:18
-  procedure 'add' @ std/System.pst:477:18
-use std/System.pst 801:13-801:14
-  var 's' @ std/System.pst:800:9
-use std/System.pst 802:5-802:8
-  procedure 'add' @ std/System.pst:176:18
-  procedure 'add' @ std/System.pst:477:18
-use std/System.pst 802:13-802:14
-  var 's' @ std/System.pst:800:9
-use std/System.pst 803:5-803:11
-  procedure 'remove' @ std/System.pst:182:18
-  procedure 'remove' @ std/System.pst:373:18
-  procedure 'remove' @ std/System.pst:481:18
-use std/System.pst 803:16-803:17
-  var 's' @ std/System.pst:800:9
-use std/System.pst 804:12-804:18
-  function 'length' @ std/System.pst:115:21
-  function 'length' @ std/System.pst:116:21
-  function 'length' @ std/System.pst:342:17
-  function 'length' @ std/System.pst:470:17
-use std/System.pst 804:19-804:20
-  var 's' @ std/System.pst:800:9
-use std/System.pst 804:35-804:36
-  var 's' @ std/System.pst:800:9
-use std/System.pst 804:51-804:52
-  var 's' @ std/System.pst:800:9
-use std/System.pst 805:16-805:20
-  type 'Byte' @ std/System.pst:16:12
-use std/System.pst 805:12-805:15
-  type 'Set' @ std/System.pst:70:12
-def std/System.pst 805:9-805:10
-  let 't' @ std/System.pst:805:9
-use std/System.pst 806:12-806:17
-  function 'union' @ std/System.pst:486:17
-use std/System.pst 806:18-806:19
-  var 's' @ std/System.pst:800:9
-use std/System.pst 806:24-806:25
-  let 't' @ std/System.pst:805:9
-use std/System.pst 807:12-807:24
-  function 'intersection' @ std/System.pst:493:17
-use std/System.pst 807:25-807:26
-  var 's' @ std/System.pst:800:9
-use std/System.pst 807:31-807:32
-  let 't' @ std/System.pst:805:9
-use std/System.pst 808:12-808:22
-  function 'difference' @ std/System.pst:500:17
-use std/System.pst 808:23-808:24
-  var 's' @ std/System.pst:800:9
-use std/System.pst 808:29-808:30
-  let 't' @ std/System.pst:805:9
-use std/System.pst 811:22-811:29
-  type 'Integer' @ std/System.pst:13:12
-use std/System.pst 811:15-811:21
+def std/System.pst 630:38-630:39
+  parameter 'm' @ std/System.pst:630:38
+use std/System.pst 630:61-630:62
+  type parameter 'K' @ std/System.pst:630:22
+use std/System.pst 630:64-630:65
+  type parameter 'V' @ std/System.pst:630:35
+use std/System.pst 630:53-630:60
+  type 'KeyIter' @ std/System.pst:77:12
+use std/System.pst 631:12-631:19
+  type 'KeyIter' @ std/System.pst:77:12
+use std/System.pst 631:28-631:29
+  parameter 'm' @ std/System.pst:630:38
+def std/System.pst 633:22-633:23
+  type parameter 'K' @ std/System.pst:633:22
+def std/System.pst 633:35-633:36
+  type parameter 'V' @ std/System.pst:633:35
+use std/System.pst 633:25-633:33
+  builtin trait 'Hashable' @ built into unit System
+use std/System.pst 633:54-633:55
+  type parameter 'K' @ std/System.pst:633:22
+use std/System.pst 633:57-633:58
+  type parameter 'V' @ std/System.pst:633:35
+use std/System.pst 633:46-633:53
+  type 'KeyIter' @ std/System.pst:77:12
+def std/System.pst 633:42-633:44
+  parameter 'it' @ std/System.pst:633:42
+use std/System.pst 633:69-633:70
+  type parameter 'K' @ std/System.pst:633:22
+use std/System.pst 633:62-633:68
   type 'Option' @ std/System.pst:23:12
-use std/System.pst 811:34-811:38
+use std/System.pst 634:11-634:13
+  parameter 'it' @ std/System.pst:633:42
+use std/System.pst 634:20-634:26
+  function 'length' @ std/System.pst:115:21
+  function 'length' @ std/System.pst:116:21
+  function 'length' @ std/System.pst:342:17
+  function 'length' @ std/System.pst:470:17
+use std/System.pst 634:27-634:29
+  parameter 'it' @ std/System.pst:633:42
+use std/System.pst 635:9-635:12
+  procedure 'inc' @ std/System.pst:119:22
+  procedure 'inc' @ std/System.pst:120:22
+use std/System.pst 635:17-635:19
+  parameter 'it' @ std/System.pst:633:42
+use std/System.pst 636:12-636:14
+  parameter 'it' @ std/System.pst:633:42
+use std/System.pst 636:29-636:31
+  parameter 'it' @ std/System.pst:633:42
+use std/System.pst 637:20-637:24
   type 'Some' @ std/System.pst:19:12
-def std/System.pst 811:9-811:13
-  let 'some' @ std/System.pst:811:9
-use std/System.pst 812:22-812:29
-  type 'Integer' @ std/System.pst:13:12
-use std/System.pst 812:15-812:21
-  type 'Option' @ std/System.pst:23:12
-use std/System.pst 812:34-812:38
+use std/System.pst 637:25-637:27
+  parameter 'it' @ std/System.pst:633:42
+use std/System.pst 637:40-637:42
+  parameter 'it' @ std/System.pst:633:42
+use std/System.pst 638:12-638:16
   type 'None' @ std/System.pst:22:12
-def std/System.pst 812:9-812:13
-  let 'none' @ std/System.pst:812:9
-use std/System.pst 813:12-813:16
-  let 'some' @ std/System.pst:811:9
-use std/System.pst 813:30-813:34
-  let 'none' @ std/System.pst:812:9
-use std/System.pst 814:12-814:16
-  let 'some' @ std/System.pst:811:9
-use std/System.pst 814:31-814:35
-  let 'none' @ std/System.pst:812:9
-use std/System.pst 815:20-815:27
-  type 'Integer' @ std/System.pst:13:12
-use std/System.pst 815:29-815:35
-  builtin type 'String' @ built into unit System
-use std/System.pst 815:13-815:19
-  type 'Result' @ std/System.pst:31:12
-use std/System.pst 815:40-815:42
-  type 'Ok' @ std/System.pst:26:12
-def std/System.pst 815:9-815:11
-  let 'ok' @ std/System.pst:815:9
-use std/System.pst 816:21-816:28
-  type 'Integer' @ std/System.pst:13:12
-use std/System.pst 816:30-816:36
-  builtin type 'String' @ built into unit System
-use std/System.pst 816:14-816:20
-  type 'Result' @ std/System.pst:31:12
-use std/System.pst 816:41-816:44
-  type 'Err' @ std/System.pst:29:12
-def std/System.pst 816:9-816:12
-  let 'err' @ std/System.pst:816:9
-use std/System.pst 817:12-817:14
-  let 'ok' @ std/System.pst:815:9
-use std/System.pst 817:26-817:29
-  let 'err' @ std/System.pst:816:9
-use std/System.pst 818:12-818:14
-  let 'ok' @ std/System.pst:815:9
-use std/System.pst 818:29-818:32
-  let 'err' @ std/System.pst:816:9
-def std/System.pst 821:9-821:11
-  let 'xs' @ std/System.pst:821:9
-use std/System.pst 822:22-822:24
-  let 'xs' @ std/System.pst:821:9
-def std/System.pst 822:17-822:18
-  loop variable 'x' @ std/System.pst:822:17
-use std/System.pst 822:28-822:29
-  loop variable 'x' @ std/System.pst:822:17
-use std/System.pst 823:22-823:24
-  let 'xs' @ std/System.pst:821:9
-def std/System.pst 823:17-823:18
-  loop variable 'x' @ std/System.pst:823:17
-use std/System.pst 823:31-823:37
-  function 'isEven' @ std/System.pst:754:10
-use std/System.pst 823:38-823:39
-  loop variable 'x' @ std/System.pst:823:17
-use std/System.pst 823:46-823:47
-  loop variable 'x' @ std/System.pst:823:17
-use std/System.pst 824:12-824:19
-  function 'collect' @ std/System.pst:698:17
-use std/System.pst 824:20-824:24
-  function 'take' @ std/System.pst:651:17
-use std/System.pst 824:25-824:29
-  function 'iter' @ std/System.pst:581:17
-  function 'iter' @ std/System.pst:591:17
-  function 'iter' @ std/System.pst:602:17
-  function 'iter' @ std/System.pst:614:17
-  function 'iter' @ std/System.pst:640:17
-use std/System.pst 824:30-824:32
-  let 'xs' @ std/System.pst:821:9
-use std/System.pst 825:12-825:19
-  function 'collect' @ std/System.pst:698:17
-use std/System.pst 825:20-825:24
-  function 'skip' @ std/System.pst:661:17
-use std/System.pst 825:25-825:29
-  function 'iter' @ std/System.pst:581:17
-  function 'iter' @ std/System.pst:591:17
-  function 'iter' @ std/System.pst:602:17
-  function 'iter' @ std/System.pst:614:17
-  function 'iter' @ std/System.pst:640:17
-use std/System.pst 825:30-825:32
-  let 'xs' @ std/System.pst:821:9
-use std/System.pst 826:12-826:17
-  function 'count' @ std/System.pst:705:17
-use std/System.pst 826:18-826:22
-  function 'iter' @ std/System.pst:581:17
-  function 'iter' @ std/System.pst:591:17
-  function 'iter' @ std/System.pst:602:17
-  function 'iter' @ std/System.pst:614:17
-  function 'iter' @ std/System.pst:640:17
-use std/System.pst 826:23-826:25
-  let 'xs' @ std/System.pst:821:9
-use std/System.pst 826:36-826:39
-  function 'sum' @ std/System.pst:712:17
-  function 'sum' @ std/System.pst:718:17
-use std/System.pst 826:40-826:44
-  function 'iter' @ std/System.pst:581:17
-  function 'iter' @ std/System.pst:591:17
-  function 'iter' @ std/System.pst:602:17
-  function 'iter' @ std/System.pst:614:17
-  function 'iter' @ std/System.pst:640:17
-use std/System.pst 826:45-826:47
-  let 'xs' @ std/System.pst:821:9
-use std/System.pst 827:12-827:15
-  function 'any' @ std/System.pst:725:17
-use std/System.pst 827:16-827:20
-  function 'iter' @ std/System.pst:581:17
-  function 'iter' @ std/System.pst:591:17
-  function 'iter' @ std/System.pst:602:17
-  function 'iter' @ std/System.pst:614:17
-  function 'iter' @ std/System.pst:640:17
-use std/System.pst 827:21-827:23
-  let 'xs' @ std/System.pst:821:9
-use std/System.pst 827:32-827:38
-  function 'isEven' @ std/System.pst:754:10
-use std/System.pst 827:48-827:51
-  function 'all' @ std/System.pst:732:17
-use std/System.pst 827:52-827:56
-  function 'iter' @ std/System.pst:581:17
-  function 'iter' @ std/System.pst:591:17
-  function 'iter' @ std/System.pst:602:17
-  function 'iter' @ std/System.pst:614:17
-  function 'iter' @ std/System.pst:640:17
-use std/System.pst 827:57-827:59
-  let 'xs' @ std/System.pst:821:9
-use std/System.pst 827:68-827:74
-  function 'isEven' @ std/System.pst:754:10
-use std/System.pst 828:12-828:16
-  function 'find' @ std/System.pst:395:10
-  function 'find' @ std/System.pst:739:17
-use std/System.pst 828:17-828:21
-  function 'iter' @ std/System.pst:581:17
-  function 'iter' @ std/System.pst:591:17
-  function 'iter' @ std/System.pst:602:17
-  function 'iter' @ std/System.pst:614:17
-  function 'iter' @ std/System.pst:640:17
-use std/System.pst 828:22-828:24
-  let 'xs' @ std/System.pst:821:9
-use std/System.pst 828:33-828:39
-  function 'isEven' @ std/System.pst:754:10
-use std/System.pst 828:43-828:47
+def std/System.pst 641:25-641:26
+  type parameter 'K' @ std/System.pst:641:25
+def std/System.pst 641:38-641:39
+  type parameter 'V' @ std/System.pst:641:38
+use std/System.pst 641:28-641:36
+  builtin trait 'Hashable' @ built into unit System
+use std/System.pst 641:48-641:49
+  type parameter 'K' @ std/System.pst:641:25
+use std/System.pst 641:51-641:52
+  type parameter 'V' @ std/System.pst:641:38
+use std/System.pst 641:44-641:47
+  type 'Map' @ std/System.pst:61:12
+def std/System.pst 641:41-641:42
+  parameter 'm' @ std/System.pst:641:41
+use std/System.pst 641:66-641:67
+  type parameter 'K' @ std/System.pst:641:25
+use std/System.pst 641:69-641:70
+  type parameter 'V' @ std/System.pst:641:38
+use std/System.pst 641:56-641:65
+  type 'EntryIter' @ std/System.pst:81:12
+use std/System.pst 642:12-642:21
+  type 'EntryIter' @ std/System.pst:81:12
+use std/System.pst 642:30-642:31
+  parameter 'm' @ std/System.pst:641:41
+def std/System.pst 644:22-644:23
+  type parameter 'K' @ std/System.pst:644:22
+def std/System.pst 644:35-644:36
+  type parameter 'V' @ std/System.pst:644:35
+use std/System.pst 644:25-644:33
+  builtin trait 'Hashable' @ built into unit System
+use std/System.pst 644:56-644:57
+  type parameter 'K' @ std/System.pst:644:22
+use std/System.pst 644:59-644:60
+  type parameter 'V' @ std/System.pst:644:35
+use std/System.pst 644:46-644:55
+  type 'EntryIter' @ std/System.pst:81:12
+def std/System.pst 644:42-644:44
+  parameter 'it' @ std/System.pst:644:42
+use std/System.pst 644:77-644:78
+  type parameter 'K' @ std/System.pst:644:22
+use std/System.pst 644:80-644:81
+  type parameter 'V' @ std/System.pst:644:35
+use std/System.pst 644:71-644:76
+  type 'Entry' @ std/System.pst:52:12
+use std/System.pst 644:64-644:70
+  type 'Option' @ std/System.pst:23:12
+use std/System.pst 645:11-645:13
+  parameter 'it' @ std/System.pst:644:42
+use std/System.pst 645:20-645:26
+  function 'length' @ std/System.pst:115:21
+  function 'length' @ std/System.pst:116:21
+  function 'length' @ std/System.pst:342:17
+  function 'length' @ std/System.pst:470:17
+use std/System.pst 645:27-645:29
+  parameter 'it' @ std/System.pst:644:42
+use std/System.pst 646:9-646:12
+  procedure 'inc' @ std/System.pst:119:22
+  procedure 'inc' @ std/System.pst:120:22
+use std/System.pst 646:17-646:19
+  parameter 'it' @ std/System.pst:644:42
+use std/System.pst 647:18-647:20
+  parameter 'it' @ std/System.pst:644:42
+def std/System.pst 647:13-647:14
+  let 'e' @ std/System.pst:647:13
+use std/System.pst 648:12-648:14
+  parameter 'it' @ std/System.pst:644:42
+use std/System.pst 648:29-648:30
+  let 'e' @ std/System.pst:647:13
+use std/System.pst 649:20-649:24
   type 'Some' @ std/System.pst:19:12
-def std/System.pst 829:9-829:10
-  var 'n' @ std/System.pst:829:9
-use std/System.pst 830:14-830:23
-  function 'enumerate' @ std/System.pst:685:17
-use std/System.pst 830:24-830:28
-  function 'iter' @ std/System.pst:581:17
-  function 'iter' @ std/System.pst:591:17
-  function 'iter' @ std/System.pst:602:17
-  function 'iter' @ std/System.pst:614:17
-  function 'iter' @ std/System.pst:640:17
-use std/System.pst 830:29-830:31
-  let 'xs' @ std/System.pst:821:9
-def std/System.pst 830:9-830:10
-  loop variable 'p' @ std/System.pst:830:9
-use std/System.pst 831:9-831:10
-  var 'n' @ std/System.pst:829:9
-use std/System.pst 831:14-831:15
-  var 'n' @ std/System.pst:829:9
-use std/System.pst 831:18-831:19
-  loop variable 'p' @ std/System.pst:830:9
-use std/System.pst 831:28-831:29
-  loop variable 'p' @ std/System.pst:830:9
-use std/System.pst 832:12-832:13
-  var 'n' @ std/System.pst:829:9
+use std/System.pst 649:25-649:30
+  type 'Entry' @ std/System.pst:52:12
+use std/System.pst 649:36-649:38
+  parameter 'it' @ std/System.pst:644:42
+use std/System.pst 649:51-649:52
+  let 'e' @ std/System.pst:647:13
+use std/System.pst 649:62-649:64
+  parameter 'it' @ std/System.pst:644:42
+use std/System.pst 649:79-649:80
+  let 'e' @ std/System.pst:647:13
+use std/System.pst 650:12-650:16
+  type 'None' @ std/System.pst:22:12
+use std/System.pst 653:26-653:32
+  builtin type 'String' @ built into unit System
+def std/System.pst 653:23-653:24
+  parameter 's' @ std/System.pst:653:23
+use std/System.pst 653:35-653:43
+  type 'CharIter' @ std/System.pst:93:12
+use std/System.pst 654:12-654:20
+  type 'CharIter' @ std/System.pst:93:12
+use std/System.pst 654:27-654:28
+  parameter 's' @ std/System.pst:653:23
+use std/System.pst 656:25-656:31
+  builtin type 'String' @ built into unit System
+def std/System.pst 656:22-656:23
+  parameter 's' @ std/System.pst:656:22
+use std/System.pst 656:34-656:42
+  type 'CharIter' @ std/System.pst:93:12
+use std/System.pst 657:12-657:17
+  function 'chars' @ std/System.pst:653:17
+use std/System.pst 657:18-657:19
+  parameter 's' @ std/System.pst:656:22
+use std/System.pst 659:30-659:38
+  type 'CharIter' @ std/System.pst:93:12
+def std/System.pst 659:26-659:28
+  parameter 'it' @ std/System.pst:659:26
+use std/System.pst 659:48-659:52
+  builtin type 'Char' @ built into unit System
+use std/System.pst 659:41-659:47
+  type 'Option' @ std/System.pst:23:12
+use std/System.pst 660:8-660:10
+  parameter 'it' @ std/System.pst:659:26
+use std/System.pst 660:18-660:25
+  function 'byteLen' @ std/System.pst:151:14
+use std/System.pst 660:26-660:28
+  parameter 'it' @ std/System.pst:659:26
+use std/System.pst 661:16-661:20
+  type 'None' @ std/System.pst:22:12
+use std/System.pst 662:14-662:26
+  function 'decodeUtf8At' @ std/System.pst:153:14
+use std/System.pst 662:27-662:29
+  parameter 'it' @ std/System.pst:659:26
+use std/System.pst 662:36-662:38
+  parameter 'it' @ std/System.pst:659:26
+def std/System.pst 662:9-662:10
+  let 'c' @ std/System.pst:662:9
+use std/System.pst 663:5-663:7
+  parameter 'it' @ std/System.pst:659:26
+use std/System.pst 663:15-663:17
+  parameter 'it' @ std/System.pst:659:26
+use std/System.pst 663:24-663:33
+  function 'utf8Width' @ std/System.pst:154:14
+use std/System.pst 663:34-663:35
+  let 'c' @ std/System.pst:662:9
+use std/System.pst 664:12-664:16
+  type 'Some' @ std/System.pst:19:12
+use std/System.pst 664:17-664:18
+  let 'c' @ std/System.pst:662:9
+def std/System.pst 667:22-667:23
+  type parameter 'T' @ std/System.pst:667:22
+def std/System.pst 667:25-667:26
+  type parameter 'I' @ std/System.pst:667:25
+use std/System.pst 667:37-667:38
+  type parameter 'T' @ std/System.pst:667:22
+use std/System.pst 667:28-667:36
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 667:45-667:46
+  type parameter 'I' @ std/System.pst:667:25
+def std/System.pst 667:41-667:43
+  parameter 'it' @ std/System.pst:667:41
+use std/System.pst 667:51-667:58
+  type 'Integer' @ std/System.pst:13:12
+def std/System.pst 667:48-667:49
+  parameter 'n' @ std/System.pst:667:48
+use std/System.pst 667:70-667:71
+  type parameter 'I' @ std/System.pst:667:25
+use std/System.pst 667:61-667:69
+  type 'TakeIter' @ std/System.pst:97:12
+use std/System.pst 668:12-668:20
+  type 'TakeIter' @ std/System.pst:97:12
+use std/System.pst 668:29-668:31
+  parameter 'it' @ std/System.pst:667:41
+use std/System.pst 668:39-668:40
+  parameter 'n' @ std/System.pst:667:48
+def std/System.pst 670:22-670:23
+  type parameter 'T' @ std/System.pst:670:22
+def std/System.pst 670:25-670:26
+  type parameter 'I' @ std/System.pst:670:25
+use std/System.pst 670:37-670:38
+  type parameter 'T' @ std/System.pst:670:22
+use std/System.pst 670:28-670:36
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 670:58-670:59
+  type parameter 'I' @ std/System.pst:670:25
+use std/System.pst 670:49-670:57
+  type 'TakeIter' @ std/System.pst:97:12
+def std/System.pst 670:45-670:47
+  parameter 'it' @ std/System.pst:670:45
+use std/System.pst 670:70-670:71
+  type parameter 'T' @ std/System.pst:670:22
+use std/System.pst 670:63-670:69
+  type 'Option' @ std/System.pst:23:12
+use std/System.pst 671:8-671:10
+  parameter 'it' @ std/System.pst:670:45
+use std/System.pst 672:16-672:20
+  type 'None' @ std/System.pst:22:12
+use std/System.pst 673:5-673:8
+  procedure 'dec' @ std/System.pst:122:22
+  procedure 'dec' @ std/System.pst:123:22
+use std/System.pst 673:13-673:15
+  parameter 'it' @ std/System.pst:670:45
+use std/System.pst 674:12-674:16
+  function 'next' @ std/System.pst:39:18
+use std/System.pst 674:21-674:23
+  parameter 'it' @ std/System.pst:670:45
+def std/System.pst 677:22-677:23
+  type parameter 'T' @ std/System.pst:677:22
+def std/System.pst 677:25-677:26
+  type parameter 'I' @ std/System.pst:677:25
+use std/System.pst 677:37-677:38
+  type parameter 'T' @ std/System.pst:677:22
+use std/System.pst 677:28-677:36
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 677:45-677:46
+  type parameter 'I' @ std/System.pst:677:25
+def std/System.pst 677:41-677:43
+  parameter 'it' @ std/System.pst:677:41
+use std/System.pst 677:51-677:58
+  type 'Integer' @ std/System.pst:13:12
+def std/System.pst 677:48-677:49
+  parameter 'n' @ std/System.pst:677:48
+use std/System.pst 677:70-677:71
+  type parameter 'I' @ std/System.pst:677:25
+use std/System.pst 677:61-677:69
+  type 'SkipIter' @ std/System.pst:101:12
+use std/System.pst 678:12-678:20
+  type 'SkipIter' @ std/System.pst:101:12
+use std/System.pst 678:29-678:31
+  parameter 'it' @ std/System.pst:677:41
+use std/System.pst 678:39-678:40
+  parameter 'n' @ std/System.pst:677:48
+def std/System.pst 680:22-680:23
+  type parameter 'T' @ std/System.pst:680:22
+def std/System.pst 680:25-680:26
+  type parameter 'I' @ std/System.pst:680:25
+use std/System.pst 680:37-680:38
+  type parameter 'T' @ std/System.pst:680:22
+use std/System.pst 680:28-680:36
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 680:58-680:59
+  type parameter 'I' @ std/System.pst:680:25
+use std/System.pst 680:49-680:57
+  type 'SkipIter' @ std/System.pst:101:12
+def std/System.pst 680:45-680:47
+  parameter 'it' @ std/System.pst:680:45
+use std/System.pst 680:70-680:71
+  type parameter 'T' @ std/System.pst:680:22
+use std/System.pst 680:63-680:69
+  type 'Option' @ std/System.pst:23:12
+use std/System.pst 681:11-681:13
+  parameter 'it' @ std/System.pst:680:45
+use std/System.pst 682:9-682:12
+  procedure 'dec' @ std/System.pst:122:22
+  procedure 'dec' @ std/System.pst:123:22
+use std/System.pst 682:17-682:19
+  parameter 'it' @ std/System.pst:680:45
+use std/System.pst 683:12-683:18
+  function 'isNone' @ std/System.pst:560:17
+use std/System.pst 683:19-683:23
+  function 'next' @ std/System.pst:39:18
+use std/System.pst 683:28-683:30
+  parameter 'it' @ std/System.pst:680:45
+use std/System.pst 684:20-684:24
+  type 'None' @ std/System.pst:22:12
+use std/System.pst 685:12-685:16
+  function 'next' @ std/System.pst:39:18
+use std/System.pst 685:21-685:23
+  parameter 'it' @ std/System.pst:680:45
+def std/System.pst 688:21-688:22
+  type parameter 'A' @ std/System.pst:688:21
+def std/System.pst 688:24-688:25
+  type parameter 'B' @ std/System.pst:688:24
+def std/System.pst 688:27-688:28
+  type parameter 'I' @ std/System.pst:688:27
+def std/System.pst 688:43-688:44
+  type parameter 'J' @ std/System.pst:688:43
+use std/System.pst 688:39-688:40
+  type parameter 'A' @ std/System.pst:688:21
+use std/System.pst 688:30-688:38
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 688:55-688:56
+  type parameter 'B' @ std/System.pst:688:24
+use std/System.pst 688:46-688:54
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 688:62-688:63
+  type parameter 'I' @ std/System.pst:688:27
+def std/System.pst 688:59-688:60
+  parameter 'a' @ std/System.pst:688:59
+use std/System.pst 688:68-688:69
+  type parameter 'J' @ std/System.pst:688:43
+def std/System.pst 688:65-688:66
+  parameter 'b' @ std/System.pst:688:65
+use std/System.pst 688:80-688:81
+  type parameter 'I' @ std/System.pst:688:27
+use std/System.pst 688:83-688:84
+  type parameter 'J' @ std/System.pst:688:43
+use std/System.pst 688:72-688:79
+  type 'ZipIter' @ std/System.pst:105:12
+use std/System.pst 689:12-689:19
+  type 'ZipIter' @ std/System.pst:105:12
+use std/System.pst 689:23-689:24
+  parameter 'a' @ std/System.pst:688:59
+use std/System.pst 689:29-689:30
+  parameter 'b' @ std/System.pst:688:65
+def std/System.pst 691:22-691:23
+  type parameter 'A' @ std/System.pst:691:22
+def std/System.pst 691:25-691:26
+  type parameter 'B' @ std/System.pst:691:25
+def std/System.pst 691:28-691:29
+  type parameter 'I' @ std/System.pst:691:28
+def std/System.pst 691:44-691:45
+  type parameter 'J' @ std/System.pst:691:44
+use std/System.pst 691:40-691:41
+  type parameter 'A' @ std/System.pst:691:22
+use std/System.pst 691:31-691:39
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 691:56-691:57
+  type parameter 'B' @ std/System.pst:691:25
+use std/System.pst 691:47-691:55
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 692:21-692:22
+  type parameter 'I' @ std/System.pst:691:28
+use std/System.pst 692:24-692:25
+  type parameter 'J' @ std/System.pst:691:44
+use std/System.pst 692:13-692:20
+  type 'ZipIter' @ std/System.pst:105:12
+def std/System.pst 692:9-692:11
+  parameter 'it' @ std/System.pst:692:9
+use std/System.pst 693:16-693:17
+  type parameter 'A' @ std/System.pst:691:22
+use std/System.pst 693:19-693:20
+  type parameter 'B' @ std/System.pst:691:25
+use std/System.pst 693:11-693:15
+  type 'Pair' @ std/System.pst:42:12
+use std/System.pst 693:4-693:10
+  type 'Option' @ std/System.pst:23:12
+use std/System.pst 694:14-694:18
+  function 'next' @ std/System.pst:39:18
+use std/System.pst 694:23-694:25
+  parameter 'it' @ std/System.pst:692:9
+def std/System.pst 694:9-694:10
+  let 'x' @ std/System.pst:694:9
+use std/System.pst 695:14-695:18
+  function 'next' @ std/System.pst:39:18
+use std/System.pst 695:23-695:25
+  parameter 'it' @ std/System.pst:692:9
+def std/System.pst 695:9-695:10
+  let 'y' @ std/System.pst:695:9
+use std/System.pst 696:8-696:14
+  function 'isNone' @ std/System.pst:560:17
+use std/System.pst 696:15-696:16
+  let 'x' @ std/System.pst:694:9
+use std/System.pst 696:21-696:27
+  function 'isNone' @ std/System.pst:560:17
+use std/System.pst 696:28-696:29
+  let 'y' @ std/System.pst:695:9
+use std/System.pst 697:16-697:20
+  type 'None' @ std/System.pst:22:12
+use std/System.pst 698:12-698:16
+  type 'Some' @ std/System.pst:19:12
+use std/System.pst 698:17-698:21
+  type 'Pair' @ std/System.pst:42:12
+use std/System.pst 698:29-698:32
+  function 'get' @ std/System.pst:346:17
+  function 'get' @ std/System.pst:548:17
+  function 'get' @ std/System.pst:572:17
+  function 'get' @ std/System.pst:578:17
+use std/System.pst 698:33-698:34
+  let 'x' @ std/System.pst:694:9
+use std/System.pst 698:45-698:48
+  function 'get' @ std/System.pst:346:17
+  function 'get' @ std/System.pst:548:17
+  function 'get' @ std/System.pst:572:17
+  function 'get' @ std/System.pst:578:17
+use std/System.pst 698:49-698:50
+  let 'y' @ std/System.pst:695:9
+def std/System.pst 701:27-701:28
+  type parameter 'T' @ std/System.pst:701:27
+def std/System.pst 701:30-701:31
+  type parameter 'I' @ std/System.pst:701:30
+use std/System.pst 701:42-701:43
+  type parameter 'T' @ std/System.pst:701:27
+use std/System.pst 701:33-701:41
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 701:50-701:51
+  type parameter 'I' @ std/System.pst:701:30
+def std/System.pst 701:46-701:48
+  parameter 'it' @ std/System.pst:701:46
+use std/System.pst 701:68-701:69
+  type parameter 'I' @ std/System.pst:701:30
+use std/System.pst 701:54-701:67
+  type 'EnumerateIter' @ std/System.pst:109:12
+use std/System.pst 702:12-702:25
+  type 'EnumerateIter' @ std/System.pst:109:12
+use std/System.pst 702:34-702:36
+  parameter 'it' @ std/System.pst:701:46
+def std/System.pst 704:22-704:23
+  type parameter 'T' @ std/System.pst:704:22
+def std/System.pst 704:25-704:26
+  type parameter 'I' @ std/System.pst:704:25
+use std/System.pst 704:37-704:38
+  type parameter 'T' @ std/System.pst:704:22
+use std/System.pst 704:28-704:36
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 704:63-704:64
+  type parameter 'I' @ std/System.pst:704:25
+use std/System.pst 704:49-704:62
+  type 'EnumerateIter' @ std/System.pst:109:12
+def std/System.pst 704:45-704:47
+  parameter 'it' @ std/System.pst:704:45
+use std/System.pst 704:83-704:84
+  type parameter 'T' @ std/System.pst:704:22
+use std/System.pst 704:75-704:82
+  type 'Indexed' @ std/System.pst:47:12
+use std/System.pst 704:68-704:74
+  type 'Option' @ std/System.pst:23:12
+use std/System.pst 705:10-705:14
+  function 'next' @ std/System.pst:39:18
+use std/System.pst 705:19-705:21
+  parameter 'it' @ std/System.pst:704:45
+use std/System.pst 706:9-706:13
+  type 'Some' @ std/System.pst:19:12
+def std/System.pst 706:14-706:15
+  case binding 's' @ std/System.pst:706:14
+use std/System.pst 707:13-707:16
+  procedure 'inc' @ std/System.pst:119:22
+  procedure 'inc' @ std/System.pst:120:22
+use std/System.pst 707:21-707:23
+  parameter 'it' @ std/System.pst:704:45
+use std/System.pst 708:20-708:24
+  type 'Some' @ std/System.pst:19:12
+use std/System.pst 708:25-708:32
+  type 'Indexed' @ std/System.pst:47:12
+use std/System.pst 708:40-708:42
+  parameter 'it' @ std/System.pst:704:45
+use std/System.pst 708:61-708:62
+  case binding 's' @ std/System.pst:706:14
+use std/System.pst 709:22-709:26
+  type 'None' @ std/System.pst:22:12
+def std/System.pst 714:25-714:26
+  type parameter 'T' @ std/System.pst:714:25
+def std/System.pst 714:28-714:29
+  type parameter 'I' @ std/System.pst:714:28
+use std/System.pst 714:40-714:41
+  type parameter 'T' @ std/System.pst:714:25
+use std/System.pst 714:31-714:39
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 714:48-714:49
+  type parameter 'I' @ std/System.pst:714:28
+def std/System.pst 714:44-714:46
+  parameter 'it' @ std/System.pst:714:44
+use std/System.pst 714:57-714:58
+  type parameter 'T' @ std/System.pst:714:25
+use std/System.pst 714:52-714:56
+  builtin type 'List' @ built into unit System
+use std/System.pst 715:19-715:20
+  type parameter 'T' @ std/System.pst:714:25
+use std/System.pst 715:14-715:18
+  builtin type 'List' @ built into unit System
+def std/System.pst 715:9-715:12
+  var 'out' @ std/System.pst:715:9
+use std/System.pst 716:14-716:16
+  parameter 'it' @ std/System.pst:714:44
+def std/System.pst 716:9-716:10
+  loop variable 'x' @ std/System.pst:716:9
+use std/System.pst 717:9-717:12
+  procedure 'add' @ std/System.pst:176:18
+  procedure 'add' @ std/System.pst:477:18
+use std/System.pst 717:17-717:20
+  var 'out' @ std/System.pst:715:9
+use std/System.pst 717:22-717:23
+  loop variable 'x' @ std/System.pst:716:9
+use std/System.pst 718:12-718:15
+  var 'out' @ std/System.pst:715:9
+def std/System.pst 721:23-721:24
+  type parameter 'T' @ std/System.pst:721:23
+def std/System.pst 721:26-721:27
+  type parameter 'I' @ std/System.pst:721:26
+use std/System.pst 721:38-721:39
+  type parameter 'T' @ std/System.pst:721:23
+use std/System.pst 721:29-721:37
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 721:46-721:47
+  type parameter 'I' @ std/System.pst:721:26
+def std/System.pst 721:42-721:44
+  parameter 'it' @ std/System.pst:721:42
+use std/System.pst 721:50-721:57
+  type 'Integer' @ std/System.pst:13:12
+def std/System.pst 722:9-722:10
+  var 'n' @ std/System.pst:722:9
+use std/System.pst 723:14-723:16
+  parameter 'it' @ std/System.pst:721:42
+use std/System.pst 724:9-724:12
+  procedure 'inc' @ std/System.pst:119:22
+  procedure 'inc' @ std/System.pst:120:22
+use std/System.pst 724:17-724:18
+  var 'n' @ std/System.pst:722:9
+use std/System.pst 725:12-725:13
+  var 'n' @ std/System.pst:722:9
+def std/System.pst 728:21-728:22
+  type parameter 'I' @ std/System.pst:728:21
+use std/System.pst 728:33-728:40
+  type 'Integer' @ std/System.pst:13:12
+use std/System.pst 728:24-728:32
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 728:47-728:48
+  type parameter 'I' @ std/System.pst:728:21
+def std/System.pst 728:43-728:45
+  parameter 'it' @ std/System.pst:728:43
+use std/System.pst 728:51-728:58
+  type 'Integer' @ std/System.pst:13:12
+def std/System.pst 729:9-729:14
+  var 'total' @ std/System.pst:729:9
+use std/System.pst 730:14-730:16
+  parameter 'it' @ std/System.pst:728:43
+def std/System.pst 730:9-730:10
+  loop variable 'x' @ std/System.pst:730:9
+use std/System.pst 731:9-731:14
+  var 'total' @ std/System.pst:729:9
+use std/System.pst 731:18-731:23
+  var 'total' @ std/System.pst:729:9
+use std/System.pst 731:26-731:27
+  loop variable 'x' @ std/System.pst:730:9
+use std/System.pst 732:12-732:17
+  var 'total' @ std/System.pst:729:9
+def std/System.pst 734:21-734:22
+  type parameter 'I' @ std/System.pst:734:21
+use std/System.pst 734:33-734:37
+  type 'Real' @ std/System.pst:15:12
+use std/System.pst 734:24-734:32
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 734:44-734:45
+  type parameter 'I' @ std/System.pst:734:21
+def std/System.pst 734:40-734:42
+  parameter 'it' @ std/System.pst:734:40
+use std/System.pst 734:48-734:52
+  type 'Real' @ std/System.pst:15:12
+def std/System.pst 735:9-735:14
+  var 'total' @ std/System.pst:735:9
+use std/System.pst 736:14-736:16
+  parameter 'it' @ std/System.pst:734:40
+def std/System.pst 736:9-736:10
+  loop variable 'x' @ std/System.pst:736:9
+use std/System.pst 737:9-737:14
+  var 'total' @ std/System.pst:735:9
+use std/System.pst 737:18-737:23
+  var 'total' @ std/System.pst:735:9
+use std/System.pst 737:26-737:27
+  loop variable 'x' @ std/System.pst:736:9
+use std/System.pst 738:12-738:17
+  var 'total' @ std/System.pst:735:9
+def std/System.pst 741:21-741:22
+  type parameter 'T' @ std/System.pst:741:21
+def std/System.pst 741:24-741:25
+  type parameter 'I' @ std/System.pst:741:24
+use std/System.pst 741:36-741:37
+  type parameter 'T' @ std/System.pst:741:21
+use std/System.pst 741:27-741:35
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 741:44-741:45
+  type parameter 'I' @ std/System.pst:741:24
+def std/System.pst 741:40-741:42
+  parameter 'it' @ std/System.pst:741:40
+use std/System.pst 741:62-741:63
+  type parameter 'T' @ std/System.pst:741:21
+use std/System.pst 741:66-741:73
+  builtin type 'Boolean' @ built into unit System
+def std/System.pst 741:47-741:51
+  parameter 'pred' @ std/System.pst:741:47
+use std/System.pst 741:76-741:83
+  builtin type 'Boolean' @ built into unit System
+use std/System.pst 742:14-742:16
+  parameter 'it' @ std/System.pst:741:40
+def std/System.pst 742:9-742:10
+  loop variable 'x' @ std/System.pst:742:9
+use std/System.pst 743:12-743:16
+  parameter 'pred' @ std/System.pst:741:47
+use std/System.pst 743:17-743:18
+  loop variable 'x' @ std/System.pst:742:9
+def std/System.pst 748:21-748:22
+  type parameter 'T' @ std/System.pst:748:21
+def std/System.pst 748:24-748:25
+  type parameter 'I' @ std/System.pst:748:24
+use std/System.pst 748:36-748:37
+  type parameter 'T' @ std/System.pst:748:21
+use std/System.pst 748:27-748:35
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 748:44-748:45
+  type parameter 'I' @ std/System.pst:748:24
+def std/System.pst 748:40-748:42
+  parameter 'it' @ std/System.pst:748:40
+use std/System.pst 748:62-748:63
+  type parameter 'T' @ std/System.pst:748:21
+use std/System.pst 748:66-748:73
+  builtin type 'Boolean' @ built into unit System
+def std/System.pst 748:47-748:51
+  parameter 'pred' @ std/System.pst:748:47
+use std/System.pst 748:76-748:83
+  builtin type 'Boolean' @ built into unit System
+use std/System.pst 749:14-749:16
+  parameter 'it' @ std/System.pst:748:40
+def std/System.pst 749:9-749:10
+  loop variable 'x' @ std/System.pst:749:9
+use std/System.pst 750:16-750:20
+  parameter 'pred' @ std/System.pst:748:47
+use std/System.pst 750:21-750:22
+  loop variable 'x' @ std/System.pst:749:9
+def std/System.pst 755:22-755:23
+  type parameter 'T' @ std/System.pst:755:22
+def std/System.pst 755:25-755:26
+  type parameter 'I' @ std/System.pst:755:25
+use std/System.pst 755:37-755:38
+  type parameter 'T' @ std/System.pst:755:22
+use std/System.pst 755:28-755:36
+  trait 'Iterator' @ std/System.pst:38:12
+use std/System.pst 755:45-755:46
+  type parameter 'I' @ std/System.pst:755:25
+def std/System.pst 755:41-755:43
+  parameter 'it' @ std/System.pst:755:41
+use std/System.pst 755:63-755:64
+  type parameter 'T' @ std/System.pst:755:22
+use std/System.pst 755:67-755:74
+  builtin type 'Boolean' @ built into unit System
+def std/System.pst 755:48-755:52
+  parameter 'pred' @ std/System.pst:755:48
+use std/System.pst 755:84-755:85
+  type parameter 'T' @ std/System.pst:755:22
+use std/System.pst 755:77-755:83
+  type 'Option' @ std/System.pst:23:12
+use std/System.pst 756:14-756:16
+  parameter 'it' @ std/System.pst:755:41
+def std/System.pst 756:9-756:10
+  loop variable 'x' @ std/System.pst:756:9
+use std/System.pst 757:12-757:16
+  parameter 'pred' @ std/System.pst:755:48
+use std/System.pst 757:17-757:18
+  loop variable 'x' @ std/System.pst:756:9
+use std/System.pst 758:20-758:24
+  type 'Some' @ std/System.pst:19:12
+use std/System.pst 758:25-758:26
+  loop variable 'x' @ std/System.pst:756:9
+use std/System.pst 759:12-759:16
+  type 'None' @ std/System.pst:22:12
+use std/System.pst 761:27-761:34
+  type 'Integer' @ std/System.pst:13:12
+def std/System.pst 761:21-761:22
+  parameter 'a' @ std/System.pst:761:21
+def std/System.pst 761:24-761:25
+  parameter 'b' @ std/System.pst:761:24
+use std/System.pst 761:37-761:44
+  builtin type 'Boolean' @ built into unit System
+use std/System.pst 762:12-762:13
+  parameter 'a' @ std/System.pst:761:21
+use std/System.pst 762:23-762:24
+  parameter 'b' @ std/System.pst:761:24
+use std/System.pst 764:21-764:28
+  type 'Integer' @ std/System.pst:13:12
+def std/System.pst 764:18-764:19
+  parameter 'x' @ std/System.pst:764:18
+use std/System.pst 764:31-764:38
+  type 'Integer' @ std/System.pst:13:12
+use std/System.pst 765:13-765:14
+  parameter 'x' @ std/System.pst:764:18
+use std/System.pst 767:18-767:25
+  type 'Integer' @ std/System.pst:13:12
+def std/System.pst 767:15-767:16
+  parameter 'x' @ std/System.pst:767:15
+use std/System.pst 767:28-767:35
+  type 'Integer' @ std/System.pst:13:12
+use std/System.pst 768:12-768:13
+  parameter 'x' @ std/System.pst:767:15
+use std/System.pst 770:20-770:27
+  type 'Integer' @ std/System.pst:13:12
+def std/System.pst 770:17-770:18
+  parameter 'x' @ std/System.pst:770:17
+use std/System.pst 770:30-770:37
+  builtin type 'Boolean' @ built into unit System
+use std/System.pst 771:12-771:13
+  parameter 'x' @ std/System.pst:770:17
+def std/System.pst 774:9-774:11
+  var 'xs' @ std/System.pst:774:9
+use std/System.pst 775:5-775:8
+  procedure 'add' @ std/System.pst:176:18
+  procedure 'add' @ std/System.pst:477:18
+use std/System.pst 775:13-775:15
+  var 'xs' @ std/System.pst:774:9
+use std/System.pst 776:5-776:11
+  procedure 'remove' @ std/System.pst:182:18
+  procedure 'remove' @ std/System.pst:373:18
+  procedure 'remove' @ std/System.pst:481:18
+use std/System.pst 776:16-776:18
+  var 'xs' @ std/System.pst:774:9
+use std/System.pst 777:12-777:14
+  var 'xs' @ std/System.pst:774:9
+use std/System.pst 778:5-778:11
+  procedure 'insert' @ std/System.pst:197:18
+use std/System.pst 778:16-778:18
+  var 'xs' @ std/System.pst:774:9
+use std/System.pst 779:5-779:11
+  procedure 'insert' @ std/System.pst:197:18
+use std/System.pst 779:16-779:18
+  var 'xs' @ std/System.pst:774:9
+use std/System.pst 780:12-780:14
+  var 'xs' @ std/System.pst:774:9
+use std/System.pst 781:5-781:15
+  procedure 'removeLast' @ std/System.pst:190:18
+use std/System.pst 781:20-781:22
+  var 'xs' @ std/System.pst:774:9
+use std/System.pst 782:12-782:14
+  var 'xs' @ std/System.pst:774:9
+use std/System.pst 783:12-783:18
+  function 'concat' @ std/System.pst:302:17
+use std/System.pst 783:19-783:21
+  var 'xs' @ std/System.pst:774:9
+use std/System.pst 784:17-784:19
+  var 'xs' @ std/System.pst:774:9
+use std/System.pst 784:34-784:36
+  var 'xs' @ std/System.pst:774:9
+def std/System.pst 787:9-787:11
+  var 'xs' @ std/System.pst:787:9
+use std/System.pst 788:5-788:9
+  procedure 'sort' @ std/System.pst:208:18
+  procedure 'sort' @ std/System.pst:235:18
+  procedure 'sort' @ std/System.pst:263:18
+use std/System.pst 788:14-788:16
+  var 'xs' @ std/System.pst:787:9
+use std/System.pst 789:12-789:14
+  var 'xs' @ std/System.pst:787:9
+def std/System.pst 790:9-790:11
+  var 'ys' @ std/System.pst:790:9
+use std/System.pst 791:5-791:9
+  procedure 'sort' @ std/System.pst:208:18
+  procedure 'sort' @ std/System.pst:235:18
+  procedure 'sort' @ std/System.pst:263:18
+use std/System.pst 791:14-791:16
+  var 'ys' @ std/System.pst:790:9
+use std/System.pst 791:24-791:34
+  function 'lessByTens' @ std/System.pst:761:10
+use std/System.pst 792:12-792:14
+  var 'ys' @ std/System.pst:790:9
+def std/System.pst 793:9-793:11
+  var 'zs' @ std/System.pst:793:9
+use std/System.pst 794:5-794:9
+  procedure 'sort' @ std/System.pst:208:18
+  procedure 'sort' @ std/System.pst:235:18
+  procedure 'sort' @ std/System.pst:263:18
+use std/System.pst 794:14-794:16
+  var 'zs' @ std/System.pst:793:9
+use std/System.pst 794:23-794:27
+  function 'tens' @ std/System.pst:767:10
+use std/System.pst 795:12-795:14
+  var 'zs' @ std/System.pst:793:9
+use std/System.pst 796:5-796:9
+  procedure 'sort' @ std/System.pst:208:18
+  procedure 'sort' @ std/System.pst:235:18
+  procedure 'sort' @ std/System.pst:263:18
+use std/System.pst 796:14-796:16
+  var 'zs' @ std/System.pst:793:9
+use std/System.pst 796:23-796:30
+  function 'negated' @ std/System.pst:764:10
+use std/System.pst 797:12-797:14
+  var 'zs' @ std/System.pst:793:9
+use std/System.pst 798:21-798:28
+  type 'Integer' @ std/System.pst:13:12
+use std/System.pst 798:16-798:20
+  builtin type 'List' @ built into unit System
+def std/System.pst 798:9-798:14
+  var 'empty' @ std/System.pst:798:9
+use std/System.pst 799:5-799:9
+  procedure 'sort' @ std/System.pst:208:18
+  procedure 'sort' @ std/System.pst:235:18
+  procedure 'sort' @ std/System.pst:263:18
+use std/System.pst 799:14-799:19
+  var 'empty' @ std/System.pst:798:9
+use std/System.pst 800:5-800:9
+  procedure 'sort' @ std/System.pst:208:18
+  procedure 'sort' @ std/System.pst:235:18
+  procedure 'sort' @ std/System.pst:263:18
+use std/System.pst 800:14-800:19
+  var 'empty' @ std/System.pst:798:9
+use std/System.pst 800:26-800:30
+  function 'tens' @ std/System.pst:767:10
+use std/System.pst 801:12-801:18
+  function 'length' @ std/System.pst:115:21
+  function 'length' @ std/System.pst:116:21
+  function 'length' @ std/System.pst:342:17
+  function 'length' @ std/System.pst:470:17
+use std/System.pst 801:19-801:24
+  var 'empty' @ std/System.pst:798:9
+use std/System.pst 804:16-804:22
+  builtin type 'String' @ built into unit System
+use std/System.pst 804:24-804:31
+  type 'Integer' @ std/System.pst:13:12
+use std/System.pst 804:12-804:15
+  type 'Map' @ std/System.pst:61:12
+def std/System.pst 804:9-804:10
+  var 'm' @ std/System.pst:804:9
+use std/System.pst 805:5-805:6
+  var 'm' @ std/System.pst:804:9
+use std/System.pst 806:5-806:6
+  var 'm' @ std/System.pst:804:9
+use std/System.pst 807:12-807:18
+  function 'length' @ std/System.pst:115:21
+  function 'length' @ std/System.pst:116:21
+  function 'length' @ std/System.pst:342:17
+  function 'length' @ std/System.pst:470:17
+use std/System.pst 807:19-807:20
+  var 'm' @ std/System.pst:804:9
+use std/System.pst 808:12-808:15
+  function 'get' @ std/System.pst:346:17
+  function 'get' @ std/System.pst:548:17
+  function 'get' @ std/System.pst:572:17
+  function 'get' @ std/System.pst:578:17
+use std/System.pst 808:16-808:17
+  var 'm' @ std/System.pst:804:9
+use std/System.pst 808:26-808:30
+  type 'Some' @ std/System.pst:19:12
+use std/System.pst 809:12-809:15
+  function 'get' @ std/System.pst:346:17
+  function 'get' @ std/System.pst:548:17
+  function 'get' @ std/System.pst:572:17
+  function 'get' @ std/System.pst:578:17
+use std/System.pst 809:16-809:17
+  var 'm' @ std/System.pst:804:9
+use std/System.pst 810:12-810:17
+  function 'getOr' @ std/System.pst:353:17
+  function 'getOr' @ std/System.pst:584:17
+  function 'getOr' @ std/System.pst:590:17
+use std/System.pst 810:18-810:19
+  var 'm' @ std/System.pst:804:9
+use std/System.pst 811:5-811:11
+  procedure 'remove' @ std/System.pst:182:18
+  procedure 'remove' @ std/System.pst:373:18
+  procedure 'remove' @ std/System.pst:481:18
+use std/System.pst 811:16-811:17
+  var 'm' @ std/System.pst:804:9
+use std/System.pst 812:5-812:11
+  procedure 'remove' @ std/System.pst:182:18
+  procedure 'remove' @ std/System.pst:373:18
+  procedure 'remove' @ std/System.pst:481:18
+use std/System.pst 812:16-812:17
+  var 'm' @ std/System.pst:804:9
+use std/System.pst 813:12-813:18
+  function 'length' @ std/System.pst:115:21
+  function 'length' @ std/System.pst:116:21
+  function 'length' @ std/System.pst:342:17
+  function 'length' @ std/System.pst:470:17
+use std/System.pst 813:19-813:20
+  var 'm' @ std/System.pst:804:9
+use std/System.pst 813:42-813:43
+  var 'm' @ std/System.pst:804:9
+use std/System.pst 816:16-816:20
+  type 'Byte' @ std/System.pst:16:12
+use std/System.pst 816:12-816:15
+  type 'Set' @ std/System.pst:70:12
+def std/System.pst 816:9-816:10
+  var 's' @ std/System.pst:816:9
+use std/System.pst 817:5-817:8
+  procedure 'add' @ std/System.pst:176:18
+  procedure 'add' @ std/System.pst:477:18
+use std/System.pst 817:13-817:14
+  var 's' @ std/System.pst:816:9
+use std/System.pst 818:5-818:8
+  procedure 'add' @ std/System.pst:176:18
+  procedure 'add' @ std/System.pst:477:18
+use std/System.pst 818:13-818:14
+  var 's' @ std/System.pst:816:9
+use std/System.pst 819:5-819:11
+  procedure 'remove' @ std/System.pst:182:18
+  procedure 'remove' @ std/System.pst:373:18
+  procedure 'remove' @ std/System.pst:481:18
+use std/System.pst 819:16-819:17
+  var 's' @ std/System.pst:816:9
+use std/System.pst 820:12-820:18
+  function 'length' @ std/System.pst:115:21
+  function 'length' @ std/System.pst:116:21
+  function 'length' @ std/System.pst:342:17
+  function 'length' @ std/System.pst:470:17
+use std/System.pst 820:19-820:20
+  var 's' @ std/System.pst:816:9
+use std/System.pst 820:35-820:36
+  var 's' @ std/System.pst:816:9
+use std/System.pst 820:51-820:52
+  var 's' @ std/System.pst:816:9
+use std/System.pst 821:16-821:20
+  type 'Byte' @ std/System.pst:16:12
+use std/System.pst 821:12-821:15
+  type 'Set' @ std/System.pst:70:12
+def std/System.pst 821:9-821:10
+  let 't' @ std/System.pst:821:9
+use std/System.pst 822:12-822:17
+  function 'union' @ std/System.pst:486:17
+use std/System.pst 822:18-822:19
+  var 's' @ std/System.pst:816:9
+use std/System.pst 822:24-822:25
+  let 't' @ std/System.pst:821:9
+use std/System.pst 823:12-823:24
+  function 'intersection' @ std/System.pst:493:17
+use std/System.pst 823:25-823:26
+  var 's' @ std/System.pst:816:9
+use std/System.pst 823:31-823:32
+  let 't' @ std/System.pst:821:9
+use std/System.pst 824:12-824:22
+  function 'difference' @ std/System.pst:500:17
+use std/System.pst 824:23-824:24
+  var 's' @ std/System.pst:816:9
+use std/System.pst 824:29-824:30
+  let 't' @ std/System.pst:821:9
+use std/System.pst 827:22-827:29
+  type 'Integer' @ std/System.pst:13:12
+use std/System.pst 827:15-827:21
+  type 'Option' @ std/System.pst:23:12
+use std/System.pst 827:34-827:38
+  type 'Some' @ std/System.pst:19:12
+def std/System.pst 827:9-827:13
+  let 'some' @ std/System.pst:827:9
+use std/System.pst 828:22-828:29
+  type 'Integer' @ std/System.pst:13:12
+use std/System.pst 828:15-828:21
+  type 'Option' @ std/System.pst:23:12
+use std/System.pst 828:34-828:38
+  type 'None' @ std/System.pst:22:12
+def std/System.pst 828:9-828:13
+  let 'none' @ std/System.pst:828:9
+use std/System.pst 829:12-829:16
+  let 'some' @ std/System.pst:827:9
+use std/System.pst 829:30-829:34
+  let 'none' @ std/System.pst:828:9
+use std/System.pst 830:12-830:16
+  let 'some' @ std/System.pst:827:9
+use std/System.pst 830:31-830:35
+  let 'none' @ std/System.pst:828:9
+use std/System.pst 831:20-831:27
+  type 'Integer' @ std/System.pst:13:12
+use std/System.pst 831:29-831:35
+  builtin type 'String' @ built into unit System
+use std/System.pst 831:13-831:19
+  type 'Result' @ std/System.pst:31:12
+use std/System.pst 831:40-831:42
+  type 'Ok' @ std/System.pst:26:12
+def std/System.pst 831:9-831:11
+  let 'ok' @ std/System.pst:831:9
+use std/System.pst 832:21-832:28
+  type 'Integer' @ std/System.pst:13:12
+use std/System.pst 832:30-832:36
+  builtin type 'String' @ built into unit System
+use std/System.pst 832:14-832:20
+  type 'Result' @ std/System.pst:31:12
+use std/System.pst 832:41-832:44
+  type 'Err' @ std/System.pst:29:12
+def std/System.pst 832:9-832:12
+  let 'err' @ std/System.pst:832:9
+use std/System.pst 833:12-833:14
+  let 'ok' @ std/System.pst:831:9
+use std/System.pst 833:26-833:29
+  let 'err' @ std/System.pst:832:9
+use std/System.pst 834:12-834:14
+  let 'ok' @ std/System.pst:831:9
+use std/System.pst 834:29-834:32
+  let 'err' @ std/System.pst:832:9
+def std/System.pst 837:9-837:11
+  let 'xs' @ std/System.pst:837:9
+use std/System.pst 838:22-838:24
+  let 'xs' @ std/System.pst:837:9
+def std/System.pst 838:17-838:18
+  loop variable 'x' @ std/System.pst:838:17
+use std/System.pst 838:28-838:29
+  loop variable 'x' @ std/System.pst:838:17
+use std/System.pst 839:22-839:24
+  let 'xs' @ std/System.pst:837:9
+def std/System.pst 839:17-839:18
+  loop variable 'x' @ std/System.pst:839:17
+use std/System.pst 839:31-839:37
+  function 'isEven' @ std/System.pst:770:10
+use std/System.pst 839:38-839:39
+  loop variable 'x' @ std/System.pst:839:17
+use std/System.pst 839:46-839:47
+  loop variable 'x' @ std/System.pst:839:17
+use std/System.pst 840:12-840:19
+  function 'collect' @ std/System.pst:714:17
+use std/System.pst 840:20-840:24
+  function 'take' @ std/System.pst:667:17
+use std/System.pst 840:25-840:29
+  function 'iter' @ std/System.pst:597:17
+  function 'iter' @ std/System.pst:607:17
+  function 'iter' @ std/System.pst:618:17
+  function 'iter' @ std/System.pst:630:17
+  function 'iter' @ std/System.pst:656:17
+use std/System.pst 840:30-840:32
+  let 'xs' @ std/System.pst:837:9
+use std/System.pst 841:12-841:19
+  function 'collect' @ std/System.pst:714:17
+use std/System.pst 841:20-841:24
+  function 'skip' @ std/System.pst:677:17
+use std/System.pst 841:25-841:29
+  function 'iter' @ std/System.pst:597:17
+  function 'iter' @ std/System.pst:607:17
+  function 'iter' @ std/System.pst:618:17
+  function 'iter' @ std/System.pst:630:17
+  function 'iter' @ std/System.pst:656:17
+use std/System.pst 841:30-841:32
+  let 'xs' @ std/System.pst:837:9
+use std/System.pst 842:12-842:17
+  function 'count' @ std/System.pst:721:17
+use std/System.pst 842:18-842:22
+  function 'iter' @ std/System.pst:597:17
+  function 'iter' @ std/System.pst:607:17
+  function 'iter' @ std/System.pst:618:17
+  function 'iter' @ std/System.pst:630:17
+  function 'iter' @ std/System.pst:656:17
+use std/System.pst 842:23-842:25
+  let 'xs' @ std/System.pst:837:9
+use std/System.pst 842:36-842:39
+  function 'sum' @ std/System.pst:728:17
+  function 'sum' @ std/System.pst:734:17
+use std/System.pst 842:40-842:44
+  function 'iter' @ std/System.pst:597:17
+  function 'iter' @ std/System.pst:607:17
+  function 'iter' @ std/System.pst:618:17
+  function 'iter' @ std/System.pst:630:17
+  function 'iter' @ std/System.pst:656:17
+use std/System.pst 842:45-842:47
+  let 'xs' @ std/System.pst:837:9
+use std/System.pst 843:12-843:15
+  function 'any' @ std/System.pst:741:17
+use std/System.pst 843:16-843:20
+  function 'iter' @ std/System.pst:597:17
+  function 'iter' @ std/System.pst:607:17
+  function 'iter' @ std/System.pst:618:17
+  function 'iter' @ std/System.pst:630:17
+  function 'iter' @ std/System.pst:656:17
+use std/System.pst 843:21-843:23
+  let 'xs' @ std/System.pst:837:9
+use std/System.pst 843:32-843:38
+  function 'isEven' @ std/System.pst:770:10
+use std/System.pst 843:48-843:51
+  function 'all' @ std/System.pst:748:17
+use std/System.pst 843:52-843:56
+  function 'iter' @ std/System.pst:597:17
+  function 'iter' @ std/System.pst:607:17
+  function 'iter' @ std/System.pst:618:17
+  function 'iter' @ std/System.pst:630:17
+  function 'iter' @ std/System.pst:656:17
+use std/System.pst 843:57-843:59
+  let 'xs' @ std/System.pst:837:9
+use std/System.pst 843:68-843:74
+  function 'isEven' @ std/System.pst:770:10
+use std/System.pst 844:12-844:16
+  function 'find' @ std/System.pst:395:10
+  function 'find' @ std/System.pst:755:17
+use std/System.pst 844:17-844:21
+  function 'iter' @ std/System.pst:597:17
+  function 'iter' @ std/System.pst:607:17
+  function 'iter' @ std/System.pst:618:17
+  function 'iter' @ std/System.pst:630:17
+  function 'iter' @ std/System.pst:656:17
+use std/System.pst 844:22-844:24
+  let 'xs' @ std/System.pst:837:9
+use std/System.pst 844:33-844:39
+  function 'isEven' @ std/System.pst:770:10
+use std/System.pst 844:43-844:47
+  type 'Some' @ std/System.pst:19:12
+def std/System.pst 845:9-845:10
+  var 'n' @ std/System.pst:845:9
+use std/System.pst 846:14-846:23
+  function 'enumerate' @ std/System.pst:701:17
+use std/System.pst 846:24-846:28
+  function 'iter' @ std/System.pst:597:17
+  function 'iter' @ std/System.pst:607:17
+  function 'iter' @ std/System.pst:618:17
+  function 'iter' @ std/System.pst:630:17
+  function 'iter' @ std/System.pst:656:17
+use std/System.pst 846:29-846:31
+  let 'xs' @ std/System.pst:837:9
+def std/System.pst 846:9-846:10
+  loop variable 'p' @ std/System.pst:846:9
+use std/System.pst 847:9-847:10
+  var 'n' @ std/System.pst:845:9
+use std/System.pst 847:14-847:15
+  var 'n' @ std/System.pst:845:9
+use std/System.pst 847:18-847:19
+  loop variable 'p' @ std/System.pst:846:9
+use std/System.pst 847:28-847:29
+  loop variable 'p' @ std/System.pst:846:9
+use std/System.pst 848:12-848:13
+  var 'n' @ std/System.pst:845:9
 --- stderr

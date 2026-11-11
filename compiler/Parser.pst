@@ -2198,13 +2198,29 @@ function brackets(p: ref State): Parsed[Expr]
         let entries := try mapEntries(p, first, close: TokenKind.Rbracket)
         try expect(p, TokenKind.Rbracket, what: "']' to close the map")
         return Ok(MapLit(span: finish(p, start), id: newId(p), entries: entries))
-    add(var items, first)
+    add(var items, try rangeItem(p, first))
     while accept(p, TokenKind.Comma) do
         if at(p, TokenKind.Rbracket) then
             break
-        add(var items, try expr(p))
+        add(var items, try rangeItem(p, try expr(p)))
     try expect(p, TokenKind.Rbracket, what: "']' to close the list")
     return Ok(ListLit(span: finish(p, start), id: newId(p), items: items))
+
+## `low` or, followed by `..`, the range `low..high`: a set literal's item, a `Binary`
+## with op `..`.
+function rangeItem(p: ref State, low: Expr): Parsed[Expr]
+    if not at(p, TokenKind.Dotdot) then
+        return Ok(low)
+    let op := advance(p)
+    let high := try expr(p)
+    return Ok(Binary(
+        span: join(exprSpan(low), b: exprSpan(high)),
+        id: newId(p),
+        op: op.text,
+        left: low,
+        right: high,
+        opSpan: op.span,
+    ))
 
 ## The entries of a map literal, after its first key and ':'; stops before `close`.
 function mapEntries(p: ref State, first: Expr, close: TokenKind): Parsed[List[MapEntry]]

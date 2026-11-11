@@ -2917,8 +2917,20 @@ function listLit(tc: ref TC, x: ListLit, expected: Type): Type
                     pass
         return expected
     if isSet(tc.env, expected) then
+        let elem := argsOf(expected)[0]
         for item in x.items do
-            _ := check(tc, item, argsOf(expected)[0])
+            case item of
+                Binary(r):
+                    if r.op = ".." then
+                        bareMember(tc, r.left, elem)
+                        bareMember(tc, r.right, elem)
+                        _ := check(tc, r.left, elem)
+                        _ := check(tc, r.right, elem)
+                        continue
+                else:
+                    pass
+            bareMember(tc, item, elem)
+            _ := check(tc, item, elem)
         return expected
     if length(x.items) = 0 then
         fail(
@@ -2932,6 +2944,26 @@ function listLit(tc: ref TC, x: ListLit, expected: Type): Type
     for i := 1 to length(x.items) - 1 do
         _ := check(tc, x.items[i], first)
     return builtin("List", [first])
+
+## `Red` in a literal of a `Set[Color]`: a bare name that Resolve didn't find, and
+## a member of the enum `elem`, is that member, and its unknown-name error goes.
+procedure bareMember(tc: ref TC, e: Expr, elem: Type)
+    case e of
+        Name(n):
+            if refAt(tc, n.span).isSome() or kindOf(tc.env, elem) <> "enum" then
+                return
+            case get(namedSym(elem).get().members, n.name) of
+                Some(m):
+                    add(tc.env.index, tc.file, n.span, [m.value])
+                    var kept: List[Diagnostic] := []
+                    for d in tc.c.diagnostics do
+                        if not (d.code = "E0100" and d.file = tc.file and d.span = n.span) then
+                            add(var kept, d)
+                    tc.c.diagnostics := kept
+                None:
+                    pass
+        else:
+            pass
 
 function mapLit(tc: ref TC, x: MapLit, expected: Type): Type
     if isMap(tc.env, expected) then
@@ -3324,7 +3356,7 @@ function tryExpr(tc: ref TC, u: Unary): Type
     return args[0]
 
 function operands(tc: ref TC, b: Binary, hint: Type): List[Type]
-    if isLiteral(b.left) and not isLiteral(b.right) then
+    if (isLiteral(b.left) or isListLit(b.left)) and not (isLiteral(b.right) or isListLit(b.right)) then
         let rt := value(tc, b.right, hint)
         let lt := value(tc, b.left, rt)
         return [lt, rt]
@@ -3346,12 +3378,19 @@ function binary(tc: ref TC, b: Binary, expected: Type): Type
         return errorT()
     if op = "in" then
         return inOp(tc, b)
+    if op = ".." then
+        _ := value(tc, b.left, noType())
+        _ := value(tc, b.right, noType())
+        fail(tc, b.opSpan, "E0305", "a range 'a..b' works only in a set literal")
+        return errorT()
     var hint := noType()
     if isArith(op) then
         hint := expected
     let ts := operands(tc, b, hint)
     let lt := ts[0]
     let rt := ts[1]
+    if isSet(tc.env, lt) and (isArith(op) or op = "<" or op = "<=" or op = ">" or op = ">=") then
+        return setOp(tc, b, lt, rt)
     if isArith(op) then
         return arith(tc, b, lt, rt)
     if hasError(lt) or hasError(rt) then
@@ -3372,6 +3411,49 @@ function binary(tc: ref TC, b: Binary, expected: Type): Type
             else:
                 fail(tc, b.opSpan, "E0305", "'{op}' doesn't work on {show(t)}: it isn't {wanted}")
     return booleanT()
+
+## Whether `e` is a `[...]` literal with a range `a..b` in it: a set.
+function hasRange(e: Expr): Boolean
+    case e of
+        ListLit(l):
+            for item in l.items do
+                case item of
+                    Binary(r):
+                        if r.op = ".." then
+                            return true
+                    else:
+                        pass
+        else:
+            pass
+    return false
+
+## Whether `e` is a `[...]` literal: typed after the other operand, which gives it its type.
+function isListLit(e: Expr): Boolean
+    case e of
+        ListLit(_):
+            return true
+        else:
+            return false
+
+## `+`, `-` and `*` on two sets: union, difference and intersection; `<=` and `>=`: subset
+## and superset.
+function setOp(tc: ref TC, b: Binary, lt, rt: Type): Type
+    let op := b.op
+    let cmp := op = "<=" or op = ">="
+    if hasError(rt) then
+        return if cmp then booleanT() else errorT()
+    if not (op = "+" or op = "-" or op = "*" or cmp) then
+        fail(
+            tc,
+            b.opSpan,
+            "E0305",
+            "'{op}' doesn't work on sets; use '+', '-' and '*' for union, difference and intersection, '<=' and '>=' for subset and superset",
+        )
+        return errorT()
+    if not assignable(tc, lt, rt) then
+        fail(tc, b.opSpan, "E0305", "'{op}' can't combine {show(lt)} and {show(rt)}")
+        return errorT()
+    return if cmp then booleanT() else lt
 
 function isComparisonExpr(e: Expr): Boolean
     case e of
@@ -3436,6 +3518,13 @@ function arith(tc: ref TC, b: Binary, lt, rt: Type): Type
     return lb
 
 function inOp(tc: ref TC, b: Binary): Type
+    if hasRange(b.right) then  # `c in ['a'..'z']`: a set of the left's type
+        let lt := value(tc, b.left, noType())
+        if hasError(lt) then
+            return booleanT()
+        checkElement(tc.env, tc.file, exprSpan(b.right), lt)
+        _ := check(tc, b.right, named(sys(tc.env, "Set").get(), [lt]))
+        return booleanT()
     let rt := value(tc, b.right, noType())
     if isBuiltin(rt, "List") or isMap(tc.env, rt) or isSet(tc.env, rt) then
         _ := check(tc, b.left, argsOf(rt)[0])
@@ -3836,14 +3925,14 @@ function construct(
     let foreign := target.unitName <> tc.home.name
     if foreign and (isSys(tc.env, target, "Map") or isSys(tc.env, target, "Set")) then
         _ := prepare(tc, e.args)
-        var lit := "\{a, b}"
+        var lit := "'[a, b]', or '[]'"
         if target.name = "Map" then
-            lit := "\{k: v}"
+            lit := "'[k: v]', or '[:]'"
         fail(
             tc,
             exprSpan(e.callee),
             "E0306",
-            "'{target.name}' values are written as literals: '{lit}', or '\{}' where the type is known",
+            "'{target.name}' values are written as literals: {lit} where the type is known",
         )
         return errorT()
     if foreign and length(private) > 0 then
