@@ -65,8 +65,8 @@ type
         slots: List[Integer]
         count: Integer  { entries not removed }
 
-    { A set (SPEC §4.5), written `[a, b]`, in insertion order: the keys of a map whose
-      values are all `true`. }
+    { A set (SPEC §4.5), written `[a, b]`: the keys of a map whose values are all `true`.
+      Its order is unspecified; for now it is insertion order. }
     export Set[T: Hashable] = record
         items: Map[T, Boolean]
 
@@ -486,14 +486,14 @@ export procedure add[T: Hashable](var s: Set[T], x: T)
 export procedure remove[T: Hashable](var s: Set[T], x: T)
     remove(var s.items, x)
 
-{ `a + b`: the elements in `a`, in `b`, or in both; those of `a` first. }
+{ `a + b`: the elements in `a`, in `b`, or in both. }
 function union[T: Hashable](a, b: Set[T]): Set[T]
     var s := a
     for x in b do
         add(var s, x)
     return s
 
-{ `a * b`: the elements in both `a` and `b`, in the order of `a`. }
+{ `a * b`: the elements in both `a` and `b`. }
 function intersection[T: Hashable](a, b: Set[T]): Set[T]
     var s := emptySet[T]()
     for x in a do
@@ -501,7 +501,7 @@ function intersection[T: Hashable](a, b: Set[T]): Set[T]
             add(var s, x)
     return s
 
-{ `a - b`: the elements in `a` but not in `b`, in the order of `a`. }
+{ `a - b`: the elements in `a` but not in `b`. }
 function difference[T: Hashable](a, b: Set[T]): Set[T]
     var s := emptySet[T]()
     for x in a do
@@ -520,7 +520,7 @@ function subset[T: Hashable](a, b: Set[T]): Boolean
 function superset[T: Hashable](a, b: Set[T]): Boolean
     return subset(b, a)
 
-{ The elements as `[a, b]`, in insertion order, each by its `toString`. }
+{ The elements as `[a, b]`, in iteration order, each by its `toString`. }
 export function toString[T: Hashable + Printable](s: Set[T]): String
     var out := "["
     for x in s do
@@ -703,7 +703,7 @@ export function next[T, N: Integer](var it: ArrayIter[T, N]): Option[T]
     inc(var it.pos)
     return Some(x)
 
-{ The elements of a set, in insertion order. }
+{ The elements of a set, in an unspecified order. }
 export function iter[T: Hashable](s: Set[T]): SetIter[T]
     return SetIter(keys: iter(s.items))
 
@@ -907,6 +907,35 @@ test "maps"
     remove(var m, "a")
     remove(var m, "a")
     assert length(m) = 1 and not ("a" in m)
+
+test "sets"
+    var s: Set[String] := ["b", "a"]
+    add(var s, "c")
+    add(var s, "c")
+    remove(var s, "x")
+    assert length(s) = 3 and "c" in s and not ("x" in s)
+    remove(var s, "b")
+    let t: Set[String] := ["c", "d"]
+    assert s + t = ["d", "c", "a"]
+    assert s * t = ["c"]
+    assert s - t = ["a"]
+    assert ["c"] <= s and s >= ["c"] and not (s <= t)
+    let empty: Set[Integer] := []
+    assert length(empty) = 0 and toString(empty) = "[]"
+
+test "bit sets"
+    var s: BitSet[Byte] := [1, 2]
+    add(var s, 3)
+    add(var s, 3)
+    remove(var s, 1)
+    assert length(s) = 2 and 3 in s and not (1 in s)
+    let t: BitSet[Byte] := [3, 4]
+    assert s + t = [2, 3, 4]
+    assert s * t = [3]
+    assert s - t = [2]
+    assert [3] <= s and s >= [3] and not (s <= t)
+    let u: BitSet[Byte] := [4, 0]
+    assert toString(u) = "[0, 4]"
 
 test "options and results"
     let some: Option[Integer] := Some(1)

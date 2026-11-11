@@ -30,8 +30,10 @@ ok   std/Strings.pst:462: glob patterns
 ok   std/System.pst:869: list editing
 ok   std/System.pst:882: sort is stable
 ok   std/System.pst:899: maps
-ok   std/System.pst:911: options and results
-ok   std/System.pst:924: iterators
+ok   std/System.pst:911: sets
+ok   std/System.pst:926: bit sets
+ok   std/System.pst:940: options and results
+ok   std/System.pst:953: iterators
 ok   std/Time.pst:1486: durations
 ok   std/Time.pst:1496: dates
 ok   std/Time.pst:1515: times
@@ -42,7 +44,7 @@ ok   std/Time.pst:1582: tzdata zones
 ok   std/Time.pst:1608: zoned date-times
 ok   std/Time.pst:1636: periods
 ok   std/Time.pst:1661: intervals
-41 passed, 0 failed
+43 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/compiler
 exit 0

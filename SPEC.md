@@ -372,7 +372,7 @@ type
 | `Array[T, N]` | fixed length `N` (compile-time constant), inline value, C-compatible |
 | `List[T]` | growable, 0-based |
 | `Map[K, V]` | hash map in insertion order; `K` must satisfy `Hashable` |
-| `Set[T]` | hash set in insertion order; `T` must satisfy `Hashable` |
+| `Set[T]` | hash set; `T` must satisfy `Hashable` |
 | `BitSet[T]` | `T` must be an ordinal type with at most 256 values (`E0700`); stored as a bitset |
 
 All indexing is 0-based and bounds-checked in checked builds (panic `P0001`).
@@ -431,9 +431,8 @@ the literals, `x in s` and the operators is Pasthon in System.
   set type. `<`, `>`, `/`, `div` and `mod` on sets are `E0305`.
 - `add(var s, x)` (no-op if present), `remove(var s, x)` (no-op if absent), `length(s)`,
   `x in s`. All are O(1) on average; the operators are O(n).
-- Iterating gives the elements in insertion order; the operators keep the order of `a`,
-  and `a + b` puts the new elements of `b` after it. `Set(...)` can't be written outside
-  System (`E0306`).
+- The order of iteration is unspecified (insertion order, for now). `Set(...)` can't be
+  written outside System (`E0306`).
 
 A `BitSet` is the Pascal set: a record in System holding 256 bits, one per possible
 element: Boolean, Byte, Int8, an enum, or a subrange with at most 256 values
@@ -555,7 +554,7 @@ satisfied built-in by primitives (except C types), enums, and subranges, and str
 (a visible `toString`) by everything else.
 System declares `toString` for `List`, `Map`, `Set` and `BitSet` with Printable items, so
 they print as `[1, 2]`, `[a: 1, b: 2]` (insertion order; `[:]` when empty), `[b, a]`
-(insertion order) and `[Red, Blue]` (`ord` order); items show by their own `toString`, so strings appear without quotes. It
+(unspecified order) and `[Red, Blue]` (`ord` order); items show by their own `toString`, so strings appear without quotes. It
 declares one for `Option` and `Result` with Printable contents too: `Some(1)`, `None`,
 `Ok(12)`, `Err(no digits)`.
 A `Real` prints with the fewest significant digits that read back as the same value,
