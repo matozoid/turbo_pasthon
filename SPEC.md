@@ -1105,6 +1105,9 @@ function largest[T: Ordered](xs: List[T]): Option[T]
   U+10FFFF or a surrogate, in `--unchecked` builds too.
 - Integer overflow panics in checked builds (`P0002`) and wraps in `--unchecked` builds.
 - `=` is structural for records, unions, lists, maps, sets, and strings, and identity for `ref`.
+  Structural `=` recurses into what the values hold, so comparing values nested about
+  100 000 deep (a chain of union values, each holding the next) runs out of stack (`P0013`).
+  Freeing such a value doesn't (§11).
 
 ### 9.2 try
 `try e`:
