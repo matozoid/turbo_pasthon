@@ -22,14 +22,15 @@ unsafe procedure main()
     let age := between(date(1990, 2, 28), b: launch)
     writeln("from 1990-02-28: {age} ({years(age)} years)")
 
-    { One instant, three zones. }
+    { One instant, three zones, each with its own local date and time. }
     let amsterdam := zone("Europe/Amsterdam").get()
     let newYork := zone("America/New_York").get()
     let sydney := zone("Australia/Sydney").get()
     let call := atZone(parseDateTime("2026-11-10T16:00").get(), z: amsterdam)
     for z in [amsterdam, newYork, sydney] do
         let there := inZone(toInstant(call), z: z)
-        writeln("  {toLocalDateTime(there)} {abbreviationAt(z, i: toInstant(call))} in {z}")
+        let local := "{toLocalDateTime(there)} {abbreviationAt(z, i: toInstant(call))}"
+        writeln("  {local} in {z}: {weekday(there)} at {hour(there)}h")
 
     { Summer time: a calendar day is not always 24 hours. }
     let saturday := atZone(parseDateTime("2026-03-28T12:00").get(), z: amsterdam)
