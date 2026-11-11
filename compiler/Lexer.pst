@@ -79,17 +79,8 @@ export function lex(text: String, file: String := "<input>"): LexResult
 
 { -------------------------------------------------------------------- characters }
 
-function isDigit(c: Char): Boolean
-    return c >= '0' and c <= '9'
-
-function isLetter(c: Char): Boolean
-    return (c >= 'a' and c <= 'z') or (c >= 'A' and c <= 'Z')
-
 function isWordChar(c: Char): Boolean
-    return isLetter(c) or isDigit(c) or c = '_'
-
-function isHexDigit(c: Char): Boolean
-    return isDigit(c) or (c >= 'a' and c <= 'f') or (c >= 'A' and c <= 'F')
+    return isLetterOrDigit(c) or c = '_'
 
 function hexValue(c: Char): Integer
     if isDigit(c) then
@@ -337,12 +328,9 @@ function startsStatement(lx: State, i: Integer): Boolean
     var j := i + 1
     while j < lx.n and (isWordChar(at(lx, j)) or at(lx, j) = '.') do
         j := j + 1
-    while j < lx.n and isSpace(at(lx, j)) do
+    while j < lx.n and isWhiteSpace(at(lx, j)) do
         j := j + 1
     return hasAt(lx, ":=", j) and not hasAt(lx, ":==", j)
-
-function isSpace(c: Char): Boolean
-    return c = ' ' or c = '\t' or c = '\n' or c = '\r' or ord(c) = 11 or ord(c) = 12
 
 { Whether the next non-blank, non-comment line (from `pos`) clearly starts a new
   statement rather than continuing the bracketed expression. }

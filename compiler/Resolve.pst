@@ -98,12 +98,6 @@ export function usedUnits(u: ref Unit): List[ref Unit]
             None: pass
     return out
 
-function isUpper(c: Char): Boolean
-    return c >= 'A' and c <= 'Z'
-
-function isAsciiLetter(c: Char): Boolean
-    return isUpper(c) or (c >= 'a' and c <= 'z')
-
 function isAsciiDigit(c: Char): Boolean
     return c >= '0' and c <= '9'
 
@@ -320,9 +314,9 @@ export function sortedDiagnostics(ds: List[Diagnostic], mainFile: String): List[
 function isPlainName(stem: String): Boolean
     var first := true
     for ch in stem do
-        if first and not isAsciiLetter(ch) then
+        if first and not isLetter(ch) then
             return false
-        if not (isAsciiLetter(ch) or isAsciiDigit(ch) or ch = '_') then
+        if not (isLetter(ch) or isAsciiDigit(ch) or ch = '_') then
             return false
         first := false
     return not first
@@ -1511,7 +1505,7 @@ procedure checkCasing(r: ref Resolver)
         if sym.kind = Kind.ResultSym or sym.name = "this" then
             continue
         let first := firstChar(sym.name)
-        if first.isNone() or not isAsciiLetter(first.get()) then
+        if first.isNone() or not isLetter(first.get()) then
             continue
         let c := first.get()
         let rest := slice(sym.name, 1, byteLen(sym.name))

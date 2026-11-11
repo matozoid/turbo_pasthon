@@ -214,6 +214,47 @@ export function upperCase(s: String): String
 export function lowerCase(s: String): String
     return shiftLetters(s, lo: 65, shift: 32)
 
+{ Whether `c` is one of the digits `0` to `9`. }
+export function isDigit(c: Char): Boolean
+    return c >= '0' and c <= '9'
+
+{ Whether `c` is a hexadecimal digit: `0` to `9`, `a` to `f` or `A` to `F`. }
+export function isHexDigit(c: Char): Boolean
+    return isDigit(c) or (c >= 'a' and c <= 'f') or (c >= 'A' and c <= 'F')
+
+{ Whether `c` is one of the ASCII letters `A` to `Z`. }
+export function isUpper(c: Char): Boolean
+    return c >= 'A' and c <= 'Z'
+
+{ Whether `c` is one of the ASCII letters `a` to `z`. }
+export function isLower(c: Char): Boolean
+    return c >= 'a' and c <= 'z'
+
+{ Whether `c` is an ASCII letter. }
+export function isLetter(c: Char): Boolean
+    return isUpper(c) or isLower(c)
+
+{ Whether `c` is an ASCII letter or digit. }
+export function isLetterOrDigit(c: Char): Boolean
+    return isLetter(c) or isDigit(c)
+
+{ Whether `c` is white space: a space, tab, line feed, vertical tab, form feed or
+  carriage return. }
+export function isWhiteSpace(c: Char): Boolean
+    return c = ' ' or (ord(c) >= 9 and ord(c) <= 13)
+
+{ `c` made upper case if it is one of the ASCII letters `a` to `z`, else `c`. }
+export function upperCase(c: Char): Char
+    if isLower(c) then
+        return Char(ord(c) - 32)
+    return c
+
+{ `c` made lower case if it is one of the ASCII letters `A` to `Z`, else `c`. }
+export function lowerCase(c: Char): Char
+    if isUpper(c) then
+        return Char(ord(c) + 32)
+    return c
+
 { The lines of `s`: the parts between line breaks (`\n` or `\r\n`). A break at the very end
   doesn't start another line, so `"a\nb\n"` has two lines and `""` none. }
 export function lines(s: String): List[String]
@@ -402,6 +443,15 @@ test "case and lines"
     assert upperCase("Héllo, w0rld") = "HéLLO, W0RLD" and lowerCase("ÀBC-d") = "Àbc-d"
     assert lines("a\nb\r\nc") = ["a", "b", "c"] and lines("a\n\n") = ["a", ""]
     assert lines("") = [] and lines("\n") = [""]
+
+test "characters"
+    assert isDigit('7') and not isDigit('a') and isHexDigit('f') and isHexDigit('C')
+    assert not isHexDigit('g')
+    assert isUpper('Q') and not isUpper('q') and isLower('q') and not isLower('é')
+    assert isLetter('x') and not isLetter('_') and isLetterOrDigit('3')
+    assert isWhiteSpace('\t') and isWhiteSpace(' ') and not isWhiteSpace('x')
+    assert upperCase('a') = 'A' and upperCase('é') = 'é' and lowerCase('Z') = 'z'
+    assert lowerCase('1') = '1'
 
 test "number formatting"
     assert hexStr(255) = "FF" and hexStr(0) = "0" and hexStr(10, digits: 4) = "000A"

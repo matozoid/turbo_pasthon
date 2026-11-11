@@ -2,10 +2,10 @@ $ $PST test $ROOT/std
 exit 0
 --- stdout
 ok   std/Bits.pst:9: bit counting
-ok   std/Json.pst:376: parse and write back
-ok   std/Json.pst:384: errors
-ok   std/Json.pst:393: reading parts
-ok   std/Json.pst:403: quote escapes control characters
+ok   std/Json.pst:373: parse and write back
+ok   std/Json.pst:381: errors
+ok   std/Json.pst:390: reading parts
+ok   std/Json.pst:400: quote escapes control characters
 ok   std/Math.pst:37: integer helpers
 ok   std/Math.pst:42: real functions
 ok   std/OS.pst:298: directories
@@ -14,34 +14,35 @@ ok   std/OS.pst:323: environment
 ok   std/Paths.pst:163: names
 ok   std/Paths.pst:174: joining and normalizing
 ok   std/Paths.pst:183: relative paths
-ok   std/Strings.pst:343: pos gives byte offsets
-ok   std/Strings.pst:349: startsWith and endsWith
-ok   std/Strings.pst:356: split and join are inverses
-ok   std/Strings.pst:364: trim and replace
-ok   std/Strings.pst:370: parseInt
-ok   std/Strings.pst:380: parseReal
-ok   std/Strings.pst:388: bytes and fromBytes
-ok   std/Strings.pst:398: repeating
-ok   std/Strings.pst:401: case and lines
-ok   std/Strings.pst:406: number formatting
-ok   std/Strings.pst:412: glob patterns
+ok   std/Strings.pst:384: pos gives byte offsets
+ok   std/Strings.pst:390: startsWith and endsWith
+ok   std/Strings.pst:397: split and join are inverses
+ok   std/Strings.pst:405: trim and replace
+ok   std/Strings.pst:411: parseInt
+ok   std/Strings.pst:421: parseReal
+ok   std/Strings.pst:429: bytes and fromBytes
+ok   std/Strings.pst:439: repeating
+ok   std/Strings.pst:442: case and lines
+ok   std/Strings.pst:447: characters
+ok   std/Strings.pst:456: number formatting
+ok   std/Strings.pst:462: glob patterns
 ok   std/System.pst:773: list editing
 ok   std/System.pst:786: sort is stable
 ok   std/System.pst:803: maps
 ok   std/System.pst:815: sets
 ok   std/System.pst:827: options and results
 ok   std/System.pst:837: iterators
-ok   std/Time.pst:1489: durations
-ok   std/Time.pst:1499: dates
-ok   std/Time.pst:1518: times
-ok   std/Time.pst:1529: instants
-ok   std/Time.pst:1542: parsing
-ok   std/Time.pst:1568: POSIX TZ rules
-ok   std/Time.pst:1585: tzdata zones
-ok   std/Time.pst:1611: zoned date-times
-ok   std/Time.pst:1639: periods
-ok   std/Time.pst:1664: intervals
-40 passed, 0 failed
+ok   std/Time.pst:1486: durations
+ok   std/Time.pst:1496: dates
+ok   std/Time.pst:1515: times
+ok   std/Time.pst:1526: instants
+ok   std/Time.pst:1539: parsing
+ok   std/Time.pst:1565: POSIX TZ rules
+ok   std/Time.pst:1582: tzdata zones
+ok   std/Time.pst:1608: zoned date-times
+ok   std/Time.pst:1636: periods
+ok   std/Time.pst:1661: intervals
+41 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/compiler
 exit 0

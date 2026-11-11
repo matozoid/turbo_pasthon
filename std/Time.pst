@@ -574,9 +574,6 @@ function failure(r: Reader, what: String): String
         return "{what} at the end of the text"
     return "{what} at offset {r.pos}"
 
-function isDigit(c: Char): Boolean
-    return c >= '0' and c <= '9'
-
 { Reads `c`. }
 function expect(var r: Reader, c: Char): Result[Integer, String]
     if peek(r) <> c then
