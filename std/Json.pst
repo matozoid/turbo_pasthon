@@ -35,6 +35,13 @@ type
     Reader = record
         cs: List[Char]
         pos: Integer
+        { Arrays and objects open around the position. }
+        depth: Integer
+
+const
+    { How deeply arrays and objects may nest: parsing, writing and comparing a value
+      recurse once per level. }
+    MaxDepth = 512
 
 { ----------------------------------------------------------------------- reading }
 
@@ -328,10 +335,13 @@ function object(var r: Reader): Result[JValue, String]
 function value(var r: Reader): Result[JValue, String]
     skipSpace(var r)
     let c := peek(r)
-    if c = '\{' then
-        return object(var r)
-    if c = '[' then
-        return array(var r)
+    if c = '\{' or c = '[' then
+        if r.depth = MaxDepth then
+            return Err(failure(r, "arrays and objects nested more than {MaxDepth} deep"))
+        r.depth := r.depth + 1
+        let j := try (if c = '[' then array(var r) else object(var r))
+        r.depth := r.depth - 1
+        return Ok(j)
     if c = '"' then
         return Ok(JString(value: try text(var r)))
     if c = 't' then
@@ -347,13 +357,14 @@ function value(var r: Reader): Result[JValue, String]
         return number(var r)
     return Err(failure(r, "expected a value"))
 
-{ The value in `s`, which must hold one JSON value and nothing else but white space. The
-  error says what was wrong and at which character offset. }
+{ The value in `s`, which must hold one JSON value and nothing else but white space, with
+  arrays and objects nested at most `MaxDepth` deep. The error says what was wrong and
+  at which character offset. }
 export function parse(s: String): Result[JValue, String]
     var cs: List[Char] := []
     for c in s do
         add(var cs, c)
-    var r := Reader(cs: cs, pos: 0)
+    var r := Reader(cs: cs, pos: 0, depth: 0)
     let j := try value(var r)
     skipSpace(var r)
     if not atEnd(r) then
@@ -396,6 +407,12 @@ test "reading parts"
     assert isNull(field(j, key: "missing"))
     assert asInteger(field(j, key: "name")).isNone()
     assert asInteger(JNumber(text: "1.5")).isNone()
+
+test "nesting is limited"
+    let deep := "{repeated("[", count: 512)}{repeated("]", count: 512)}"
+    assert roundTrip(deep) = deep
+    let deeper := "{repeated("[", count: 513)}{repeated("]", count: 513)}"
+    assert roundTrip(deeper) = "error: arrays and objects nested more than 512 deep at offset 512"
 
 test "quote escapes control characters"
     assert quote("a\u{1}b\n") = "\"a\\u0001b\\n\""

@@ -2,10 +2,11 @@ $ $PST test $ROOT/std
 exit 0
 --- stdout
 ok   std/Bits.pst:9: bit counting
-ok   std/Json.pst:373: parse and write back
-ok   std/Json.pst:381: errors
-ok   std/Json.pst:390: reading parts
-ok   std/Json.pst:400: quote escapes control characters
+ok   std/Json.pst:384: parse and write back
+ok   std/Json.pst:392: errors
+ok   std/Json.pst:401: reading parts
+ok   std/Json.pst:411: nesting is limited
+ok   std/Json.pst:417: quote escapes control characters
 ok   std/Math.pst:37: integer helpers
 ok   std/Math.pst:42: real functions
 ok   std/OS.pst:298: directories
@@ -42,7 +43,7 @@ ok   std/Time.pst:1582: tzdata zones
 ok   std/Time.pst:1608: zoned date-times
 ok   std/Time.pst:1636: periods
 ok   std/Time.pst:1661: intervals
-41 passed, 0 failed
+42 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/compiler
 exit 0
