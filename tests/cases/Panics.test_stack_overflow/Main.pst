@@ -1,0 +1,9 @@
+program Main
+
+uses IO
+
+function depth(n: Integer): Integer
+    return if n = 0 then 0 else 1 + depth(n - 1)
+
+writeln("shallow {depth(1000)}")
+writeln("deep {depth(100_000_000)}")

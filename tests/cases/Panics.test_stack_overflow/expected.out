@@ -1,0 +1,20 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ ./main
+exit 70
+--- stdout
+shallow 1000
+--- stderr
+panic P0013: stack overflow
+$ $PST build --unchecked Main.pst -o fast
+exit 0
+--- stdout
+--- stderr
+$ ./fast
+exit 70
+--- stdout
+shallow 1000
+--- stderr
+panic P0013: stack overflow

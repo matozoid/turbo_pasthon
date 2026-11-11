@@ -42,6 +42,9 @@ uses Strings, Source, Diagnostics, Ast, Symbols, Resolve, Types, Typecheck, Posi
 
 const
     PanicStatus = 70
+    { The size of the stack the stack overflow handler runs on, and how close to the
+      stack pointer a fault must be to count as running out of stack. }
+    GuardSize = 65536
     { Nesting of generic instances (SPEC §8, E0720). }
     MaxDepth = 64
     { Heap block layout: the header, then a string's parts or a record's fields. }
@@ -1122,6 +1125,7 @@ function run(g: ref Em): Built
     label(a, "_start")
     storeGlobal(a, "args", src: Rsp)  { argc, then argv: SPEC §14 `OS.args` }
     mov(a, Rbp, Rsp)
+    callRuntime(g, "rt_guard")
     let sizeAt := subImm32Fixed(a, Rsp)
     a.tracked := true
     a.stack := []
@@ -4852,6 +4856,7 @@ procedure runtimeRoutine(g: ref Em, name: String)
         "rt_enum_name": rtEnumName(g)
         "rt_alloc": rtAlloc(g)
         "rt_oom": rtOom(g)
+        "rt_guard": rtGuard(g)
         "rt_leak": rtLeak(g)
         "rt_str_new": rtStrNew(g)
         "rt_str_from": rtStrFrom(g)
@@ -5715,6 +5720,53 @@ procedure rtOom(g: ref Em)
     leaData(a, Rsi, label: data(a, message))
     movImm(a, Rdx, value: length(message))
     jmp(a, runtime(g, "rt_panic"))
+
+{ Makes running out of stack a panic (P0013) rather than a bare segmentation fault: a
+  SIGSEGV handler, on a stack of its own, checks whether the faulting address is near
+  the stack pointer. Any other fault returns, and as the handler is then reset, faults
+  again the usual way. }
+procedure rtGuard(g: ref Em)
+    let a := g.a
+    let handler := newLabel(a, "guard")
+    let other := newLabel(a, "guard")
+    movImm(a, Rdi, value: GuardSize)
+    ccall(g, "malloc")
+    storeGlobal(a, "guardStack", src: Rax)  { kept, so it isn't a leak }
+    subImm(a, Rsp, value: 152 + 8)
+    store(a, Rsp, disp: 0, src: Rax)  { stack_t: ss_sp, ss_flags, ss_size }
+    storeImm(a, Rsp, disp: 8, value: 0)
+    movImm(a, Rcx, value: GuardSize)
+    store(a, Rsp, disp: 16, src: Rcx)
+    mov(a, Rdi, Rsp)
+    xor32(a, Rsi, Rsi)
+    ccall(g, "sigaltstack")
+    for k := 0 to 18 do  { struct sigaction: handler, mask, flags, restorer }
+        storeImm(a, Rsp, disp: 8 * k, value: 0)
+    leaCode(a, Rax, label: handler)
+    store(a, Rsp, disp: 0, src: Rax)
+    storeImm(a, Rsp, disp: 136, value: $88000004)  { SA_RESETHAND, SA_ONSTACK, SA_SIGINFO }
+    movImm(a, Rdi, value: 11)  { SIGSEGV }
+    mov(a, Rsi, Rsp)
+    xor32(a, Rdx, Rdx)
+    ccall(g, "sigaction")
+    addImm(a, Rsp, value: 152 + 8)
+    ret(a)
+    { The handler: rsi is the siginfo_t, with the faulting address at 16; rdx the
+      ucontext_t, with the stack pointer at 160. }
+    label(a, handler)
+    load(a, Rax, Rsi, disp: 16)
+    load(a, Rcx, Rdx, disp: 160)
+    sub(a, Rax, Rcx)
+    addImm(a, Rax, value: GuardSize)
+    movImm(a, Rcx, value: 2 * GuardSize)
+    cmp(a, Rax, Rcx)
+    jcc(a, "ae", label: other)
+    let message := utf8("panic P0013: stack overflow\n")
+    leaData(a, Rsi, label: data(a, message))
+    movImm(a, Rdx, value: length(message))
+    jmp(a, runtime(g, "rt_panic"))
+    label(a, other)
+    ret(a)
 
 { rax := a new string block of rdi bytes, refcount 1, NUL-terminated. The bytes and the
   char count are the caller's to fill in. }

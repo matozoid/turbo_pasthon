@@ -1,0 +1,4 @@
+$PST build Main.pst -o main
+./main
+$PST build --unchecked Main.pst -o fast
+./fast

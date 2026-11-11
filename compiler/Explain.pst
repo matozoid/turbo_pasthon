@@ -159,6 +159,12 @@ export function explanations(): List[Explanation]
             meaning: "function value passed to C captures variables (§10.3)",
         ),
         Explanation(
+            code: "P0013",
+            section: "12",
+            title: "Errors and panics",
+            meaning: "stack overflow (too deep recursion); no place is shown",
+        ),
+        Explanation(
             code: "P0020",
             section: "12",
             title: "Errors and panics",

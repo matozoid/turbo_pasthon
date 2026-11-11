@@ -1403,6 +1403,7 @@ v0.1 is single-threaded, but the design is fixed now so v0.1 doesn't rule it out
 | `P0010` | `requires` violated |
 | `P0011` | `ensures` violated |
 | `P0012` | function value passed to C captures variables (§10.3) |
+| `P0013` | stack overflow (too deep recursion); no place is shown |
 | `P0020` | `assert` failed |
 
 `halt(code)` exits immediately (deferred statements do not run).
