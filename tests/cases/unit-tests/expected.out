@@ -2,6 +2,10 @@ $ $PST test $ROOT/std
 exit 0
 --- stdout
 ok   std/Bits.pst:9: bit counting
+ok   std/Collections.pst:181: a priority queue gives its smallest element first
+ok   std/Collections.pst:194: a priority queue can use its own order
+ok   std/Collections.pst:203: a sorted map keeps its keys in order
+ok   std/Collections.pst:227: a sorted map's entries come in key order
 ok   std/Json.pst:384: parse and write back
 ok   std/Json.pst:392: errors
 ok   std/Json.pst:401: reading parts
@@ -48,7 +52,7 @@ ok   std/Time.pst:1582: tzdata zones
 ok   std/Time.pst:1608: zoned date-times
 ok   std/Time.pst:1636: periods
 ok   std/Time.pst:1661: intervals
-47 passed, 0 failed
+51 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/compiler
 exit 0

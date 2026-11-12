@@ -1,0 +1,235 @@
+unit Collections
+
+{ Collections beyond `List`, `Map` and `Set`: a priority queue, and a map kept in key
+  order. }
+
+type
+    { A binary heap: `items[0]` is the first out, and no element is `less` than its parent,
+      at `(i - 1) div 2`. The order of the others depends on the order they came in, so
+      queues can't be compared with `=`. }
+    export PriorityQueue[T] = record
+        items: List[T]
+        less: function(T, T): Boolean
+
+    { A map whose keys stay in ascending order: `keys[i]` maps to `values[i]`. Finding a key
+      takes O(log n) steps; `put` and `remove` move the entries after it, O(n). }
+    export SortedMap[K: Ordered, V] = record
+        keys: List[K]
+        values: List[V]
+
+    export SortedMapIter[K: Ordered, V] = record
+        source: SortedMap[K, V]
+        pos: Integer
+
+{ ------------------------------------------------------------ priority queues }
+
+function ascending[T: Ordered](a, b: T): Boolean
+    return a < b
+
+{ An empty queue that gives its smallest element first. }
+export function priorityQueue[T: Ordered](): PriorityQueue[T]
+    return PriorityQueue(items: [], less: ascending[T])
+
+{ An empty queue that gives first an element no other is `less` than. }
+export function priorityQueue[T](less: function(T, T): Boolean): PriorityQueue[T]
+    return PriorityQueue(items: [], less: less)
+
+{ Number of elements. }
+export function length[T](q: PriorityQueue[T]): Integer
+    return length(q.items)
+
+{ Adds `x`. O(log n). }
+export procedure push[T](var q: PriorityQueue[T], x: T)
+    add(var q.items, x)
+    var i := length(q.items) - 1
+    while i > 0 and q.less(q.items[i], q.items[(i - 1) div 2]) do
+        swap(var q.items, i, (i - 1) div 2)
+        i := (i - 1) div 2
+
+{ The element `pop` would take, if any. }
+export function peek[T](q: PriorityQueue[T]): Option[T]
+    if length(q.items) = 0 then
+        return None
+    return Some(q.items[0])
+
+{ Takes out the first element, if any. O(log n). }
+export function pop[T](var q: PriorityQueue[T]): Option[T]
+    let n := length(q.items)
+    if n = 0 then
+        return None
+    let first := q.items[0]
+    q.items[0] := q.items[n - 1]
+    removeLast(var q.items)
+    var i := 0
+    while true do
+        var m := i
+        for c := 2 * i + 1 to 2 * i + 2 do
+            if c < n - 1 and q.less(q.items[c], q.items[m]) then
+                m := c
+        if m = i then
+            return Some(first)
+        swap(var q.items, i, m)
+        i := m
+    return Some(first)
+
+procedure swap[T](var xs: List[T], i, j: Integer)
+    let x := xs[i]
+    xs[i] := xs[j]
+    xs[j] := x
+
+{ ---------------------------------------------------------------- sorted maps }
+
+{ An empty map. }
+export function sortedMap[K: Ordered, V](): SortedMap[K, V]
+    return SortedMap(keys: [], values: [])
+
+{ The position of the first key that isn't below `key`. }
+function search[K: Ordered, V](m: SortedMap[K, V], key: K): Integer
+    var lo := 0
+    var hi := length(m.keys)
+    while lo < hi do
+        let mid := (lo + hi) div 2
+        if m.keys[mid] < key then
+            lo := mid + 1
+        else
+            hi := mid
+    return lo
+
+{ Whether `key` is at position `i`. }
+function at[K: Ordered, V](m: SortedMap[K, V], i: Integer, key: K): Boolean
+    return i < length(m.keys) and m.keys[i] = key
+
+{ Number of entries. }
+export function length[K: Ordered, V](m: SortedMap[K, V]): Integer
+    return length(m.keys)
+
+{ Sets the value of `key`, adding it if it is missing. }
+export procedure put[K: Ordered, V](var m: SortedMap[K, V], key: K, value: V)
+    let i := search(m, key)
+    if at(m, i, key) then
+        m.values[i] := value
+    else
+        insert(var m.keys, i, x: key)
+        insert(var m.values, i, x: value)
+
+{ The value of `key`, if present. }
+export function get[K: Ordered, V](m: SortedMap[K, V], key: K): Option[V]
+    let i := search(m, key)
+    if at(m, i, key) then
+        return Some(m.values[i])
+    return None
+
+{ The value of `key`, or `default` if it is missing. }
+export function getOr[K: Ordered, V](m: SortedMap[K, V], key: K, default: V): V
+    let i := search(m, key)
+    if at(m, i, key) then
+        return m.values[i]
+    return default
+
+{ Whether `key` is present. }
+export function hasKey[K: Ordered, V](m: SortedMap[K, V], key: K): Boolean
+    return at(m, search(m, key), key)
+
+{ Removes `key`, if present. }
+export procedure remove[K: Ordered, V](var m: SortedMap[K, V], key: K)
+    let i := search(m, key)
+    if at(m, i, key) then
+        remove(var m.keys, i)
+        remove(var m.values, i)
+
+{ The keys, in ascending order. }
+export function keys[K: Ordered, V](m: SortedMap[K, V]): List[K]
+    return m.keys
+
+{ The values, in the order of their keys. }
+export function values[K: Ordered, V](m: SortedMap[K, V]): List[V]
+    return m.values
+
+{ The smallest key, if any. }
+export function firstKey[K: Ordered, V](m: SortedMap[K, V]): Option[K]
+    if length(m.keys) = 0 then
+        return None
+    return Some(m.keys[0])
+
+{ The largest key, if any. }
+export function lastKey[K: Ordered, V](m: SortedMap[K, V]): Option[K]
+    if length(m.keys) = 0 then
+        return None
+    return Some(m.keys[length(m.keys) - 1])
+
+{ The entries, in ascending key order. }
+export function entries[K: Ordered, V](m: SortedMap[K, V]): SortedMapIter[K, V]
+    return SortedMapIter(source: m, pos: 0)
+
+export function next[K: Ordered, V](var it: SortedMapIter[K, V]): Option[Entry[K, V]]
+    if it.pos >= length(it.source.keys) then
+        return None
+    inc(var it.pos)
+    return Some(Entry(key: it.source.keys[it.pos - 1], value: it.source.values[it.pos - 1]))
+
+{ The entries as `[k: v]`, in ascending key order; `[:]` when empty. }
+export function toString[K: Ordered + Printable, V: Printable](m: SortedMap[K, V]): String
+    if length(m.keys) = 0 then
+        return "[:]"
+    var out := "["
+    for i := 0 to length(m.keys) - 1 do
+        if i > 0 then
+            out := "{out}, "
+        out := "{out}{m.keys[i]}: {m.values[i]}"
+    return "{out}]"
+
+test "a priority queue gives its smallest element first"
+    var q := priorityQueue[Integer]()
+    for x in [5, 3, 8, 1, 9, 2, 7, 3] do
+        push(var q, x)
+    assert length(q) = 8
+    assert peek(q) = Some(1)
+    var out: List[Integer] := []
+    while length(q) > 0 do
+        add(var out, pop(var q).get())
+    assert out = [1, 2, 3, 3, 5, 7, 8, 9]
+    assert pop(var q) = None
+    assert peek(q) = None
+
+test "a priority queue can use its own order"
+    var q := priorityQueue[Integer]((a, b) => a > b)
+    for x in [2, 9, 4, 9, 1] do
+        push(var q, x)
+    assert pop(var q) = Some(9)
+    assert pop(var q) = Some(9)
+    assert pop(var q) = Some(4)
+    assert length(q) = 2
+
+test "a sorted map keeps its keys in order"
+    var m := sortedMap[String, Integer]()
+    put(var m, "pear", 3)
+    put(var m, "apple", 1)
+    put(var m, "fig", 2)
+    put(var m, "apple", 4)
+    assert length(m) = 3
+    assert keys(m) = ["apple", "fig", "pear"]
+    assert values(m) = [4, 2, 3]
+    assert get(m, "fig") = Some(2)
+    assert get(m, "kiwi") = None
+    assert getOr(m, "kiwi", 0) = 0
+    assert hasKey(m, "pear")
+    assert firstKey(m) = Some("apple")
+    assert lastKey(m) = Some("pear")
+    assert toString(m) = "[apple: 4, fig: 2, pear: 3]"
+    remove(var m, "fig")
+    remove(var m, "kiwi")
+    assert keys(m) = ["apple", "pear"]
+    var n := sortedMap[String, Integer]()
+    put(var n, "pear", 3)
+    put(var n, "apple", 4)
+    assert m = n
+
+test "a sorted map's entries come in key order"
+    var m := sortedMap[Integer, Char]()
+    for i := 10 downto 1 do
+        put(var m, i * 7 mod 11, 'x')
+    var last := -1
+    for e in entries(m) do
+        assert e.key > last
+        last := e.key
+    assert toString(sortedMap[Integer, Integer]()) = "[:]"
