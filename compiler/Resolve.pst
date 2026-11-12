@@ -540,7 +540,7 @@ const
         "Weak",
     ]
     CTypes = ["CString", "Ptr", "Pointer"]
-    SystemTraits = ["Equatable", "Ordered", "Hashable", "Sendable"]
+    SystemTraits = ["Equatable", "Ordered", "Hashable", "Ordinal", "Sendable"]
 
 { Collects the top-level names of one unit (SPEC §15.2 step 2). }
 procedure collect(c: ref Checker, u: ref Unit)

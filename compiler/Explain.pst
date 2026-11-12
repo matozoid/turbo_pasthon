@@ -102,7 +102,7 @@ export function explanations(): List[Explanation]
             code: "P0003",
             section: "12",
             title: "Errors and panics",
-            meaning: "subrange violation",
+            meaning: "subrange violation, or `inc`/`dec` past an enum's ends",
         ),
         Explanation(
             code: "P0004",
@@ -138,7 +138,7 @@ export function explanations(): List[Explanation]
             code: "P0009",
             section: "12",
             title: "Errors and panics",
-            meaning: "`Char(i)` of a value that isn't a Unicode scalar value",
+            meaning: "`Char(i)`, or `inc`/`dec` of a `Char`, giving a value that isn't a Unicode scalar value",
         ),
         Explanation(
             code: "P0010",

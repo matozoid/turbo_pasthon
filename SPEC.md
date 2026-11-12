@@ -272,7 +272,7 @@ in the file. No `forward` declarations are needed. Mutual recursion works.
 ### 3.6 Standard units
 The standard units (§14) are ordinary `.pst` files shipped with the compiler (`std/` in the repository; installed as `units/` next to the `pst` executable).
 Primitive types, the built-in generic types (`List`, `Map`, `Set`, `BitSet`, `Array`, `Weak`), the
-traits `Equatable`, `Ordered`, `Hashable`, `Sendable`, and the C types `CString`, `Ptr`,
+traits `Equatable`, `Ordered`, `Hashable`, `Ordinal`, `Sendable`, and the C types `CString`, `Ptr`,
 `Pointer` are provided by the compiler as names in `System` (`C` for the C types). Routines
 the compiler implements are declared like C functions, in `external "pst"` blocks, which are
 allowed only in standard units (`E0106`):
@@ -546,9 +546,10 @@ type
   from the signatures of the satisfying type (here, from `next`'s return type).
 
 Built-in traits in `System`: `Iterator[T]` (§4.14), `Sendable` (§11.2), `Equatable` (`=`), `Ordered` (`<` etc.), `Hashable`,
-`Printable` (`toString(this): String`).
+`Ordinal` (integers, `Char`, `Boolean`, enums and subranges: Pascal's ordinal types; also
+`Equatable` and `Hashable`), `Printable` (`toString(this): String`).
 
-`Equatable`, `Ordered`, `Hashable` and `Sendable` are decided by the compiler from the
+`Equatable`, `Ordered`, `Hashable`, `Ordinal` and `Sendable` are decided by the compiler from the
 type's structure (e.g. a record is `Equatable` if all its fields are). `Printable` is
 satisfied built-in by primitives (except C types), enums, and subranges, and structurally
 (a visible `toString`) by everything else.
@@ -864,6 +865,9 @@ list[i] := expr
 deref(r) := expr
 ```
 There are no compound operators (`+=`). Use `inc(var x)`, `inc(var x, n)`, `dec(var x)`, `dec(var x, n)` for counters.
+They take any `Ordinal` variable: `inc(var c)` moves an enum or a `Char` to the next
+value. Going past the ends of an enum or a subrange panics (`P0003`) in checked builds; a
+`Char` that isn't a Unicode scalar value panics (`P0009`) in every build.
 
 ### 7.2 if
 ```pascal
@@ -1415,13 +1419,13 @@ v0.1 is single-threaded, but the design is fixed now so v0.1 doesn't rule it out
 |---|---|
 | `P0001` | index out of bounds |
 | `P0002` | integer overflow |
-| `P0003` | subrange violation |
+| `P0003` | subrange violation, or `inc`/`dec` past an enum's ends |
 | `P0004` | division by zero |
 | `P0005` | `get` on `None` / `Err` |
 | `P0006` | string byte offset not on a `Char` boundary |
 | `P0007` | `fromCString` of a null pointer |
 | `P0008` | missing map key (check with `k in m`, or use `get`/`getOr`) |
-| `P0009` | `Char(i)` of a value that isn't a Unicode scalar value |
+| `P0009` | `Char(i)`, or `inc`/`dec` of a `Char`, giving a value that isn't a Unicode scalar value |
 | `P0010` | `requires` violated |
 | `P0011` | `ensures` violated |
 | `P0012` | function value passed to C captures variables (§10.3) |

@@ -1,0 +1,12 @@
+program Main
+
+function f[T: Ordinal](x: T): Integer
+    return ord(x)
+
+function h[T: Ordinal](x: T): Boolean
+    let s: Set[T] := [x]
+    return x = x and x in s
+
+let a := f("s") + f(1.5)
+let c := h(3) and h(Char(3))
+assert a = 0 and c

@@ -1,0 +1,38 @@
+$ $PST build Main.pst -o main
+exit 0
+--- stdout
+--- stderr
+$ $VALGRIND ./main ok
+exit 0
+--- stdout
+Green c 99 true Blue 1 6
+Green
+--- stderr
+$ ./main enum
+exit 70
+--- stdout
+Green c 99 true Blue 1 6
+--- stderr
+panic P0003: subrange violation
+    at Main.pst:28:5
+$ ./main sub
+exit 70
+--- stdout
+Green c 99 true Blue 1 6
+--- stderr
+panic P0003: subrange violation
+    at Main.pst:30:5
+$ ./main late
+exit 70
+--- stdout
+Green c 99 true Blue 1 6
+--- stderr
+panic P0003: subrange violation
+    at Main.pst:32:5
+$ ./main char
+exit 70
+--- stdout
+Green c 99 true Blue 1 6
+--- stderr
+panic P0009: not a Unicode scalar value
+    at Main.pst:35:5

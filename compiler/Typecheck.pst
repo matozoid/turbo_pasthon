@@ -5122,7 +5122,9 @@ function printable(tc: ref TC, t: Type): Boolean
 
 function implies(want, have: String): Boolean
     if want = "Equatable" then
-        return have = "Equatable" or have = "Ordered" or have = "Hashable"
+        return have = "Equatable" or have = "Ordered" or have = "Hashable" or have = "Ordinal"
+    if want = "Hashable" then
+        return have = "Hashable" or have = "Ordinal"
     return have = want
 
 export function builtinTrait(tc: ref TC, t: Type, name: String): Boolean
@@ -5185,6 +5187,8 @@ function builtinTraitOf(tc: ref TC, t: Type, name: String): Boolean
                 return allTrait(tc, parts, name)
     if name = "Ordered" then
         return isNumeric(t) or t = charT() or t = stringT() or kind = "enum" or kind = "subrange"
+    if name = "Ordinal" then
+        return isInteger(t) or t = charT() or t = booleanT() or kind = "enum" or kind = "subrange"
     if name = "Hashable" then
         case t of
             PrimT(_):

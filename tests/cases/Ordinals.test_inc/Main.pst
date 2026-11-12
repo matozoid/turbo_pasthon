@@ -1,0 +1,36 @@
+program Main
+
+uses IO, OS
+
+type
+    Color = (Red, Green, Blue)
+    Percent = 0..100
+    Late = Color.Green..Color.Blue
+
+function middle[T: Ordinal](a, b: T): Integer
+    return (ord(a) + ord(b)) div 2
+
+var c := Color.Red
+inc(var c)
+inc(var c)
+dec(var c, 1)
+var ch := 'a'
+inc(var ch, 2)
+var p: Percent := 98
+inc(var p)
+var b := false
+inc(var b)
+var l: Late := Color.Green
+inc(var l)
+writeln("{c} {ch} {p} {b} {l} {middle(Color.Red, Color.Blue)} {middle(3, 9)}")
+let mode := args()[0]
+if mode = "enum" then
+    inc(var c, 2)
+else if mode = "sub" then
+    inc(var p, 5)
+else if mode = "late" then
+    dec(var l, 2)
+else if mode = "char" then
+    var d := Char($D7FF)
+    inc(var d)
+writeln(c)

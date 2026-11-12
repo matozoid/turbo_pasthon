@@ -5,7 +5,7 @@ unit System
   Provided by the compiler, not declared here: the primitive types Int8, Int16, Int32,
   Int64, UInt8, UInt16, UInt32, UInt64, Real32, Real64, Boolean, Char, String; the
   generic types List[T], Array[T, N], Weak[T]; and the traits
-  Equatable, Ordered, Hashable, Sendable. Routines in `extern "pst"` blocks are
+  Equatable, Ordered, Hashable, Ordinal, Sendable. Routines in `extern "pst"` blocks are
   implemented by the compiler. }
 
 type

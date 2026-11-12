@@ -1,0 +1,6 @@
+$PST build Main.pst -o main
+$VALGRIND ./main ok
+./main enum
+./main sub
+./main late
+./main char

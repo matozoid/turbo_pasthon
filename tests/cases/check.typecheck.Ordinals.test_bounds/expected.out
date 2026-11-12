@@ -1,0 +1,6 @@
+$ $PST check Main.pst
+exit 1
+--- stdout
+--- stderr
+Main.pst:10:10: error E0700: String doesn't satisfy Ordinal, required by 'f': String isn't Ordinal
+Main.pst:10:19: error E0700: Real doesn't satisfy Ordinal, required by 'f': Real isn't Ordinal
