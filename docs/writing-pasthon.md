@@ -36,7 +36,9 @@ reference; `pst query explain CODE` explains an error code.
 - Comments are `{ ... }` only. `#` and `//` are errors.
 - `let` can't be assigned again; `var` can. `var x := 0` infers the type.
 - An unused `let`, `var` or loop variable is an error (`E0206`): name it `_`, as in
-  `for _ in xs do`. An ignored function result is an error too (`E0502`): `_ := f()`.
+  `for _ in xs do`. A counting loop is the exception: it always names its variable,
+  used or not (`for i := 1 to 3 do`). An ignored function result is an error too (`E0502`):
+  `_ := f()`.
 - A `function` has a result type and returns on every path (`E0501`); a routine without a
   result is a `procedure`. `if` and `case` used as values need an `else` (`E0602`).
 - `case x of` takes labels like `Red:`, `1..3:`, `'a'..'z':`, `"one":`, and union variants

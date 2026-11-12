@@ -15,6 +15,10 @@ ok   std/OS.pst:323: environment
 ok   std/Paths.pst:163: names
 ok   std/Paths.pst:174: joining and normalizing
 ok   std/Paths.pst:183: relative paths
+ok   std/Random.pst:105: the same seed gives the same numbers
+ok   std/Random.pst:113: numbers match the reference xoshiro256**
+ok   std/Random.pst:119: random stays in range and reaches every value
+ok   std/Random.pst:133: shuffle keeps the elements
 ok   std/Strings.pst:384: pos gives byte offsets
 ok   std/Strings.pst:390: startsWith and endsWith
 ok   std/Strings.pst:397: split and join are inverses
@@ -44,7 +48,7 @@ ok   std/Time.pst:1582: tzdata zones
 ok   std/Time.pst:1608: zoned date-times
 ok   std/Time.pst:1636: periods
 ok   std/Time.pst:1661: intervals
-43 passed, 0 failed
+47 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/compiler
 exit 0

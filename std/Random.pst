@@ -1,0 +1,141 @@
+unit Random
+
+{ Pseudo-random numbers, as in Pascal's `Random` and `Randomize`, but from a generator value
+  instead of a global seed: `var g := randomize()`, then `random(var g, 6)`. The generator
+  is xoshiro256** (Blackman and Vigna), seeded through SplitMix64. It is fast and good for
+  simulations, games and tests, but it is not cryptographic: its output can be predicted
+  from earlier output. }
+
+uses C
+
+external "libc.so.6"
+    function getrandom(buf: Pointer, count: CSize, flags: CUInt): Int64
+
+type
+    { A generator's state. Copying it copies the state: both copies go on to give the
+      same numbers. }
+    export Generator = record
+        s0: UInt64
+        s1: UInt64
+        s2: UInt64
+        s3: UInt64
+
+{ `a + b`, wrapping around at 2^64. }
+function plus(a, b: UInt64): UInt64
+    let room := $FFFFFFFFFFFFFFFF - b
+    if a > room then
+        return a - room - 1
+    return a + b
+
+{ `a * b`, wrapping around at 2^64. }
+function times(a, b: UInt64): UInt64
+    let aLo := a and $FFFFFFFF
+    let bLo := b and $FFFFFFFF
+    let cross := ((a shr 32) * bLo and $FFFFFFFF) + (aLo * (b shr 32) and $FFFFFFFF)
+    return plus(aLo * bLo, cross shl 32)
+
+function rotate(x: UInt64, k: Integer): UInt64
+    return (x shl k) or (x shr (64 - k))
+
+{ The next SplitMix64 number after `state`, which it advances. }
+function splitMix(var state: UInt64): UInt64
+    state := plus(state, $9E3779B97F4A7C15)
+    var z := state
+    z := times(z xor (z shr 30), $BF58476D1CE4E5B9)
+    z := times(z xor (z shr 27), $94D049BB133111EB)
+    return z xor (z shr 31)
+
+{ A generator seeded with `seed`: the same seed always gives the same numbers. }
+export function generator(seed: Integer): Generator
+    var state := UInt64(seed and $7FFFFFFFFFFFFFFF)
+    if seed < 0 then
+        state := state or $8000000000000000
+    let s0 := splitMix(var state)
+    let s1 := splitMix(var state)
+    let s2 := splitMix(var state)
+    return Generator(s0: s0, s1: s1, s2: s2, s3: splitMix(var state))
+
+{ A generator seeded from the operating system's random source, so it differs from run to
+  run. }
+export unsafe function randomize(): Generator
+    var seed: Integer := 0
+    _ := getrandom(cast[Pointer](addr(var seed)), 8, flags: 0)
+    return generator(seed)
+
+{ The next 64 random bits. }
+export function nextBits(var g: Generator): UInt64
+    let result := times(rotate(times(g.s1, 5), 7), 9)
+    let t := g.s1 shl 17
+    g.s2 := g.s2 xor g.s0
+    g.s3 := g.s3 xor g.s1
+    g.s1 := g.s1 xor g.s2
+    g.s0 := g.s0 xor g.s3
+    g.s2 := g.s2 xor t
+    g.s3 := rotate(g.s3, 45)
+    return result
+
+{ A random integer from 0 to `n` - 1, each equally likely. }
+export function random(var g: Generator, n: Integer): Integer
+    requires n > 0
+    { 63 random bits; values from the incomplete last run of `n` are drawn again. }
+    let limit := 9223372036854775807 - n + 1
+    while true do
+        let v := Integer(nextBits(var g) shr 1)
+        if v - v mod n <= limit then
+            return v mod n
+    return 0
+
+{ A random real from 0 up to, not including, 1. }
+export function random(var g: Generator): Real
+    return toReal(Integer(nextBits(var g) shr 11)) / 9007199254740992.0
+
+{ A random element of `xs`. }
+export function randomFrom[T](var g: Generator, xs: List[T]): T
+    requires length(xs) > 0
+    return xs[random(var g, length(xs))]
+
+{ Puts `xs` in a random order, each order equally likely (Fisher-Yates). }
+export procedure shuffle[T](var g: Generator, var xs: List[T])
+    for i := length(xs) - 1 downto 1 do
+        let j := random(var g, i + 1)
+        let x := xs[i]
+        xs[i] := xs[j]
+        xs[j] := x
+
+test "the same seed gives the same numbers"
+    var a := generator(42)
+    var b := generator(42)
+    for i := 1 to 100 do
+        assert nextBits(var a) = nextBits(var b)
+    var c := generator(-42)
+    assert nextBits(var c) <> nextBits(var a)
+
+test "numbers match the reference xoshiro256**"
+    var g := generator(0)
+    assert nextBits(var g) = $99EC5F36CB75F2B4
+    assert nextBits(var g) = $BF6E1F784956452A
+    assert nextBits(var g) = $1A5F849D4933E6E0
+
+test "random stays in range and reaches every value"
+    var g := generator(7)
+    var seen := [false, false, false, false, false, false]
+    for i := 1 to 600 do
+        let v := random(var g, 6)
+        assert v >= 0 and v < 6
+        seen[v] := true
+    for s in seen do
+        assert s
+    for i := 1 to 100 do
+        let r := random(var g)
+        assert r >= 0.0 and r < 1.0
+    assert random(var g, 1) = 0
+
+test "shuffle keeps the elements"
+    var g := generator(1)
+    var xs := [1, 2, 3, 4, 5, 6, 7, 8]
+    shuffle(var g, var xs)
+    var ys := xs
+    sort(var ys)
+    assert ys = [1, 2, 3, 4, 5, 6, 7, 8]
+    assert xs <> ys
+    assert randomFrom(var g, ["only"]) = "only"
