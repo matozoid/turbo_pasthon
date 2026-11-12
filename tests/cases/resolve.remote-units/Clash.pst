@@ -1,0 +1,6 @@
+program Clash
+
+uses IO, Deps, Hello from Deps.Hello, Hey from Deps.Hey
+
+writeln(hello())
+writeln(hey())

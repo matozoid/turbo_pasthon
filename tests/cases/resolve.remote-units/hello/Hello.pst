@@ -1,0 +1,6 @@
+unit Hello
+
+uses HelloDeps, Greet from HelloDeps.Greet
+
+export function hello(): String
+    return greeting("Hello")

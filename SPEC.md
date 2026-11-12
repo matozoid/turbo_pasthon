@@ -268,6 +268,27 @@ in the file. No `forward` declarations are needed. Mutual recursion works.
   that names it. A missing unit, or one that is a `program`, is `E0102`. Cyclic `uses` is an
   error (`E0107`).
 - Using a name that `X` declares but doesn't export is `E0109`.
+- **Units from elsewhere.** `uses X from "github.com/someone/pasthon-x@v1.0"` takes `X.pst`
+  from the root of a git repository, at a tag or commit (a commit pins it exactly). The
+  source can also be `U.C`, an exported string constant of a unit `U` named earlier in the
+  same clause, so that one unit can list the URLs of a whole program:
+  ```pascal
+  unit Deps
+  const
+      export Json = "github.com/someone/pasthon-json@v1.0"
+
+  program Main
+  uses Deps, Json from Deps.Json
+  ```
+  A URL without a scheme is fetched over `https://`; `file://` and absolute paths work for
+  local repositories. `pst` fetches each repository once with `git` into
+  `$PASTHON_CACHE`, else `pasthon` in `$XDG_CACHE_HOME` or `~/.cache`, and never again, so
+  a tag that moves later isn't followed. The repository's other units are found the usual
+  way, next to `X.pst`, and it can use units from elsewhere in turn.
+- Unit names are global in a program, as in Pascal: two units named `X` can't both be in
+  it. When units disagree on where `X` comes from, the program decides: its own
+  `uses X from ...` holds for every unit that uses `X` from somewhere. Without that, the
+  second source is an error. All of these problems are `E0112`.
 
 ### 3.6 Standard units
 The standard units (§14) are ordinary `.pst` files shipped with the compiler (`std/` in the repository; installed as `units/` next to the `pst` executable).
@@ -2010,6 +2031,7 @@ already has a lexical error are not reported.
 | `E0109` | name not exported by its unit |
 | `E0110` | unqualified name ambiguous between used units (fix: qualify) |
 | `E0111` | `This` outside a trait |
+| `E0112` | `uses X from ...`: the source isn't an exported string constant of a unit in the same clause, the URL has no tag or commit, the repository can't be fetched, or `X` is already loaded from elsewhere |
 | `E0201` | variable declared without a value (`let x := value`) |
 | `E0202` | `const` inside a routine (use `let`) |
 | `E0205` | variable declared again in the same routine |

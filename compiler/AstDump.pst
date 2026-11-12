@@ -490,6 +490,17 @@ export function dumpAst(text: String, file: String): Boolean
     line(0, "", kind: "File", span: f.span, scalars: str("kind", value: f.kind))
     ident(f.name, 1, label: one("name"))
     idents(f.units, 1, field: "uses")
+    for i := 0 to length(f.sources) - 1 do
+        case f.sources[i] of
+            Some(u):
+                let x := u.value
+                let scalars := "{str("url", value: x.url)}"
+                line(1, item("sources", i), kind: "UnitSource", span: x.span, scalars: scalars)
+                if x.constUnit.name <> "" then
+                    ident(x.constUnit, 2, label: one("const_unit"))
+                    ident(x.constName, 2, label: one("const_name"))
+            None:
+                pass
     for i := 0 to length(f.items) - 1 do
         case f.items[i] of
             Decl(x): decl(x, 1, label: item("items", i))

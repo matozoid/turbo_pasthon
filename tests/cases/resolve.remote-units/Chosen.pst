@@ -1,0 +1,6 @@
+program Chosen
+
+uses IO, Deps, Hello from Deps.Hello, Hey from Deps.Hey, Greet from "file://REPOS/greet@v2"
+
+writeln(hello())
+writeln(hey())

@@ -1,0 +1,5 @@
+program Packages
+
+uses IO, Deps, Hello from Deps.Hello
+
+writeln(hello())

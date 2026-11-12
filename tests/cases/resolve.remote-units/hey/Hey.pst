@@ -1,0 +1,6 @@
+unit Hey
+
+uses Greet from "file://REPOS/greet@v2"
+
+export function hey(): String
+    return greeting("Hey")

@@ -1,0 +1,6 @@
+unit Greet
+
+uses GreetText
+
+export function greeting(name: String): String
+    return "{hello()}, {name}"

@@ -1,0 +1,5 @@
+program Literal
+
+uses IO, Greet from "file://REPOS/greet@v2"
+
+writeln(greeting("you"))

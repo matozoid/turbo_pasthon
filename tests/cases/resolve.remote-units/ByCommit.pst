@@ -1,0 +1,5 @@
+program ByCommit
+
+uses IO, Commit, Greet from Commit.Greet
+
+writeln(greeting("you"))

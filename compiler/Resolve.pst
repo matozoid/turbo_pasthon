@@ -36,6 +36,11 @@ type
         overlay: Map[String, String]
         { By unit name; programs are not entered. }
         export units: Map[String, ref Unit]
+        { The URLs, as written, of the units the program uses `from` one: they hold for every
+          unit that uses them `from` a URL. }
+        pins: Map[String, String]
+        { The URL each unit loaded from one came from. }
+        remote: Map[String, String]
         missing: Set[String]
         { Found, but not units. }
         programs: Set[String]
@@ -49,6 +54,16 @@ type
         { The main unit first, then every unit it uses, directly or not. }
         export units: List[ref Unit]
         export checker: ref Checker
+
+    { A unit's repository, as `uses X from "url"` names it. }
+    Remote = record
+        { What `git fetch` gets it from. }
+        source: String
+        { The tag or commit. }
+        tag: String
+        { The repository without its scheme or `.git`, then `@` and `tag`: its directory in
+          the cache, and how two URLs are compared. }
+        key: String
 
     Lookup = record
         symbols: List[ref Symbol]
@@ -269,6 +284,8 @@ export function resolveUnits(
         stdDir: stdDir,
         overlay: overlay,
         units: [:],
+        pins: [:],
+        remote: [:],
         missing: [],
         programs: [],
         index: newIndex(),
@@ -394,12 +411,30 @@ function load(c: ref Checker, path: String, std: Boolean, expected: String := ""
             c.units[expected] := un
     collect(c, un)
 
+    if tree.kind = "program" then
+        for i := 0 to length(tree.sources) - 1 do
+            case tree.sources[i] of
+                Some(s):
+                    case sourceUrl(c, s.value, user: un) of
+                        Some(url):
+                            c.pins[tree.units[i].name] := url.value
+                        None:
+                            pass
+                None:
+                    pass
     var seen: Set[String] := []
-    for ident in tree.units do
+    for i := 0 to length(tree.units) - 1 do
+        let ident := tree.units[i]
         if ident.name in seen then
             continue
         add(var seen, ident.name)
-        case findUnit(c, ident.name, user: un, span: Some(ident.span)) of
+        var found: Option[ref Unit] := None
+        case tree.sources[i] of
+            Some(s):
+                found := remoteUnit(c, ident, source: s.value, user: un)
+            None:
+                found := findUnit(c, ident.name, user: un, span: Some(ident.span))
+        case found of
             Some(used):
                 add(var un.used, weak(used.value))
                 add(c.index, path, ident.span, targets: [used.value.symbol])
@@ -476,6 +511,250 @@ function findUnit(
         message: "unit '{name}' not found: no '{name}.pst' in {dir} or the standard units",
     )
     return None
+
+{ ----------------------------------------------------------------- remote units }
+
+{ The URL that `source` names, or None after reporting why there is none. A constant
+  `U.C` must be an exported string literal of a unit `U` in the same `uses` clause. }
+function sourceUrl(c: ref Checker, source: UnitSource, user: ref Unit): Option[String]
+    if source.constUnit.name = "" then
+        return Some(source.url)
+    let u := source.constUnit
+    var listed := false
+    for x in user.parsed.file.units do
+        if x.name = u.name then
+            listed := true
+    if not listed then
+        error(
+            c,
+            user.path,
+            "E0112",
+            u.span,
+            message: "'{u.name}' must be in this 'uses' clause too",
+        )
+        return None
+    let what := "'{u.name}.{source.constName.name}'"
+    case findUnit(c, u.name, user: user, span: None) of
+        Some(found):
+            for item in found.value.parsed.file.items do
+                case item of
+                    Decl(d):
+                        case d of
+                            ConstSection(cs):
+                                for k in cs.decls do
+                                    if k.name.name = source.constName.name then
+                                        if not k.exported then
+                                            error(
+                                                c,
+                                                user.path,
+                                                "E0112",
+                                                source.span,
+                                                message: "{what} isn't exported",
+                                            )
+                                            return None
+                                        case k.value of
+                                            StringLit(l):
+                                                return Some(l.value)
+                                            else:
+                                                error(
+                                                    c,
+                                                    user.path,
+                                                    "E0112",
+                                                    source.span,
+                                                    message: "{what} must be a string literal",
+                                                )
+                                                return None
+                            else:
+                                pass
+                    else:
+                        pass
+            error(c, user.path, "E0112", source.span, message: "{what} is not a constant")
+            return None
+        None:
+            return None
+
+{ `url` taken apart: `[scheme://]repository@tag`. }
+function remoteOf(url: String): Result[Remote, String]
+    let parts := split(url, sep: "@")
+    let tag := parts[length(parts) - 1]
+    if length(parts) < 2 or tag = "" or pos(tag, sub: "/").isSome() then
+        return Err("'{url}' needs a tag or commit at the end: '{url}@v1.0'")
+    var repo := slice(url, 0, byteLen(url) - byteLen(tag) - 1)
+    var source := repo
+    if pos(repo, sub: "://").isNone() and not startsWith(repo, prefix: "/") then
+        source := "https://{repo}"
+    case pos(repo, sub: "://") of
+        Some(i):
+            repo := slice(repo, i.value + 3, byteLen(repo))
+        None:
+            pass
+    while endsWith(repo, suffix: "/") do
+        repo := slice(repo, 0, byteLen(repo) - 1)
+    if endsWith(repo, suffix: ".git") then
+        repo := slice(repo, 0, byteLen(repo) - 4)
+    while startsWith(repo, prefix: "/") do
+        repo := slice(repo, 1, byteLen(repo))
+    for part in split(repo, sep: "/") do
+        if part = "" or part = "." or part = ".." then
+            return Err("'{url}' is not a repository URL")
+    if tag = "." or tag = ".." then
+        return Err("'{url}' is not a repository URL")
+    return Ok(Remote(source: source, tag: tag, key: "{repo}@{tag}"))
+
+{ Where fetched repositories are kept: `$PASTHON_CACHE`, else `pasthon` in
+  `$XDG_CACHE_HOME` or `~/.cache`. }
+function cacheDir(): String
+    case env("PASTHON_CACHE") of
+        Some(d):
+            return d.value
+        None:
+            pass
+    case env("XDG_CACHE_HOME") of
+        Some(d):
+            return "{d.value}/pasthon"
+        None:
+            pass
+    return "{getOr(env("HOME"), "")}/.cache/pasthon"
+
+{ Runs `git` with `args`; its error output, if it fails. }
+function git(args: List[String], log: String): Result[Integer, String]
+    case run(
+        "/usr/bin/env",
+        concat(["git"], b: args),
+        output: log,
+        errors: log,
+        input: "/dev/null",
+    ) of
+        Ok(code):
+            if code.value = 0 then
+                return Ok(0)
+            let lines := split(trim(readSource(log).getOr("")), sep: "\n")
+            if lines[0] = "" then
+                return Err("git failed")
+            return Err(lines[0])
+        Err(e):
+            return Err(e.error)
+
+{ The directory holding repository `r` at its tag or commit, fetched with git into the
+  cache the first time. Once there, it is never fetched again. }
+function fetch(r: Remote): Result[String, String]
+    let dir := "{cacheDir()}/{r.key}"
+    if isDir(dir) then
+        return Ok(dir)
+    let part := "{dir}.part"
+    let log := "{dir}.log"
+    case run("/bin/mkdir", ["-p", dirname(dir)]) of
+        Ok(code):
+            if code.value <> 0 then
+                return Err("can't create {dirname(dir)}")
+        Err(e):
+            return Err(e.error)
+    case run("/bin/rm", ["-rf", part]) of
+        Ok(_):
+            pass
+        Err(e):
+            return Err(e.error)
+    let done := download(r, into: part, log: log)
+    _ := removeFile(log)
+    case done of
+        Ok(_):
+            pass
+        Err(e):
+            _ := run("/bin/rm", ["-rf", part])
+            return Err(e.error)
+    case run("/bin/mv", [part, dir]) of
+        Ok(_):
+            return Ok(dir)
+        Err(e):
+            return Err(e.error)
+
+{ Fetches repository `r` into the new directory `into`. }
+function download(r: Remote, into: String, log: String): Result[Integer, String]
+    _ := try git(["init", "-q", into], log: log)
+    _ := try git(["-C", into, "fetch", "-q", "--depth", "1", r.source, r.tag], log: log)
+    return git(
+        ["-C", into, "-c", "advice.detachedHead=false", "checkout", "-q", "FETCH_HEAD"],
+        log: log,
+    )
+
+{ The unit `name` that `user` uses `from source`. A URL the program gives for `name` holds
+  for every unit. }
+function remoteUnit(
+    c: ref Checker,
+    name: Ident,
+    source: UnitSource,
+    user: ref Unit,
+): Option[ref Unit]
+    var url := ""
+    case get(c.pins, name.name) of
+        Some(p):
+            url := p.value
+        None:
+            if user.parsed.file.kind = "program" then
+                return None  { its source was reported }
+            case sourceUrl(c, source, user: user) of
+                Some(u):
+                    url := u.value
+                None:
+                    return None
+    var r := Remote(source: "", tag: "", key: "")
+    case remoteOf(url) of
+        Ok(x):
+            r := x.value
+        Err(e):
+            error(c, user.path, "E0112", source.span, message: e.error)
+            return None
+    case get(c.units, name.name) of
+        Some(u):
+            let had := getOr(c.remote, name.name, u.value.path)
+            case remoteOf(had) of
+                Ok(x):
+                    if x.value.key = r.key then
+                        return Some(u.value)
+                Err(_):
+                    pass
+            error(
+                c,
+                user.path,
+                "E0112",
+                source.span,
+                message: "unit '{name.name}' is already loaded from {had}, not {url}; the program can choose one with 'uses {name.name} from ...'",
+            )
+            return None
+        None:
+            pass
+    var dir := ""
+    case fetch(r) of
+        Ok(d):
+            dir := d.value
+        Err(e):
+            error(c, user.path, "E0112", source.span, message: "can't fetch {url}: {e.error}")
+            return None
+    let path := "{dir}/{name.name}.pst"
+    if not isFile(path) then
+        error(
+            c,
+            user.path,
+            "E0102",
+            name.span,
+            message: "unit '{name.name}' not found: no '{name.name}.pst' in {url}",
+        )
+        return None
+    c.remote[name.name] := url
+    case load(c, path, std: false, expected: name.name) of
+        Some(u):
+            if u.value.parsed.file.kind <> "unit" then
+                error(
+                    c,
+                    user.path,
+                    "E0102",
+                    name.span,
+                    message: "'{name.name}' is a program, not a unit",
+                )
+                return None
+            return Some(u.value)
+        None:
+            return None
 
 procedure checkCycles(c: ref Checker, main: ref Unit)
     { Unit id -> 1 while visiting, 2 when done. }

@@ -1,0 +1,4 @@
+unit GreetText
+
+export function hello(): String
+    return "Hello"

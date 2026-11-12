@@ -484,12 +484,23 @@ type
     { Statements appear only in programs. }
     export TopItem = Decl | Stmt
 
+    { Where a used unit comes from, in `uses X from "url"` or `uses X from U.C`. }
+    export UnitSource = record
+        export span: Span
+        { The URL, when it is written as a string; else "". }
+        export url: String
+        { The unit and the string constant naming the URL, in `U.C`; else empty names. }
+        export constUnit: Ident
+        export constName: Ident
+
     export SourceFile = record
         export span: Span
         { `program` or `unit`. }
         export kind: String
         export name: Ident
         export units: List[Ident]
+        { One per unit, in the same order: where it comes from, if not found by name. }
+        export sources: List[Option[UnitSource]]
         { In source order. }
         export items: List[TopItem]
 

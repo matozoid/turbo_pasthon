@@ -1,0 +1,66 @@
+$ sh setup.sh
+exit 0
+--- stdout
+--- stderr
+$ sed -i "s|REPOS|$PWD|g" Literal.pst Chosen.pst Errors.pst
+exit 0
+--- stdout
+--- stderr
+$ PASTHON_CACHE=$PWD/cache $PST run Main.pst
+exit 0
+--- stdout
+Hello, you
+--- stderr
+$ PASTHON_CACHE=$PWD/cache $PST run Main.pst
+exit 0
+--- stdout
+Hello, you
+--- stderr
+$ find cache -name '*.pst' | sed 's|.*/\(greet@[^/]*/[^/]*\)$|\1|' | sort
+exit 0
+--- stdout
+greet@v1/Greet.pst
+greet@v1/GreetText.pst
+--- stderr
+$ PASTHON_CACHE=$PWD/cache $PST run Literal.pst
+exit 0
+--- stdout
+Hi, you
+--- stderr
+$ PASTHON_CACHE=$PWD/cache $PST run ByCommit.pst
+exit 0
+--- stdout
+Hello, you
+--- stderr
+$ PASTHON_CACHE=$PWD/cache $PST run Packages.pst
+exit 0
+--- stdout
+Hello, Hello
+--- stderr
+$ PASTHON_CACHE=$PWD/cache $PST run Clash.pst
+exit 1
+--- stdout
+--- stderr
+cachehey@v1/Hey.pst:3:17: error E0112: unit 'Greet' is already loaded from greet@v1, not file://greet@v2; the program can choose one with 'uses Greet from ...'
+cachehey@v1/Hey.pst:6:12: error E0100: unknown name 'greeting'
+$ PASTHON_CACHE=$PWD/cache $PST run Chosen.pst
+exit 0
+--- stdout
+Hi, Hello
+Hi, Hey
+--- stderr
+$ PASTHON_CACHE=$PWD/cache $PST check Errors.pst
+exit 1
+--- stdout
+--- stderr
+Errors.pst:3:23: error E0112: 'Deps.Bad' must be a string literal
+Errors.pst:3:40: error E0112: 'Deps.Hidden' isn't exported
+Errors.pst:3:60: error E0112: 'Deps.Missing' is not a constant
+Errors.pst:3:81: error E0112: 'Other' must be in this 'uses' clause too
+Errors.pst:3:97: error E0112: 'file://greet' needs a tag or commit at the end: 'file://greet@v1.0'
+Errors.pst:3:157: error E0112: can't fetch file://greet@v9: fatal: couldn't find remote ref v9
+Errors.pst:3:213: error E0102: unit 'G' not found: no 'G.pst' in greet@v1
+$ find cache -name '*.part' -o -name '*.log'
+exit 0
+--- stdout
+--- stderr

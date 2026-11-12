@@ -1,0 +1,3 @@
+program UsesFrom
+
+uses IO, Deps, Json from "github.com/x/pasthon-json@v1.0", Http from Deps.Http, Bad from Deps

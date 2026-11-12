@@ -1,0 +1,5 @@
+program Main
+
+uses IO, Deps, Greet from Deps.Greet
+
+writeln(greeting("you"))

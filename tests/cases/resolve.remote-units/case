@@ -1,0 +1,12 @@
+sh setup.sh
+sed -i "s|REPOS|$PWD|g" Literal.pst Chosen.pst Errors.pst
+PASTHON_CACHE=$PWD/cache $PST run Main.pst
+PASTHON_CACHE=$PWD/cache $PST run Main.pst
+find cache -name '*.pst' | sed 's|.*/\(greet@[^/]*/[^/]*\)$|\1|' | sort
+PASTHON_CACHE=$PWD/cache $PST run Literal.pst
+PASTHON_CACHE=$PWD/cache $PST run ByCommit.pst
+PASTHON_CACHE=$PWD/cache $PST run Packages.pst
+PASTHON_CACHE=$PWD/cache $PST run Clash.pst
+PASTHON_CACHE=$PWD/cache $PST run Chosen.pst
+PASTHON_CACHE=$PWD/cache $PST check Errors.pst
+find cache -name '*.part' -o -name '*.log'

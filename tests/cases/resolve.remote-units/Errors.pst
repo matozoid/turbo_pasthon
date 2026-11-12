@@ -1,0 +1,5 @@
+program Errors
+
+uses IO, Deps, A from Deps.Bad, B from Deps.Hidden, C from Deps.Missing, D from Other.X, E from "file://REPOS/greet", F from "file://REPOS/greet@v9", G from Deps.Greet
+
+writeln(1)

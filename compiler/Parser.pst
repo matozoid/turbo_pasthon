@@ -68,6 +68,7 @@ type
         { `program` or `unit`. }
         kind: String
         units: List[Ident]
+        sources: List[Option[UnitSource]]
         { Parser errors on a logical line that already has a lexical error are almost
           always follow-on errors, so they are not reported. A logical line can span
           several physical lines inside brackets. }
@@ -112,6 +113,7 @@ export function parse(text: String, file: String := "<input>"): ParseResult
         last: lexed.tokens[0],
         kind: "program",
         units: [],
+        sources: [],
         lexErrorLines: lines,
         lexErrorRanges: ranges,
         docs: docs,
@@ -784,6 +786,7 @@ function parseFile(p: ref State): SourceFile
         kind: p.kind,
         name: name,
         units: p.units,
+        sources: p.sources,
         items: items,
     )
 
@@ -793,13 +796,48 @@ procedure usesClause(p: ref State)
 
 function unitNames(p: ref State): Parsed[Boolean]
     step(p)
-    let first := try ident(p, "unit name")
-    add(var p.units, first)
+    try usedUnit(p)
     while accept(p, TokenKind.Comma) do
-        let next := try ident(p, "unit name")
-        add(var p.units, next)
+        try usedUnit(p)
     try endLine(p)
     return Ok(true)
+
+{ One unit of a `uses` clause: its name, then maybe `from "url"` or `from U.C`. }
+function usedUnit(p: ref State): Parsed[Boolean]
+    let name := try ident(p, "unit name")
+    add(var p.units, name)
+    let source := unitSource(p)
+    case source of
+        Ok(s):
+            add(var p.sources, s.value)
+            return Ok(true)
+        Err(e):
+            add(var p.sources, None)
+            return Err(e.error)
+
+function unitSource(p: ref State): Parsed[Option[UnitSource]]
+    if not acceptWord(p, word: "from") then
+        return Ok(None)
+    let start := peek(p).span
+    let none := Ident(span: start, name: "")
+    if at(p, TokenKind.StringLit) or at(p, TokenKind.StringBegin) then
+        let url := try stringConst(p, what: "a unit's URL")
+        return Ok(Some(UnitSource(
+            span: finish(p, start),
+            url: url,
+            constUnit: none,
+            constName: none,
+        )))
+    let u := try ident(p, "a URL (a string) or a string constant `Unit.Name`")
+    if not accept(p, TokenKind.Dot) then
+        return fail(
+            p,
+            "E0040",
+            peek(p).span,
+            message: "expected '.' and a constant of '{u.name}', found {describe(peek(p))}",
+        )
+    let c := try ident(p, "constant name")
+    return Ok(Some(UnitSource(span: finish(p, start), url: "", constUnit: u, constName: c)))
 
 function topItem(p: ref State): Parsed[Option[TopItem]]
     let tok := peek(p)
