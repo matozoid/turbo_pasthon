@@ -1781,11 +1781,11 @@ procedure forRange(g: ref Em, s: ForRange)
     var t := noneT()
     case refSym(g, s.variable.span) of
         Some(sym):
-            t := subT(g, symType(g, sym.value))
+            t := base(g.env, subT(g, symType(g, sym.value)))  { a subrange counts like its base }
         None:
             pass
     let known := t <> noneT()
-    if known and t <> charT() and not isInt(t) and kind(g, t) <> "enum" then
+    if known and not ordinal(g, t) then
         unsupported(g, s.variable.span, "a loop over {show(t)}")
         return
     let unsigned := known and isInt(t) and not intSigned(t)

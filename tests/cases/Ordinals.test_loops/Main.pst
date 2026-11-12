@@ -1,0 +1,17 @@
+program Main
+
+uses IO
+
+type
+    Color = (Red, Green, Blue, Gray)
+    Digit = '0'..'9'
+    Small = 1..5
+    Warm = Color.Red..Color.Blue
+
+for k := Digit('3') to Digit('5') do
+    write(k)
+for s := Small(5) downto Small(4) do
+    write(s)
+for w := Warm(Color.Green) to Warm(Color.Blue) do
+    write(" {w}")
+writeln()
