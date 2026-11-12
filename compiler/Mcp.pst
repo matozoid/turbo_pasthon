@@ -222,6 +222,12 @@ function tools(): String
             required: ["code"],
         ),
         tool(
+            "pst_guide",
+            description: "A short guide to the mistakes newcomers to Pasthon (people and AIs) make most. Read it before writing Pasthon code.",
+            properties: [],
+            required: [],
+        ),
+        tool(
             "pst_run",
             description: "Builds and runs a program, and returns its exit code, output and panic, or the diagnostics if it doesn't build. Executes the program.",
             properties: [
@@ -756,6 +762,8 @@ function call(name: String, arguments: JValue, stdDir: String): Result[String, S
                 return Err(e.error)
     if name = "pst_explain" then
         return queryExplain(asString(field(arguments, key: "code")).getOr(""))
+    if name = "pst_guide" then
+        return readFile("{dirname(stdDir)}/docs/writing-pasthon.md")
     if name = "pst_run" then
         return runProgram(arguments)
     if name = "pst_test" then
@@ -825,7 +833,7 @@ procedure handle(m: JValue, stdDir: String)
         if not (version in ["2024-11-05", "2025-03-26", ProtocolVersion]) then
             version := ProtocolVersion
         let info := "\"serverInfo\":\{\"name\":\"pst\",\"version\":\"0.2\"}"
-        let instructions := "Tools for Turbo Pasthon (.pst) code. Positions are 1-based lines and columns in code points; paths are relative to the project root."
+        let instructions := "Tools for Turbo Pasthon (.pst) code. Positions are 1-based lines and columns in code points; paths are relative to the project root. Before writing Pasthon code, read the guide from pst_guide."
         respond(
             id,
             result: "\{\"protocolVersion\":{quote(version)},\"capabilities\":\{\"tools\":\{}},{info},\"instructions\":{quote(instructions)}}",

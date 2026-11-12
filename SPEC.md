@@ -1832,6 +1832,7 @@ Configure it in an agent with the command `pst mcp --root <project-dir>`.
 | `pst_accepts` | `file`, `line`, `col` or `type` | visible functions whose first parameter accepts that type, i.e. what `x.` can call (§6.6) |
 | `pst_rename` | `symbol`, `newName`, `dryRun?` | edits across units, refused on conflicts |
 | `pst_explain` | `code` | documentation for an error code |
+| `pst_guide` | | `docs/writing-pasthon.md`: the mistakes newcomers make most |
 
 **Rules**
 - Tools take either a position or a qualified symbol name (`Geometry.totalArea`), because
@@ -1845,7 +1846,7 @@ Configure it in an agent with the command `pst mcp --root <project-dir>`.
 
 So far `pst mcp [--root DIR]` has `pst_check`, `pst_symbols`, `pst_index`, `pst_def`,
 `pst_refs`, `pst_type`, `pst_hover`, `pst_impls`, `pst_callers`, `pst_callees`,
-`pst_accepts`, `pst_instances`, `pst_explain`, `pst_fmt`,
+`pst_accepts`, `pst_instances`, `pst_explain`, `pst_guide`, `pst_fmt`,
 `pst_apply_fix`, `pst_rename`, `pst_run` and `pst_test`. It reads
 one JSON-RPC message per line and answers `initialize`, `ping`, `tools/list` and
 `tools/call`; notifications are ignored. It runs in the root (by default the current

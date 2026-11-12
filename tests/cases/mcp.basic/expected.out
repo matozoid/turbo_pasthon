@@ -1,7 +1,7 @@
 $ $PST mcp --root proj < session.jsonl | sed 's|\\"file\\":\\"/[^"]*/|\\"file\\":\\"STD/|g'; echo "status $?"
 exit 0
 --- stdout
-{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","capabilities":{"tools":{}},"serverInfo":{"name":"pst","version":"0.2"},"instructions":"Tools for Turbo Pasthon (.pst) code. Positions are 1-based lines and columns in code points; paths are relative to the project root."}}
+{"jsonrpc":"2.0","id":1,"result":{"protocolVersion":"2025-03-26","capabilities":{"tools":{}},"serverInfo":{"name":"pst","version":"0.2"},"instructions":"Tools for Turbo Pasthon (.pst) code. Positions are 1-based lines and columns in code points; paths are relative to the project root. Before writing Pasthon code, read the guide from pst_guide."}}
 {"jsonrpc":"2.0","id":2,"result":{}}
 {"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"{\"errors\":1,\"diagnostics\":[{\"file\": \"Main.pst\", \"line\": 10, \"col\": 12, \"endLine\": 10, \"endCol\": 14, \"severity\": \"error\", \"code\": \"E0320\", \"message\": \"Square has no field 'si'\", \"fixes\": []}]}"}]}}
 {"jsonrpc":"2.0","id":4,"result":{"content":[{"type":"text","text":"{\"errors\":0,\"diagnostics\":[]}"}]}}
@@ -38,6 +38,7 @@ exit 0
 "name":"pst_callees"
 "name":"pst_instances"
 "name":"pst_explain"
+"name":"pst_guide"
 "name":"pst_run"
 "name":"pst_test"
 "name":"pst_fmt"
@@ -103,4 +104,9 @@ exit 0
 $ rm -r big
 exit 0
 --- stdout
+--- stderr
+$ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pst_guide","arguments":{}}}' | $PST mcp | grep -o '"text":"# [^\\]*'
+exit 0
+--- stdout
+"text":"# Writing Pasthon: common mistakes
 --- stderr

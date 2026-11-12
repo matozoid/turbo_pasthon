@@ -15,7 +15,7 @@ cd "$(dirname "$0")/.."
 
 RELEASE=https://github.com/matozoid/turbo_pasthon/releases/latest/download/pst-linux-x86_64.tar.gz
 
-rm -rf build/seed build/stage1 build/stage2 build/stage3 build/pst build/units
+rm -rf build/seed build/stage1 build/stage2 build/stage3 build/pst build/units build/docs
 
 # Puts the units link next to an executable in build/$1.
 stage() {
@@ -46,4 +46,5 @@ fi
 
 cp build/stage3/pst build/pst
 ln -s ../std build/units
+ln -s ../docs build/docs
 echo "built build/pst"
