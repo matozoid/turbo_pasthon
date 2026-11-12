@@ -25,9 +25,9 @@ reference; `pst query explain CODE` explains an error code.
   ```
 
 - A program's top-level statements are its main code; there is no `main` routine.
-- A unit from a git repository: `uses Json from "github.com/someone/pasthon-json@v1.0"`,
+- A unit from a git repository: `uses Yaml from "github.com/someone/pasthon-yaml@v1.0"`,
   always with a tag or commit after `@`. Its constants unit (the `Deps` of `uses Deps,
-  Json from Deps.Json`) needs a name of its own: unit names are global in a program.
+  Yaml from Deps.Yaml`) needs a name of its own: unit names are global in a program.
 
 ## Statements
 

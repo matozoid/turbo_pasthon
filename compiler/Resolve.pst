@@ -481,6 +481,11 @@ function findUnit(
     var candidates: List[String] := [join(c.stdDir, b: "{name}.pst")]
     if not user.std then
         add(var candidates, join(dirname(user.path), b: "{name}.pst"))
+    let libs := join(dirname(c.stdDir), b: "lib")
+    var dirs := listDir(libs).getOr([])
+    sort(var dirs)
+    for d in dirs do
+        add(var candidates, join(join(libs, b: d), b: "{name}.pst"))
     for i := 0 to length(candidates) - 1 do
         let path := candidates[i]
         if absolute(path) in c.overlay or isFile(path) then
@@ -508,7 +513,7 @@ function findUnit(
         user,
         span,
         code: "E0102",
-        message: "unit '{name}' not found: no '{name}.pst' in {dir} or the standard units",
+        message: "unit '{name}' not found: no '{name}.pst' in {dir}, the standard units or the libraries",
     )
     return None
 

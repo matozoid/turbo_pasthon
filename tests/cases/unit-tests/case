@@ -1,3 +1,4 @@
-# The test blocks of the standard units and of the compiler.
+# The test blocks of the standard units, the libraries and the compiler.
 $PST test $ROOT/std
+$PST test $ROOT/lib/json
 $PST test $ROOT/compiler

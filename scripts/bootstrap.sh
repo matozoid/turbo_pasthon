@@ -1,6 +1,6 @@
 #!/bin/sh
 # Builds the compiler, compiler/Pst.pst, into build/pst, with the standard units in
-# build/units.
+# build/units and the libraries in build/lib.
 #
 # The seed that builds it is $PST_SEED if set, else the latest release on GitHub. The seed
 # builds stage 1, stage 1 builds stage 2 and stage 2 builds stage 3. Stages 2 and 3 are
@@ -15,12 +15,13 @@ cd "$(dirname "$0")/.."
 
 RELEASE=https://github.com/matozoid/turbo_pasthon/releases/latest/download/pst-linux-x86_64.tar.gz
 
-rm -rf build/seed build/stage1 build/stage2 build/stage3 build/pst build/units build/docs
+rm -rf build/seed build/stage1 build/stage2 build/stage3 build/pst build/units build/lib build/docs
 
-# Puts the units link next to an executable in build/$1.
+# Puts the units and lib links next to an executable in build/$1.
 stage() {
     mkdir -p "build/$1"
     ln -s ../../std "build/$1/units"
+    ln -s ../../lib "build/$1/lib"
 }
 
 # The seed runs from build/seed, with this checkout's standard units, not its own.
@@ -46,5 +47,6 @@ fi
 
 cp build/stage3/pst build/pst
 ln -s ../std build/units
+ln -s ../lib build/lib
 ln -s ../docs build/docs
 echo "built build/pst"

@@ -1,0 +1,5 @@
+$ $PST run Main.pst
+exit 0
+--- stdout
+[1,"two"]
+--- stderr

@@ -1,0 +1,9 @@
+program Main
+
+uses IO, Json
+
+case Json.parse("[1, \"two\"]") of
+    Ok(j):
+        writeln(toText(j.value))
+    Err(e):
+        writeln(e.error)

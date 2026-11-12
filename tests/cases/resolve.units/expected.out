@@ -147,9 +147,9 @@ use Alias.pst 2:28-2:35
 use Alias.pst 2:28-2:35
   type 'Integer' @ std/System.pst:13:12
 Main.pst error E0107 2:19-2:23 "'Main' can't use itself"
-Main.pst error E0102 2:25-2:32 "unit 'Missing' not found: no 'Missing.pst' in . or the standard units"
+Main.pst error E0102 2:25-2:32 "unit 'Missing' not found: no 'Missing.pst' in ., the standard units or the libraries"
 Main.pst error E0102 2:34-2:38 "'Prog' is a program, not a unit"
-Main.pst error E0102 2:61-2:64 "unit 'Raw' not found: no 'Raw.pst' in . or the standard units"
+Main.pst error E0102 2:61-2:64 "unit 'Raw' not found: no 'Raw.pst' in ., the standard units or the libraries"
 Main.pst error E0110 3:17-3:23 "'Shared' is ambiguous: declared in units A, B; qualify it"
   fix "qualify as 'A.Shared'"
     edit 3:17-3:23 "A.Shared"

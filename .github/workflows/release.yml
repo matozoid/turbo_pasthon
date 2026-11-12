@@ -1,6 +1,6 @@
 # Publishes a release for a version tag (v*): builds the compiler with the previous
 # release as the seed, checks the stage 1 / stage 2 fixpoint, runs the tests, and
-# attaches pst-linux-x86_64.tar.gz (`pst`, `units/` and `docs/`).
+# attaches pst-linux-x86_64.tar.gz (`pst`, `units/`, `lib/` and `docs/`).
 name: release
 
 on:

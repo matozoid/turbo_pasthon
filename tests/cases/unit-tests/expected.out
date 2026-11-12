@@ -6,11 +6,6 @@ ok   std/Collections.pst:181: a priority queue gives its smallest element first
 ok   std/Collections.pst:194: a priority queue can use its own order
 ok   std/Collections.pst:203: a sorted map keeps its keys in order
 ok   std/Collections.pst:227: a sorted map's entries come in key order
-ok   std/Json.pst:384: parse and write back
-ok   std/Json.pst:392: errors
-ok   std/Json.pst:401: reading parts
-ok   std/Json.pst:411: nesting is limited
-ok   std/Json.pst:417: quote escapes control characters
 ok   std/Math.pst:37: integer helpers
 ok   std/Math.pst:42: real functions
 ok   std/OS.pst:298: directories
@@ -52,7 +47,17 @@ ok   std/Time.pst:1582: tzdata zones
 ok   std/Time.pst:1608: zoned date-times
 ok   std/Time.pst:1636: periods
 ok   std/Time.pst:1661: intervals
-51 passed, 0 failed
+46 passed, 0 failed
+--- stderr
+$ $PST test $ROOT/lib/json
+exit 0
+--- stdout
+ok   lib/json/Json.pst:384: parse and write back
+ok   lib/json/Json.pst:392: errors
+ok   lib/json/Json.pst:401: reading parts
+ok   lib/json/Json.pst:411: nesting is limited
+ok   lib/json/Json.pst:417: quote escapes control characters
+5 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/compiler
 exit 0
@@ -61,9 +66,14 @@ ok   compiler/Decimal.pst:197: exact and rounded literals
 ok   compiler/Decimal.pst:206: the edges of the range
 ok   compiler/Decimal.pst:213: singles
 ok   compiler/Difflib.pst:90: close matches, best first
+ok   compiler/Json.pst:384: parse and write back
+ok   compiler/Json.pst:392: errors
+ok   compiler/Json.pst:401: reading parts
+ok   compiler/Json.pst:411: nesting is limited
+ok   compiler/Json.pst:417: quote escapes control characters
 ok   compiler/PosixPaths.pst:120: dirname and basename
 ok   compiler/PosixPaths.pst:126: stripExt
 ok   compiler/PosixPaths.pst:132: join and normalize
 ok   compiler/PosixPaths.pst:139: relative
-8 passed, 0 failed
+13 passed, 0 failed
 --- stderr
