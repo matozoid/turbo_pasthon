@@ -309,8 +309,8 @@ def std/System.pst 165:15-165:21
   procedure 'resize' @ std/System.pst:165:15
 def std/System.pst 167:15-167:21
   procedure 'vacate' @ std/System.pst:167:15
-def std/System.pst 169:14-169:18
-  function 'hash' @ std/System.pst:169:14
+def std/System.pst 169:21-169:25
+  function 'hash' @ std/System.pst:169:21
 def std/System.pst 171:14-171:19
   function 'bitOf' @ std/System.pst:171:14
 def std/System.pst 173:14-173:19
@@ -2934,13 +2934,13 @@ use std/System.pst 167:33-167:37
   builtin type 'List' @ built into unit System
 use std/System.pst 167:45-167:52
   type 'Integer' @ std/System.pst:13:12
-def std/System.pst 169:19-169:20
-  type parameter 'T' @ std/System.pst:169:19
-use std/System.pst 169:22-169:30
+def std/System.pst 169:26-169:27
+  type parameter 'T' @ std/System.pst:169:26
+use std/System.pst 169:29-169:37
   builtin trait 'Hashable' @ built into unit System
-use std/System.pst 169:35-169:36
-  type parameter 'T' @ std/System.pst:169:19
-use std/System.pst 169:39-169:46
+use std/System.pst 169:42-169:43
+  type parameter 'T' @ std/System.pst:169:26
+use std/System.pst 169:46-169:53
   type 'Integer' @ std/System.pst:13:12
 def std/System.pst 171:20-171:21
   type parameter 'T' @ std/System.pst:171:20
@@ -4156,7 +4156,7 @@ use std/System.pst 406:27-406:28
 use std/System.pst 406:30-406:33
   parameter 'key' @ std/System.pst:403:45
 use std/System.pst 406:35-406:39
-  function 'hash' @ std/System.pst:169:14
+  function 'hash' @ std/System.pst:169:21
 use std/System.pst 406:40-406:43
   parameter 'key' @ std/System.pst:403:45
 def std/System.pst 410:18-410:19
@@ -4187,7 +4187,7 @@ def std/System.pst 410:60-410:66
 use std/System.pst 410:78-410:85
   type 'Integer' @ std/System.pst:13:12
 use std/System.pst 411:14-411:18
-  function 'hash' @ std/System.pst:169:14
+  function 'hash' @ std/System.pst:169:21
 use std/System.pst 411:19-411:22
   parameter 'key' @ std/System.pst:410:52
 def std/System.pst 411:9-411:10

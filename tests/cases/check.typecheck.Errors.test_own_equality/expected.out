@@ -1,0 +1,9 @@
+$ $PST check Main.pst
+exit 1
+--- stdout
+--- stderr
+Main.pst:11:10: error E0730: 'equals' for 'P' gives it its own '=', so it must be 'function equals(a, b: P): Boolean'
+Main.pst:14:10: error E0730: 'compare' for 'P' gives it its own '<', so it must be 'function compare(a, b: P): Integer'
+Main.pst:17:10: error E0730: 'equals' for 'Version' must be declared in its unit, 'Rings'
+Main.pst:25:15: error E0700: Q doesn't satisfy Hashable, required by 'Set'
+Main.pst:27:17: error E0305: '<' doesn't work on P: it isn't Ordered

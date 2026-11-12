@@ -17,7 +17,7 @@ easy for AI tools (and humans) to read, write, and verify.
 The main users are AI coding models; the language should be readable for humans.
 
 1. **One obvious way.** Each construct has a single syntax. The formatter is canonical and unconfigurable.
-2. **Nothing hidden.** No implicit conversions (one exception: injection into a union, §4.7), no exceptions, no null, no operator overloading, no macros. Errors are values.
+2. **Nothing hidden.** No implicit conversions (one exception: injection into a union, §4.7), no exceptions, no null, no operator overloading (one exception: a record may define its own `=` and `<`, §4.4), no macros. Errors are values.
 3. **Contracts visible.** Function signatures are always fully typed. Mutation is marked with `var`.
 4. **No surprises at runtime.** Overflow, bounds and contract failures panic in checked builds (`--unchecked` wraps overflow and drops contracts). No undefined behaviour outside `unsafe`.
 5. **Machine-checkable.** Built-in contracts (`requires`/`ensures`), built-in tests, JSON diagnostics with stable error codes, and `pst query`, LSP and MCP over one front end (§15).
@@ -387,6 +387,29 @@ type
 **Resource records.** A record whose unit declares `procedure destroy(var r: R)` for it is a
 *resource record*. It exists only behind `ref` (§11.1).
 
+**Own equality and order.** A record whose fields don't say what makes two values the same
+(a queue in a circular buffer, a version with a note) can say it with functions in its own
+unit:
+
+```pascal
+function equals(a, b: Version): Boolean     { `=` and `<>` }
+function compare(a, b: Version): Integer    { `<`, `<=`, `>`, `>=`: below, at or above 0 }
+function hash(v: Version): Integer          { equal values must hash alike }
+```
+
+- `=` and `<>` call `equals`, also where the record is a field, a list element, a variant
+  or a map key: `=` on a record holding a `Version` uses it for that field.
+- `compare` makes the record `Ordered`, so `sort` and `SortedMap` use it. It should agree
+  with `=`: `compare(a, b) = 0` exactly when `a = b`.
+- A record with its own `equals` is `Hashable` only with its own `hash` too. System's
+  `hash(x)` calls it; keep it unexported, or `hash(v)` is ambiguous between the two.
+- A generic record's routines take the record's type parameters, in order, with any
+  bounds they need: `function equals[T: Equatable](a, b: Ring[T]): Boolean`. `Ring[F]` is
+  `Equatable` only if `F` satisfies them.
+- A routine with one of these names whose first parameter is a record of its unit must
+  have this shape; one for a record of another unit is an error (`E0730`). Other
+  routines named `equals`, `compare` or `hash` are ordinary.
+
 ### 4.5 Arrays, lists, maps, sets
 
 | Type | Semantics |
@@ -431,7 +454,7 @@ built on those. Growing at least doubles the capacity, so `add` is amortized O(1
 
 A `Map` is a record in System holding lists of keys, values and hashes, in insertion
 order, plus an open-addressing slot table that points into them. The compiler provides
-only the `[k: v]` and `[:]` literals, `m[k]`, `k in m`, and an internal `hash`; everything
+only the `[k: v]` and `[:]` literals, `m[k]`, `k in m`, and `hash(x)`; everything
 else is Pasthon in System. `Map(...)` can't be written outside System (`E0306`).
 
 - `m[k]` reads a value and panics `P0008` if the key is missing; `m[k] := v` inserts or
@@ -572,7 +595,8 @@ Built-in traits in `System`: `Iterator[T]` (§4.14), `Sendable` (§11.2), `Equat
 `Equatable` and `Hashable`), `Printable` (`toString(this): String`).
 
 `Equatable`, `Ordered`, `Hashable`, `Ordinal` and `Sendable` are decided by the compiler from the
-type's structure (e.g. a record is `Equatable` if all its fields are). `Printable` is
+type's structure (e.g. a record is `Equatable` if all its fields are), or by a record's own
+`equals`, `compare` and `hash` (§4.4). `Printable` is
 satisfied built-in by primitives (except C types), enums, and subranges, and structurally
 (a visible `toString`) by everything else.
 System declares `toString` for `List`, `Map`, `Set` and `BitSet` with Printable items, so
@@ -2093,6 +2117,7 @@ already has a lexical error are not reported.
 | `E0700` | type argument doesn't satisfy a bound, or isn't a valid `BitSet` element |
 | `E0710` | operation on a type parameter that its bounds don't provide |
 | `E0720` | generic instances nest more than 64 deep (§8) |
+| `E0730` | a record's own `equals`, `compare` or `hash` with the wrong shape, declared outside the record's unit, or twice (§4.4) |
 | `E0801` | `if` expression without `else` |
 | `E0802` | `if` / `case` expression branches of different types |
 | `E0803` | `if` or `for` expression used as an operand without parentheses |

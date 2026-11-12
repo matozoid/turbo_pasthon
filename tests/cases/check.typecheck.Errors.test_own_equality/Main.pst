@@ -1,0 +1,27 @@
+program Main
+
+uses IO, Rings
+
+type
+    P = record
+        x: Integer
+    Q = record
+        f: Integer
+
+function equals(a: P, b: Integer): Boolean
+    return a.x = b
+
+function compare(a, b: P): Boolean
+    return a.x < b.x
+
+function equals(a, b: Version): Boolean
+    return true
+
+function equals(a, b: Q): Boolean
+    return a.f = b.f
+
+type
+    Keyed = record
+        keys: Set[Q]
+
+writeln(P(x: 1) < P(x: 2))

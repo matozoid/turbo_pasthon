@@ -1,0 +1,40 @@
+unit Rings
+
+{ A queue in a circular buffer: equal when the same elements are in it, in order. }
+type
+    export Ring[T] = record
+        items: List[T]
+        start: Integer
+
+export function ring[T](items: List[T], start: Integer): Ring[T]
+    return Ring(items: items, start: start)
+
+function inOrder[T](r: Ring[T]): List[T]
+    var out: List[T] := []
+    for i := 0 to length(r.items) - 1 do
+        add(var out, r.items[(r.start + i) mod length(r.items)])
+    return out
+
+export function equals[T: Equatable](a, b: Ring[T]): Boolean
+    return inOrder(a) = inOrder(b)
+
+{ Not exported: `hash(r)` elsewhere is System's, which calls this one. }
+function hash[T: Hashable](r: Ring[T]): Integer
+    var h := 0
+    for x in inOrder(r) do
+        h := (h * 31 + hash(x)) mod 1000000007
+    return h
+
+type
+    export Version = record
+        export major: Integer
+        export minor: Integer
+        export note: String
+
+export function compare(a, b: Version): Integer
+    if a.major <> b.major then
+        return a.major - b.major
+    return a.minor - b.minor
+
+export function equals(a, b: Version): Boolean
+    return compare(a, b) = 0

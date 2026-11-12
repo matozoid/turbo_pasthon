@@ -166,7 +166,7 @@ external "pst"
     { Makes `xs` unshared and element `i` empty, releasing its value. }
     procedure vacate[T](var xs: List[T], i: Integer)
     { A hash of `x`, not negative. Equal values have equal hashes. }
-    function hash[T: Hashable](x: T): Integer
+    export function hash[T: Hashable](x: T): Integer
     { The bit of a BitSet element: `ord(x)` minus the `ord` of the first value of `T`. }
     function bitOf[T](x: T): Integer
     { The BitSet element whose bit is `i`. }

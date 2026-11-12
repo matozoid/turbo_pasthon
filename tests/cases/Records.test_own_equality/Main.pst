@@ -1,0 +1,31 @@
+program Main
+
+uses IO, Rings
+
+type
+    Holder = record
+        r: Ring[Integer]
+        n: Integer
+
+let a := ring([1, 2, 3], 0)
+let b := ring([3, 1, 2], 1)
+let c := ring([1, 2, 3], 1)
+writeln("{a = b} {a <> b} {a = c}")
+writeln(Holder(r: a, n: 1) = Holder(r: b, n: 1))
+writeln("{[a] = [b]} {Some(a) = Some(b)}")
+writeln(hash(a) = hash(b))
+var s: Set[Ring[Integer]] := []
+add(var s, a)
+add(var s, b)
+add(var s, c)
+writeln(length(s))
+var m: Map[Ring[Integer], String] := [:]
+m[a] := "a"
+writeln(m[b])
+let v1 := Version(major: 1, minor: 2, note: "x")
+let v2 := Version(major: 1, minor: 10, note: "y")
+writeln("{v1 < v2} {v1 > v2} {v1 <= v2} {v1 = Version(major: 1, minor: 2, note: "z")}")
+var vs := [v2, v1, Version(major: 0, minor: 9, note: "")]
+sort(var vs)
+for v in vs do
+    writeln("{v.major}.{v.minor}")

@@ -204,6 +204,9 @@ type
         hooksDone: Boolean
         { Resource record id -> its destroy hook. }
         hookMap: Map[Integer, ref Symbol]
+        opsDone: Boolean
+        { "record id|equals" (or compare, hash) -> the record's own routine (SPEC §4.4). }
+        opMap: Map[String, ref Symbol]
         { A variable for "the element type", when asking whether a type is an iterator. }
         elemVar: ref Symbol
         { The types of locals, by symbol id. }
@@ -586,6 +589,8 @@ function newEnv(c: ref Checker, units: List[ref Unit]): ref Env
         written: [:],
         hooksDone: false,
         hookMap: [:],
+        opsDone: false,
+        opMap: [:],
         elemVar: newSymbol(c, Kind.TypeParamSym, "T", span: None, file: "", unitName: "System"),
         symTypes: [:],
         calls: [],
@@ -733,6 +738,109 @@ procedure hookOf(env: ref Env, u: ref Unit, r: Routine)
                 env.hookMap[n.sym.id] := sym
         else:
             return
+
+{ The routines that give records their own `=`, `<` and hash (SPEC §4.4): a function
+  `equals(a, b: R): Boolean`, `compare(a, b: R): Integer` or `hash(r: R): Integer` in the
+  record's unit, by "record id|name". A generic record's routine has the same type
+  parameters, in the same order: `equals[T](a, b: R[T]): Boolean`. }
+export function userOps(env: ref Env): Map[String, ref Symbol]
+    if env.opsDone then
+        return env.opMap
+    env.opsDone := true
+    for _, u in env.units do
+        for item in u.parsed.file.items do
+            case item of
+                Decl(d):
+                    case d of
+                        Routine(r):
+                            if r.sig.name.name in ["equals", "compare", "hash"] then
+                                opOf(env, u, r)
+                        else:
+                            pass
+                Stmt(_):
+                    pass
+    return env.opMap
+
+procedure opOf(env: ref Env, u: ref Unit, r: Routine)
+    let found := defSym(env, u.path, r.sig.name.span)
+    if found.isNone() then
+        return
+    let sym := found.get()
+    let g := sig(env, sym)
+    let name := sym.name
+    if length(g.params) = 0 then
+        return
+    let t := g.params[0].ty
+    case t of
+        NamedT(n):
+            if kindOf(env, t) <> "record" then
+                return
+            var arity := 2
+            var result := booleanT()
+            var shape := "function equals(a, b: {show(t)}): Boolean"
+            if name = "compare" then
+                result := integerT()
+                shape := "function compare(a, b: {show(t)}): Integer"
+            else if name = "hash" then
+                arity := 1
+                result := integerT()
+                shape := "function hash(x: {show(t)}): Integer"
+            var ok := g.isFunction and length(g.params) = arity and g.result = result
+            ok := ok and length(n.args) = length(g.tparams)
+            for i := 0 to length(n.args) - 1 do
+                ok := ok and i < length(g.tparams) and n.args[i] = ParamT(sym: g.tparams[i])
+            for p in g.params do
+                ok := ok and p.ty = t and not p.isVar and not p.hasDefault
+            if n.sym.unitName <> u.name then
+                if ok then
+                    envError(
+                        env,
+                        r.sig.name.span,
+                        u.path,
+                        "E0730",
+                        "'{name}' for '{n.sym.name}' must be declared in its unit, '{n.sym.unitName}'",
+                    )
+            else if not ok then
+                envError(
+                    env,
+                    r.sig.name.span,
+                    u.path,
+                    "E0730",
+                    "'{name}' for '{n.sym.name}' gives it its own {opText(name)}, so it must be '{shape}'",
+                )
+            else
+                let k := "{n.sym.id}|{name}"
+                if k in env.opMap then
+                    envError(
+                        env,
+                        r.sig.name.span,
+                        u.path,
+                        "E0730",
+                        "'{n.sym.name}' already has a '{name}'",
+                    )
+                else
+                    env.opMap[k] := sym
+        else:
+            return
+
+function opText(name: String): String
+    if name = "equals" then
+        return "'='"
+    if name = "compare" then
+        return "'<'"
+    return "hash"
+
+{ Record `t`'s own `equals`, `compare` or `hash`, if it has one. }
+export function userOp(env: ref Env, t: Type, name: String): Option[ref Symbol]
+    if kindOf(env, t) <> "record" then
+        return None
+    return get(userOps(env), "{namedSym(t).get().id}|{name}")
+
+{ Whether record `t`'s own `name` routine, if any, takes `t`: its type arguments
+  satisfy the routine's bounds. }
+function opHolds(tc: ref TC, t: Type, op: ref Symbol): Boolean
+    var s := zipSubst(sig(tc.env, op).tparams, argsOf(t))
+    return boundsHold(tc.env, op.file, sig(tc.env, op).tparams, var s, [])
 
 function isHook(env: ref Env, s: ref Symbol): Boolean
     for _, h in hooks(env) do
@@ -1435,6 +1543,7 @@ procedure run(tc: ref TC)
     body(tc, rest)
     if length(hooks(tc.env)) > 0 then
         walkFile(tc, tc.home.parsed.file)
+    _ := userOps(tc.env)
 
 procedure runDecl(tc: ref TC, d: Decl)
     case d of
@@ -5177,6 +5286,22 @@ function builtinTraitOf(tc: ref TC, t: Type, name: String): Boolean
                             add(var parts, a)
             else:
                 pass
+    let eq := userOp(tc.env, t, "equals")
+    if name = "Equatable" and eq.isSome() then
+        return opHolds(tc, t, eq.get())
+    if name = "Ordered" then
+        case userOp(tc.env, t, "compare") of
+            Some(c):
+                return opHolds(tc, t, c.value) and builtinTrait(tc, t, "Equatable")
+            None:
+                pass
+    if name = "Hashable" then
+        case userOp(tc.env, t, "hash") of
+            Some(h):
+                return opHolds(tc, t, h.value) and builtinTrait(tc, t, "Equatable")
+            None:
+                if eq.isSome() then
+                    return false  { its own `=` needs its own hash }
     if name = "Equatable" then
         case t of
             FuncT(_):

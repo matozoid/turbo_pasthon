@@ -62,14 +62,16 @@ const
       descriptor has count ListCount and one kind word, for all its elements. DEq is 0,
       or the distance from the descriptor to the code of the type's equality routine;
       DDrop the same for a routine called with the block in rdi when its last reference
-      goes; DName the distance to the type's name, NUL-terminated, for leak reports. }
+      goes; DName the distance to the type's name, NUL-terminated, for leak reports; DHash
+      0 or the distance to the code of the type's own hash routine. }
     DCount = 0
     DSize = 8
     DId = 16
     DEq = 24
     DDrop = 32
     DName = 40
-    DKinds = 48
+    DHash = 48
+    DKinds = 56
     { The kind word of a slot holding a reference. }
     Managed = 1
     { In a checked build each heap block follows a prefix: the next and the previous live
@@ -688,7 +690,8 @@ function fieldIndex(g: ref Em, t: Type, name: String): Integer
     return 0
 
 { The data label of the descriptor for blocks of `k`, named `name`, holding `parts`,
-  with equality routine `eq` and drop routine `drop` (code labels) if not "". }
+  with equality routine `eq`, drop routine `drop` and hash routine `hash` (code labels)
+  if not "". }
 function descriptor(
     g: ref Em,
     k: String,
@@ -696,11 +699,12 @@ function descriptor(
     name: String,
     eq: String := "",
     drop: String := "",
+    hash: String := "",
 ): String
     var kinds: List[Integer] := []
     for p in parts do
         add(var kinds, slotKind(g, p))
-    return descriptorOf(g, k, kinds, name: name, eq: eq, drop: drop)
+    return descriptorOf(g, k, kinds, name: name, eq: eq, drop: drop, hash: hash)
 
 { The descriptor `descriptor` makes, from the kinds of the slots. }
 function descriptorOf(
@@ -710,12 +714,14 @@ function descriptorOf(
     name: String,
     eq: String,
     drop: String,
+    hash: String := "",
 ): String
     if not (k in g.descs) then
         var bs: List[Byte] := []
         word(var bs, length(kinds))
         word(var bs, Fields + 8 * length(kinds))
         word(var bs, length(g.descs))
+        word(var bs, 0)
         word(var bs, 0)
         word(var bs, 0)
         word(var bs, 0)
@@ -728,6 +734,8 @@ function descriptorOf(
             codeRef(g.a, lbl, offset: DEq, label: eq)
         if drop <> "" then
             codeRef(g.a, lbl, offset: DDrop, label: drop)
+        if hash <> "" then
+            codeRef(g.a, lbl, offset: DHash, label: hash)
     return g.descs[k]
 
 { A descriptor's kind word for a slot of type `t`: 1 for a reference, 2 for a `Real`
@@ -766,6 +774,7 @@ function listDesc(g: ref Em, t: Type): String
         word(var bs, ListCount)
         word(var bs, Elems)
         word(var bs, length(g.descs))
+        word(var bs, 0)
         word(var bs, 0)
         word(var bs, 0)
         word(var bs, 0)
@@ -3336,6 +3345,22 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
     coerce(g, x.right, t)
     if g.bad then
         return
+    if isCompare(op) and userOp(g.env, t, "compare").isSome() then
+        let target := opLabel(g, x.span, t, "compare")
+        if g.bad then
+            return
+        push(a, Rax)
+        load(a, Rdi, Rsp, disp: 8)
+        mov(a, Rsi, Rax)
+        retain(g)  { the routine owns its arguments }
+        mov(a, Rax, Rdi)
+        retain(g)
+        call(a, target)
+        drop(g, 2)
+        cmpImm(a, Rax, value: 0)
+        setcc(a, compareCC(op), Rax)
+        movzx8(a, Rax, Rax)
+        return
     if managed(g, t) and t <> stringT() then  { `=` or `<>` }
         push(a, Rax)
         load(a, Rdi, Rsp, disp: 8)
@@ -4393,6 +4418,15 @@ function sysLabel(g: ref Em, span: Span, name: String, targs: List[Type]): Strin
         sites[tp.id] := g.f.file
     return labelOf(g, span, sym, targs, sites: sites)
 
+{ The label of record `t`'s own `equals`, `compare` or `hash` routine (SPEC §4.4), for
+  its type arguments. }
+function opLabel(g: ref Em, span: Span, t: Type, name: String): String
+    let sym := userOp(g.env, t, name).get()
+    var sites: Map[Integer, String] := [:]
+    for tp in sig(g.env, sym).tparams do
+        sites[tp.id] := g.f.file
+    return labelOf(g, span, sym, argsOf(t), sites: sites)
+
 { `Point(x: 1, y: 2)`: the field values are pushed, then moved into a new block. }
 procedure construct(g: ref Em, c: Call, m: Match)
     let a := g.a
@@ -4425,7 +4459,14 @@ procedure construct(g: ref Em, c: Call, m: Match)
         eq := sysLabel(g, c.span, "mapEquals", argsOf(t))
         if g.bad then
             return
-    newBlock(g, descriptor(g, key(t), fieldTypes(g, t), name: show(t), eq: eq))
+    if userOp(g.env, t, "equals").isSome() then
+        eq := opLabel(g, c.span, t, "equals")
+    var hash := ""
+    if userOp(g.env, t, "hash").isSome() then
+        hash := opLabel(g, c.span, t, "hash")
+    if g.bad then
+        return
+    newBlock(g, descriptor(g, key(t), fieldTypes(g, t), name: show(t), eq: eq, hash: hash))
     for i := length(m.params) - 1 downto 0 do
         pop(a, Rcx)
         store(a, Rax, disp: Fields + 8 * i, src: Rcx)
@@ -5457,8 +5498,8 @@ procedure rtEq(g: ref Em)
     ret(a)
 
 { rax := a hash of the value of block rdi: FNV-1a over a string's bytes, or over a
-  record's descriptor number and fields (each field's own hash if it holds a reference).
-  Equal values hash alike. }
+  record's descriptor number and fields (each field's own hash if it holds a reference),
+  or what the record's own hash routine gives. Equal values hash alike. }
 procedure rtHash(g: ref Em)
     let a := g.a
     let l := labels(a, "h", 4)
@@ -5473,6 +5514,18 @@ procedure rtHash(g: ref Em)
     jcc(a, "e", label: str)
     let saved := [Rbx, R12, R13, R14, R15]
     pushAll(a, saved)
+    let fields := newLabel(a, "h")
+    load(a, Rcx, Rdx, disp: DHash)
+    testR(a, Rcx, Rcx)
+    jcc(a, "e", label: fields)
+    add(a, Rcx, Rdx)  { the routine, which owns its argument }
+    mov(a, Rax, Rdi)
+    retain(g)
+    callReg(a, Rcx)
+    mov(a, Rbx, Rax)
+    jmp(a, done)
+    label(a, fields)
+    movImm(a, Rax, value: FnvOffset)
     mov(a, Rbx, Rax)  { the hash so far }
     load(a, Rcx, Rdx, disp: DId)
     xorR(a, Rbx, Rcx)

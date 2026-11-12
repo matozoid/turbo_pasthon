@@ -61,6 +61,9 @@ reference; `pst query explain CODE` explains an error code.
   To search, use `pos(s, sub: "x")` from `Strings`, not `in`.
 - Enum members are qualified, `Color.Red`, except as `case` labels.
 - Records are built with named fields: `Point(x: 1, y: 2)`.
+- `=` on records compares every field. When that's wrong (a cache field, a circular buffer),
+  give the record its own `equals(a, b: R): Boolean` in its unit, and `compare(a, b: R):
+  Integer` for `<`. There is no other operator overloading.
 - Conversions: `Integer(x)` and the like between integer types, `toInt(r)` or `round(r)` from
   `Real` to `Integer`, `toReal(i)` from `Integer`, `Char(i)` from a code point, `ord(c)` to
   one. There's no `Color(1)`.
