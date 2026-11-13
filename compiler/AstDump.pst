@@ -462,7 +462,7 @@ procedure decl(x: Decl, d: Integer, label: String)
                 ident(k.name, c + 1, label: one("name"))
                 expr(k.value, c + 1, label: one("value"))
         Routine(r):
-            let scalars := "{flag("exported", value: r.exported)}{flag("unsafe", value: r.isUnsafe)}{optStr("doc", value: r.doc)}{optSpan("end_marker", value: r.endMarker)}"
+            let scalars := "{flag("exported", value: r.exported)}{flag("unsafe", value: r.isUnsafe)}{flag("operator", value: r.isOperator)}{optStr("doc", value: r.doc)}{optSpan("end_marker", value: r.endMarker)}"
             line(d, label, kind: "Routine", span: r.span, scalars: scalars)
             signature(r.sig, c, label: one("sig"))
             exprs(r.pre, c, field: "requires")

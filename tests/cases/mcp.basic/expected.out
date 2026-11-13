@@ -78,7 +78,6 @@ declaration\":\"procedure dec[T](var x: T)
 declaration\":\"procedure dec[T](var x: T, n: Integer)
 declaration\":\"function ord[T](x: T): Integer
 declaration\":\"function new[T](value: T): ref T
-declaration\":\"function hash[T: Hashable](x: T): Integer
 --- stderr
 $ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"pst_accepts","arguments":{}}}' | $PST mcp --root proj
 exit 0

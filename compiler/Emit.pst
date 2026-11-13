@@ -187,6 +187,16 @@ type
         label: String
         hook: String
 
+    { A routine a record's descriptor points at, around its operator routine (SPEC
+      §4.4): "eq" is `=` through its `compare`; "hash" runs its `hash` on a new Hasher,
+      made by `start`, and gives the hash `finish` reads from it. }
+    OpStub = record
+        label: String
+        kind: String
+        target: String
+        start: String
+        finish: String
+
     PanicStub = record
         label: String
         message: List[Byte]
@@ -276,6 +286,7 @@ type
         taken: List[Taken]
         lookups: List[Lookup]
         drops: List[BoxDrop]
+        stubs: List[OpStub]
         { Shared libraries, in DT_NEEDED order. }
         needed: List[String]
         { File and id of an extern declaration -> its library. }
@@ -515,6 +526,27 @@ function callOf(g: ref Em, e: Call): Option[Match]
             return get(m.value, e.id)
         None:
             return None
+
+{ The call an operator stands for (SPEC §4.4), checked under the operator's id. }
+function opCall(g: ref Em, e: Expr): Option[Call]
+    var id := -1
+    case e of
+        Binary(b):
+            id := b.id
+        Unary(u):
+            id := u.id
+        Index(ix):
+            id := ix.id
+        else:
+            return None
+    let c := Call(span: exprSpan(e), id: id, callee: e, args: [])
+    case callOf(g, c) of
+        Some(m):
+            if length(m.value.slots) > 0 then  { not `f[T]`, which has no arguments }
+                return Some(c)
+        None:
+            pass
+    return None
 
 { "record", "union", "enum", ... for a declared type. }
 function kind(g: ref Em, t: Type): String
@@ -812,6 +844,42 @@ function boxDesc(g: ref Em, t: Type, span: Span): String
             drop: dropLabel,
         )
     return g.descs[k]
+
+{ The label of a stub around an operator routine, made once per kind and target. }
+function stubLabel(
+    g: ref Em,
+    kind,
+    target: String,
+    start: String := "",
+    finish: String := "",
+): String
+    for st in g.stubs do
+        if st.kind = kind and st.target = target then
+            return st.label
+    let lbl := newLabel(g.a, kind)
+    add(var g.stubs, OpStub(label: lbl, kind: kind, target: target, start: start, finish: finish))
+    return lbl
+
+{ A stub: rdi and rsi are the operands, owned. }
+procedure opStub(g: ref Em, st: OpStub)
+    let a := g.a
+    label(a, st.label)
+    if st.kind = "eq" then  { compare(a, b) = Order.Equal }
+        call(a, st.target)
+        cmpImm(a, Rax, value: 1)
+        setcc(a, "e", Rax)
+        movzx8(a, Rax, Rax)
+        ret(a)
+        return
+    push(a, Rdi)  { hash(var h, x) }
+    call(a, st.start)
+    pop(a, Rsi)
+    push(a, Rax)
+    mov(a, Rdi, Rsp)
+    call(a, st.target)
+    pop(a, Rdi)
+    call(a, st.finish)
+    ret(a)
 
 { The drop routine of a box type, for rt_release: rdi is the box. }
 procedure boxDrop(g: ref Em, d: BoxDrop)
@@ -1115,6 +1183,7 @@ export function build(result: Checked, checked: Boolean := true, tests: Boolean 
         taken: [],
         lookups: [],
         drops: [],
+        stubs: [],
         needed: [Libc],
         library: library,
         units: units,
@@ -1202,6 +1271,8 @@ function run(g: ref Em): Built
     while i < length(g.drops) do
         boxDrop(g, g.drops[i])
         i := i + 1
+    for st in g.stubs do
+        opStub(g, st)
     for p in g.panics do
         label(a, p.label)
         leaData(a, Rsi, label: data(a, p.message))
@@ -1577,6 +1648,12 @@ procedure stmtHere(g: ref Em, s: Stmt)
             if managed(g, t) then
                 own(g, slot)
         Assign(x):
+            case opCall(g, x.target) of
+                Some(c):  { `c[k] := v` is `set(var c, k, v)` }
+                    callExpr(g, c.value)
+                    return
+                None:
+                    pass
             let t := typeOfExpr(g, x.target)
             coerce(g, x.value, t)
             if g.bad then
@@ -2618,6 +2695,12 @@ procedure exprHere(g: ref Em, e: Expr)
         if g.bad then
             return
     let a := g.a
+    case opCall(g, e) of
+        Some(c):
+            callExpr(g, c.value)
+            return
+        None:
+            pass
     case e of
         IntLit(x):
             if x.value < 4294967296 then
@@ -3357,7 +3440,7 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
         retain(g)
         call(a, target)
         drop(g, 2)
-        cmpImm(a, Rax, value: 0)
+        cmpImm(a, Rax, value: 1)  { Order.Equal }
         setcc(a, compareCC(op), Rax)
         movzx8(a, Rax, Rax)
         return
@@ -4461,9 +4544,17 @@ procedure construct(g: ref Em, c: Call, m: Match)
             return
     if userOp(g.env, t, "equals").isSome() then
         eq := opLabel(g, c.span, t, "equals")
+    else if userOp(g.env, t, "compare").isSome() then
+        eq := stubLabel(g, "eq", opLabel(g, c.span, t, "compare"))
     var hash := ""
     if userOp(g.env, t, "hash").isSome() then
-        hash := opLabel(g, c.span, t, "hash")
+        hash := stubLabel(
+            g,
+            "hash",
+            opLabel(g, c.span, t, "hash"),
+            start: sysLabel(g, c.span, "newHasher", []),
+            finish: sysLabel(g, c.span, "hashed", []),
+        )
     if g.bad then
         return
     newBlock(g, descriptor(g, key(t), fieldTypes(g, t), name: show(t), eq: eq, hash: hash))

@@ -17,7 +17,7 @@ easy for AI tools (and humans) to read, write, and verify.
 The main users are AI coding models; the language should be readable for humans.
 
 1. **One obvious way.** Each construct has a single syntax. The formatter is canonical and unconfigurable.
-2. **Nothing hidden.** No implicit conversions (one exception: injection into a union, §4.7), no exceptions, no null, no macros. Operators are a fixed set with fixed meanings; the only ones a type can take part in are `=` and `<` (and their relatives), which on a record stand for the functions `equals` and `compare` of its unit (§4.4). Errors are values.
+2. **Nothing hidden.** No implicit conversions (one exception: injection into a union, §4.7), no exceptions, no null, no macros. Operators are a fixed set; on a record, some of them stand for routines of a fixed name that its unit marks `operator`, so `a + b` is `plus(a, b)` (§4.4). Errors are values.
 3. **Contracts visible.** Function signatures are always fully typed. Mutation is marked with `var`.
 4. **No surprises at runtime.** Overflow, bounds and contract failures panic in checked builds (`--unchecked` wraps overflow and drops contracts). No undefined behaviour outside `unsafe`.
 5. **Machine-checkable.** Built-in contracts (`requires`/`ensures`), built-in tests, JSON diagnostics with stable error codes, and `pst query`, LSP and MCP over one front end (§15).
@@ -387,28 +387,53 @@ type
 **Resource records.** A record whose unit declares `procedure destroy(var r: R)` for it is a
 *resource record*. It exists only behind `ref` (§11.1).
 
-**Own equality and order.** A record whose fields don't say what makes two values the same
-(a queue in a circular buffer, a version with a note) can say it with functions in its own
-unit:
+**Operator routines.** A record's unit can give it operators with routines marked
+`operator`. Each operator stands for a routine of a fixed name, and nothing else can be
+given a meaning:
+
+| Operator | Stands for |
+|---|---|
+| `a = b`, `a <> b` | `equals(a, b)`, or `compare(a, b) = Order.Equal` |
+| `a < b`, `a <= b`, `a > b`, `a >= b` | `compare(a, b)` against `Order.Equal` |
+| `a + b`, `a - b`, `a * b`, `a / b` | `plus(a, b)`, `minus(a, b)`, `times(a, b)`, `divide(a, b)` |
+| `-a` | `negate(a)` |
+| `x in c` | `contains(c, x)` |
+| `c[k]`, `c[i, j]` | `get(c, k)`, `get(c, i, j)` |
+| `c[k] := v` | `set(var c, k, v)` |
 
 ```pascal
-function equals(a, b: Version): Boolean     { `=` and `<>` }
-function compare(a, b: Version): Integer    { `<`, `<=`, `>`, `>=`: below, at or above 0 }
-function hash(v: Version): Integer          { equal values must hash alike }
+operator function equals(a, b: Version): Boolean
+operator function compare(a, b: Version): Order       { Order = (Less, Equal, Greater) }
+operator procedure hash(var h: Hasher, v: Version)     { combine(var h, v.major) ... }
+operator function plus(a, b: Money): Money
+operator function times(a: Money, n: Integer): Money
+operator function get(g: Grid, x, y: Integer): Integer
+operator procedure set(var g: Grid, x, y: Integer, value: Integer)
 ```
 
-- `=` and `<>` call `equals`, also where the record is a field, a list element, a variant
-  or a map key: `=` on a record holding a `Version` uses it for that field.
-- `compare` makes the record `Ordered`, so `sort` and `SortedMap` use it. It should agree
-  with `=`: `compare(a, b) = 0` exactly when `a = b`.
-- A record with its own `equals` is `Hashable` only with its own `hash` too. System's
-  `hash(x)` calls it; keep it unexported, or `hash(v)` is ambiguous between the two.
-- A generic record's routines take the record's type parameters, in order, with any
-  bounds they need: `function equals[T: Equatable](a, b: Ring[T]): Boolean`. `Ring[F]` is
-  `Equatable` only if `F` satisfies them.
-- A routine with one of these names whose first parameter is a record of its unit must
-  have this shape; one for a record of another unit is an error (`E0730`). Other
-  routines named `equals`, `compare` or `hash` are ordinary.
+- `equals`, `compare` and `hash` give a record its own equality, order and hash: for a
+  queue in a circular buffer, or a version with a note that doesn't count. They take the
+  record itself, of their own unit. `=` and `<>` use `equals` also where the record is a
+  field, a list element, a variant or a map key: `=` on a record holding a `Version` uses
+  it for that field.
+- `compare` makes the record `Ordered`, so `sort` and `SortedMap` use it. Without an
+  `equals`, `compare` is its `=` too; with one, they must agree.
+- A record with its own `=` is `Hashable` only with its own `hash` too, which feeds what
+  makes values equal to System's `combine(var h, x)`, for any `Hashable` `x`. Equal
+  values must hash alike.
+- A generic record's `equals`, `compare` and `hash` take the record's type parameters,
+  in order, with any bounds they need: `operator function equals[T: Equatable](a, b:
+  Ring[T]): Boolean`. `Ring[F]` is `Equatable` only if `F` satisfies them.
+- The others are ordinary routines that an operator calls, chosen among the overloads of
+  that name in the operands' units, as for a call: `2 * m` and `m * 2` need a `times`
+  each. `plus`, `minus`, `times` and `divide` take two values, at least one a record of
+  their unit; `negate`, `contains` and `get` take one of its records first, and `set` a
+  `var` one. An arithmetic operator on a record means only its routine: `-` is `minus`
+  and nothing else.
+- `c[k]` without a `set` can't be assigned or passed as `var`.
+- `operator` on a routine of another name, of the wrong shape, for a record of another
+  unit, or a second `equals`, `compare` or `hash` is an error (`E0730`). A routine named
+  `equals` or `plus` without `operator` is ordinary.
 
 ### 4.5 Arrays, lists, maps, sets
 
@@ -454,7 +479,7 @@ built on those. Growing at least doubles the capacity, so `add` is amortized O(1
 
 A `Map` is a record in System holding lists of keys, values and hashes, in insertion
 order, plus an open-addressing slot table that points into them. The compiler provides
-only the `[k: v]` and `[:]` literals, `m[k]`, `k in m`, and `hash(x)`; everything
+only the `[k: v]` and `[:]` literals, `m[k]`, `k in m`, and an internal `hash`; everything
 else is Pasthon in System. `Map(...)` can't be written outside System (`E0306`).
 
 - `m[k]` reads a value and panics `P0008` if the key is missing; `m[k] := v` inserts or
@@ -596,7 +621,7 @@ Built-in traits in `System`: `Iterator[T]` (§4.14), `Sendable` (§11.2), `Equat
 
 `Equatable`, `Ordered`, `Hashable`, `Ordinal` and `Sendable` are decided by the compiler from the
 type's structure (e.g. a record is `Equatable` if all its fields are), or by a record's own
-`equals`, `compare` and `hash` (§4.4). `Printable` is
+operator routines `equals`, `compare` and `hash` (§4.4). `Printable` is
 satisfied built-in by primitives (except C types), enums, and subranges, and structurally
 (a visible `toString`) by everything else.
 System declares `toString` for `List`, `Map`, `Set` and `BitSet` with Printable items, so
@@ -1983,7 +2008,7 @@ typeArgs    = "[" (typeExpr | constExpr) { "," (typeExpr | constExpr) } "]" ;
 
 constSect   = "const" NEWLINE INDENT { ["export"] IDENT "=" expr NEWLINE } DEDENT ;
 
-routine     = ["export"] ["unsafe"] signature routineBody ;
+routine     = ["export"] ["unsafe" | "operator"] signature routineBody ;  (* operator: a word *)
 signature   = ("function" | "procedure") IDENT [typeParams]
               "(" [param { "," param }] ")" [":" typeExpr] ;
 param       = ["var"] ( "this" | IDENT { "," IDENT } ":" typeExpr [":=" expr] ) | "..." ;
@@ -2117,7 +2142,7 @@ already has a lexical error are not reported.
 | `E0700` | type argument doesn't satisfy a bound, or isn't a valid `BitSet` element |
 | `E0710` | operation on a type parameter that its bounds don't provide |
 | `E0720` | generic instances nest more than 64 deep (§8) |
-| `E0730` | a record's own `equals`, `compare` or `hash` with the wrong shape, declared outside the record's unit, or twice (§4.4) |
+| `E0730` | an `operator` routine with another name or the wrong shape, for a record of another unit, or a record's second `equals`, `compare` or `hash` (§4.4) |
 | `E0801` | `if` expression without `else` |
 | `E0802` | `if` / `case` expression branches of different types |
 | `E0803` | `if` or `for` expression used as an operand without parentheses |
@@ -2145,8 +2170,8 @@ already has a lexical error are not reported.
 
 ## 17. Deliberately excluded
 
-Classes, inheritance, exceptions, null, implicit numeric conversions, new operators and
-meanings for operators beyond a record's `equals` and `compare` (§4.4), macros, mutable
+Classes, inheritance, exceptions, null, implicit numeric conversions, new operators,
+meanings for operators beyond the operator routines of a record's unit (§4.4), macros, mutable
 globals, `goto`, `with`, compound assignment, chained comparisons, semicolon-separated
 statements, tuples (use records), closures that share variables (lambdas copy them),
 runtime trait objects (use unions).

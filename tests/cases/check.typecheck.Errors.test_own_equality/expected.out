@@ -2,8 +2,14 @@ $ $PST check Main.pst
 exit 1
 --- stdout
 --- stderr
-Main.pst:11:10: error E0730: 'equals' for 'P' gives it its own '=', so it must be 'function equals(a, b: P): Boolean'
-Main.pst:14:10: error E0730: 'compare' for 'P' gives it its own '<', so it must be 'function compare(a, b: P): Integer'
-Main.pst:17:10: error E0730: 'equals' for 'Version' must be declared in its unit, 'Rings'
-Main.pst:25:15: error E0700: Q doesn't satisfy Hashable, required by 'Set'
-Main.pst:27:17: error E0305: '<' doesn't work on P: it isn't Ordered
+Main.pst:11:19: error E0730: 'equals' for 'P' gives it its own '=', so it must be 'operator function equals(a, b: P): Boolean'
+Main.pst:14:19: error E0730: 'compare' for 'P' gives it its own '<', so it must be 'operator function compare(a, b: P): Order'
+Main.pst:17:19: error E0730: 'equals' for 'Version' must be declared in its unit, 'Rings'
+Main.pst:23:19: error E0730: 'shift' isn't an operator; the operator routines are equals, compare, hash, plus, minus, times, divide, negate, contains, get and set
+Main.pst:26:19: error E0730: operator 'plus' needs a parameter to be a record of unit 'Main'
+Main.pst:29:20: error E0730: operator 'set' must be 'operator procedure set(var c: R, key: K, value: T)'
+Main.pst:44:15: error E0700: Q doesn't satisfy Hashable, required by 'Set'
+Main.pst:47:11: error E0305: '<' doesn't work on P: it isn't Ordered
+Main.pst:48:14: error E0300: parameter 'b' of 'plus': expected P, found integer literal
+Main.pst:49:12: error E0305: '-' can't combine P and P
+Main.pst:50:1: error E0340: can't assign to 'p[1]', a call to 'get' (no operator 'set' takes it)

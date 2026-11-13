@@ -190,7 +190,7 @@ use Main.pst 9:22-9:27
 use Main.pst 11:33-11:38
   field 'value' @ std/System.pst:27:16
 use Main.pst 11:40-11:45
-  function 'isErr' @ std/System.pst:645:17
+  function 'isErr' @ std/System.pst:667:17
 use Main.pst 13:27-13:32
   field 'error' @ std/System.pst:30:16
 use Main.pst 15:19-15:24

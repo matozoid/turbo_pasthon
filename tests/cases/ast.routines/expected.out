@@ -3,7 +3,7 @@ exit 1
 --- stdout
 File 1:1-26:18 kind="program"
   name: Ident 1:9-1:10 name="P"
-  items[0]: Routine 5:1-9:13 exported=true unsafe=false doc="Doc one.\n\n  Doc two."
+  items[0]: Routine 5:1-9:13 exported=true unsafe=false operator=false doc="Doc one.\n\n  Doc two."
     sig: Signature 5:8-5:70 is_function=true
       name: Ident 5:17-5:18 name="f"
       type_params[0]: TypeParam 5:19-5:24
@@ -30,12 +30,12 @@ File 1:1-26:18 kind="program"
     body: Block 9:5-9:13
       stmts[0]: Return 9:5-9:13
         value: IntLit 9:12-9:13 value=1
-  items[1]: Routine 10:1-11:11 exported=false unsafe=false
+  items[1]: Routine 10:1-11:11 exported=false unsafe=false operator=false
     sig: Signature 10:1-10:13 is_function=true
       name: Ident 10:10-10:11 name="g"
     body: Block 11:5-11:11
       stmts[0]: Return 11:5-11:11
-  items[2]: Routine 12:1-13:8 exported=false unsafe=false
+  items[2]: Routine 12:1-13:8 exported=false unsafe=false operator=false
     sig: Signature 12:1-12:23 is_function=false
       name: Ident 12:11-12:12 name="h"
       result: TypeName 12:16-12:23 parts=["Integer"] part_spans=[12:16-12:23]
@@ -45,7 +45,7 @@ File 1:1-26:18 kind="program"
           callee: Name 13:5-13:6 name="x"
   items[3]: ErrorStmt 14:1-15:8
   items[4]: ErrorStmt 16:1-17:8
-  items[5]: Routine 18:1-19:8 exported=true unsafe=true
+  items[5]: Routine 18:1-19:8 exported=true unsafe=true operator=false
     sig: Signature 18:15-18:28 is_function=false
       name: Ident 18:25-18:26 name="n"
     body: Block 19:5-19:8
@@ -54,11 +54,11 @@ File 1:1-26:18 kind="program"
           callee: Name 19:5-19:6 name="x"
   items[6]: ErrorStmt 20:1-21:8
   items[7]: ErrorStmt 22:1-22:14
-  items[8]: Routine 23:1-23:14 exported=false unsafe=false
+  items[8]: Routine 23:1-23:14 exported=false unsafe=false operator=false
     sig: Signature 23:1-23:14 is_function=false
       name: Ident 23:11-23:12 name="p"
     body: Block 23:14-23:14
-  items[9]: Routine 24:1-25:15 exported=false unsafe=false
+  items[9]: Routine 24:1-25:15 exported=false unsafe=false operator=false
     sig: Signature 24:1-24:14 is_function=false
       name: Ident 24:11-24:12 name="q"
     requires[0]: Name 25:14-25:15 name="a"

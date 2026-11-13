@@ -152,7 +152,7 @@ use Main.pst 21:12-21:14
 use Main.pst 21:17-21:22
   let 'parts' @ Main.pst:20:9
 use Main.pst 21:28-21:34
-  function 'length' @ std/System.pst:123:21
+  function 'length' @ std/System.pst:134:21
 use Main.pst 21:35-21:40
   let 'parts' @ Main.pst:20:9
 use Main.pst 23:24-23:30

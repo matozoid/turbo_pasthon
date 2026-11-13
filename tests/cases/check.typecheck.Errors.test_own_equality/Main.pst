@@ -8,20 +8,44 @@ type
     Q = record
         f: Integer
 
-function equals(a: P, b: Integer): Boolean
+operator function equals(a: P, b: Integer): Boolean
     return a.x = b
 
-function compare(a, b: P): Boolean
-    return a.x < b.x
+operator function compare(a, b: P): Integer
+    return a.x - b.x
 
-function equals(a, b: Version): Boolean
+operator function equals(a, b: Version): Boolean
     return true
 
-function equals(a, b: Q): Boolean
+operator function equals(a, b: Q): Boolean
     return a.f = b.f
+
+operator function shift(a: P): P
+    return a
+
+operator function plus(a, b: Integer): Integer
+    return a
+
+operator procedure set(g: P, k, v: Integer)
+    pass
+
+operator function plus(a, b: P): P
+    return P(x: a.x + b.x)
+
+operator function get(p: P, k: Integer): Integer
+    return p.x + k
+
+{ Not an operator: an ordinary function. }
+function minus(a, b: P): P
+    return a
 
 type
     Keyed = record
         keys: Set[Q]
 
-writeln(P(x: 1) < P(x: 2))
+var p := P(x: 1)
+writeln(p < P(x: 2))
+writeln((p + 1).x)
+writeln((p - p).x)
+p[1] := 2
+writeln(p[1])

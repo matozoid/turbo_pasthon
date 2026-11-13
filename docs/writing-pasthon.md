@@ -62,8 +62,11 @@ reference; `pst query explain CODE` explains an error code.
 - Enum members are qualified, `Color.Red`, except as `case` labels.
 - Records are built with named fields: `Point(x: 1, y: 2)`.
 - `=` on records compares every field. When that's wrong (a cache field, a circular buffer),
-  give the record its own `equals(a, b: R): Boolean` in its unit, and `compare(a, b: R):
-  Integer` for `<`. No other operator can be given a meaning.
+  give the record `operator function equals(a, b: R): Boolean` in its unit, or `operator
+  function compare(a, b: R): Order` for `<` too, plus `operator procedure hash(var h:
+  Hasher, r: R)`. `+ - * /`, unary `-`, `in` and `c[k]` stand for `operator` routines
+  `plus`, `minus`, `times`, `divide`, `negate`, `contains`, `get` and `set`; no other
+  operator can be given a meaning.
 - Conversions: `Integer(x)` and the like between integer types, `toInt(r)` or `round(r)` from
   `Real` to `Integer`, `toReal(i)` from `Integer`, `Char(i)` from a code point, `ord(c)` to
   one. There's no `Color(1)`.

@@ -11,7 +11,7 @@ File 1:1-15:13 kind="program"
     decls[0]: ConstDecl 11:5-11:10 exported=false doc="C doc."
       name: Ident 11:5-11:6 name="C"
       value: IntLit 11:9-11:10 value=1
-  items[2]: Routine 14:1-15:13 exported=false unsafe=false doc="No space.\n Two spaces."
+  items[2]: Routine 14:1-15:13 exported=false unsafe=false operator=false doc="No space.\n Two spaces."
     sig: Signature 14:1-14:22 is_function=true
       name: Ident 14:10-14:11 name="f"
       result: TypeName 14:15-14:22 parts=["Integer"] part_spans=[14:15-14:22]

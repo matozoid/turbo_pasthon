@@ -204,6 +204,15 @@ function isDeclStart(k: TokenKind): Boolean
         or k = TokenKind.KwUnsafe
     )
 
+{ Whether `operator function` or `operator procedure` starts here: `operator` is a
+  word, not a keyword. }
+function atOperator(p: ref State): Boolean
+    let next := peek(p, ahead: 1).kind
+    return isWordOp(peek(p), word: "operator") and (
+        next = TokenKind.KwFunction
+        or next = TokenKind.KwProcedure
+    )
+
 { Kinds that start a type but not an expression. }
 function isTypeOnlyStart(k: TokenKind): Boolean
     return k = TokenKind.KwRef or k = TokenKind.KwFunction or k = TokenKind.KwProcedure or k = TokenKind.KwThisType
@@ -857,7 +866,7 @@ function topItem(p: ref State): Parsed[Option[TopItem]]
             tok.span,
             message: "unexpected '{tok.text}': a file has exactly one header",
         )
-    if isDeclStart(tok.kind) then
+    if isDeclStart(tok.kind) or atOperator(p) then
         let d: TopItem := try decl(p)
         return Ok(Some(d))
     let s: Stmt := try stmt(p)
@@ -894,7 +903,7 @@ function decl(p: ref State): Parsed[Decl]
             message: "'export' goes on each declaration inside a '{peek(p).text}' section",
         )
         return decl(p)
-    if at(p, TokenKind.KwUnsafe) or at(p, TokenKind.KwFunction) or at(p, TokenKind.KwProcedure) then
+    if at(p, TokenKind.KwUnsafe) or at(p, TokenKind.KwFunction) or at(p, TokenKind.KwProcedure) or atOperator(p) then
         let r := try routine(p, exported, start: start)
         return Ok(r)
     return fail(
@@ -1180,6 +1189,7 @@ function constDecl(p: ref State): Parsed[ConstDecl]
     ))
 
 function routine(p: ref State, exported: Boolean, start: Span): Parsed[Routine]
+    let isOperator := atOperator(p) and acceptWord(p, word: "operator")
     let isUnsafe := accept(p, TokenKind.KwUnsafe)
     if at(p, TokenKind.KwExport) then
         return fail(p, "E0040", peek(p).span, message: "write 'export unsafe', not 'unsafe export'")
@@ -1210,6 +1220,7 @@ function routine(p: ref State, exported: Boolean, start: Span): Parsed[Routine]
         span: finish(p, start),
         exported: exported,
         isUnsafe: isUnsafe,
+        isOperator: isOperator,
         sig: sig,
         pre: pre,
         post: post,

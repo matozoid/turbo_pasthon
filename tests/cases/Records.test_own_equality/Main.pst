@@ -13,7 +13,6 @@ let c := ring([1, 2, 3], 1)
 writeln("{a = b} {a <> b} {a = c}")
 writeln(Holder(r: a, n: 1) = Holder(r: b, n: 1))
 writeln("{[a] = [b]} {Some(a) = Some(b)}")
-writeln(hash(a) = hash(b))
 var s: Set[Ring[Integer]] := []
 add(var s, a)
 add(var s, b)
@@ -29,3 +28,5 @@ var vs := [v2, v1, Version(major: 0, minor: 9, note: "")]
 sort(var vs)
 for v in vs do
     writeln("{v.major}.{v.minor}")
+let vset: Set[Version] := [v1, Version(major: 1, minor: 2, note: "z"), v2]
+writeln(length(vset))

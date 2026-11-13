@@ -31,7 +31,7 @@ def Main.pst 28:5-28:6
   let 'x' @ Main.pst:28:5
     : ref Res
 use Main.pst 29:10-29:14
-  function 'weak' @ std/System.pst:138:21
+  function 'weak' @ std/System.pst:149:21
 use Main.pst 29:15-29:16
   let 'x' @ Main.pst:28:5
 def Main.pst 29:5-29:6
@@ -45,7 +45,7 @@ def Main.pst 31:9-31:10
 use Main.pst 32:5-32:6
   var 'w' @ Main.pst:29:5
 use Main.pst 32:10-32:14
-  function 'weak' @ std/System.pst:138:21
+  function 'weak' @ std/System.pst:149:21
 use Main.pst 32:15-32:16
   let 'y' @ Main.pst:31:9
 use Main.pst 33:15-33:16
@@ -68,15 +68,15 @@ use Main.pst 35:11-35:16
 use Main.pst 35:17-35:18
   var 'w' @ Main.pst:29:5
 use Main.pst 35:22-35:26
-  function 'weak' @ std/System.pst:138:21
+  function 'weak' @ std/System.pst:149:21
 use Main.pst 35:27-35:28
   let 'x' @ Main.pst:28:5
 use Main.pst 35:32-35:36
-  function 'weak' @ std/System.pst:138:21
+  function 'weak' @ std/System.pst:149:21
 use Main.pst 35:37-35:38
   let 'x' @ Main.pst:28:5
 use Main.pst 35:42-35:46
-  function 'weak' @ std/System.pst:138:21
+  function 'weak' @ std/System.pst:149:21
 use Main.pst 35:47-35:48
   let 'x' @ Main.pst:28:5
 use Main.pst 35:52-35:53
@@ -86,7 +86,7 @@ use Main.pst 36:1-36:8
 use Main.pst 36:9-36:13
   function 'make' @ Main.pst:20:10
 use Main.pst 37:13-37:16
-  function 'new' @ std/System.pst:136:21
+  function 'new' @ std/System.pst:147:21
 use Main.pst 37:17-37:21
   type 'Tree' @ Main.pst:10:5
 use Main.pst 37:40-37:44
@@ -95,20 +95,20 @@ def Main.pst 37:5-37:9
   let 'root' @ Main.pst:37:5
     : ref Tree
 use Main.pst 38:12-38:15
-  function 'new' @ std/System.pst:136:21
+  function 'new' @ std/System.pst:147:21
 use Main.pst 38:16-38:20
   type 'Tree' @ Main.pst:10:5
 use Main.pst 38:39-38:43
   type 'Some' @ std/System.pst:19:12
 use Main.pst 38:44-38:48
-  function 'weak' @ std/System.pst:138:21
+  function 'weak' @ std/System.pst:149:21
 use Main.pst 38:49-38:53
   let 'root' @ Main.pst:37:5
 def Main.pst 38:5-38:8
   let 'kid' @ Main.pst:38:5
     : ref Tree
 use Main.pst 39:1-39:4
-  procedure 'add' @ std/System.pst:184:18
+  procedure 'add' @ std/System.pst:195:18
 use Main.pst 39:9-39:13
   let 'root' @ Main.pst:37:5
 use Main.pst 39:20-39:23
@@ -121,7 +121,7 @@ def Main.pst 41:10-41:11
   case binding 'p' @ Main.pst:41:10
     : Some[Weak[Tree]]
 use Main.pst 42:14-42:17
-  function 'get' @ std/System.pst:625:17
+  function 'get' @ std/System.pst:647:17
 use Main.pst 42:18-42:19
   case binding 'p' @ Main.pst:41:10
 use Main.pst 43:13-43:17
@@ -134,7 +134,7 @@ use Main.pst 43:22-43:29
 use Main.pst 43:32-43:33
   case binding 'r' @ Main.pst:43:18
 use Main.pst 43:47-43:53
-  function 'length' @ std/System.pst:123:21
+  function 'length' @ std/System.pst:134:21
 use Main.pst 43:54-43:55
   case binding 'r' @ Main.pst:43:18
 use Main.pst 44:19-44:26
@@ -171,7 +171,7 @@ use Main.pst 16:5-16:6
 use Main.pst 16:13-16:14
   parameter 'r' @ Main.pst:15:23
 use Main.pst 17:5-17:8
-  procedure 'add' @ std/System.pst:184:18
+  procedure 'add' @ std/System.pst:195:18
 use Main.pst 17:13-17:14
   parameter 'r' @ Main.pst:15:23
 use Main.pst 18:5-18:12
@@ -179,7 +179,7 @@ use Main.pst 18:5-18:12
 use Main.pst 18:23-18:24
   parameter 'r' @ Main.pst:15:23
 use Main.pst 18:30-18:36
-  function 'length' @ std/System.pst:123:21
+  function 'length' @ std/System.pst:134:21
 use Main.pst 18:37-18:38
   parameter 'r' @ Main.pst:15:23
 use Main.pst 20:19-20:26
@@ -190,7 +190,7 @@ def Main.pst 20:15-20:17
 use Main.pst 20:33-20:36
   type 'Res' @ Main.pst:6:5
 use Main.pst 21:12-21:15
-  function 'new' @ std/System.pst:136:21
+  function 'new' @ std/System.pst:147:21
 use Main.pst 21:16-21:19
   type 'Res' @ Main.pst:6:5
 use Main.pst 21:24-21:26
@@ -205,7 +205,7 @@ def Main.pst 23:16-23:17
 use Main.pst 23:31-23:38
   builtin type 'Boolean' @ built into unit System
 use Main.pst 24:17-24:20
-  function 'get' @ std/System.pst:625:17
+  function 'get' @ std/System.pst:647:17
 use Main.pst 24:21-24:22
   parameter 'w' @ Main.pst:23:16
 use Main.pst 25:9-25:13

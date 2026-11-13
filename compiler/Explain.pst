@@ -573,7 +573,7 @@ export function explanations(): List[Explanation]
             code: "E0730",
             section: "16.3",
             title: "Type errors",
-            meaning: "a record's own `equals`, `compare` or `hash` with the wrong shape, declared outside the record's unit, or twice (§4.4)",
+            meaning: "an `operator` routine with another name or the wrong shape, for a record of another unit, or a record's second `equals`, `compare` or `hash` (§4.4)",
         ),
         Explanation(
             code: "E0801",

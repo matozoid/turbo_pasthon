@@ -116,12 +116,23 @@ type
 
     MatchResult = Match | Fail
 
+    { An operator that stands for an operator routine (SPEC §4.4): `a + b` for
+      `plus(a, b)`. }
+    OpCall = record
+        span: Span
+        id: Integer
+        opSpan: Span
+        name: String
+        syms: List[ref Symbol]
+
     { What one call asks: the callee's name, its candidates and the arguments. }
     CallReq = record
         e: Call
         name: String
         cands: List[Cand]
         receiver: Option[CArg]
+        { The first arguments of `e`, already typed (an operator's operands). }
+        given: List[CArg]
         explicit: Option[List[Type]]
         expected: Type
         refSpan: Option[Span]
@@ -205,8 +216,12 @@ type
         { Resource record id -> its destroy hook. }
         hookMap: Map[Integer, ref Symbol]
         opsDone: Boolean
-        { "record id|equals" (or compare, hash) -> the record's own routine (SPEC §4.4). }
+        { "record id|equals" (or compare, hash) -> the record's own operator routine
+          (SPEC §4.4). }
         opMap: Map[String, ref Symbol]
+        { "unit name|plus" (or another operator routine that isn't a record's own
+          `=`, `<` or hash) -> the unit's routines of that name. }
+        opRoutines: Map[String, List[ref Symbol]]
         { A variable for "the element type", when asking whether a type is an iterator. }
         elemVar: ref Symbol
         { The types of locals, by symbol id. }
@@ -247,6 +262,10 @@ type
         capturing: Set[Integer]
         inDefer: Boolean
         inEnsures: Boolean
+        { While checking the target of `c[k] := v`: `v`, for a `set` operator routine. }
+        setting: Option[Expr]
+        { Whether the target just checked became a call to `set`. }
+        setDone: Boolean
         { Ids of the arguments of `new` calls, for resources(). }
         newArgs: Set[Integer]
         { The depth of the trait check in progress, for provider(). }
@@ -591,6 +610,7 @@ function newEnv(c: ref Checker, units: List[ref Unit]): ref Env
         hookMap: [:],
         opsDone: false,
         opMap: [:],
+        opRoutines: [:],
         elemVar: newSymbol(c, Kind.TypeParamSym, "T", span: None, file: "", unitName: "System"),
         symTypes: [:],
         calls: [],
@@ -638,6 +658,8 @@ function newTC(env: ref Env, u: ref Unit): ref TC
         capturing: [],
         inDefer: false,
         inEnsures: false,
+        setting: None,
+        setDone: false,
         newArgs: [],
         depth: 0,
     ))
@@ -739,10 +761,12 @@ procedure hookOf(env: ref Env, u: ref Unit, r: Routine)
         else:
             return
 
-{ The routines that give records their own `=`, `<` and hash (SPEC §4.4): a function
-  `equals(a, b: R): Boolean`, `compare(a, b: R): Integer` or `hash(r: R): Integer` in the
-  record's unit, by "record id|name". A generic record's routine has the same type
-  parameters, in the same order: `equals[T](a, b: R[T]): Boolean`. }
+{ The operator routines (SPEC §4.4): routines marked `operator` in a record's unit.
+  `equals(a, b: R): Boolean`, `compare(a, b: R): Order` and `hash(var h: Hasher, x: R)`
+  give record R its own `=`, `<` and hash, by "record id|name"; a generic record's
+  routine has the same type parameters, in the same order. The others (`plus`, `minus`,
+  `times`, `divide`, `negate`, `contains`, `get`, `set`) are what `+`, `-`, `*`, `/`,
+  unary `-`, `in` and `c[k]` stand for, by "unit name|name". }
 export function userOps(env: ref Env): Map[String, ref Symbol]
     if env.opsDone then
         return env.opMap
@@ -753,7 +777,7 @@ export function userOps(env: ref Env): Map[String, ref Symbol]
                 Decl(d):
                     case d of
                         Routine(r):
-                            if r.sig.name.name in ["equals", "compare", "hash"] then
+                            if r.isOperator then
                                 opOf(env, u, r)
                         else:
                             pass
@@ -766,62 +790,141 @@ procedure opOf(env: ref Env, u: ref Unit, r: Routine)
     if found.isNone() then
         return
     let sym := found.get()
-    let g := sig(env, sym)
     let name := sym.name
-    if length(g.params) = 0 then
-        return
-    let t := g.params[0].ty
+    if name in ["equals", "compare", "hash"] then
+        ownOp(env, u, r, sym)
+    else if name in ["plus", "minus", "times", "divide", "negate", "contains", "get", "set"] then
+        callOp(env, u, r, sym)
+    else
+        envError(
+            env,
+            r.sig.name.span,
+            u.path,
+            "E0730",
+            "'{name}' isn't an operator; the operator routines are equals, compare, hash, plus, minus, times, divide, negate, contains, get and set",
+        )
+
+{ Whether `t` is a record declared in unit `u`. }
+function ownRecord(env: ref Env, u: ref Unit, t: Type): Boolean
     case t of
         NamedT(n):
-            if kindOf(env, t) <> "record" then
-                return
-            var arity := 2
-            var result := booleanT()
-            var shape := "function equals(a, b: {show(t)}): Boolean"
-            if name = "compare" then
-                result := integerT()
-                shape := "function compare(a, b: {show(t)}): Integer"
-            else if name = "hash" then
-                arity := 1
-                result := integerT()
-                shape := "function hash(x: {show(t)}): Integer"
-            var ok := g.isFunction and length(g.params) = arity and g.result = result
+            return kindOf(env, t) = "record" and n.sym.unitName = u.name
+        else:
+            return false
+
+procedure ownOp(env: ref Env, u: ref Unit, r: Routine, sym: ref Symbol)
+    let g := sig(env, sym)
+    let name := sym.name
+    let hasher := named(sys(env, "Hasher").get(), [])
+    var at := 0
+    if name = "hash" then
+        at := 1
+    var t := noType()
+    if length(g.params) > at then
+        t := g.params[at].ty
+    var rec := "R"
+    if kindOf(env, t) = "record" then
+        rec := show(t)
+    var shape := "operator function equals(a, b: {rec}): Boolean"
+    var ok := g.isFunction and length(g.params) = 2
+    if name = "equals" then
+        ok := ok and g.result = booleanT()
+    else if name = "compare" then
+        shape := "operator function compare(a, b: {rec}): Order"
+        ok := ok and g.result = named(sys(env, "Order").get(), [])
+    else
+        shape := "operator procedure hash(var h: Hasher, x: {rec})"
+        ok := not g.isFunction and length(g.params) = 2
+        ok := ok and g.params[0].ty = hasher and g.params[0].isVar and not g.params[0].hasDefault
+    for i := at to length(g.params) - 1 do
+        let p := g.params[i]
+        ok := ok and p.ty = t and not p.isVar and not p.hasDefault
+    case t of
+        NamedT(n):
             ok := ok and length(n.args) = length(g.tparams)
             for i := 0 to length(n.args) - 1 do
                 ok := ok and i < length(g.tparams) and n.args[i] = ParamT(sym: g.tparams[i])
-            for p in g.params do
-                ok := ok and p.ty = t and not p.isVar and not p.hasDefault
-            if n.sym.unitName <> u.name then
-                if ok then
-                    envError(
-                        env,
-                        r.sig.name.span,
-                        u.path,
-                        "E0730",
-                        "'{name}' for '{n.sym.name}' must be declared in its unit, '{n.sym.unitName}'",
-                    )
-            else if not ok then
+            if kindOf(env, t) = "record" and n.sym.unitName <> u.name then
                 envError(
                     env,
                     r.sig.name.span,
                     u.path,
                     "E0730",
-                    "'{name}' for '{n.sym.name}' gives it its own {opText(name)}, so it must be '{shape}'",
+                    "'{name}' for '{n.sym.name}' must be declared in its unit, '{n.sym.unitName}'",
                 )
-            else
-                let k := "{n.sym.id}|{name}"
-                if k in env.opMap then
-                    envError(
-                        env,
-                        r.sig.name.span,
-                        u.path,
-                        "E0730",
-                        "'{n.sym.name}' already has a '{name}'",
-                    )
-                else
-                    env.opMap[k] := sym
+                return
         else:
-            return
+            pass
+    if not ownRecord(env, u, t) then
+        envError(
+            env,
+            r.sig.name.span,
+            u.path,
+            "E0730",
+            "operator '{name}' must be '{shape}', with R a record of unit '{u.name}'",
+        )
+        return
+    let rs := namedSym(t).get()
+    if not ok then
+        envError(
+            env,
+            r.sig.name.span,
+            u.path,
+            "E0730",
+            "'{name}' for '{rs.name}' gives it its own {opText(name)}, so it must be '{shape}'",
+        )
+        return
+    let k := "{rs.id}|{name}"
+    if k in env.opMap then
+        envError(env, r.sig.name.span, u.path, "E0730", "'{rs.name}' already has a '{name}'")
+    else
+        env.opMap[k] := sym
+
+procedure callOp(env: ref Env, u: ref Unit, r: Routine, sym: ref Symbol)
+    let g := sig(env, sym)
+    let name := sym.name
+    let n := length(g.params)
+    var shape := "operator function {name}(a: A, b: B): C"
+    var ok := g.isFunction and n = 2
+    var first := 0
+    if name = "negate" then
+        shape := "operator function negate(a: R): T"
+        ok := g.isFunction and n = 1
+    else if name = "contains" then
+        shape := "operator function contains(c: R, x: T): Boolean"
+        ok := ok and g.result = booleanT()
+    else if name = "get" then
+        shape := "operator function get(c: R, key: K): T"
+        ok := g.isFunction and n >= 2
+    else if name = "set" then
+        shape := "operator procedure set(var c: R, key: K, value: T)"
+        ok := not g.isFunction and n >= 3 and g.params[0].isVar
+        first := 1
+    for i := first to n - 1 do
+        ok := ok and not g.params[i].isVar
+    for p in g.params do
+        ok := ok and not p.hasDefault
+    if not ok then
+        envError(env, r.sig.name.span, u.path, "E0730", "operator '{name}' must be '{shape}'")
+        return
+    var own := ownRecord(env, u, g.params[0].ty)
+    var which := "its first parameter"
+    if name in ["plus", "minus", "times", "divide"] then
+        own := own or ownRecord(env, u, g.params[1].ty)
+        which := "a parameter"
+    if not own then
+        envError(
+            env,
+            r.sig.name.span,
+            u.path,
+            "E0730",
+            "operator '{name}' needs {which} to be a record of unit '{u.name}'",
+        )
+        return
+    let k := "{u.name}|{name}"
+    var list := getOr(env.opRoutines, k, default: [])
+    add(var list, sym)
+    env.opRoutines[k] := list
 
 function opText(name: String): String
     if name = "equals" then
@@ -835,6 +938,21 @@ export function userOp(env: ref Env, t: Type, name: String): Option[ref Symbol]
     if kindOf(env, t) <> "record" then
         return None
     return get(userOps(env), "{namedSym(t).get().id}|{name}")
+
+{ The operator routines called `name` that can apply to operands of types `ts`: those of
+  the units of the records among them. }
+function opRoutines(tc: ref TC, ts: List[Type], name: String): List[ref Symbol]
+    _ := userOps(tc.env)
+    var units: List[String] := []
+    var out: List[ref Symbol] := []
+    for t in ts do
+        if kindOf(tc.env, t) = "record" then
+            let un := namedSym(t).get().unitName
+            if not (un in units) then
+                add(var units, un)
+                for s in getOr(tc.env.opRoutines, "{un}|{name}", default: []) do
+                    add(var out, s)
+    return out
 
 { Whether record `t`'s own `name` routine, if any, takes `t`: its type arguments
   satisfy the routine's bounds. }
@@ -2190,11 +2308,20 @@ function stmt(tc: ref TC, s: Stmt): Boolean
                     t := value(tc, v.value, noType())
             setType(tc, symAt(tc, v.name.span), t)
         Assign(a):
+            case a.target of
+                Index(_):
+                    tc.setting := Some(a.value)
+                else:
+                    pass
             let t := value(tc, a.target, noType())
-            let why := immutable(tc, a.target)
-            if why <> "" then
-                fail(tc, exprSpan(a.target), "E0340", "can't assign to {why}")
-            _ := check(tc, a.value, t)
+            tc.setting := None
+            if tc.setDone then
+                tc.setDone := false
+            else
+                let why := immutable(tc, a.target)
+                if why <> "" then
+                    fail(tc, exprSpan(a.target), "E0340", "can't assign to {why}")
+                _ := check(tc, a.value, t)
         Discard(d):
             _ := value(tc, d.value, noType())
         ExprStmt(x):
@@ -3421,6 +3548,15 @@ function unary(tc: ref TC, u: Unary, e: Expr, expected: Type): Type
     if v.kind = 2 then
         return realLit(tc, expected)
     let t := value(tc, u.operand, expected)
+    let ops := opRoutines(tc, [t], "negate")
+    if length(ops) > 0 then
+        return opCall(
+            tc,
+            OpCall(span: u.span, id: u.id, opSpan: u.span, name: "negate", syms: ops),
+            [given(tc, u.operand, t, isVar: false)],
+            [],
+            expected,
+        )
     let b := base(tc.env, t)
     if hasError(b) or isNumeric(b) then
         return b
@@ -3516,6 +3652,17 @@ function binary(tc: ref TC, b: Binary, expected: Type): Type
     let ts := operands(tc, b, hint)
     let lt := ts[0]
     let rt := ts[1]
+    if op in ["+", "-", "*", "/"] then
+        let name := arithName(op)
+        let ops := opRoutines(tc, [lt, rt], name)
+        if length(ops) > 0 then
+            return opCall(
+                tc,
+                OpCall(span: b.span, id: b.id, opSpan: b.opSpan, name: name, syms: ops),
+                [given(tc, b.left, lt, isVar: false), given(tc, b.right, rt, isVar: false)],
+                [],
+                expected,
+            )
     if isAnySet(tc.env, lt) and (isArith(op) or op = "<" or op = "<=" or op = ">" or op = ">=") then
         return setOp(tc, b, lt, rt)
     if isArith(op) then
@@ -3615,6 +3762,16 @@ function logical(tc: ref TC, b: Binary, expected: Type): Type
     fail(tc, b.opSpan, "E0305", msg)
     return errorT()
 
+{ The operator routine `+`, `-`, `*` or `/` stands for. }
+function arithName(op: String): String
+    if op = "+" then
+        return "plus"
+    if op = "-" then
+        return "minus"
+    if op = "*" then
+        return "times"
+    return "divide"
+
 function arith(tc: ref TC, b: Binary, lt, rt: Type): Type
     let op := b.op
     if hasError(lt) or hasError(rt) then
@@ -3663,6 +3820,15 @@ function inOp(tc: ref TC, b: Binary): Type
         _ := check(tc, b.right, named(sys(tc.env, "BitSet").get(), [lt]))
         return booleanT()
     let rt := value(tc, b.right, noType())
+    let ops := opRoutines(tc, [rt], "contains")
+    if length(ops) > 0 then
+        return opCall(
+            tc,
+            OpCall(span: b.span, id: b.id, opSpan: b.opSpan, name: "contains", syms: ops),
+            [given(tc, b.right, rt, isVar: false)],
+            [b.left],
+            noType(),
+        )
     if isBuiltin(rt, "List") or isMap(tc.env, rt) or isAnySet(tc.env, rt) then
         _ := check(tc, b.left, argsOf(rt)[0])
     else
@@ -3749,6 +3915,8 @@ procedure instanceValue(tc: ref TC, ix: Index, span: Span, targs: List[Type], t:
     add(var tc.env.calls, Instance(sym: sym, args: targs, file: tc.file, span: span))
 
 function index(tc: ref TC, ix: Index, expected: Type): Type
+    var setting := tc.setting
+    tc.setting := None
     case typeArgs(tc, ix) of
         Some(ta):
             let span := instSpan(tc, ix.target).get()
@@ -3773,6 +3941,32 @@ function index(tc: ref TC, ix: Index, expected: Type): Type
             pass
     let t := value(tc, ix.target, noType())
     let b := unref(t)
+    var name := "get"
+    var ops: List[ref Symbol] := []
+    if setting.isSome() then
+        name := "set"
+        ops := opRoutines(tc, [b], name)
+        if length(ops) = 0 then  { reading through `get` instead, which can't be assigned }
+            setting := None
+            name := "get"
+    if setting.isNone() then
+        ops := opRoutines(tc, [b], name)
+    if length(ops) > 0 then
+        var keys: List[Expr] := []
+        for x in ix.items do
+            case x of
+                Expr(e):
+                    add(var keys, e)
+                TypeExpr(_):
+                    fail(tc, itemSpan(x), "E0311", "'{name}' takes values, not types")
+                    return errorT()
+        let site := OpCall(span: ix.span, id: ix.id, opSpan: ix.span, name: name, syms: ops)
+        if setting.isNone() then
+            return opCall(tc, site, [given(tc, ix.target, t, isVar: false)], keys, expected)
+        add(var keys, setting.get())
+        _ := opCall(tc, site, [given(tc, ix.target, t, isVar: true)], keys, noType())
+        tc.setDone := true
+        return noType()
     if length(ix.items) <> 1 then
         for x in ix.items do
             _ := valueItem(tc, x, noType())
@@ -3802,6 +3996,47 @@ function index(tc: ref TC, ix: Index, expected: Type): Type
 
 { ------------------------------------------------------------------------ calls }
 
+{ Checks the call an operator stands for, as a call with the operator's id: `given` are
+  its operands typed already, `more` the arguments after them. }
+function opCall(tc: ref TC, o: OpCall, given: List[CArg], more: List[Expr], expected: Type): Type
+    var args: List[Arg] := []
+    for a in given do
+        add(var args, Arg(
+            span: a.span,
+            id: exprId(a.expr),
+            name: None,
+            isVar: a.isVar,
+            value: a.expr,
+        ))
+    for e in more do
+        add(var args, Arg(span: exprSpan(e), id: exprId(e), name: None, isVar: false, value: e))
+    let c := Call(
+        span: o.span,
+        id: o.id,
+        callee: Name(span: o.opSpan, id: o.id, name: o.name),
+        args: args,
+    )
+    var req := request(c, o.name, candidates(tc, o.syms), None, expected, None)
+    req.given := given
+    return call(tc, req)
+
+{ An operand that has been typed, as an argument. }
+function given(tc: ref TC, e: Expr, t: Type, isVar: Boolean): CArg
+    let f := flex(tc, e)
+    var ty := t
+    if known(f) then
+        ty := noType()
+    return CArg(
+        span: exprSpan(e),
+        name: None,
+        isVar: isVar,
+        expr: e,
+        ty: ty,
+        flex: f,
+        receiver: false,
+        items: [],
+    )
+
 function request(
     e: Call,
     name: String,
@@ -3815,6 +4050,7 @@ function request(
         name: name,
         cands: cands,
         receiver: None,
+        given: [],
         explicit: explicit,
         expected: expected,
         refSpan: refSpan,
@@ -4290,7 +4526,12 @@ function call(tc: ref TC, req: CallReq): Type
             add(var args, r.value)
         None:
             pass
-    for a in prepare(tc, req.e.args) do
+    var rest: List[Arg] := []
+    for i := length(req.given) to length(req.e.args) - 1 do
+        add(var rest, req.e.args[i])
+    for a in req.given do
+        add(var args, a)
+    for a in prepare(tc, rest) do
         add(var args, a)
     var matches: List[Match] := []
     var fails: List[Fail] := []
@@ -4822,7 +5063,7 @@ procedure finish(tc: ref TC, e: Call, name: String, m: Match, refSpan: Option[Sp
         if a.isVar then
             fail(tc, a.span, "E0522", "variadic arguments of '{name}' can't be 'var'")
     varOverlap(tc, varArgs)
-    if g.kind <> "routine" then
+    if g.kind <> "routine" or exprId(e.callee) = e.id then  { an operator's call (opCall) }
         return
     let dp := g.params
     for i := 0 to length(m.slots) - 1 do
@@ -4983,6 +5224,8 @@ function immutable(tc: ref TC, e: Expr): String
                 return ""
             return immutable(tc, f.target)
         Index(ix):
+            if ix.id in tc.calls and length(tc.calls[ix.id].slots) > 0 then
+                return "'{text(tc, ix.span)}', a call to 'get' (no operator 'set' takes it)"
             if throughRef(tc, ix.target) then
                 return ""
             return immutable(tc, ix.target)
@@ -5287,8 +5530,11 @@ function builtinTraitOf(tc: ref TC, t: Type, name: String): Boolean
             else:
                 pass
     let eq := userOp(tc.env, t, "equals")
+    let cmp := userOp(tc.env, t, "compare")
     if name = "Equatable" and eq.isSome() then
         return opHolds(tc, t, eq.get())
+    if name = "Equatable" and cmp.isSome() then  { `=` is `compare(a, b) = Order.Equal` }
+        return opHolds(tc, t, cmp.get())
     if name = "Ordered" then
         case userOp(tc.env, t, "compare") of
             Some(c):
@@ -5300,7 +5546,7 @@ function builtinTraitOf(tc: ref TC, t: Type, name: String): Boolean
             Some(h):
                 return opHolds(tc, t, h.value) and builtinTrait(tc, t, "Equatable")
             None:
-                if eq.isSome() then
+                if eq.isSome() or cmp.isSome() then
                     return false  { its own `=` needs its own hash }
     if name = "Equatable" then
         case t of

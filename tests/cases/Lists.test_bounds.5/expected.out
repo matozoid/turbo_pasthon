@@ -7,5 +7,5 @@ exit 70
 --- stdout
 --- stderr
 panic P0001: index out of bounds
-    at System.pst:208:14
+    at System.pst:219:14
     called from Main.pst:6:1

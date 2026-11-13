@@ -16,7 +16,7 @@ use Main.pst 3:6-3:8
 use Main.pst 8:15-8:20
   type 'Color' @ Main.pst:6:5
 use Main.pst 8:8-8:14
-  type 'BitSet' @ std/System.pst:75:12
+  type 'BitSet' @ std/System.pst:86:12
 use Main.pst 8:26-8:31
   type 'Color' @ Main.pst:6:5
 use Main.pst 8:32-8:35
@@ -25,7 +25,7 @@ def Main.pst 8:5-8:6
   var 's' @ Main.pst:8:5
     : BitSet[Color]
 use Main.pst 9:1-9:4
-  procedure 'add' @ std/System.pst:554:18
+  procedure 'add' @ std/System.pst:576:18
 use Main.pst 9:9-9:10
   var 's' @ Main.pst:8:5
 use Main.pst 9:12-9:17
@@ -33,7 +33,7 @@ use Main.pst 9:12-9:17
 use Main.pst 9:18-9:22
   enum member 'Blue' @ Main.pst:6:26
 use Main.pst 10:1-10:4
-  procedure 'add' @ std/System.pst:554:18
+  procedure 'add' @ std/System.pst:576:18
 use Main.pst 10:9-10:10
   var 's' @ Main.pst:8:5
 use Main.pst 10:12-10:17
@@ -43,7 +43,7 @@ use Main.pst 10:18-10:22
 use Main.pst 11:1-11:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 11:11-11:17
-  function 'length' @ std/System.pst:547:17
+  function 'length' @ std/System.pst:569:17
 use Main.pst 11:18-11:19
   var 's' @ Main.pst:8:5
 use Main.pst 11:23-11:28
@@ -79,7 +79,7 @@ def Main.pst 14:5-14:11
   let 'before' @ Main.pst:14:5
     : BitSet[Color]
 use Main.pst 15:1-15:7
-  procedure 'remove' @ std/System.pst:558:18
+  procedure 'remove' @ std/System.pst:580:18
 use Main.pst 15:12-15:13
   var 's' @ Main.pst:8:5
 use Main.pst 15:15-15:20
@@ -87,7 +87,7 @@ use Main.pst 15:15-15:20
 use Main.pst 15:21-15:24
   enum member 'Red' @ Main.pst:6:14
 use Main.pst 16:1-16:7
-  procedure 'remove' @ std/System.pst:558:18
+  procedure 'remove' @ std/System.pst:580:18
 use Main.pst 16:12-16:13
   var 's' @ Main.pst:8:5
 use Main.pst 16:15-16:20
@@ -97,7 +97,7 @@ use Main.pst 16:21-16:26
 use Main.pst 17:15-17:20
   type 'Color' @ Main.pst:6:5
 use Main.pst 17:8-17:14
-  type 'BitSet' @ std/System.pst:75:12
+  type 'BitSet' @ std/System.pst:86:12
 use Main.pst 17:26-17:31
   type 'Color' @ Main.pst:6:5
 use Main.pst 17:32-17:37
@@ -112,17 +112,17 @@ def Main.pst 17:5-17:6
 use Main.pst 18:1-18:6
   procedure 'write' @ std/IO.pst:14:22
 use Main.pst 18:9-18:15
-  function 'length' @ std/System.pst:547:17
+  function 'length' @ std/System.pst:569:17
 use Main.pst 18:16-18:22
   let 'before' @ Main.pst:14:5
 use Main.pst 18:26-18:32
-  function 'length' @ std/System.pst:547:17
+  function 'length' @ std/System.pst:569:17
 use Main.pst 18:33-18:34
   var 's' @ Main.pst:8:5
 use Main.pst 18:37-18:38
   let 't' @ Main.pst:17:5
 use Main.pst 18:42-18:48
-  function 'length' @ std/System.pst:547:17
+  function 'length' @ std/System.pst:569:17
 use Main.pst 18:49-18:50
   var 's' @ Main.pst:8:5
 use Main.pst 18:53-18:54
@@ -130,7 +130,7 @@ use Main.pst 18:53-18:54
 use Main.pst 19:1-19:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 19:11-19:17
-  function 'length' @ std/System.pst:547:17
+  function 'length' @ std/System.pst:569:17
 use Main.pst 19:18-19:19
   let 't' @ Main.pst:17:5
 use Main.pst 19:22-19:23
@@ -148,7 +148,7 @@ use Main.pst 19:50-19:51
 use Main.pst 20:16-20:20
   type 'Byte' @ std/System.pst:16:12
 use Main.pst 20:9-20:15
-  type 'BitSet' @ std/System.pst:75:12
+  type 'BitSet' @ std/System.pst:86:12
 def Main.pst 20:5-20:7
   var 'bs' @ Main.pst:20:5
     : BitSet[Byte]
@@ -164,7 +164,7 @@ use Main.pst 22:13-22:14
 use Main.pst 23:16-23:20
   builtin type 'Int8' @ built into unit System
 use Main.pst 23:9-23:15
-  type 'BitSet' @ std/System.pst:75:12
+  type 'BitSet' @ std/System.pst:86:12
 def Main.pst 23:5-23:7
   var 'ns' @ Main.pst:23:5
     : BitSet[Int8]
@@ -180,18 +180,18 @@ use Main.pst 25:13-25:14
 use Main.pst 26:18-26:25
   builtin type 'Boolean' @ built into unit System
 use Main.pst 26:11-26:17
-  type 'BitSet' @ std/System.pst:75:12
+  type 'BitSet' @ std/System.pst:86:12
 def Main.pst 26:5-26:9
   var 'none' @ Main.pst:26:5
     : BitSet[Boolean]
 use Main.pst 27:1-27:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 27:11-27:17
-  function 'length' @ std/System.pst:547:17
+  function 'length' @ std/System.pst:569:17
 use Main.pst 27:18-27:20
   var 'bs' @ Main.pst:20:5
 use Main.pst 27:24-27:30
-  function 'length' @ std/System.pst:547:17
+  function 'length' @ std/System.pst:569:17
 use Main.pst 27:31-27:35
   var 'none' @ Main.pst:26:5
 use Main.pst 27:47-27:51

@@ -53,6 +53,17 @@ type
         export key: K
         export value: V
 
+    { How one value compares to another: what an operator `compare` gives (SPEC §4.4). }
+    export Order = (Less, Equal, Greater)
+
+    { A hash being built by an operator `hash` (SPEC §4.4), fed with `combine`. }
+    export Hasher = record
+        state: Integer
+
+    HashStep = record
+        before: Integer
+        next: Integer
+
     { A hash map (SPEC §4.5), written `[k: v]`. Entry `i` is `keys[i]`, `values[i]` and
       `hashes[i]`, in insertion order. A removed entry stays, with hash -1 and its key
       and value emptied, until `rehash` drops it. `slots` is the hash table: open
@@ -166,7 +177,7 @@ external "pst"
     { Makes `xs` unshared and element `i` empty, releasing its value. }
     procedure vacate[T](var xs: List[T], i: Integer)
     { A hash of `x`, not negative. Equal values have equal hashes. }
-    export function hash[T: Hashable](x: T): Integer
+    function hash[T: Hashable](x: T): Integer
     { The bit of a BitSet element: `ord(x)` minus the `ord` of the first value of `T`. }
     function bitOf[T](x: T): Integer
     { The BitSet element whose bit is `i`. }
@@ -460,6 +471,17 @@ procedure rehash[K: Hashable, V](var m: Map[K, V])
             i := (i + 1) mod n
         slots[i] := e + 1
     m := Map(keys: keys, values: values, hashes: hashes, slots: slots, count: length(keys))
+
+{ Feeds `x` into the hash `h` is building (SPEC §4.4). }
+export procedure combine[T: Hashable](var h: Hasher, x: T)
+    h.state := hash(HashStep(before: h.state, next: hash(x)))
+
+{ A new hash, and the hash built: around a call to an operator `hash`, for the compiler. }
+function newHasher(): Hasher
+    return Hasher(state: 0)
+
+function hashed(h: Hasher): Integer
+    return h.state
 
 { `a = b`: the same keys, with equal values, in any order. Called by the runtime's `=`. }
 function mapEquals[K: Hashable, V: Equatable](a, b: Map[K, V]): Boolean

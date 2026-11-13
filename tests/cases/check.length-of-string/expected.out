@@ -2,4 +2,4 @@ $ $PST check Main.pst
 exit 1
 --- stdout
 --- stderr
-Main.pst:6:11: error E0511: no overload of 'length' takes (String); a String's length is 'charCount(s)' in characters or 'byteLen(s)' in bytes, from unit Strings; candidates: length(List[T]) (build/units/System.pst:123:21); length(Array[T, N]) (build/units/System.pst:124:21); length(Map[K, V]) (build/units/System.pst:350:17); length(Set[T]) (build/units/System.pst:478:17); length(BitSet[T]) (build/units/System.pst:547:17)
+Main.pst:6:11: error E0511: no overload of 'length' takes (String); a String's length is 'charCount(s)' in characters or 'byteLen(s)' in bytes, from unit Strings; candidates: length(List[T]) (build/units/System.pst:134:21); length(Array[T, N]) (build/units/System.pst:135:21); length(Map[K, V]) (build/units/System.pst:361:17); length(Set[T]) (build/units/System.pst:500:17); length(BitSet[T]) (build/units/System.pst:569:17)

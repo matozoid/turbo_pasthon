@@ -1,0 +1,65 @@
+unit Cash
+
+type
+    export Money = record
+        export cents: Integer
+
+    export Grid = record
+        cells: List[Integer]
+        export width: Integer
+
+    export Version = record
+        export major: Integer
+        export minor: Integer
+        note: String
+
+export operator function plus(a, b: Money): Money
+    return Money(cents: a.cents + b.cents)
+
+export operator function minus(a, b: Money): Money
+    return Money(cents: a.cents - b.cents)
+
+operator function times(a: Money, n: Integer): Money
+    return Money(cents: a.cents * n)
+
+operator function times(n: Integer, a: Money): Money
+    return Money(cents: a.cents * n)
+
+operator function divide(a: Money, n: Integer): Money
+    return Money(cents: a.cents div n)
+
+operator function negate(a: Money): Money
+    return Money(cents: -a.cents)
+
+export function grid(w, h: Integer): Grid
+    var cells: List[Integer] := []
+    for i := 1 to w * h do
+        add(var cells, 0)
+    return Grid(cells: cells, width: w)
+
+operator function get(g: Grid, x, y: Integer): Integer
+    return g.cells[y * g.width + x]
+
+operator procedure set(var g: Grid, x, y: Integer, v: Integer)
+    g.cells[y * g.width + x] := v
+
+operator function contains(g: Grid, v: Integer): Boolean
+    return v in g.cells
+
+export function version(major, minor: Integer, note: String): Version
+    return Version(major: major, minor: minor, note: note)
+
+operator function compare(a, b: Version): Order
+    if a.major <> b.major then
+        if a.major < b.major then
+            return Order.Less
+        return Order.Greater
+    if a.minor < b.minor then
+        return Order.Less
+    if a.minor > b.minor then
+        return Order.Greater
+    return Order.Equal
+
+operator procedure hash(var h: Hasher, v: Version)
+    combine(var h, v.major)
+    combine(var h, v.minor)

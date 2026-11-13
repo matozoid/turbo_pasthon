@@ -158,7 +158,6 @@ exit 0
 "declaration":"procedure dec[T](var x: T, n: Integer)"
 "declaration":"function ord[T](x: T): Integer"
 "declaration":"function new[T](value: T): ref T"
-"declaration":"function hash[T: Hashable](x: T): Integer"
 --- stderr
 $ $PST query accepts Shapes.pst:13:23 | grep -o '"name":"[a-zA-Z]*"'
 exit 0
@@ -192,5 +191,4 @@ exit 0
 "name":"toString"
 "name":"toReal"
 "name":"halt"
-"name":"hash"
 --- stderr

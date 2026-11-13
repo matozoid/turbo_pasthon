@@ -22,15 +22,15 @@ def Main.pst 5:39-5:40
   parameter 'x' @ Main.pst:5:39
     : Integer
 use Main.pst 6:13-6:19
-  function 'length' @ std/System.pst:123:21
+  function 'length' @ std/System.pst:134:21
 use Main.pst 6:20-6:22
   parameter 'xs' @ Main.pst:5:20
 use Main.pst 6:26-6:32
-  function 'length' @ std/System.pst:123:21
+  function 'length' @ std/System.pst:134:21
 use Main.pst 6:37-6:39
   parameter 'xs' @ Main.pst:5:20
 use Main.pst 7:5-7:8
-  procedure 'add' @ std/System.pst:184:18
+  procedure 'add' @ std/System.pst:195:18
 use Main.pst 7:13-7:15
   parameter 'xs' @ Main.pst:5:20
 use Main.pst 7:17-7:18

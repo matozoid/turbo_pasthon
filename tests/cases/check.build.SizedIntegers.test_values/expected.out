@@ -36,11 +36,11 @@ use Main.pst 9:19-9:20
 use Main.pst 9:23-9:24
   let 'i' @ Main.pst:8:5
 use Main.pst 10:1-10:4
-  procedure 'inc' @ std/System.pst:128:22
+  procedure 'inc' @ std/System.pst:139:22
 use Main.pst 10:9-10:10
   var 'u' @ Main.pst:6:5
 use Main.pst 11:1-11:4
-  procedure 'dec' @ std/System.pst:130:22
+  procedure 'dec' @ std/System.pst:141:22
 use Main.pst 11:9-11:10
   var 'w' @ Main.pst:7:5
 use Main.pst 12:1-12:8

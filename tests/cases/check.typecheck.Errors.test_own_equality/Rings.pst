@@ -15,15 +15,12 @@ function inOrder[T](r: Ring[T]): List[T]
         add(var out, r.items[(r.start + i) mod length(r.items)])
     return out
 
-export function equals[T: Equatable](a, b: Ring[T]): Boolean
+export operator function equals[T: Equatable](a, b: Ring[T]): Boolean
     return inOrder(a) = inOrder(b)
 
-{ Not exported: `hash(r)` elsewhere is System's, which calls this one. }
-function hash[T: Hashable](r: Ring[T]): Integer
-    var h := 0
+operator procedure hash[T: Hashable](var h: Hasher, r: Ring[T])
     for x in inOrder(r) do
-        h := (h * 31 + hash(x)) mod 1000000007
-    return h
+        combine(var h, x)
 
 type
     export Version = record
@@ -31,10 +28,14 @@ type
         export minor: Integer
         export note: String
 
-export function compare(a, b: Version): Integer
-    if a.major <> b.major then
-        return a.major - b.major
-    return a.minor - b.minor
+{ Equal when `compare` says so: the note doesn't count. }
+operator function compare(a, b: Version): Order
+    if a.major < b.major or (a.major = b.major and a.minor < b.minor) then
+        return Order.Less
+    if a.major = b.major and a.minor = b.minor then
+        return Order.Equal
+    return Order.Greater
 
-export function equals(a, b: Version): Boolean
-    return compare(a, b) = 0
+operator procedure hash(var h: Hasher, v: Version)
+    combine(var h, v.major)
+    combine(var h, v.minor)

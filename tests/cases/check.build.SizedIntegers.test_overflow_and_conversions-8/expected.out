@@ -11,7 +11,7 @@ def Main.pst 5:5-5:6
   var 'a' @ Main.pst:5:5
     : Int8
 use Main.pst 6:1-6:4
-  procedure 'inc' @ std/System.pst:127:22
+  procedure 'inc' @ std/System.pst:138:22
 use Main.pst 6:9-6:10
   var 'a' @ Main.pst:5:5
 def Main.pst 7:5-7:6

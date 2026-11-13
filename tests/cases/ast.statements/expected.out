@@ -172,7 +172,7 @@ File 1:1-77:10 kind="program"
   items[31]: ErrorStmt 61:1-61:5
   items[32]: ErrorStmt 62:1-62:8
   items[33]: ErrorStmt 63:1-63:12
-  items[34]: Routine 64:1-68:13 exported=false unsafe=false
+  items[34]: Routine 64:1-68:13 exported=false unsafe=false operator=false
     sig: Signature 64:1-64:13 is_function=true
       name: Ident 64:10-64:11 name="f"
     body: Block 65:5-68:13

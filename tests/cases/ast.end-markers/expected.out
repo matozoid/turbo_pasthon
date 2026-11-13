@@ -16,7 +16,7 @@ File 1:1-51:11 kind="program"
       stmts[0]: ExprStmt 6:5-6:8
         expr: Call 6:5-6:8
           callee: Name 6:5-6:6 name="b"
-  items[2]: Routine 8:1-9:13 exported=false unsafe=false
+  items[2]: Routine 8:1-9:13 exported=false unsafe=false operator=false
     sig: Signature 8:1-8:32 is_function=true
       name: Ident 8:10-8:11 name="f"
       params[0]: Param 8:12-8:22 is_var=false is_this=false is_varargs=false
@@ -26,7 +26,7 @@ File 1:1-51:11 kind="program"
     body: Block 9:5-9:13
       stmts[0]: Return 9:5-9:13
         value: Name 9:12-9:13 name="x"
-  items[3]: Routine 11:1-12:8 exported=false unsafe=false end_marker=13:1-13:18
+  items[3]: Routine 11:1-12:8 exported=false unsafe=false operator=false end_marker=13:1-13:18
     sig: Signature 11:1-11:14 is_function=false
       name: Ident 11:11-11:12 name="q"
     body: Block 12:5-12:8

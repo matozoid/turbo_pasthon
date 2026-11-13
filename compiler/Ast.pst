@@ -446,6 +446,8 @@ type
         export span: Span
         export exported: Boolean
         export isUnsafe: Boolean
+        { `operator function plus(...)`: the routine an operator stands for (SPEC §4.4). }
+        export isOperator: Boolean
         export sig: Signature
         { `requires` clauses. }
         export pre: List[Expr]

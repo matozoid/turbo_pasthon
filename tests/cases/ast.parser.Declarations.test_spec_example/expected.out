@@ -34,7 +34,7 @@ File 1:1-59:22 kind="program"
     decls[0]: ConstDecl 17:5-17:18 exported=false
       name: Ident 17:5-17:11 name="MaxQty"
       value: IntLit 17:14-17:18 value=1000
-  items[2]: Routine 19:1-25:24 exported=false unsafe=false
+  items[2]: Routine 19:1-25:24 exported=false unsafe=false operator=false
     sig: Signature 19:1-19:75 is_function=true
       name: Ident 19:10-19:17 name="restock"
       params[0]: Param 19:18-19:32 is_var=true is_this=false is_varargs=false
@@ -90,7 +90,7 @@ File 1:1-59:22 kind="program"
             value: FieldAccess 25:15-25:23
               target: Name 25:15-25:19 name="item"
               name: Ident 25:20-25:23 name="qty"
-  items[3]: Routine 27:1-31:45 exported=false unsafe=false
+  items[3]: Routine 27:1-31:45 exported=false unsafe=false operator=false
     sig: Signature 27:1-27:38 is_function=true
       name: Ident 27:10-27:18 name="describe"
       params[0]: Param 27:19-27:29 is_var=false is_this=false is_varargs=false
@@ -130,7 +130,7 @@ File 1:1-59:22 kind="program"
                 target: Name 31:25-31:29 name="item"
                 name: Ident 31:30-31:34 name="name"
               parts[1]: Text ": waiting"
-  items[4]: Routine 33:1-37:34 exported=false unsafe=false
+  items[4]: Routine 33:1-37:34 exported=false unsafe=false operator=false
     sig: Signature 33:1-33:46 is_function=true
       name: Ident 33:10-33:15 name="names"
       type_params[0]: TypeParam 33:16-33:24
@@ -168,7 +168,7 @@ File 1:1-59:22 kind="program"
           args[1]: Arg 37:24-37:33 is_var=false
             name: Ident 37:24-37:27 name="sep"
             value: StringLit 37:29-37:33 value=", "
-  items[5]: Routine 39:1-43:21 exported=false unsafe=false
+  items[5]: Routine 39:1-43:21 exported=false unsafe=false operator=false
     sig: Signature 39:1-39:85 is_function=true
       name: Ident 39:10-39:20 name="restockAll"
       params[0]: Param 39:21-39:42 is_var=true is_this=false is_varargs=false
