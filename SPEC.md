@@ -17,7 +17,7 @@ easy for AI tools (and humans) to read, write, and verify.
 The main users are AI coding models; the language should be readable for humans.
 
 1. **One obvious way.** Each construct has a single syntax. The formatter is canonical and unconfigurable.
-2. **Nothing hidden.** No implicit conversions (one exception: injection into a union, §4.7), no exceptions, no null, no operator overloading (one exception: a record may define its own `=` and `<`, §4.4), no macros. Errors are values.
+2. **Nothing hidden.** No implicit conversions (one exception: injection into a union, §4.7), no exceptions, no null, no macros. Operators are a fixed set with fixed meanings; the only ones a type can take part in are `=` and `<` (and their relatives), which on a record stand for the functions `equals` and `compare` of its unit (§4.4). Errors are values.
 3. **Contracts visible.** Function signatures are always fully typed. Mutation is marked with `var`.
 4. **No surprises at runtime.** Overflow, bounds and contract failures panic in checked builds (`--unchecked` wraps overflow and drops contracts). No undefined behaviour outside `unsafe`.
 5. **Machine-checkable.** Built-in contracts (`requires`/`ensures`), built-in tests, JSON diagnostics with stable error codes, and `pst query`, LSP and MCP over one front end (§15).
@@ -2145,10 +2145,11 @@ already has a lexical error are not reported.
 
 ## 17. Deliberately excluded
 
-Classes, inheritance, exceptions, null, implicit numeric conversions, operator overloading,
-macros, mutable globals, `goto`, `with`, compound assignment, chained comparisons,
-semicolon-separated statements, tuples (use records), closures that share
-variables (lambdas copy them), runtime trait objects (use unions).
+Classes, inheritance, exceptions, null, implicit numeric conversions, new operators and
+meanings for operators beyond a record's `equals` and `compare` (§4.4), macros, mutable
+globals, `goto`, `with`, compound assignment, chained comparisons, semicolon-separated
+statements, tuples (use records), closures that share variables (lambdas copy them),
+runtime trait objects (use unions).
 
 ---
 
