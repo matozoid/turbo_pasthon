@@ -4,3 +4,6 @@ exit 1
 --- stderr
 Main.pst:10:10: error E0700: String doesn't satisfy Ordinal, required by 'f': String isn't Ordinal
 Main.pst:10:19: error E0700: Real doesn't satisfy Ordinal, required by 'f': Real isn't Ordinal
+Main.pst:15:1: error E0700: String doesn't satisfy Ordinal, required by 'inc': String isn't Ordinal
+Main.pst:16:1: error E0700: String doesn't satisfy Ordinal, required by 'dec': String isn't Ordinal
+Main.pst:17:8: error E0700: Real doesn't satisfy Ordinal, required by 'ord': Real isn't Ordinal

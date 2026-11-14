@@ -152,11 +152,6 @@ $ $PST query accepts Square | grep -o '"declaration":"[^"]*"'
 exit 0
 --- stdout
 "declaration":"function area(sq: Square): Integer"
-"declaration":"procedure inc[T](var x: T)"
-"declaration":"procedure inc[T](var x: T, n: Integer)"
-"declaration":"procedure dec[T](var x: T)"
-"declaration":"procedure dec[T](var x: T, n: Integer)"
-"declaration":"function ord[T](x: T): Integer"
 "declaration":"function new[T](value: T): ref T"
 --- stderr
 $ $PST query accepts Shapes.pst:13:23 | grep -o '"name":"[a-zA-Z]*"'
@@ -164,11 +159,6 @@ exit 0
 --- stdout
 "name":"total"
 "name":"length"
-"name":"inc"
-"name":"inc"
-"name":"dec"
-"name":"dec"
-"name":"ord"
 "name":"new"
 "name":"add"
 "name":"remove"

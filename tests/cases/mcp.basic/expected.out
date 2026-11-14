@@ -72,11 +72,6 @@ $ echo '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"pst_acce
 exit 0
 --- stdout
 declaration\":\"function area(sq: Square): Integer
-declaration\":\"procedure inc[T](var x: T)
-declaration\":\"procedure inc[T](var x: T, n: Integer)
-declaration\":\"procedure dec[T](var x: T)
-declaration\":\"procedure dec[T](var x: T, n: Integer)
-declaration\":\"function ord[T](x: T): Integer
 declaration\":\"function new[T](value: T): ref T
 --- stderr
 $ echo '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"pst_accepts","arguments":{}}}' | $PST mcp --root proj

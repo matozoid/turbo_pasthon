@@ -960,6 +960,16 @@ function opHolds(tc: ref TC, t: Type, op: ref Symbol): Boolean
     var s := zipSubst(sig(tc.env, op).tparams, argsOf(t))
     return boundsHold(tc.env, op.file, sig(tc.env, op).tparams, var s, [])
 
+{ Record `t`'s own `equals`, `compare` or `hash`, if it has one that takes `t`. }
+export function heldOp(tc: ref TC, t: Type, name: String): Option[ref Symbol]
+    case userOp(tc.env, t, name) of
+        Some(op):
+            if opHolds(tc, t, op.value) then
+                return op
+        None:
+            pass
+    return None
+
 function isHook(env: ref Env, s: ref Symbol): Boolean
     for _, h in hooks(env) do
         if h = s then

@@ -19,6 +19,9 @@ type
         export name: String
         export path: String
         export std: Boolean
+        { How panics and leak reports name the file when it's in `lib/`, as `json/Json.pst`;
+          else empty. }
+        export libPath: String
         export parsed: ParseResult
         export symbol: ref Symbol
         export top: Map[String, List[ref Symbol]]
@@ -338,7 +341,13 @@ function isPlainName(stem: String): Boolean
         first := false
     return not first
 
-function load(c: ref Checker, path: String, std: Boolean, expected: String := ""): Option[ref Unit]
+function load(
+    c: ref Checker,
+    path: String,
+    std: Boolean,
+    expected: String := "",
+    libPath: String := "",
+): Option[ref Unit]
     var text := ""
     var read: Result[String, String] := Err("")
     case get(c.overlay, absolute(path)) of
@@ -380,6 +389,7 @@ function load(c: ref Checker, path: String, std: Boolean, expected: String := ""
         name: name,
         path: path,
         std: std,
+        libPath: libPath,
         parsed: parsed,
         symbol: symbol,
         top: [:],
@@ -481,6 +491,7 @@ function findUnit(
     var candidates: List[String] := [join(c.stdDir, b: "{name}.pst")]
     if not user.std then
         add(var candidates, join(dirname(user.path), b: "{name}.pst"))
+    let local := length(candidates)
     let libs := join(dirname(c.stdDir), b: "lib")
     var dirs := listDir(libs).getOr([])
     sort(var dirs)
@@ -488,8 +499,11 @@ function findUnit(
         add(var candidates, join(join(libs, b: d), b: "{name}.pst"))
     for i := 0 to length(candidates) - 1 do
         let path := candidates[i]
+        var libPath := ""
+        if i >= local then
+            libPath := "{dirs[i - local]}/{name}.pst"
         if absolute(path) in c.overlay or isFile(path) then
-            case load(c, path, std: i = 0, expected: name) of
+            case load(c, path, std: i = 0, expected: name, libPath: libPath) of
                 Some(u):
                     if u.value.parsed.file.kind <> "unit" then
                         add(var c.programs, name)

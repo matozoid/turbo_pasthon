@@ -1,9 +1,20 @@
 unit Collections
 
-{ Collections beyond `List`, `Map` and `Set`: a priority queue, and a map kept in key
-  order. }
+{ Collections beyond `List`, `Map` and `Set`: a double-ended queue, a priority queue, and a
+  map kept in key order. }
 
 type
+    { A ring buffer: element `i` is at `items[(head + i) mod length(items)]`, for `i` below
+      `count`. The slots after the last element hold old values until they're reused. }
+    export Deque[T] = record
+        items: List[T]
+        head: Integer
+        count: Integer
+
+    export DequeIter[T] = record
+        source: Deque[T]
+        pos: Integer
+
     { A binary heap: `items[0]` is the first out, and no element is `less` than its parent,
       at `(i - 1) div 2`. The order of the others depends on the order they came in, so
       queues can't be compared with `=`. }
@@ -20,6 +31,128 @@ type
     export SortedMapIter[K: Ordered, V] = record
         source: SortedMap[K, V]
         pos: Integer
+
+{ ---------------------------------------------------------------------- deques }
+
+{ An empty deque. }
+export function deque[T](): Deque[T]
+    return Deque(items: [], head: 0, count: 0)
+
+{ Number of elements. }
+export function length[T](d: Deque[T]): Integer
+    return d.count
+
+{ Where element `i` is in `d.items`; -1, which panics `P0001` as an index, if there's no
+  such element. }
+function slot[T](d: Deque[T], i: Integer): Integer
+    if i < 0 or i >= d.count then
+        return -1
+    return (d.head + i) mod length(d.items)
+
+{ The elements in order, from `items[0]`, when the buffer is full. }
+procedure unwrap[T](var d: Deque[T])
+    var items: List[T] := []
+    for i := 0 to d.count - 1 do
+        add(var items, d.items[slot(d, i)])
+    d.items := items
+    d.head := 0
+
+{ Adds `x` after the last element. O(1), amortized. }
+export procedure pushBack[T](var d: Deque[T], x: T)
+    if d.count = length(d.items) then
+        unwrap(var d)
+        add(var d.items, x)
+    else
+        d.items[(d.head + d.count) mod length(d.items)] := x
+    inc(var d.count)
+
+{ Adds `x` before the first element. O(1), amortized. }
+export procedure pushFront[T](var d: Deque[T], x: T)
+    if d.count = length(d.items) then
+        unwrap(var d)
+        add(var d.items, x)
+        d.head := d.count
+    else
+        d.head := (d.head + length(d.items) - 1) mod length(d.items)
+        d.items[d.head] := x
+    inc(var d.count)
+
+{ Takes out the first element, if any. O(1). }
+export function popFront[T](var d: Deque[T]): Option[T]
+    if d.count = 0 then
+        return None
+    let x := d.items[d.head]
+    d.head := (d.head + 1) mod length(d.items)
+    dec(var d.count)
+    return Some(x)
+
+{ Takes out the last element, if any. O(1). }
+export function popBack[T](var d: Deque[T]): Option[T]
+    if d.count = 0 then
+        return None
+    let x := d.items[slot(d, d.count - 1)]
+    dec(var d.count)
+    return Some(x)
+
+{ The first element, if any. }
+export function first[T](d: Deque[T]): Option[T]
+    if d.count = 0 then
+        return None
+    return Some(d.items[d.head])
+
+{ The last element, if any. }
+export function last[T](d: Deque[T]): Option[T]
+    if d.count = 0 then
+        return None
+    return Some(d.items[slot(d, d.count - 1)])
+
+{ `d[i]`: element `i`, counting from the front (`P0001` if there's no such element). }
+operator function get[T](d: Deque[T], i: Integer): T
+    return d.items[slot(d, i)]
+
+{ `d[i] := x` (`P0001` if there's no element `i`). }
+operator procedure set[T](var d: Deque[T], i: Integer, x: T)
+    d.items[slot(d, i)] := x
+
+{ `x in d`: whether an element of `d` is `x`. O(n). }
+operator function contains[T: Equatable](d: Deque[T], x: T): Boolean
+    for i := 0 to d.count - 1 do
+        if d.items[slot(d, i)] = x then
+            return true
+    return false
+
+{ `a = b`: the same elements in the same order. }
+operator function equals[T: Equatable](a, b: Deque[T]): Boolean
+    if a.count <> b.count then
+        return false
+    for i := 0 to a.count - 1 do
+        if a.items[slot(a, i)] <> b.items[slot(b, i)] then
+            return false
+    return true
+
+operator procedure hash[T: Hashable](var h: Hasher, d: Deque[T])
+    combine(var h, d.count)
+    for i := 0 to d.count - 1 do
+        combine(var h, d.items[slot(d, i)])
+
+{ The elements, front to back: `for x in d`. }
+export function iter[T](d: Deque[T]): DequeIter[T]
+    return DequeIter(source: d, pos: 0)
+
+export function next[T](var it: DequeIter[T]): Option[T]
+    if it.pos >= it.source.count then
+        return None
+    inc(var it.pos)
+    return Some(it.source[it.pos - 1])
+
+{ The elements as `[a, b]`, front to back. }
+export function toString[T: Printable](d: Deque[T]): String
+    var out := "["
+    for i := 0 to d.count - 1 do
+        if i > 0 then
+            out := "{out}, "
+        out := "{out}{d.items[slot(d, i)]}"
+    return "{out}]"
 
 { ------------------------------------------------------------ priority queues }
 
@@ -233,3 +366,54 @@ test "a sorted map's entries come in key order"
         assert e.key > last
         last := e.key
     assert toString(sortedMap[Integer, Integer]()) = "[:]"
+
+test "a deque takes elements at both ends"
+    var d := deque[Integer]()
+    for i := 1 to 5 do
+        pushBack(var d, i)
+    pushFront(var d, 0)
+    pushFront(var d, -1)
+    assert length(d) = 7
+    assert toString(d) = "[-1, 0, 1, 2, 3, 4, 5]"
+    assert popFront(var d) = Some(-1)
+    assert popBack(var d) = Some(5)
+    assert first(d) = Some(0)
+    assert last(d) = Some(4)
+    assert d[1] = 1
+    d[1] := 10
+    assert 10 in d and not (1 in d)
+    var out: List[Integer] := []
+    for x in d do
+        add(var out, x)
+    assert out = [0, 10, 2, 3, 4]
+
+test "a deque wraps around its buffer"
+    var d := deque[String]()
+    for i := 1 to 4 do
+        pushBack(var d, "{i}")
+    for i := 1 to 3 do
+        assert popFront(var d) = Some("{i}")
+    for i := 5 to 9 do
+        pushBack(var d, "{i}")
+    pushFront(var d, "3")
+    assert toString(d) = "[3, 4, 5, 6, 7, 8, 9]"
+    while length(d) > 0 do
+        _ := popBack(var d)
+    assert popBack(var d) = None
+    assert popFront(var d) = None
+    assert first(d) = None
+
+test "deques with the same elements are equal"
+    var a := deque[Integer]()
+    var b := deque[Integer]()
+    for i := 1 to 3 do
+        pushBack(var a, i)
+    pushBack(var b, 0)
+    for i := 1 to 3 do
+        pushBack(var b, i)
+    _ := popFront(var b)
+    assert a = b
+    let s: Set[Deque[Integer]] := [a, b]
+    assert length(s) = 1
+    pushBack(var b, 4)
+    assert a <> b

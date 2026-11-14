@@ -378,13 +378,13 @@ def Main.pst 76:5-76:6
 use Main.pst 77:1-77:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 77:11-77:14
-  function 'get' @ std/System.pst:671:17
+  function 'get' @ std/System.pst:683:17
 use Main.pst 77:15-77:18
   function 'get' @ std/System.pst:365:17
 use Main.pst 77:19-77:20
   var 'm' @ Main.pst:23:5
 use Main.pst 77:32-77:38
-  function 'isNone' @ std/System.pst:659:17
+  function 'isNone' @ std/System.pst:671:17
 use Main.pst 77:39-77:42
   function 'get' @ std/System.pst:365:17
 use Main.pst 77:43-77:44

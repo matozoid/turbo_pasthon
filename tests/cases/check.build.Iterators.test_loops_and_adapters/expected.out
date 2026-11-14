@@ -100,7 +100,7 @@ use Main.pst 38:5-38:10
 use Main.pst 38:11-38:12
   loop variable 'w' @ Main.pst:37:5
 use Main.pst 39:10-39:13
-  function 'zip' @ std/System.pst:806:17
+  function 'zip' @ std/System.pst:818:17
 use Main.pst 39:14-39:19
   let 'words' @ Main.pst:33:5
 use Main.pst 39:31-39:33
@@ -115,7 +115,7 @@ use Main.pst 40:14-40:15
 use Main.pst 40:23-40:24
   loop variable 'p' @ Main.pst:39:5
 use Main.pst 41:10-41:19
-  function 'enumerate' @ std/System.pst:819:17
+  function 'enumerate' @ std/System.pst:831:17
 use Main.pst 41:20-41:25
   let 'words' @ Main.pst:33:5
 def Main.pst 41:5-41:6
@@ -139,21 +139,21 @@ use Main.pst 45:10-45:12
 use Main.pst 47:1-47:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 47:11-47:16
-  function 'count' @ std/System.pst:839:17
+  function 'count' @ std/System.pst:851:17
 use Main.pst 47:17-47:19
   var 'it' @ Main.pst:44:5
 use Main.pst 47:23-47:28
-  function 'count' @ std/System.pst:839:17
+  function 'count' @ std/System.pst:851:17
 use Main.pst 47:29-47:38
   type 'Countdown' @ Main.pst:7:5
 use Main.pst 47:48-47:51
-  function 'sum' @ std/System.pst:846:17
+  function 'sum' @ std/System.pst:858:17
 use Main.pst 47:52-47:54
   let 'xs' @ Main.pst:32:5
 use Main.pst 47:65-47:70
-  function 'count' @ std/System.pst:839:17
+  function 'count' @ std/System.pst:851:17
 use Main.pst 47:71-47:76
-  function 'chars' @ std/System.pst:771:17
+  function 'chars' @ std/System.pst:783:17
 use Main.pst 48:1-48:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 48:21-48:23
@@ -166,13 +166,13 @@ use Main.pst 48:27-48:33
 use Main.pst 48:34-48:35
   loop variable 'x' @ Main.pst:48:16
 use Main.pst 48:59-48:62
-  function 'any' @ std/System.pst:859:17
+  function 'any' @ std/System.pst:871:17
 use Main.pst 48:63-48:65
   let 'xs' @ Main.pst:32:5
 use Main.pst 48:74-48:79
   function 'isOdd' @ Main.pst:19:10
 use Main.pst 48:83-48:86
-  function 'all' @ std/System.pst:866:17
+  function 'all' @ std/System.pst:878:17
 use Main.pst 48:87-48:89
   let 'xs' @ Main.pst:32:5
 use Main.pst 48:98-48:103
@@ -185,9 +185,9 @@ def Main.pst 49:5-49:6
 use Main.pst 50:1-50:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 50:11-50:14
-  function 'get' @ std/System.pst:671:17
+  function 'get' @ std/System.pst:683:17
 use Main.pst 50:15-50:19
-  function 'find' @ std/System.pst:873:17
+  function 'find' @ std/System.pst:885:17
 use Main.pst 50:20-50:22
   let 'xs' @ Main.pst:32:5
 use Main.pst 50:31-50:36
@@ -255,37 +255,37 @@ use Main.pst 14:19-14:20
 use Main.pst 29:20-29:21
   field 'n' @ Main.pst:8:9
 use Main.pst 35:22-35:26
-  function 'iter' @ std/System.pst:708:17
+  function 'iter' @ std/System.pst:720:17
 use Main.pst 35:29-35:33
-  function 'skip' @ std/System.pst:795:17
+  function 'skip' @ std/System.pst:807:17
 use Main.pst 35:37-35:41
-  function 'take' @ std/System.pst:785:17
+  function 'take' @ std/System.pst:797:17
 use Main.pst 39:20-39:24
-  function 'iter' @ std/System.pst:708:17
+  function 'iter' @ std/System.pst:720:17
 use Main.pst 39:34-39:38
-  function 'iter' @ std/System.pst:708:17
+  function 'iter' @ std/System.pst:720:17
 use Main.pst 39:28-39:29
-  parameter 'b' @ std/System.pst:806:65
+  parameter 'b' @ std/System.pst:818:65
 use Main.pst 40:16-40:21
   field 'first' @ std/System.pst:43:16
 use Main.pst 40:25-40:31
   field 'second' @ std/System.pst:44:16
 use Main.pst 41:26-41:30
-  function 'iter' @ std/System.pst:708:17
+  function 'iter' @ std/System.pst:720:17
 use Main.pst 42:16-42:21
   field 'index' @ std/System.pst:48:16
 use Main.pst 42:26-42:31
   field 'value' @ std/System.pst:49:16
 use Main.pst 44:14-44:18
-  function 'iter' @ std/System.pst:708:17
+  function 'iter' @ std/System.pst:720:17
 use Main.pst 47:39-47:40
   field 'n' @ Main.pst:8:9
 use Main.pst 47:55-47:59
-  function 'iter' @ std/System.pst:708:17
+  function 'iter' @ std/System.pst:720:17
 use Main.pst 48:66-48:70
-  function 'iter' @ std/System.pst:708:17
+  function 'iter' @ std/System.pst:720:17
 use Main.pst 48:90-48:94
-  function 'iter' @ std/System.pst:708:17
+  function 'iter' @ std/System.pst:720:17
 use Main.pst 50:23-50:27
-  function 'iter' @ std/System.pst:708:17
+  function 'iter' @ std/System.pst:720:17
 --- stderr

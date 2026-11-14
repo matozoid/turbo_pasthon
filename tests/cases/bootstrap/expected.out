@@ -1,4 +1,4 @@
-$ mkdir s1 s2 && ln -s $STD s1/units && ln -s $STD s2/units
+$ mkdir s1 s2 && ln -s $STD s1/units && ln -s $STD s2/units && ln -s $ROOT/lib s1/lib && ln -s $ROOT/lib s2/lib
 exit 0
 --- stdout
 --- stderr

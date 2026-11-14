@@ -7,5 +7,5 @@ exit 70
 --- stdout
 --- stderr
 panic P0005: get on None
-    at System.pst:674:15
+    at System.pst:686:15
     called from Main.pst:7:9

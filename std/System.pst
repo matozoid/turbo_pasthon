@@ -134,14 +134,14 @@ external "pst"
     export function length[T](xs: List[T]): Integer
     export function length[T, N: Integer](a: Array[T, N]): Integer
 
-    { Adds 1 (or `n`) to an integer or enum variable. }
-    export procedure inc[T](var x: T)
-    export procedure inc[T](var x: T, n: Integer)
-    { Subtracts 1 (or `n`) from an integer or enum variable. }
-    export procedure dec[T](var x: T)
-    export procedure dec[T](var x: T, n: Integer)
-    { The position of an enum member, or the code point of a Char. }
-    export function ord[T](x: T): Integer
+    { Adds 1 (or `n`) to an ordinal variable. }
+    export procedure inc[T: Ordinal](var x: T)
+    export procedure inc[T: Ordinal](var x: T, n: Integer)
+    { Subtracts 1 (or `n`) from an ordinal variable. }
+    export procedure dec[T: Ordinal](var x: T)
+    export procedure dec[T: Ordinal](var x: T, n: Integer)
+    { The position of an ordinal value: an enum member's index, a Char's code point. }
+    export function ord[T: Ordinal](x: T): Integer
 
     { Allocates `value` on the heap. }
     export function new[T](value: T): ref T
@@ -483,7 +483,19 @@ function newHasher(): Hasher
 function hashed(h: Hasher): Integer
     return h.state
 
-{ `a = b`: the same keys, with equal values, in any order. Called by the runtime's `=`. }
+{ `a = b`: the same keys, with equal values, in any order. }
+operator function equals[K: Hashable, V: Equatable](a, b: Map[K, V]): Boolean
+    return mapEquals(a, b)
+
+{ A map's hash: the same for equal maps, whatever order their entries were added in. }
+operator procedure hash[K: Hashable, V: Hashable](var h: Hasher, m: Map[K, V])
+    var entries := 0
+    for e := 0 to length(m.keys) - 1 do
+        if m.hashes[e] >= 0 then
+            entries := entries xor hash(HashStep(before: hash(m.keys[e]), next: hash(m.values[e])))
+    combine(var h, entries)
+
+{ The body of `equals` for maps, under the name the v0.6 compiler calls it by. }
 function mapEquals[K: Hashable, V: Equatable](a, b: Map[K, V]): Boolean
     if a.count <> b.count then
         return false

@@ -42,5 +42,5 @@ use Main.pst 9:19-9:24
 use Main.pst 10:5-10:9
   type 'None' @ std/System.pst:22:12
 use Main.pst 12:37-12:43
-  function 'isNone' @ std/System.pst:659:17
+  function 'isNone' @ std/System.pst:671:17
 --- stderr

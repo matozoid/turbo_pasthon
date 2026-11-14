@@ -58,27 +58,27 @@ def Main.pst 15:5-15:6
 use Main.pst 16:1-16:8
   procedure 'writeln' @ std/IO.pst:16:22
 use Main.pst 16:11-16:17
-  function 'length' @ std/System.pst:569:17
+  function 'length' @ std/System.pst:581:17
 use Main.pst 16:18-16:19
   let 'a' @ Main.pst:10:5
 use Main.pst 16:23-16:29
-  function 'length' @ std/System.pst:569:17
+  function 'length' @ std/System.pst:581:17
 use Main.pst 16:30-16:31
   let 'b' @ Main.pst:11:5
 use Main.pst 16:35-16:41
-  function 'length' @ std/System.pst:569:17
+  function 'length' @ std/System.pst:581:17
 use Main.pst 16:42-16:43
   let 'c' @ Main.pst:12:5
 use Main.pst 16:47-16:53
-  function 'length' @ std/System.pst:569:17
+  function 'length' @ std/System.pst:581:17
 use Main.pst 16:54-16:55
   let 'd' @ Main.pst:13:5
 use Main.pst 16:59-16:65
-  function 'length' @ std/System.pst:569:17
+  function 'length' @ std/System.pst:581:17
 use Main.pst 16:66-16:67
   let 'e' @ Main.pst:14:5
 use Main.pst 16:71-16:77
-  function 'length' @ std/System.pst:569:17
+  function 'length' @ std/System.pst:581:17
 use Main.pst 16:78-16:79
   let 'g' @ Main.pst:15:5
 Main.pst error E0700 12:8-12:20 "Real can't be a BitSet element: it needs an ordinal type with at most 256 values (Boolean, Byte, an enum, or a subrange); use a Set"

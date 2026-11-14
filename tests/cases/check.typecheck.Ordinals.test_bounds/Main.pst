@@ -10,3 +10,8 @@ function h[T: Ordinal](x: T): Boolean
 let a := f("s") + f(1.5)
 let c := h(3) and h(Char(3))
 assert a = 0 and c
+
+var s := "s"
+inc(var s)
+dec(var s, 2)
+assert ord(1.5) = 0

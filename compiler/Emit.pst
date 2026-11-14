@@ -981,8 +981,11 @@ function isStd(g: ref Em, file: String): Boolean
 { The file and line of `span`. }
 function place(g: ref Em, span: Span): String
     var path := ""
+    let u := get(g.units, g.f.file)
     if isStd(g, g.f.file) then
         path := basename(g.f.file)
+    else if u.isSome() and u.get().libPath <> "" then
+        path := u.get().libPath
     else
         path := relative(g.f.file, dirname(g.main.path))
     return "{path}:{span.line}"
@@ -3428,7 +3431,7 @@ procedure eBinary(g: ref Em, x: Binary, e: Expr)
     coerce(g, x.right, t)
     if g.bad then
         return
-    if isCompare(op) and userOp(g.env, t, "compare").isSome() then
+    if isCompare(op) and heldOp(g.env.checkers[g.f.file], t, "compare").isSome() then
         let target := opLabel(g, x.span, t, "compare")
         if g.bad then
             return
@@ -4538,16 +4541,12 @@ procedure construct(g: ref Em, c: Call, m: Match)
             pop(a, Rax)
         return
     var eq := ""
-    if isMap(g.env, t) and builtinTrait(g.env.checkers[g.f.file], argsOf(t)[1], "Equatable") then
-        eq := sysLabel(g, c.span, "mapEquals", argsOf(t))
-        if g.bad then
-            return
-    if userOp(g.env, t, "equals").isSome() then
+    if heldOp(g.env.checkers[g.f.file], t, "equals").isSome() then
         eq := opLabel(g, c.span, t, "equals")
-    else if userOp(g.env, t, "compare").isSome() then
+    else if heldOp(g.env.checkers[g.f.file], t, "compare").isSome() then
         eq := stubLabel(g, "eq", opLabel(g, c.span, t, "compare"))
     var hash := ""
-    if userOp(g.env, t, "hash").isSome() then
+    if heldOp(g.env.checkers[g.f.file], t, "hash").isSome() then
         hash := stubLabel(
             g,
             "hash",

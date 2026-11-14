@@ -2,10 +2,13 @@ $ $PST test $ROOT/std
 exit 0
 --- stdout
 ok   std/Bits.pst:9: bit counting
-ok   std/Collections.pst:181: a priority queue gives its smallest element first
-ok   std/Collections.pst:194: a priority queue can use its own order
-ok   std/Collections.pst:203: a sorted map keeps its keys in order
-ok   std/Collections.pst:227: a sorted map's entries come in key order
+ok   std/Collections.pst:314: a priority queue gives its smallest element first
+ok   std/Collections.pst:327: a priority queue can use its own order
+ok   std/Collections.pst:336: a sorted map keeps its keys in order
+ok   std/Collections.pst:360: a sorted map's entries come in key order
+ok   std/Collections.pst:370: a deque takes elements at both ends
+ok   std/Collections.pst:390: a deque wraps around its buffer
+ok   std/Collections.pst:406: deques with the same elements are equal
 ok   std/Math.pst:37: integer helpers
 ok   std/Math.pst:42: real functions
 ok   std/OS.pst:298: directories
@@ -30,13 +33,13 @@ ok   std/Strings.pst:442: case and lines
 ok   std/Strings.pst:447: characters
 ok   std/Strings.pst:456: number formatting
 ok   std/Strings.pst:462: glob patterns
-ok   std/System.pst:891: list editing
-ok   std/System.pst:904: sort is stable
-ok   std/System.pst:921: maps
-ok   std/System.pst:933: sets
-ok   std/System.pst:948: bit sets
-ok   std/System.pst:962: options and results
-ok   std/System.pst:975: iterators
+ok   std/System.pst:903: list editing
+ok   std/System.pst:916: sort is stable
+ok   std/System.pst:933: maps
+ok   std/System.pst:945: sets
+ok   std/System.pst:960: bit sets
+ok   std/System.pst:974: options and results
+ok   std/System.pst:987: iterators
 ok   std/Time.pst:1486: durations
 ok   std/Time.pst:1496: dates
 ok   std/Time.pst:1515: times
@@ -47,7 +50,7 @@ ok   std/Time.pst:1582: tzdata zones
 ok   std/Time.pst:1608: zoned date-times
 ok   std/Time.pst:1636: periods
 ok   std/Time.pst:1661: intervals
-46 passed, 0 failed
+49 passed, 0 failed
 --- stderr
 $ $PST test $ROOT/lib/json
 exit 0
@@ -66,14 +69,9 @@ ok   compiler/Decimal.pst:197: exact and rounded literals
 ok   compiler/Decimal.pst:206: the edges of the range
 ok   compiler/Decimal.pst:213: singles
 ok   compiler/Difflib.pst:90: close matches, best first
-ok   compiler/Json.pst:384: parse and write back
-ok   compiler/Json.pst:392: errors
-ok   compiler/Json.pst:401: reading parts
-ok   compiler/Json.pst:411: nesting is limited
-ok   compiler/Json.pst:417: quote escapes control characters
 ok   compiler/PosixPaths.pst:120: dirname and basename
 ok   compiler/PosixPaths.pst:126: stripExt
 ok   compiler/PosixPaths.pst:132: join and normalize
 ok   compiler/PosixPaths.pst:139: relative
-13 passed, 0 failed
+8 passed, 0 failed
 --- stderr
